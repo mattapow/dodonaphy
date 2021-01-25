@@ -22,7 +22,6 @@ real hyperbolic_distance(real r1, real r2, real[] directional1, real[] direction
 	dp1[1] = max(dp1);
 	dp1[2] = 1.0;
 	iprod = min(dp1);
-//	real iprod = min(max(-1.0,dot_product(directional1,directional2)),1.0);
 	// hyperbolic 'angle'; force numerical >= 1.0
 	dp1[1] = 2*(r1^2 + r2^2 - 2*r1*r2*iprod)/((1 - r1^2)*(1 - r2^2));
 	dp1[2] = 0.0;
@@ -33,6 +32,41 @@ real hyperbolic_distance(real r1, real r2, real[] directional1, real[] direction
 }
 
 void make_peel(real[,] leaf_locs, real[,] int_locs, int[,] peel, int[] location_map);
+
+real[] compute_branch_lengths(int S, int D, int[,] peel, int[] location_map, real[,] leaf_locs, real[,] int_locs) {
+	int bcount = 2*S-2;
+	real blens[bcount]; // branch lengths
+	for( b in 1:(S-1) ){
+		real r1;
+		real directional1[D-1];
+		real r2;
+		real directional2[D-1];
+		r2 = int_locs[location_map[peel[b,3]]-S,1];
+		directional2[] = tail(int_locs[(location_map[peel[b,3]]-1)*D + 1,], D-1);
+		if(peel[b,1] <= S){
+			// leaf to internal
+			r1 = leaf_locs[peel[b,1],1];
+			directional1 = tail(leaf_locs[(peel[b,1]-1)*D + 1,], D-1);
+		}else{
+			// internal to internal
+			r1 = int_locs[location_map[peel[b,1]]-S,1];
+			directional1 = tail(int_locs[(location_map[peel[b,1]]-1)*D + 1,], D-1);
+		}
+		blens[peel[b,1]] = hyperbolic_distance(r1, r2, directional1, directional2, -1);
+
+		if(peel[b,2] <= S){
+			// leaf to internal
+			r1 = leaf_locs[peel[b,2],1];
+			directional1 = tail(leaf_locs[(peel[b,2]-1)*D + 1,], D-1);
+		}else{
+			// internal to internal
+			r1 = int_locs[location_map[peel[b,2]]-S,1];
+			directional1 = tail(int_locs[(location_map[peel[b,2]]-1)*D + 1,], D-1);
+		}
+		blens[peel[b,2]] = hyperbolic_distance(r1, r2, directional1, directional2, -1);
+	}
+	return blens;
+} 
 
 }
 
@@ -64,28 +98,14 @@ model {
 
 	vector[4] partials[2*S,L];   // partial probabilities for the S tips and S-1 internal nodes
 	matrix[4,4] fttm[bcount]; // finite-time transition matrices for each branch
-	vector[bcount] blens; // branch lengths
-	int peel[S-1,3];   // list of nodes for peeling. this gets initialized via an additional c++ function 
-	int location_map[2*S];   // list of nodes for peeling. this gets initialized via an additional c++ function 
+	real blens[bcount]; // branch lengths
+	int peel[S-1,3];   // list of nodes for peeling. this gets initialized via the c++ function make_peel()
+	int location_map[2*S];   // node location map. this gets initialized via  the c++ function make_peel()
     
 	make_peel(leaf_locs, int_locs, peel, location_map);
+	blens = compute_branch_lengths(S, D, peel, location_map, leaf_locs, int_locs);
 
-	for( b in 1:(S-1) ){
-		if(peel[b,1] <= S){
-			// leaf to internal
-			blens[peel[b,1]] = distance(peel[b,1], location_map[peel[b,3]]-S, D, leaf_locs, int_locs);
-		}else{
-			blens[peel[b,1]] = distance(location_map[peel[b,1]], location_map[peel[b,3]]-S, D, int_locs, int_locs);
-		}
-		if(peel[b,2] <= S){
-			// leaf to internal
-			blens[peel[b,2]] = distance(peel[b,2], location_map[peel[b,3]]-S, D, leaf_locs, int_locs);
-		}else{
-			blens[peel[b,2]] = distance(location_map[peel[b,2]], location_map[peel[b,3]]-S, D, int_locs, int_locs);
-		}
-	}
-
-    
+	// compute the finite time transition matrices
 	for( b in 1:bcount ) {
 	    for( i in 1:4 ) {
         	for( j in 1:4 ) {
@@ -116,6 +136,16 @@ model {
 		}
 		// add the site log likelihood
 		target += log(sum(partials[2*S,i]));
+	}
+}
+
+generated quantities {
+	int peel[S-1,3];      // tree topology
+	real blens[bcount];   // branch lengths
+	{
+		int location_map[2*S];
+		make_peel(leaf_locs, int_locs, peel, location_map);
+		blens = compute_branch_lengths(S, D, peel, location_map, leaf_locs, int_locs);
 	}
 }
 
