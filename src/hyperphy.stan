@@ -52,7 +52,10 @@ real[] compute_branch_lengths(int S, int D, int[,] peel, int[] location_map, rea
 			r1 = int_locs[location_map[peel[b,1]]-S,1];
 			directional1 = tail(int_locs[(location_map[peel[b,1]]-1)*D + 1,], D-1);
 		}
-		blens[peel[b,1]] = hyperbolic_distance(r1, r2, directional1, directional2, -1);
+		blens[peel[b,1]] = hyperbolic_distance(r1, r2, directional1, directional2, 1);
+
+		// apply the inverse transform from Matsumoto et al 2020
+		blens[peel[b,1]] = log(cosh(blens[peel[b,1]]));
 
 		if(peel[b,2] <= S){
 			// leaf to internal
@@ -63,7 +66,10 @@ real[] compute_branch_lengths(int S, int D, int[,] peel, int[] location_map, rea
 			r1 = int_locs[location_map[peel[b,2]]-S,1];
 			directional1 = tail(int_locs[(location_map[peel[b,2]]-1)*D + 1,], D-1);
 		}
-		blens[peel[b,2]] = hyperbolic_distance(r1, r2, directional1, directional2, -1);
+		blens[peel[b,2]] = hyperbolic_distance(r1, r2, directional1, directional2, 1);
+
+		// apply the inverse transform from Matsumoto et al 2020
+		blens[peel[b,2]] = log(cosh(blens[peel[b,2]]));
 	}
 	return blens;
 } 
