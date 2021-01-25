@@ -5,7 +5,7 @@
 #include <queue>
 #include <stack>
 
-namespace hyperphy_model_namespace {
+namespace dodonaphy_model_namespace {
 
 double get_val(double v){ return v; }
 double get_val(const stan::math::var& v){ return v.val(); }
