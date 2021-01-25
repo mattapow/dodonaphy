@@ -1,4 +1,4 @@
-# hyperphy
+# dodonaphy
 
 Research into the use of hyperbolic embeddings for approximating phylogenetic posteriors
 
