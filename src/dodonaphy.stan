@@ -19,9 +19,10 @@ real hyperbolic_distance(real r1, real r2, real[] directional1, real[] direction
 	real dist;
 	dp1[1] =  dot_product(directional1,directional2);
 	dp1[2] = -1.0;
-	dp1[1] = max(dp1);
+//	dp1[1] = max(dp1);
 	dp1[2] = 1.0;
-	iprod = min(dp1);
+	iprod = dp1[1];
+//	iprod = min(dp1);
 	// hyperbolic 'angle'; force numerical >= 1.0
 	dp1[1] = 2*(r1^2 + r2^2 - 2*r1*r2*iprod)/((1 - r1^2)*(1 - r2^2));
 	dp1[2] = 0.0;
@@ -42,35 +43,36 @@ real[] compute_branch_lengths(int S, int D, int[,] peel, int[] location_map, rea
 		real r2;
 		real directional2[D-1];
 		r2 = int_locs[location_map[peel[b,3]]-S,1];
-		directional2[] = tail(int_locs[(location_map[peel[b,3]]-1)*D + 1,], D-1);
+		directional2[] = tail(int_locs[location_map[peel[b,3]]-S,], D-1);
 		if(peel[b,1] <= S){
 			// leaf to internal
 			r1 = leaf_locs[peel[b,1],1];
-			directional1 = tail(leaf_locs[(peel[b,1]-1)*D + 1,], D-1);
+			directional1 = tail(leaf_locs[peel[b,1],], D-1);
 		}else{
 			// internal to internal
 			r1 = int_locs[location_map[peel[b,1]]-S,1];
-			directional1 = tail(int_locs[(location_map[peel[b,1]]-1)*D + 1,], D-1);
+			directional1 = tail(int_locs[location_map[peel[b,1]]-S,], D-1);
 		}
 		blens[peel[b,1]] = hyperbolic_distance(r1, r2, directional1, directional2, 1);
 
 		// apply the inverse transform from Matsumoto et al 2020
-		blens[peel[b,1]] = log(cosh(blens[peel[b,1]]));
+		blens[peel[b,1]] = log(cosh(blens[peel[b,1]]))+0.000000000001; // add a tiny amount to avoid zero-length branches
 
 		if(peel[b,2] <= S){
 			// leaf to internal
 			r1 = leaf_locs[peel[b,2],1];
-			directional1 = tail(leaf_locs[(peel[b,2]-1)*D + 1,], D-1);
+			directional1 = tail(leaf_locs[peel[b,2],], D-1);
 		}else{
 			// internal to internal
 			r1 = int_locs[location_map[peel[b,2]]-S,1];
-			directional1 = tail(int_locs[(location_map[peel[b,2]]-1)*D + 1,], D-1);
+			directional1 = tail(int_locs[location_map[peel[b,2]-S],], D-1);
 		}
 		blens[peel[b,2]] = hyperbolic_distance(r1, r2, directional1, directional2, 1);
 
 		// apply the inverse transform from Matsumoto et al 2020
-		blens[peel[b,2]] = log(cosh(blens[peel[b,2]]));
+		blens[peel[b,2]] = log(cosh(blens[peel[b,2]]))+0.000000000001;  // add a tiny amount to avoid zero-length branches
 	}
+
 	return blens;
 } 
 
@@ -93,7 +95,9 @@ transformed data {
 }
 
 parameters {
-    real int_locs[S-3,D]; // unknown positions of internal nodes
+    // TODO: the first column here is used for the radius and should be split out from
+    // the remaining values, which can run in the range of -1 to 1
+    real<lower=0,upper=1> int_locs[S-2,D]; // unknown positions of internal nodes
 }
 
 model {
@@ -106,7 +110,7 @@ model {
 	matrix[4,4] fttm[bcount]; // finite-time transition matrices for each branch
 	real blens[bcount]; // branch lengths
 	int peel[S-1,3];   // list of nodes for peeling. this gets initialized via the c++ function make_peel()
-	int location_map[2*S];   // node location map. this gets initialized via  the c++ function make_peel()
+	int location_map[2*S-1];   // node location map. this gets initialized via  the c++ function make_peel()
     
 	make_peel(leaf_locs, int_locs, peel, location_map);
 	blens = compute_branch_lengths(S, D, peel, location_map, leaf_locs, int_locs);
@@ -146,10 +150,10 @@ model {
 }
 
 generated quantities {
-	int peel[S-1,3];      // tree topology
+	int peel[S-1,3];      // tree topology 
 	real blens[bcount];   // branch lengths
 	{
-		int location_map[2*S];
+		int location_map[2*S-1];
 		make_peel(leaf_locs, int_locs, peel, location_map);
 		blens = compute_branch_lengths(S, D, peel, location_map, leaf_locs, int_locs);
 	}
