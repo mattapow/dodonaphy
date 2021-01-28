@@ -116,17 +116,38 @@ make_peel(const std::vector<std::vector<T0__> >& leaf_locs,
 	queue.push(start_edge);
 	std::vector< std::vector<int> > mst_adjacencies(node_count);
   size_t visited_count = 0;
+  size_t open_slots = 0;
 	while (!queue.empty() && visited_count < node_count) {
 		u_edge e = queue.top();
 		queue.pop();
     // ensure the destination node has not been visited yet
-    // also constrain leaf nodes to a single edge in the MST
-		if(!visited[e.to] && 
-      (e.from >= leaf_node_count || mst_adjacencies[e.from].size()==0)) {
+    // internal nodes can have up to 3 adjacencies, of which at least one must be internal
+    // leaf nodes can only have a single edge in the MST
+    bool is_valid = true;
+    if(visited[e.to]) is_valid = false;
+    if(e.from < leaf_node_count && mst_adjacencies[e.from].size() > 0) is_valid = false;
+    if(e.to < leaf_node_count && mst_adjacencies[e.to].size() > 0) is_valid = false;
+    if(e.from >= leaf_node_count){
+      if(mst_adjacencies[e.from].size()==2){
+        bool found_internal = e.to >= leaf_node_count;
+        if(mst_adjacencies[e.from][0] >= leaf_node_count) found_internal = true;
+        if(mst_adjacencies[e.from][1] >= leaf_node_count) found_internal = true;
+        if(!found_internal) is_valid = false;
+      }else if(mst_adjacencies[e.from].size()==3){
+        is_valid = false; // this node is already full
+      }
+    }
+    // don't use the last open slot unless this is the last node
+    if(open_slots==1 && e.to < leaf_node_count && visited_count < node_count - 1) is_valid = false;
+		if(is_valid) {
       if(e.to != e.from){
 			  mst_adjacencies[e.from].push_back(e.to);
 			  mst_adjacencies[e.to].push_back(e.from);
       }
+
+      // a new internal node has room for 2 more adjacencies
+      if(e.to >= leaf_node_count) open_slots += 2;
+      if(e.from >= leaf_node_count) open_slots--; // one slot consumed
 			
 			visited[e.to] = true;
       visited_count++;
