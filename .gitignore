@@ -1,0 +1,7 @@
+bin/dodonaphy
+dodonaphy.code-workspace
+src/dodonaphy
+src/dodonaphy.hpp
+src/dodonaphy.hpp.orig
+src/dodonaphy.o
+src/test_dodonaphy
