@@ -37,8 +37,8 @@ tdists <- acosh(exp(dists))
 # embed with hydraPlus
 hpembedding <- hydraPlus(tdists, dim = dim, curvature = 1)
 
-# glue the r together with the angles
-leaf_locs <- cbind(hpembedding$r, hpembedding$directional)
+# also create an embedding with internal nodes
+emm <- hydraPlus(acosh(exp(dist.nodes(simtree))), dim = dim, curvature = 1)
 
 # encodes sequences in a tip partial probability matrix
 encode_tipdata <- function(dnaseq){
@@ -52,8 +52,9 @@ encode_tipdata <- function(dnaseq){
 	tipdata
 }
 tipdata <- encode_tipdata(dnaseq)
-dphy_dat <- list(D=dim+1, L=seqlen, S=nseqs, tipdata=tipdata, leaf_locs=leaf_locs)
-
+#dphy_dat <- list(D=dim, L=seqlen, S=nseqs, tipdata=tipdata, leaf_r=hpembedding$r, leaf_dir=hpembedding$directional)
+dphy_dat <- list(D=dim, L=seqlen, S=nseqs, tipdata=tipdata, leaf_r=emm$r[1:6], leaf_dir=emm$directional[1:6,])
+initint<-list(list(int_r=emm$r[8:11],int_dir=emm$directional[8:11,]))
 
 file.copy("src/dodonaphy_cpp_utils.hpp", paste(tempdir(),"/user_header.hpp", sep=""), overwrite=TRUE)
 dphy_mod <- cmdstan_model("src/dodonaphy.stan",stanc_options=list(allow_undefined=TRUE))
@@ -89,7 +90,7 @@ tree_to_newick<-function(tip_names, peel_row, blen_row){
 }
 
 testtree<-tree_to_newick(names(dnaseq), peels[30,], blens[30,])
-ttt1<-read.tree(text=as.character(testtree)) 
+ttt1<-read.tree(text=testtree)
 plot(ttt1)
 add.scale.bar()
 
