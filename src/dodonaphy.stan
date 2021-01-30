@@ -32,26 +32,26 @@ real hyperbolic_distance(real r1, real r2, real[] directional1, real[] direction
 	return dist+0.000000000001; // add a tiny amount to avoid zero-length branches
 }
 
-void make_peel(real[,] leaf_locs, real[,] int_locs, int[,] peel, int[] location_map);
+void make_peel(real[] leaf_r, real[,] leaf_dir, real[] int_r, real[,] int_dir, int[,] peel, int[] location_map);
 
-real[] compute_branch_lengths(int S, int D, int[,] peel, int[] location_map, real[,] leaf_locs, real[,] int_locs) {
+real[] compute_branch_lengths(int S, int D, int[,] peel, int[] location_map, real[] leaf_r, real[,] leaf_dir, real[] int_r, real[,] int_dir) {
 	int bcount = 2*S-2;
 	real blens[bcount]; // branch lengths
 	for( b in 1:(S-1) ){
 		real r1;
-		real directional1[D-1];
+		real directional1[D];
 		real r2;
-		real directional2[D-1];
-		r2 = int_locs[location_map[peel[b,3]]-S,1];
-		directional2[] = tail(int_locs[location_map[peel[b,3]]-S,], D-1);
+		real directional2[D];
+		r2 = int_r[location_map[peel[b,3]]-S];
+		directional2[] = int_dir[location_map[peel[b,3]]-S,];
 		if(peel[b,1] <= S){
 			// leaf to internal
-			r1 = leaf_locs[peel[b,1],1];
-			directional1 = tail(leaf_locs[peel[b,1],], D-1);
+			r1 = leaf_r[peel[b,1]];
+			directional1 = leaf_dir[peel[b,1],];
 		}else{
 			// internal to internal
-			r1 = int_locs[location_map[peel[b,1]]-S,1];
-			directional1 = tail(int_locs[location_map[peel[b,1]]-S,], D-1);
+			r1 = int_r[location_map[peel[b,1]]-S];
+			directional1 = int_dir[location_map[peel[b,1]]-S,];
 		}
 		blens[peel[b,1]] = hyperbolic_distance(r1, r2, directional1, directional2, 1);
 
@@ -60,60 +60,38 @@ real[] compute_branch_lengths(int S, int D, int[,] peel, int[] location_map, rea
 
 		if(peel[b,2] <= S){
 			// leaf to internal
-			r1 = leaf_locs[peel[b,2],1];
-			directional1 = tail(leaf_locs[peel[b,2],], D-1);
+			r1 = leaf_r[peel[b,2]];
+			directional1 = leaf_dir[peel[b,2],];
 		}else{
 			// internal to internal
-			r1 = int_locs[location_map[peel[b,2]]-S,1];
-			directional1 = tail(int_locs[location_map[peel[b,2]-S],], D-1);
+			r1 = int_r[location_map[peel[b,2]]-S];
+			directional1 = int_dir[location_map[peel[b,2]-S],];
 		}
 		blens[peel[b,2]] = hyperbolic_distance(r1, r2, directional1, directional2, 1);
 
 		// apply the inverse transform from Matsumoto et al 2020
 		blens[peel[b,2]] = log(cosh(blens[peel[b,2]]))+0.000000000001;  // add a tiny amount to avoid zero-length branches
+//		print("branch lengths: ");
+//		print(blens[peel[b,1]]);
+//		print(", ");
+//		print(blens[peel[b,2]]);
+//		print("\n");
 	}
 
 	return blens;
 } 
 
-}
 
-
-data {
-    int D; // embedding dimension
-
-    int <lower=0> L;               // alignment length
-    int <lower=0> S;               // number of tip sequences
-    real<lower=0,upper=1> tipdata[S,L,4];
-
-    real leaf_locs[S,D]; // position of each tip sequence in the embedding
-}
-
-transformed data {
-    int bcount; // number of branches
-    bcount = 2*S-2;
-}
-
-parameters {
-    // TODO: the first column here is used for the radius and should be split out from
-    // the remaining values, which can run in the range of -1 to 1
-    real<lower=0,upper=1> int_locs[S-2,D]; // unknown positions of internal nodes
-}
-
-model {
-
-    // compute the phylogenetic likelihood
-    // first generate a tree
-    // then compute a likelihood
-
+real compute_LL(int S, int L, int bcount, int D, real[,,] tipdata, real[] leaf_r, real[,] leaf_dir, real[] int_r, real[,] int_dir) {
 	vector[4] partials[2*S,L];   // partial probabilities for the S tips and S-1 internal nodes
 	matrix[4,4] fttm[bcount]; // finite-time transition matrices for each branch
 	real blens[bcount]; // branch lengths
 	int peel[S-1,3];   // list of nodes for peeling. this gets initialized via the c++ function make_peel()
 	int location_map[2*S-1];   // node location map. this gets initialized via  the c++ function make_peel()
+	real logprob = 0;
     
-	make_peel(leaf_locs, int_locs, peel, location_map);
-	blens = compute_branch_lengths(S, D, peel, location_map, leaf_locs, int_locs);
+	make_peel(leaf_r, leaf_dir, int_r, int_dir, peel, location_map);
+	blens = compute_branch_lengths(S, D, peel, location_map, leaf_r, leaf_dir, int_r, int_dir);
 
 	// compute the finite time transition matrices
 	for( b in 1:bcount ) {
@@ -145,17 +123,52 @@ model {
 			partials[2*S,i][j] = partials[peel[S-1,3],i][j] * 0.25;
 		}
 		// add the site log likelihood
-		target += log(sum(partials[2*S,i]));
+		logprob += log(sum(partials[2*S,i]));
 	}
+	return logprob;
+}
+
+}
+
+
+data {
+    int D; // embedding dimension
+
+    int <lower=0> L;               // alignment length
+    int <lower=0> S;               // number of tip sequences
+    real<lower=0,upper=1> tipdata[S,L,4];
+
+    real leaf_r[S];   // radial distance of each tip sequence in the embedding
+    real leaf_dir[S,D]; // directional coordinates of each tip sequence in the embedding
+}
+
+transformed data {
+    int bcount; // number of branches
+    bcount = 2*S-2;
+}
+
+parameters {
+    real<lower=0,upper=1> int_r[S-2]; // radial distance
+    real<lower=-1,upper=1> int_dir[S-2,D]; // angles
+}
+
+model {
+
+    // compute the phylogenetic likelihood
+    // first generate a tree
+    // then compute a likelihood
+	target += compute_LL(S, L, bcount, D, tipdata, leaf_r, leaf_dir, int_r, int_dir);
 }
 
 generated quantities {
 	int peel[S-1,3];      // tree topology 
 	real blens[bcount];   // branch lengths
+	real lp; // log likelihood
 	{
 		int location_map[2*S-1];
-		make_peel(leaf_locs, int_locs, peel, location_map);
-		blens = compute_branch_lengths(S, D, peel, location_map, leaf_locs, int_locs);
+		make_peel(leaf_r, leaf_dir, int_r, int_dir, peel, location_map);
+		blens = compute_branch_lengths(S, D, peel, location_map, leaf_r, leaf_dir, int_r, int_dir);
+		lp = compute_LL(S, L, bcount, D, tipdata, leaf_r, leaf_dir, int_r, int_dir);
 	}
 }
 
