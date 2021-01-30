@@ -26,10 +26,10 @@ double euclidean_dist( size_t node_1, size_t node_2, const array2D_1& locs_1, co
  * hyperbolic distance function, translated to C++ from the R hydra package
  */
 template <typename T0__, typename T1__>
-double hyperbolic_distance(const std::vector<T0__>& loc1, const std::vector<T1__>& loc2, double curvature) {
+double hyperbolic_distance(T0__ loc_r1, const std::vector<T0__>& loc1, T1__ loc_r2, const std::vector<T1__>& loc2, double curvature) {
 	// compute the hyperbolic distance of two points given in radial/directional coordinates in the Poincare ball
 	double prodsum = 0;
-	for(size_t i=1; i < loc1.size(); i++){
+	for(size_t i=0; i < loc1.size(); i++){
 		prodsum += get_val(loc1[i]) * get_val(loc2[i]);
 	}
 	// force between numerical -1.0 and 1.0 to eliminate rounding errors
@@ -37,8 +37,8 @@ double hyperbolic_distance(const std::vector<T0__>& loc1, const std::vector<T1__
 	iprod = iprod > 1.0 ? 1.0 : iprod;
 
 	// hyperbolic 'angle'; force numerical >= 1.0
-  double r1 = get_val(loc1[0]);
-  double r2 = get_val(loc2[0]);
+  double r1 = get_val(loc_r1);
+  double r2 = get_val(loc_r2);
 	double hyper_angle = 2.0*(pow(r1,2) + pow(r2,2) - 2.0*r1*r2*iprod)/((1 - pow(r1,2))*(1 - pow(r2,2)));
 	hyper_angle = 1.0 + (hyper_angle < 0 ? 0 : hyper_angle);
 
@@ -66,15 +66,15 @@ constexpr bool operator<(const u_edge& e1, const u_edge& e2) {
  * internal nodes that are unused in the MST can have their coordinates reassigned. Any reassignments
  * are stored in "location_map"
  */
-template <typename T0__, typename T1__>
+template <typename T0__, typename T1__, typename T2__, typename T3__>
 void
-make_peel(const std::vector<std::vector<T0__> >& leaf_locs,
-              const std::vector<std::vector<T1__> >& int_locs,
-              std::vector<std::vector<int> >& peel,
-              std::vector<int>& location_map, std::ostream* pstream__) {
+make_peel(const std::vector<T0__>& leaf_r, const std::vector<std::vector<T1__> >& leaf_dir,
+            const std::vector<T2__>& int_r, const std::vector<std::vector<T3__> >& int_dir,
+            std::vector<std::vector<int> >& peel,
+            std::vector<int>& location_map, std::ostream* pstream__) {
 
-	size_t leaf_node_count = leaf_locs.size();
-	size_t node_count = leaf_locs.size() + int_locs.size();
+	size_t leaf_node_count = leaf_r.size();
+	size_t node_count = leaf_r.size() + int_r.size();
 	std::vector< std::vector<u_edge> > edge_list(node_count);
 /*
   std::cerr << "leaf nodes: " << leaf_locs.size() << std::endl;
@@ -92,18 +92,18 @@ make_peel(const std::vector<std::vector<T0__> >& leaf_locs,
 
       if(i < leaf_node_count){
         // leaf to internal
-        dist_ij = hyperbolic_distance(leaf_locs[i], int_locs[j-leaf_node_count], 1.0);
+        dist_ij = hyperbolic_distance(leaf_r[i], leaf_dir[i], int_r[j-leaf_node_count], int_dir[j-leaf_node_count], 1.0);
       }else{
         // internal to internal
         size_t i_node = i - leaf_node_count;
-        dist_ij = hyperbolic_distance(int_locs[i_node], int_locs[j-leaf_node_count], 1.0);
+        dist_ij = hyperbolic_distance(int_r[i_node], int_dir[i_node], int_r[j-leaf_node_count], int_dir[j-leaf_node_count], 1.0);
       }
 
       // apply the inverse transform from Matsumoto et al 2020
       dist_ij = log(cosh(dist_ij));
-
-      edge_list[i].emplace_back(dist_ij, i, j);
-      edge_list[j].emplace_back(dist_ij, j, i);
+      // use negative of distance so that least dist has largest value in the priority queue
+      edge_list[i].emplace_back(-dist_ij, i, j);
+      edge_list[j].emplace_back(-dist_ij, j, i);
 //      std::cerr << "dist " << i << "," << j << ":" << dist_ij << std::endl;
 		}
 	}
