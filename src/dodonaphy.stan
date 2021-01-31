@@ -163,12 +163,10 @@ model {
 generated quantities {
 	int peel[S-1,3];      // tree topology 
 	real blens[bcount];   // branch lengths
-	real lp; // log likelihood
 	{
 		int location_map[2*S-1];
 		make_peel(leaf_r, leaf_dir, int_r, int_dir, peel, location_map);
 		blens = compute_branch_lengths(S, D, peel, location_map, leaf_r, leaf_dir, int_r, int_dir);
-		lp = compute_LL(S, L, bcount, D, tipdata, leaf_r, leaf_dir, int_r, int_dir);
 	}
 }
 
