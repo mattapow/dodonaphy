@@ -10,7 +10,7 @@ library(cmdstanr)
 # set the path appropriately for your system
 # set_cmdstan_path("~/software/cmdstan-2.21.0")
 
-dim <- 3    # number of dimensions for embedding
+dim <- 2    # number of dimensions for embedding
 nseqs <- 6  # number of sequences to simulate
 seqlen <- 1000  # length of sequences to simulate
 
@@ -94,5 +94,39 @@ ttt1<-read.tree(text=testtree)
 plot(ttt1)
 add.scale.bar()
 
+dist.dna(as.DNAbin(dnaseq), model="JC69")
+njtree<-nj(dist.dna(as.DNAbin(dnaseq), model="JC69"))
+emm <- hydraPlus(acosh(exp(dist.nodes(njtree))), dim = dim, curvature = 1)
+dphy_dat <- list(D=dim, L=seqlen, S=nseqs, tipdata=tipdata, leaf_r=emm$r[1:6], leaf_dir=emm$directional[1:6,])
+initint<-list(list(int_r=emm$r[7:10],int_dir=emm$directional[7:10,]))
+# stan complains of an undefined gradient unless int_dir is modified slightly... why?
+initint[[1]]$int_dir <-initint[[1]]$int_dir - 0.0000001
+vbfit <- dphy_mod$variational(data=dphy_dat,tol_rel_obj=0.001,output_samples=1000,init=initint,adapt_engaged=FALSE,eta=0.5)
+best_draw<-which(vbfit$draws("lp__")==max(vbfit$draws("lp__")))
+ttt1<-read.tree(text=tree_to_newick(names(dnaseq), peels[best_draw,], blens[best_draw,]))
+plot(ttt1)
+add.scale.bar()
+
+lbgfs <- dphy_mod$optimize(data=dphy_dat,init=initint)
 
 
+file.copy("src/dodonaphy_cpp_utils.hpp", paste(tempdir(),"/user_header.hpp", sep=""), overwrite=TRUE)
+dphy_mod_leaf <- cmdstan_model("src/dodonaphy_leaves.stan",stanc_options=list(allow_undefined=TRUE))
+initint<-list(list(leaf_locs=emm$r[1:6]*emm$directional[1:6,]))
+dphy_dat_leaf <- list(D=dim, L=seqlen, S=nseqs, tipdata=tipdata)
+lbgfs_leaf <- dphy_mod_leaf$optimize(data=dphy_dat_leaf,init=initint)
+vbfit_leaf <- dphy_mod_leaf$variational(data=dphy_dat,tol_rel_obj=0.001,output_samples=1000)
+
+blens<-lbgfs_leaf$draws("blens")
+peels<-lbgfs_leaf$draws("peel")
+best_draw<-1
+ttt1<-read.tree(text=tree_to_newick(names(dnaseq), peels[best_draw,], blens[best_draw,]))
+plot(ttt1)
+add.scale.bar()
+
+blens<-vbfit_leaf$draws("blens")
+peels<-vbfit_leaf$draws("peel")
+best_draw<-which(vbfit_leaf$draws("lp__")==max(vbfit_leaf$draws("lp__")))
+ttt1<-read.tree(text=tree_to_newick(names(dnaseq), peels[best_draw,], blens[best_draw,]))
+plot(ttt1)
+add.scale.bar()
