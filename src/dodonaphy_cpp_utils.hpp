@@ -293,6 +293,17 @@ make_peel(const std::vector<T0__>& leaf_r, const std::vector<std::vector<T1__> >
 
 } // dodonaphy_model_namespace
 
+namespace dodonaphy_all_model_namespace {
+template <typename T0__, typename T1__, typename T2__, typename T3__>
+void
+make_peel(const std::vector<T0__>& leaf_r, const std::vector<std::vector<T1__> >& leaf_dir,
+            const std::vector<T2__>& int_r, const std::vector<std::vector<T3__> >& int_dir,
+            std::vector<std::vector<int> >& peel,
+            std::vector<int>& location_map, std::ostream* pstream__) {
+  dodonaphy_model_namespace::make_peel(leaf_r, leaf_dir, int_r, int_dir, peel, location_map, pstream__);
+}
+} // dodonaphy_all_model_namespace
+
 namespace dodonaphy_leaves_model_namespace {
 
 template <typename T0__>

@@ -10,7 +10,7 @@ library(cmdstanr)
 # set the path appropriately for your system
 # set_cmdstan_path("~/software/cmdstan-2.21.0")
 
-dim <- 2    # number of dimensions for embedding
+dim <- 3    # number of dimensions for embedding
 nseqs <- 6  # number of sequences to simulate
 seqlen <- 1000  # length of sequences to simulate
 
@@ -130,3 +130,28 @@ best_draw<-which(vbfit_leaf$draws("lp__")==max(vbfit_leaf$draws("lp__")))
 ttt1<-read.tree(text=tree_to_newick(names(dnaseq), peels[best_draw,], blens[best_draw,]))
 plot(ttt1)
 add.scale.bar()
+
+#
+# all node positions as random variables
+#
+
+dphy_all_dat <- list(D=dim, L=seqlen, S=nseqs, tipdata=tipdata)
+initint<-list(list(int_r=emm$r[8:11],int_dir=emm$directional[8:11,],leaf_r=emm$r[1:6], leaf_dir=emm$directional[1:6,]))
+
+file.copy("../src/dodonaphy_cpp_utils.hpp", paste(tempdir(),"/user_header.hpp", sep=""), overwrite=TRUE)
+dphy_mod <- cmdstan_model("../src/dodonaphy_all.stan",stanc_options=list(allow_undefined=TRUE))
+vbfit <- dphy_mod$variational(data=dphy_all_dat,tol_rel_obj=0.001,output_samples=1000,init=initint)
+
+blens<-vbfit$draws("blens")
+peels<-vbfit$draws("peel")
+
+lbgfs_all <- dphy_mod$optimize(data=dphy_all_dat,init=initint)
+
+blens<-lbgfs_all$draws("blens")
+peels<-lbgfs_all$draws("peel")
+best_draw<-1
+ttt1<-read.tree(text=tree_to_newick(names(dnaseq), peels[best_draw,], blens[best_draw,]))
+plot(ttt1)
+add.scale.bar()
+
+hist(vbfit$draws("lp__"))
