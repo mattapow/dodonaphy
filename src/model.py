@@ -135,8 +135,8 @@ class DodonaphyModel(Distribution):
     def draw_sample(self):
         placeholder = 0
 
-    def log_p(self):
-        placeholder = 0
+    # def log_p(self):
+    #     placeholder = 0
 
     def calculate_elbo(self, q_leaf_r, q_leaf_dir, q_int_r, q_int_dir):
         # z
