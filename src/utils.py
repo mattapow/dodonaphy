@@ -1,6 +1,9 @@
 import math
 from heapq import heapify, heappush, heappop
 from collections import deque
+import numpy as np
+import torch
+
 
 class u_edge:
     def __init__(self, distance, node_1, node_2):
@@ -8,54 +11,78 @@ class u_edge:
         self.from_ = node_1
         self.to_ = node_2
 
+
 class utilFunc:
     def __init__(self):
-        self.x = 0
+        pass
 
-    # hyperbolic distance function, translated to C++ from the R hydra package
-    # def hyperbolic_distance(self, loc_r1, loc1, loc_r2, loc2, curvature):
-    #     # compute the hyperbolic distance of two points given in radial/directional coordinates in the Poincare ball
-    #     prodsum = 0
-    #     for i in range(loc1.size):
-    #         prodsum += (loc1[i] + loc2[i])
+    def hyperbolic_distance(r1, r2, directional1, directional2, curvature):
+        """Generates hyperbolic distance between two points in poincoire ball
 
-    #     # force between numerical -1.0 and 1.0 to eliminate rounding errors
-    #     iprod = -1.0 if prodsum < -1.0 else prodsum
-    #     iprod = 1.0 if iprod > 1.0 else iprod
+        Args:
+            r1 (tensor): radius of point 1
+            r2 (tensor): radius of point 2
+            directional1 (tensor): directional of point 1
+            directional2 ([type]): directional of point 2
+            curvature (integer): curvature
 
-    #     # hyperbolic 'angle'; force numerical >= 1.0
-    #     r1 = loc_r1
-    #     r2 = loc_r2
-    #     hyper_angle = 2.0*(pow(r1, 2) + pow(r2, 2) - 2.0 *
-    #                        r1*r2*iprod)/((1 - pow(r1, 2))*(1 - pow(r2, 2)))
-    #     print(hyper_angle)
-    #     hyper_angle = 1.0 + (0 if hyper_angle < 0 else hyper_angle)
-
-    #     # final hyperbolic distance between points i and j
-    #     distance = 1/math.sqrt(curvature) * math.acosh(hyper_angle)
-    #     return distance
+        Returns:
+            tensor: distance between point 1 and point 2
+        """
+        dpl = torch.empty(2)
+        dpl[0] = torch.dot(directional1, directional2)
+        dpl[1] = torch.tensor([1.0], requires_grad=True)
+        iprod = dpl[0]
+        dpl[0] = 2 * (torch.pow(r1, 2) + torch.pow(r2, 2) - 2*r1 *
+                      r2*iprod)/((1-torch.pow(r1, 2) * (1-torch.pow(r2, 2))))
+        dpl[1] = 0.0
+        acosharg = 1.0 + max(dpl)
+        # hyperbolic distance between points i and j
+        dist = 1/math.sqrt(curvature) * torch.cosh(acosharg)
+        return dist + 0.000000000001  # add a tiny amount to avoid zero-length branches
 
     def make_peel(self, leaf_r, leaf_dir, int_r, int_dir, location_map):
-        leaf_node_count = leaf_r.size
-        node_count = leaf_r.size + int_r.size
+        """Create a tree represtation (peel) from its hyperbolic embedic data
+
+        Args:
+            leaf_r (1D tensor): radius of the leaves
+            leaf_dir (2D tensor): directional tensors of leaves 
+            int_r (1D tensor): radius of internal nodes
+            int_dir (2D tensor): directional tensors of internal nodes
+            location_map (numpy array): node location map
+        """
+        leaf_node_count = leaf_r.shape[0]
+        node_count = leaf_r.shape[0] + int_r.shape[0]
         edge_list = node_count*[[]]
+        # edge_list = np.array(edge_list, dtype=u_edge)
 
         for i in range(node_count):
             for j in range(max(i+1, leaf_node_count), node_count):
                 dist_ij = 0
 
                 if(i < leaf_node_count):
-                    dist_ij = utilFunc.hyperbolic_distance(self,
-                                                           leaf_r[i], leaf_dir[i], int_r[j-leaf_node_count], int_dir[j-leaf_node_count], 1.0)
+                    dist_ij = self.hyperbolic_distance(self,
+                                                       leaf_r[i],
+                                                       leaf_dir[i],
+                                                       int_r[j-leaf_node_count],
+                                                       int_dir[j -
+                                                               leaf_node_count],
+                                                       1.0)
                 else:
                     i_node = i - leaf_node_count
-                    dist_ij = utilFunc.hyperbolic_distance(self,
-                                                           int_r[i_node], int_dir[i_node], int_r[j-leaf_node_count], int_dir[j-leaf_node_count], 1.0)
+                    dist_ij = self.hyperbolic_distance(self,
+                                                           int_r[i_node],
+                                                           int_dir[i_node],
+                                                           int_r[j-leaf_node_count],
+                                                           int_dir[j -
+                                                                   leaf_node_count],
+                                                           1.0)
 
                 # apply the inverse transform from Matsumoto et al 2020
-                dist_ij = math.log(math.cosh(dist_ij))
+                dist_ij = torch.log(torch.cosh(dist_ij))
 
-                # // use negative of distance so that least dist has largest value in the priority queue
+                # use negative of distance so that least dist has largest 
+                # value in the priority queue
                 edge_list[i].append(u_edge(dist_ij, i, j))
                 edge_list[j].append(u_edge(dist_ij, j, i))
 
@@ -72,7 +99,8 @@ class utilFunc:
             e = heappop(queue)
 
             # ensure the destination node has not been visited yet
-            # internal nodes can have up to 3 adjacencies, of which at least one must be internal
+            # internal nodes can have up to 3 adjacencies, of which at least 
+            # one must be internal
             # leaf nodes can only have a single edge in the MST
             is_valid = True
             is_valid = True if visited[e.to_]
@@ -160,7 +188,7 @@ class utilFunc:
 
                     # map the location for the new node to the original node
                     location_map[new_node] = n
-        
+
         # update the location map - handles multiple reassignments
         for i in range(location_map.__len__()):
             parent = location_map[i]
@@ -171,7 +199,7 @@ class utilFunc:
 
         # add a fake root above node 0
         zero_parent = mst_adjacencies[0][0]
-        mst_adjacencies.append({0,zero_parent})
+        mst_adjacencies.append({0, zero_parent})
         mst_adjacencies[0][0] = mst_adjacencies.__len__() - 1
         for i range(mst_adjacencies[zero_parent].__len__()):
             mst_adjacencies[zero_parent][i] = mst_adjacencies.__len__() - 1 if mst_adjacencies[zero_parent][i] == 0
@@ -193,7 +221,8 @@ class utilFunc:
             # peel entries are child, child, parent
             # cur_node should always have two adjacencies
             peelI = peelI - 1
-            peel[peelI] = {mst_adjacencies[cur_node][0],mst_adjacencies[cur_node][1], cur_node}
+            peel[peelI] = {mst_adjacencies[cur_node][0],
+                           mst_adjacencies[cur_node][1], cur_node}
             node_stack.append(peel[peelI][0])
             node_stack.append(peel[peelI][1])
             visited[cur_node] = True
@@ -202,17 +231,15 @@ class utilFunc:
                 peel[i][j] += 1
         for i in range(location_map.__len__()):
             location_map[i] += 1
-    
-    def compute_LL(S,L,bcount,D,tipdata, leaf_r, leaf_dir, int_r, int_dir):
+
+    def compute_LL(S, L, bcount, D, tipdata, leaf_r, leaf_dir, int_r, int_dir):
         partials =
 
-    def compute_branch_lengths(S,D,peel,location_map, leaf_r, leaf_dir, int_r, int_dir):
+    def compute_branch_lengths(S, D, peel, location_map, leaf_r, leaf_dir, int_r, int_dir):
         bcount = 2*S-2
         blens = bcount*[]
-        for b in range(1,S-1):
+        for b in range(1, S-1):
             directional1 = D*[]
             directional2 = D*[]
-            r2 = int_r[location_map[peel[b,3]]-S]
-            directional2 = int_dir[location_map[peel[b,3]]-S,]
-
-
+            r2 = int_r[location_map[peel[b, 3]]-S]
+            directional2 = int_dir[location_map[peel[b, 3]]-S, ]

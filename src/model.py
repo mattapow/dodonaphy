@@ -40,27 +40,23 @@ class DodonaphyModel(Distribution):
             "blens": torch.empty(2*S-2, requires_grad=True)
         }
 
-    # computes the hyperbolic distance of two points given in radial/directional coordinates in the Poincare ball
-    # code taken from hydra R package and translated to pytorch
-
-    def hyperbolic_distance(r1, r2, directional1, directional2, curvature):
-        # r1 = torch.tensor(r1, requires_grad = True)
-        # r2 = torch.tensor(r2, requires_grad = True)
-        # directional1 = torch.from_numpy(directional1, requires_grad = True)
-        # directional2 = torch.from_numpy(directional2, requires_grad = True)
-        dpl = torch.empty(2)
-        dpl[0] = torch.dot(directional1, directional2)
-        dpl[1] = torch.tensor([1.0], requires_grad=True)
-        iprod = dpl[0]
-        dpl[0] = 2 * (torch.pow(r1, 2) + torch.pow(r2, 2) - 2*r1 *
-                      r2*iprod)/((1-torch.pow(r1, 2) * (1-torch.pow(r2, 2))))
-        dpl[1] = 0.0
-        acosharg = 1.0 + max(dpl)
-        # hyperbolic distance between points i and j
-        dist = 1/math.sqrt(curvature) * torch.cosh(acosharg)
-        return dist + 0.000000000001  # add a tiny amount to avoid zero-length branches
 
     def compute_branch_lengths(self, S, D, peel, location_map, leaf_r, leaf_dir, int_r, int_dir):
+        """Computes the hyperbolic distance of two points given in radial/directional coordinates in the Poincare ball
+        
+        Args:
+            S (integer): [description]
+            D ([type]): [description]
+            peel ([type]): [description]
+            location_map ([type]): [description]
+            leaf_r ([type]): [description]
+            leaf_dir ([type]): [description]
+            int_r ([type]): [description]
+            int_dir ([type]): [description]
+
+        Returns:
+            [type]: [description]
+        """
         bcount = 2*S-2
         blens = torch.empty(bcount)
         for b in range(1, S-1):
@@ -90,7 +86,7 @@ class DodonaphyModel(Distribution):
                 # internal to internal
                 r1 = int_r[location_map[peel[b, 2]]-S]
                 directional1 = int_dir[location_map[peel[b, 2]-S], ]
-            blens[peel[b, 2]] = hyperbolic_distance(
+            blens[peel[b, 2]] = utilFunc.hyperbolic_distance(
                 r1, r2, directional1, directional2, 1)
 
             # apply the inverse transform from Matsumoto et al 2020
@@ -101,6 +97,14 @@ class DodonaphyModel(Distribution):
         return blens
 
     def compute_LL(self, leaf_r, leaf_dir, int_r, int_dir):
+        """[summary]
+
+        Args:
+            leaf_r ([type]): [description]
+            leaf_dir ([type]): [description]
+            int_r ([type]): [description]
+            int_dir ([type]): [description]
+        """
         S = self.data["S"]
         L = self.data["L"]
         D = self.data["D"]
@@ -113,6 +117,8 @@ class DodonaphyModel(Distribution):
         fttm = torch.empty(bcount, 4, 4, requires_grad=True)
         # list of nodes for peeling.
         peel = np.zeros(S-1, 3)
+        # node location map
+        location_map = np.empty(2*S-1, dtype=np.int64)
 
         utilFunc.make_peel(leaf_r, leaf_dir, int_r,
                            int_dir, peel, location_map)
@@ -150,9 +156,22 @@ class DodonaphyModel(Distribution):
         #         partials[peel[n,3],i] = fttm[peel[n,1]]*partials[peel[n,1],i]  fttm[peel[n,2]]*partials[peel[n,2],i]]
 
     def draw_sample(self):
+        """[summary]
+        """
         placeholder = 0
 
     def calculate_elbo(self, q_leaf_r, q_leaf_dir, q_int_r, q_int_dir):
+        """[summary]
+
+        Args:
+            q_leaf_r ([type]): [description]
+            q_leaf_dir ([type]): [description]
+            q_int_r ([type]): [description]
+            q_int_dir ([type]): [description]
+
+        Returns:
+            [type]: [description]
+        """
         # z
         z_leaf_r = q_leaf_r.rsample()
         z_leaf_dir = q_leaf_dir.rsample()
@@ -174,6 +193,13 @@ class DodonaphyModel(Distribution):
         return logP + logPrior - logQ
 
     def learn(self, dpy_dat, param_init, epoch=1000):
+        """[summary]
+
+        Args:
+            dpy_dat ([type]): [description]
+            param_init ([type]): [description]
+            epoch (int, optional): [description]. Defaults to 1000.
+        """
         def lr_lambda(epoch): return 1.0/np.sqrt(epoch+1)
 
         # set data
@@ -273,6 +299,14 @@ class DodonaphyModel(Distribution):
             print('Final ELBO: {}'.format(elbo_lognormal(100).item()))
 
     def elbo_normal(self, size=1):
+        """[summary]
+
+        Args:
+            size (int, optional): [description]. Defaults to 1.
+
+        Returns:
+            [type]: [description]
+        """
         elbo = 0
         # q_thetas
         q_leaf_r = torch.distributions.LogNormal(
