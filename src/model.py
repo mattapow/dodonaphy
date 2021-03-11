@@ -155,6 +155,8 @@ class DodonaphyModel(Distribution):
         #     for n in range(S-1):
         #         partials[peel[n,3],i] = fttm[peel[n,1]]*partials[peel[n,1],i]  fttm[peel[n,2]]*partials[peel[n,2],i]]
 
+        return 0
+
     def draw_sample(self):
         """[summary]
         """
@@ -267,7 +269,7 @@ class DodonaphyModel(Distribution):
             sigmas['int_dir_sigma'].append(
                 self.VarationalParams["int_dir_sigma"].exp().item())
 
-            loss = -elbo_lognormal()
+            loss = - self.elbo_lognormal()
 
             elbo_hist.append(-loss.item())
             optimizer.zero_grad()
@@ -296,9 +298,9 @@ class DodonaphyModel(Distribution):
                 elbo_hist[-1]), refresh=False)
 
         with torch.no_grad():
-            print('Final ELBO: {}'.format(elbo_lognormal(100).item()))
+            print('Final ELBO: {}'.format(self.elbo_lognormal(100).item()))
 
-    def elbo_normal(self, size=1):
+    def elbo_lognormal(self, size=1):
         """[summary]
 
         Args:
@@ -325,3 +327,6 @@ class DodonaphyModel(Distribution):
             elbo += self.calculate_elbo(q_leaf_r,
                                         q_leaf_dir, q_int_r, q_int_dir)
         return elbo/size
+
+mymod = DodonaphyModel(3,1000,3)
+print(mymod.data)

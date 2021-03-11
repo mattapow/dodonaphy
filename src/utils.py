@@ -16,6 +16,7 @@ class utilFunc:
     def __init__(self):
         pass
 
+    @staticmethod
     def hyperbolic_distance(r1, r2, directional1, directional2, curvature):
         """Generates hyperbolic distance between two points in poincoire ball
 
@@ -31,7 +32,7 @@ class utilFunc:
         """
         dpl = torch.empty(2)
         dpl[0] = torch.dot(directional1, directional2)
-        dpl[1] = torch.tensor([1.0], requires_grad=True)
+        dpl[1] = torch.tensor([-1.0], requires_grad=True)
         iprod = dpl[0]
         dpl[0] = 2 * (torch.pow(r1, 2) + torch.pow(r2, 2) - 2*r1 *
                       r2*iprod)/((1-torch.pow(r1, 2) * (1-torch.pow(r2, 2))))
@@ -41,7 +42,8 @@ class utilFunc:
         dist = 1/math.sqrt(curvature) * torch.cosh(acosharg)
         return dist + 0.000000000001  # add a tiny amount to avoid zero-length branches
 
-    def make_peel(self, leaf_r, leaf_dir, int_r, int_dir, location_map):
+    @staticmethod
+    def make_peel(leaf_r, leaf_dir, int_r, int_dir, location_map):
         """Create a tree represtation (peel) from its hyperbolic embedic data
 
         Args:
