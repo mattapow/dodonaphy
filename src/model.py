@@ -69,7 +69,7 @@ class DodonaphyModel(Distribution):
                 # leaf to internal
                 r1 = leaf_r[peel[b, 1]]
                 directional1 = leaf_dir[peel[b, 1], :]
-            elif:
+            else:
                 # internal to internal
                 r1 = int_r[location_map[peel[b, 1]]-S]
                 directional1 = int_dir[location_map[peel[b, 1]]-S, :]
@@ -82,7 +82,7 @@ class DodonaphyModel(Distribution):
                 # leaf to internal
                 r1 = leaf_r[peel[b, 2]]
                 directional1 = leaf_dir[peel[b, 2], :]
-            elif:
+            else:
                 # internal to internal
                 r1 = int_r[location_map[peel[b, 2]]-S]
                 directional1 = int_dir[location_map[peel[b, 2]-S], ]
@@ -218,7 +218,7 @@ class DodonaphyModel(Distribution):
 
         dodonaphy_mod = self
 
-        optimizer = torch.optim.Adam(VarationalParams, lr=0.1)
+        optimizer = torch.optim.Adam(self.VarationalParams, lr=0.1)
         scheduler = torch.optim.lr_scheduler.LambdaLR(
             optimizer, lr_lambda=lr_lambda)
 

@@ -96,35 +96,36 @@ class utilFunc:
         visited_count = 0
         open_slots = 0
         while queue.__len__() != 0 and visited_count < node_count:
-            e = heappop(queue)
+            e = u_edge(heappop(queue))
 
             # ensure the destination node has not been visited yet
             # internal nodes can have up to 3 adjacencies, of which at least 
             # one must be internal
             # leaf nodes can only have a single edge in the MST
             is_valid = True
-            is_valid = True if visited[e.to_]
-            is_valid = False if e.from_ < leaf_node_count and mst_adjacencies[e.to_].__len__ > 0
+            if visited[e.to_]: is_valid = True 
+            
+            if e.from_ < leaf_node_count and mst_adjacencies[e.to_].__len__ > 0: is_valid = False 
 
             if e.from_ >= leaf_node_count:
                 if mst_adjacencies[e.from_].__len__() == 2:
                     found_internal = e.to_ >= leaf_node_count
-                    found_internal = True if mst_adjacencies[e.from_][0] >= leaf_node_count
-                    found_internal = True if mst_adjacencies[e.from_][1] >= leaf_node_count
-                    is_valid = False if not found_internal
+                    if mst_adjacencies[e.from_][0] >= leaf_node_count: found_internal = True 
+                    if mst_adjacencies[e.from_][1] >= leaf_node_count: found_internal = True 
+                    if not found_internal: is_valid = False 
                 elif mst_adjacencies[e.from_].__len__() == 3:
                     is_valid = False
 
             # don't use the last open slot unless this is the last node
-            is_valid = False if open_slots == 1 and e.to_ < leaf_node_count and visited_count < node_count - 1
+            if open_slots == 1 and e.to_ < leaf_node_count and visited_count < node_count - 1: is_valid = False 
             if is_valid:
                 if e.to_ is not e.from_:
                     mst_adjacencies[e.from_].append(e.to_)
                     mst_adjacencies[e.to_].append(e.from_)
 
                 # a new internal node has room for 2 more adjacencies
-                open_slots += 2 if e.to_ != leaf_node_count
-                open_slots -= 1 if e.from_ >= leaf_node_count
+                if e.to_ != leaf_node_count: open_slots += 2 
+                if e.from_ >= leaf_node_count: open_slots -= 1 
 
                 visited[e.to_] = True
                 visited_count += 1
@@ -136,7 +137,7 @@ class utilFunc:
         # prune internal nodes that don't create a bifurcation
         to_check = deque()
         for n in range(leaf_node_count, mst_adjacencies.__len__()):
-            to_check.append(n) if mst_adjacencies[n].__len__() < 3
+            if mst_adjacencies[n].__len__() < 3: to_check.append(n) 
 
         unused = []
         while to_check.__len__() > 0:
@@ -146,7 +147,7 @@ class utilFunc:
                 neighbour = mst_adjacencies[n][0]
                 mst_adjacencies[n].clear()
                 for i in range(mst_adjacencies[neighbour].__len__()):
-                    mst_adjacencies[neighbour].pop(mst_adjacencies[neighbour][0] + i) if mst_adjacencies[neighbour][i] == n
+                    if mst_adjacencies[neighbour][i] == n: mst_adjacencies[neighbour].pop(mst_adjacencies[neighbour][0] + i) 
 
                 unused.append(n)
                 to_check.append(neighbour)
@@ -155,10 +156,10 @@ class utilFunc:
                 n2 = mst_adjacencies[n][1]
                 mst_adjacencies[n].clear()
                 for i in range(mst_adjacencies[n1].__len__()):
-                    mst_adjacencies[n1][i] = n2 if mst_adjacencies[n1][i] == n
+                    if mst_adjacencies[n1][i] == n: mst_adjacencies[n1][i] = n2 
 
                 for i in range(mst_adjacencies[n2].__len__()):
-                    mst_adjacencies[n2][i] = n1 if mst_adjacencies[n2][i] == n:
+                    if mst_adjacencies[n2][i] == n: mst_adjacencies[n2][i] = n1 
 
                 unused.append(n)
 
@@ -184,7 +185,7 @@ class utilFunc:
                     mst_adjacencies[new_node].append(n)
                     for move in {move_1, move_2}:
                         for i in range(mst_adjacencies[move].__len__()):
-                            mst_adjacencies[move][i] = new_node if mst_adjacencies[move][i] == n
+                            if mst_adjacencies[move][i] == n: mst_adjacencies[move][i] = new_node 
 
                     # map the location for the new node to the original node
                     location_map[new_node] = n
@@ -201,8 +202,8 @@ class utilFunc:
         zero_parent = mst_adjacencies[0][0]
         mst_adjacencies.append({0, zero_parent})
         mst_adjacencies[0][0] = mst_adjacencies.__len__() - 1
-        for i range(mst_adjacencies[zero_parent].__len__()):
-            mst_adjacencies[zero_parent][i] = mst_adjacencies.__len__() - 1 if mst_adjacencies[zero_parent][i] == 0
+        for i in range(mst_adjacencies[zero_parent].__len__()):
+            if mst_adjacencies[zero_parent][i] == 0: mst_adjacencies[zero_parent][i] = mst_adjacencies.__len__() - 1 
         location_map[mst_adjacencies.__len__() - 1] = zero_parent
 
         # make peel via pre-order traversal
@@ -232,14 +233,14 @@ class utilFunc:
         for i in range(location_map.__len__()):
             location_map[i] += 1
 
-    def compute_LL(S, L, bcount, D, tipdata, leaf_r, leaf_dir, int_r, int_dir):
-        partials =
+    # def compute_LL(S, L, bcount, D, tipdata, leaf_r, leaf_dir, int_r, int_dir):
+    #     partials =
 
-    def compute_branch_lengths(S, D, peel, location_map, leaf_r, leaf_dir, int_r, int_dir):
-        bcount = 2*S-2
-        blens = bcount*[]
-        for b in range(1, S-1):
-            directional1 = D*[]
-            directional2 = D*[]
-            r2 = int_r[location_map[peel[b, 3]]-S]
-            directional2 = int_dir[location_map[peel[b, 3]]-S, ]
+    # def compute_branch_lengths(S, D, peel, location_map, leaf_r, leaf_dir, int_r, int_dir):
+    #     bcount = 2*S-2
+    #     blens = bcount*[]
+    #     for b in range(1, S-1):
+    #         directional1 = D*[]
+    #         directional2 = D*[]
+    #         r2 = int_r[location_map[peel[b, 3]]-S]
+    #         directional2 = int_dir[location_map[peel[b, 3]]-S, ]
