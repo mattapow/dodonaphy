@@ -6,30 +6,41 @@ import numpy as np
 from tqdm import trange
 from tqdm.notebook import tqdm
 from utils import utilFunc
+from torch.distributions import SigmoidTransform
 
 
 class DodonaphyModel(Distribution):
     data = {}
-    VarationalParams = {
-        "leaf_r_mu": torch.randn(1, requires_grad=True),
-        "leaf_r_sigma": torch.randn(1, requires_grad=True),
-        "leaf_dir_mu": torch.randn(1, requires_grad=True),
-        "leaf_dir_sigma": torch.randn(1, requires_grad=True),
-        "int_r_mu": torch.randn(1, requires_grad=True),
-        "int_r_sigma": torch.randn(1, requires_grad=True),
-        "int_dir_mu": torch.randn(1, requires_grad=True),
-        "int_dir_sigma": torch.randn(1, requires_grad=True)
-    }
+    # VarationalParams = {
+    #     "leaf_r_mu": torch.randn(1, requires_grad=True),
+    #     "leaf_r_sigma": torch.randn(1, requires_grad=True),
+    #     "leaf_dir_mu": torch.randn(1, requires_grad=True),
+    #     "leaf_dir_sigma": torch.randn(1, requires_grad=True),
+    #     "int_r_mu": torch.randn(1, requires_grad=True),
+    #     "int_r_sigma": torch.randn(1, requires_grad=True),
+    #     "int_dir_mu": torch.randn(1, requires_grad=True),
+    #     "int_dir_sigma": torch.randn(1, requires_grad=True)
+    # }
 
     def __init__(self, D, L, S):
-        self.parameters = {
-            # radial distance
-            "int_r": torch.empty(S-2, requires_grad=True),
-            "int_dir": torch.empty(S-2, D, requires_grad=True),  # angles
-            # adial distance of each tip sequence in the embedding
-            "leaf_r": torch.empty(S, requires_grad=True),
-            # directional coordinates of each tip sequence in the embedding
-            "leaf_dir": torch.empty(S, D, requires_grad=True)
+        # self.parameters = {
+        #     # radial distance
+        #     "int_r": torch.empty(S-2, requires_grad=True),
+        #     "int_dir": torch.empty(S-2, D, requires_grad=True),  # angles
+        #     # adial distance of each tip sequence in the embedding
+        #     "leaf_r": torch.empty(S, requires_grad=True),
+        #     # directional coordinates of each tip sequence in the embedding
+        #     "leaf_dir": torch.empty(S, D, requires_grad=True)
+        # }
+        self.VarationalParams = {
+            "leaf_r_mu": torch.randn(1, requires_grad=True),
+            "leaf_r_sigma": torch.randn(1, requires_grad=True),
+            "leaf_dir_mu": torch.randn(1, requires_grad=True),
+            "leaf_dir_sigma": torch.randn(1, requires_grad=True),
+            "int_r_mu": torch.randn(1, requires_grad=True),
+            "int_r_sigma": torch.randn(1, requires_grad=True),
+            "int_dir_mu": torch.randn(1, requires_grad=True),
+            "int_dir_sigma": torch.randn(1, requires_grad=True)
         }
         self.transformedData = {
             "bcount": 2*S-2
@@ -209,18 +220,21 @@ class DodonaphyModel(Distribution):
         self.data = dpy_dat
 
         # set initial params as a Dict
-        self.VarationalParams["leaf_r_mu"], self.VarationalParams["leaf_r_sigma"] = param_init["leaf_r"].mean(
-        ), param_init["leaf_r"].std()
-        self.VarationalParams["leaf_dir_mu"], self.VarationalParams["leaf_dir_sigma"] = param_init["leaf_dir"].mean(
-        ), param_init["leaf_dir"].std()
-        self.VarationalParams["int_r_mu"], self.VarationalParams["int_r_sigma"] = param_init["int_r"].mean(
-        ), param_init["int_r"].std()
-        self.VarationalParams["int_dir_mu"], self.VarationalParams["int_dir_sigma"] = param_init["int_dir"].mean(
-        ), param_init["int_dir"].std()
+        self.VarationalParams["leaf_r_mu"], self.VarationalParams["leaf_r_sigma"] = torch.tensor(param_init["leaf_r"].mean(
+        ), requires_grad=True), torch.tensor(param_init["leaf_r"].std(), requires_grad=True)
+
+        self.VarationalParams["leaf_dir_mu"], self.VarationalParams["leaf_dir_sigma"] = torch.tensor(param_init["leaf_dir"].mean(
+        ), requires_grad=True), torch.tensor(param_init["leaf_dir"].std(), requires_grad=True)
+        self.VarationalParams["int_r_mu"], self.VarationalParams["int_r_sigma"] = torch.tensor(param_init["int_r"].mean(
+        ), requires_grad=True), torch.tensor(param_init["int_r"].std(), requires_grad=True)
+        self.VarationalParams["int_dir_mu"], self.VarationalParams["int_dir_sigma"] = torch.tensor(param_init["int_dir"].mean(
+        ), requires_grad=True), torch.tensor(param_init["int_dir"].std(), requires_grad=True)
 
         dodonaphy_mod = self
 
-        optimizer = torch.optim.Adam(self.VarationalParams, lr=0.1)
+        print(list(self.VarationalParams.values()))
+
+        optimizer = torch.optim.Adam(list(self.VarationalParams.values()), lr=0.1)
         scheduler = torch.optim.lr_scheduler.LambdaLR(
             optimizer, lr_lambda=lr_lambda)
 
@@ -250,8 +264,7 @@ class DodonaphyModel(Distribution):
             'int_dir_sigma': []
         }
 
-        iters = tqdm(range(50000), mininterval=1)
-        for epoch in iters:
+        for epoch in range(50000):
             # save mus
             mus['leaf_r_mu'].append(self.VarationalParams["leaf_r_mu"].item())
             mus['leaf_dir_mu'].append(
@@ -294,8 +307,7 @@ class DodonaphyModel(Distribution):
                 self.VarationalParams["int_dir_sigma"].exp().item()**2)
             optimizer.step()
             scheduler.step()
-            iters.set_description('ELBO: {}'.format(
-                elbo_hist[-1]), refresh=False)
+            'ELBO: {}'.format(elbo_hist[-1])
 
         with torch.no_grad():
             print('Final ELBO: {}'.format(self.elbo_lognormal(100).item()))
@@ -311,21 +323,35 @@ class DodonaphyModel(Distribution):
         """
         elbo = 0
         # q_thetas
-        q_leaf_r = torch.distributions.LogNormal(
+        q_leaf_r = torch.distributions.Normal(
             self.VarationalParams["leaf_r_mu"].item(), 
-            self.VarationalParams["leaf_r_sigma"].item().exp())
-        q_leaf_dir = torch.distributions.LogNormal(
+            math.exp(self.VarationalParams["leaf_r_sigma"].item()))
+        q_leaf_dir = torch.distributions.Normal(
             self.VarationalParams["leaf_dir_mu"].item(), 
-            self.VarationalParams["leaf_dir_sigma"].item().exp())
-        q_int_r = torch.distributions.LogNormal(
+            math.exp(self.VarationalParams["leaf_dir_sigma"].item()))
+        q_int_r = torch.distributions.Normal(
             self.VarationalParams["int_r_mu"].item(), 
-            self.VarationalParams["int_r_sigma"].item().exp())
-        q_int_dir = torch.distributions.LogNormal(
+            math.exp(self.VarationalParams["int_r_sigma"].item()))
+        q_int_dir = torch.distributions.Normal(
             self.VarationalParams["int_dir_mu"].item(), 
-            self.VarationalParams["int_dir_sigma"].item().exp())
+            math.exp(self.VarationalParams["int_dir_sigma"].item()))
+
+        sigmoid_transformation = SigmoidTransform()
+
+        leaf_r_z = q_leaf_r.rsample()
+        int_r_z = q_int_r.rsample()
+        leaf_dir_z = q_leaf_dir.rsample()
+        int_dir_z = q_int_dir.rsample()
+
+        leaf_r = sigmoid_transformation(leaf_r_z)
+        int_r = sigmoid_transformation(int_r_z)
+        
+        leaf_dir = sigmoid_transformation((leaf_r_z - 1) / 2)
+        int_dir = sigmoid_transformation((int_dir_z - 1) / 2)
+
         for i in range(size):
-            elbo += self.calculate_elbo(q_leaf_r,
-                                        q_leaf_dir, q_int_r, q_int_dir)
+            elbo += self.calculate_elbo(leaf_r,
+                                        leaf_dir, int_r, int_dir)
         return elbo/size
 
 mymod = DodonaphyModel(3,1000,3)
