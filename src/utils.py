@@ -43,7 +43,7 @@ class utilFunc:
         return dist + 0.000000000001  # add a tiny amount to avoid zero-length branches
 
     @staticmethod
-    def make_peel(leaf_r, leaf_dir, int_r, int_dir, location_map):
+    def make_peel(leaf_r, leaf_dir, int_r, int_dir):
         """Create a tree represtation (peel) from its hyperbolic embedic data
 
         Args:
@@ -51,7 +51,6 @@ class utilFunc:
             leaf_dir (2D tensor): directional tensors of leaves 
             int_r (1D tensor): radius of internal nodes
             int_dir (2D tensor): directional tensors of internal nodes
-            location_map (numpy array): node location map
         """
         leaf_node_count = leaf_r.shape[0]
         node_count = leaf_r.shape[0] + int_r.shape[0]
@@ -63,27 +62,25 @@ class utilFunc:
                 dist_ij = 0
 
                 if(i < leaf_node_count):
-                    dist_ij = self.hyperbolic_distance(self,
-                                                       leaf_r[i],
-                                                       leaf_dir[i],
-                                                       int_r[j-leaf_node_count],
-                                                       int_dir[j -
-                                                               leaf_node_count],
-                                                       1.0)
+                    dist_ij = utilFunc.hyperbolic_distance(
+                        leaf_r[i],
+                        leaf_dir[i],
+                        int_r[j-leaf_node_count],
+                        int_dir[j - leaf_node_count],
+                        1.0)
                 else:
                     i_node = i - leaf_node_count
-                    dist_ij = self.hyperbolic_distance(self,
-                                                           int_r[i_node],
-                                                           int_dir[i_node],
-                                                           int_r[j-leaf_node_count],
-                                                           int_dir[j -
-                                                                   leaf_node_count],
-                                                           1.0)
+                    dist_ij = utilFunc.hyperbolic_distance(
+                        int_r[i_node],
+                        int_dir[i_node],
+                        int_r[j-leaf_node_count],
+                        int_dir[j - leaf_node_count],
+                        1.0)
 
                 # apply the inverse transform from Matsumoto et al 2020
                 dist_ij = torch.log(torch.cosh(dist_ij))
 
-                # use negative of distance so that least dist has largest 
+                # use negative of distance so that least dist has largest
                 # value in the priority queue
                 edge_list[i].append(u_edge(dist_ij, i, j))
                 edge_list[j].append(u_edge(dist_ij, j, i))
@@ -101,45 +98,54 @@ class utilFunc:
             e = u_edge(heappop(queue))
 
             # ensure the destination node has not been visited yet
-            # internal nodes can have up to 3 adjacencies, of which at least 
+            # internal nodes can have up to 3 adjacencies, of which at least
             # one must be internal
             # leaf nodes can only have a single edge in the MST
             is_valid = True
-            if visited[e.to_]: is_valid = True 
-            
-            if e.from_ < leaf_node_count and mst_adjacencies[e.to_].__len__ > 0: is_valid = False 
+            if visited[e.to_]:
+                is_valid = True
+
+            if e.from_ < leaf_node_count and mst_adjacencies[e.to_].__len__ > 0:
+                is_valid = False
 
             if e.from_ >= leaf_node_count:
                 if mst_adjacencies[e.from_].__len__() == 2:
                     found_internal = e.to_ >= leaf_node_count
-                    if mst_adjacencies[e.from_][0] >= leaf_node_count: found_internal = True 
-                    if mst_adjacencies[e.from_][1] >= leaf_node_count: found_internal = True 
-                    if not found_internal: is_valid = False 
+                    if mst_adjacencies[e.from_][0] >= leaf_node_count:
+                        found_internal = True
+                    if mst_adjacencies[e.from_][1] >= leaf_node_count:
+                        found_internal = True
+                    if not found_internal:
+                        is_valid = False
                 elif mst_adjacencies[e.from_].__len__() == 3:
                     is_valid = False
 
             # don't use the last open slot unless this is the last node
-            if open_slots == 1 and e.to_ < leaf_node_count and visited_count < node_count - 1: is_valid = False 
+            if open_slots == 1 and e.to_ < leaf_node_count and visited_count < node_count - 1:
+                is_valid = False
             if is_valid:
                 if e.to_ is not e.from_:
                     mst_adjacencies[e.from_].append(e.to_)
                     mst_adjacencies[e.to_].append(e.from_)
 
                 # a new internal node has room for 2 more adjacencies
-                if e.to_ != leaf_node_count: open_slots += 2 
-                if e.from_ >= leaf_node_count: open_slots -= 1 
+                if e.to_ != leaf_node_count:
+                    open_slots += 2
+                if e.from_ >= leaf_node_count:
+                    open_slots -= 1
 
                 visited[e.to_] = True
                 visited_count += 1
                 for new_e in edge_list[e.to_]:
                     if visited[new_e.to_]:
                         continue
-                    heapq.heappush(queue, new_e)
+                    heappush(queue, new_e)
 
         # prune internal nodes that don't create a bifurcation
         to_check = deque()
         for n in range(leaf_node_count, mst_adjacencies.__len__()):
-            if mst_adjacencies[n].__len__() < 3: to_check.append(n) 
+            if mst_adjacencies[n].__len__() < 3:
+                to_check.append(n)
 
         unused = []
         while to_check.__len__() > 0:
@@ -149,7 +155,9 @@ class utilFunc:
                 neighbour = mst_adjacencies[n][0]
                 mst_adjacencies[n].clear()
                 for i in range(mst_adjacencies[neighbour].__len__()):
-                    if mst_adjacencies[neighbour][i] == n: mst_adjacencies[neighbour].pop(mst_adjacencies[neighbour][0] + i) 
+                    if mst_adjacencies[neighbour][i] == n:
+                        mst_adjacencies[neighbour].pop(
+                            mst_adjacencies[neighbour][0] + i)
 
                 unused.append(n)
                 to_check.append(neighbour)
@@ -158,10 +166,12 @@ class utilFunc:
                 n2 = mst_adjacencies[n][1]
                 mst_adjacencies[n].clear()
                 for i in range(mst_adjacencies[n1].__len__()):
-                    if mst_adjacencies[n1][i] == n: mst_adjacencies[n1][i] = n2 
+                    if mst_adjacencies[n1][i] == n:
+                        mst_adjacencies[n1][i] = n2
 
                 for i in range(mst_adjacencies[n2].__len__()):
-                    if mst_adjacencies[n2][i] == n: mst_adjacencies[n2][i] = n1 
+                    if mst_adjacencies[n2][i] == n:
+                        mst_adjacencies[n2][i] = n1
 
                 unused.append(n)
 
@@ -173,7 +183,7 @@ class utilFunc:
         # find any nodes with more than three adjacencies and introduce
         # intermediate nodes to reduce the number of adjacencies
         if unused.__len__() > 0:
-            for n in range(mst_adjacencies.__len__)():
+            for n in range(mst_adjacencies.__len__()):
                 while mst_adjacencies[n].__len__() > 3:
                     new_node = unused[-1]
                     unused.pop(unused[-1]-1)
@@ -187,7 +197,8 @@ class utilFunc:
                     mst_adjacencies[new_node].append(n)
                     for move in {move_1, move_2}:
                         for i in range(mst_adjacencies[move].__len__()):
-                            if mst_adjacencies[move][i] == n: mst_adjacencies[move][i] = new_node 
+                            if mst_adjacencies[move][i] == n:
+                                mst_adjacencies[move][i] = new_node
 
                     # map the location for the new node to the original node
                     location_map[new_node] = n
@@ -205,7 +216,8 @@ class utilFunc:
         mst_adjacencies.append({0, zero_parent})
         mst_adjacencies[0][0] = mst_adjacencies.__len__() - 1
         for i in range(mst_adjacencies[zero_parent].__len__()):
-            if mst_adjacencies[zero_parent][i] == 0: mst_adjacencies[zero_parent][i] = mst_adjacencies.__len__() - 1 
+            if mst_adjacencies[zero_parent][i] == 0:
+                mst_adjacencies[zero_parent][i] = mst_adjacencies.__len__() - 1
         location_map[mst_adjacencies.__len__() - 1] = zero_parent
 
         # make peel via pre-order traversal
@@ -234,6 +246,8 @@ class utilFunc:
                 peel[i][j] += 1
         for i in range(location_map.__len__()):
             location_map[i] += 1
+
+    return peel, location_map
 
     # def compute_LL(S, L, bcount, D, tipdata, leaf_r, leaf_dir, int_r, int_dir):
     #     partials =

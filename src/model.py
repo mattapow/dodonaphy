@@ -127,12 +127,11 @@ class DodonaphyModel(Distribution):
         # finite-time transition matrices for each branch
         fttm = torch.empty(bcount, 4, 4, requires_grad=True)
         # list of nodes for peeling.
-        peel = np.zeros(S-1, 3)
+        # peel = np.zeros(S-1, 3)
         # node location map
-        location_map = np.empty(2*S-1, dtype=np.int64)
+        # location_map = np.empty(2*S-1, dtype=np.int64)
 
-        utilFunc.make_peel(leaf_r, leaf_dir, int_r,
-                           int_dir, peel, location_map)
+        peel, location_map = utilFunc.make_peel(leaf_r, leaf_dir, int_r, int_dir)
         # brach lenghts
         blens = self.compute_branch_lengths(
             S, D, peel, location_map, leaf_r, leaf_dir, int_r, int_dir)
@@ -211,6 +210,11 @@ class DodonaphyModel(Distribution):
         logPrior = 0
 
         # logP
+        print(z_leaf_r)
+        print(z_leaf_dir)
+        print(z_int_r)
+        print(z_int_dir)
+        
         logP = self.compute_LL(z_leaf_r, z_leaf_dir, z_int_r, z_int_dir)
 
         return logP + logPrior - logQ
