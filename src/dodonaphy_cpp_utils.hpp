@@ -2,6 +2,8 @@
 #define __dodonaphy_cpp_utils_hpp__
 
 #include <stan/model/model_header.hpp>
+
+// #include <>
 #include <queue>
 #include <stack>
 
@@ -76,16 +78,7 @@ make_peel(const std::vector<T0__>& leaf_r, const std::vector<std::vector<T1__> >
 	size_t leaf_node_count = leaf_r.size();
 	size_t node_count = leaf_r.size() + int_r.size();
 	std::vector< std::vector<u_edge> > edge_list(node_count);
-/*
-  std::cerr << "leaf nodes: " << leaf_locs.size() << std::endl;
-  std::cerr << "internal nodes: " << int_locs.size() << std::endl;
-  for(size_t i=0; i < int_locs.size(); i++){
-    for(size_t j=0; j < int_locs[i].size(); j++){
-      std::cerr << '\t' << int_locs[i][j];
-    }
-    std::cerr << '\n';
-  }
-*/
+
 	for(size_t i=0; i < node_count; i++){
 		for(size_t j=std::max(i+1,leaf_node_count); j < node_count; j++){
       double dist_ij = 0;
@@ -158,91 +151,6 @@ make_peel(const std::vector<T0__>& leaf_r, const std::vector<std::vector<T1__> >
 		}
 	}
 	
-	// prune internal nodes that don't create a bifurcation
-	std::stack<size_t> to_check;
-	for(size_t n=leaf_node_count; n < mst_adjacencies.size(); n++){
-		if(mst_adjacencies[n].size() < 3){
-			to_check.push(n);			
-		}
-	}
-	std::vector<size_t> unused;
-	while(to_check.size()>0){
-		size_t n = to_check.top();
-		to_check.pop();
-		if(mst_adjacencies[n].size()==1){
-			size_t neighbour = mst_adjacencies[n][0];
-			mst_adjacencies[n].clear();
-			for(size_t i=0; i < mst_adjacencies[neighbour].size(); i++){
-				if(mst_adjacencies[neighbour][i] == n){
-					mst_adjacencies[neighbour].erase(mst_adjacencies[neighbour].begin() + i);
-				}				
-			}
-			unused.push_back(n);
-			to_check.push(neighbour);
-		}else if(mst_adjacencies[n].size()==2){
-			size_t n1 = mst_adjacencies[n][0];
-			size_t n2 = mst_adjacencies[n][1];
-			mst_adjacencies[n].clear();
-			for(size_t i=0; i < mst_adjacencies[n1].size(); i++){
-				if(mst_adjacencies[n1][i] == n){
-					mst_adjacencies[n1][i] = n2;
-				}				
-			}
-			for(size_t i=0; i < mst_adjacencies[n2].size(); i++){
-				if(mst_adjacencies[n2][i] == n){
-					mst_adjacencies[n2][i] = n1;
-				}				
-			}
-			unused.push_back(n);
-		}
-	}
-//  std::cerr << "unused: " << unused.size() << std::endl;
-
-	// initialize location_map with every node pointing to itself
-	for(size_t i=0; i < location_map.size(); i++){
-		location_map[i]=i;
-	}
-
-	// transform the MST into a binary tree.
-	// find any nodes with more than three adjacencies and introduce
-	// intermediate nodes to reduce the number of adjacencies
-	if(unused.size()>0){
-		for(size_t n=0; n < mst_adjacencies.size(); n++){
-			while(mst_adjacencies[n].size() > 3){
-				size_t new_node = unused.back();
-				unused.erase(unused.end()-1);
-				size_t move_1 = mst_adjacencies[n].back();
-				size_t move_2 = mst_adjacencies[n].front();
-				mst_adjacencies[n].erase(mst_adjacencies[n].end()-1);
-				mst_adjacencies[n][0] = new_node;
-				// link up new node
-				mst_adjacencies[new_node].push_back(move_1);
-				mst_adjacencies[new_node].push_back(move_2);
-        mst_adjacencies[new_node].push_back(n);
-				for(auto& move : {move_1,move_2}){
-					for(size_t i=0; i < mst_adjacencies[move].size(); i++){
-						if(mst_adjacencies[move][i] == n){
-							mst_adjacencies[move][i] = new_node;
-						}
-					}
-				}
-				// map the location for the new node to the original node
-				location_map[new_node] = n;
-			}
-		}
-	}
-//  std::cerr << "tree pruned of unused nodes.\n";
-
-  // update the location map - handles multiple reassignments
-  for(size_t i=0; i<location_map.size(); i++){
-    size_t parent = location_map[i];
-    while(parent != location_map[parent]){
-      location_map[parent] = location_map[location_map[parent]];
-      parent = location_map[parent];
-    }
-    location_map[i] = parent;
-  }
-//  std::cerr << "loc map updated.\n";
 
   // add a fake root above node 0
   int zero_parent = mst_adjacencies[0][0];
@@ -253,7 +161,7 @@ make_peel(const std::vector<T0__>& leaf_r, const std::vector<std::vector<T1__> >
       mst_adjacencies[zero_parent][i] = mst_adjacencies.size()-1;
     }
   }
-  location_map[mst_adjacencies.size()-1]=zero_parent;
+  // location_map[mst_adjacencies.size()-1]=zero_parent;
 //  std::cerr << "fake root added.\n";
 	
 	// make peel via pre-order traversal

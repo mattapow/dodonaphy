@@ -1,0 +1,7 @@
+make_peel
+compute_LL
+compute_branch_lengh
+model (data, function, parameter, transformed_parameter, generated parameter)
+
+elbo
+training (fitting)

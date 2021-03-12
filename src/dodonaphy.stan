@@ -1,6 +1,6 @@
 functions {
 // computes the euclidean distance between a leaf and an internal node
-real distance(int node_1, int node_2, int D, real[,] locs_1, real[,] locs_2) {
+real euclid_distance(int node_1, int node_2, int D, real[,] locs_1, real[,] locs_2) {
     real dist = 0;
     for(i in 1:D){
         dist += square(locs_1[node_1,i] - locs_2[node_2,i]);

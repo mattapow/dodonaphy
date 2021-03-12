@@ -1,0 +1,23 @@
+{
+    "configurations": [
+        {
+            "name": "Linux",
+            "includePath": [
+                "/home/azad/.cmdstanr/cmdstan-2.26.0/**",
+                "/home/azad/.cmdstanr/cmdstan-2.26.0/stan/src",
+                "/home/azad/.cmdstanr/cmdstan-2.26.0/stan/lib/stan_math",
+                "/home/azad/.cmdstanr/cmdstan-2.26.0/stan/lib/stan_math/lib/eigen_3.3.9",
+                "/home/azad/.cmdstanr/cmdstan-2.26.0/stan/lib/stan_math/lib/boost_1.72.0",
+                "/home/azad/.cmdstanr/cmdstan-2.26.0/stan/lib/stan_math/lib/tbb_2019_U8/include",
+                "/home/azad/.cmdstanr/cmdstan-2.26.0/stan/lib/stan_math/lib/tbb_2019_U8/include",
+                "/home/azad/.cmdstanr/cmdstan-2.26.0/stan/lib/stan_math/lib/sundials_5.6.1/include"
+            ],
+            "defines": [],
+            "compilerPath": "/usr/bin/gcc",
+            "cStandard": "gnu17",
+            "cppStandard": "gnu++14",
+            "intelliSenseMode": "linux-gcc-x64"
+        }
+    ],
+    "version": 4
+}
