@@ -185,11 +185,21 @@ class DodonaphyModel(Distribution):
         Returns:
             [type]: [description]
         """
+        sigmoid_transformation = SigmoidTransform()
+
+        
         # z
         z_leaf_r = q_leaf_r.rsample()
         z_leaf_dir = q_leaf_dir.rsample()
         z_int_r = q_int_r.rsample()
         z_int_dir = q_int_dir.rsample()
+        # transformation of z
+        z_leaf_r = sigmoid_transformation(z_leaf_r)        
+        z_leaf_dir = sigmoid_transformation((z_leaf_dir - 1) / 2)
+        z_int_r = sigmoid_transformation(z_int_r)
+        z_int_dir = sigmoid_transformation((z_int_dir - 1) / 2)
+
+
         # logQ
         logQ_leaf_r = q_leaf_r.log_prob(z_leaf_r)
         logQ_leaf_dir = q_leaf_dir.log_prob(z_leaf_dir)
@@ -231,8 +241,6 @@ class DodonaphyModel(Distribution):
         ), requires_grad=True), torch.tensor(param_init["int_dir"].std(), requires_grad=True)
 
         dodonaphy_mod = self
-
-        print(list(self.VarationalParams.values()))
 
         optimizer = torch.optim.Adam(list(self.VarationalParams.values()), lr=0.1)
         scheduler = torch.optim.lr_scheduler.LambdaLR(
@@ -282,7 +290,7 @@ class DodonaphyModel(Distribution):
             sigmas['int_dir_sigma'].append(
                 self.VarationalParams["int_dir_sigma"].exp().item())
 
-            loss = - self.elbo_lognormal()
+            loss = - self.elbo_normal()
 
             elbo_hist.append(-loss.item())
             optimizer.zero_grad()
@@ -310,9 +318,9 @@ class DodonaphyModel(Distribution):
             'ELBO: {}'.format(elbo_hist[-1])
 
         with torch.no_grad():
-            print('Final ELBO: {}'.format(self.elbo_lognormal(100).item()))
+            print('Final ELBO: {}'.format(self.elbo_normal(100).item()))
 
-    def elbo_lognormal(self, size=1):
+    def elbo_normal(self, size=1):
         """[summary]
 
         Args:
@@ -336,23 +344,10 @@ class DodonaphyModel(Distribution):
             self.VarationalParams["int_dir_mu"].item(), 
             math.exp(self.VarationalParams["int_dir_sigma"].item()))
 
-        sigmoid_transformation = SigmoidTransform()
-
-        leaf_r_z = q_leaf_r.rsample()
-        int_r_z = q_int_r.rsample()
-        leaf_dir_z = q_leaf_dir.rsample()
-        int_dir_z = q_int_dir.rsample()
-
-        leaf_r = sigmoid_transformation(leaf_r_z)
-        int_r = sigmoid_transformation(int_r_z)
-        
-        leaf_dir = sigmoid_transformation((leaf_r_z - 1) / 2)
-        int_dir = sigmoid_transformation((int_dir_z - 1) / 2)
-
         for i in range(size):
-            elbo += self.calculate_elbo(leaf_r,
-                                        leaf_dir, int_r, int_dir)
+            elbo += self.calculate_elbo(q_leaf_r,
+                                        q_leaf_dir, q_int_r, q_int_dir)
         return elbo/size
 
-mymod = DodonaphyModel(3,1000,3)
-print(mymod.data)
+# mymod = DodonaphyModel(3,1000,3)
+# print(mymod.data)
