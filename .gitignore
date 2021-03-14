@@ -5,3 +5,12 @@ src/dodonaphy.hpp
 src/dodonaphy.hpp.orig
 src/dodonaphy.o
 src/test_dodonaphy
+
+__pycache__/
+
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+*.code-workspace
