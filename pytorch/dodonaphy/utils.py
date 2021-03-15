@@ -247,7 +247,7 @@ class utilFunc:
         for i in range(location_map.__len__()):
             location_map[i] += 1
 
-    return peel, location_map
+        return peel, location_map
 
     # def compute_LL(S, L, bcount, D, tipdata, leaf_r, leaf_dir, int_r, int_dir):
     #     partials =
