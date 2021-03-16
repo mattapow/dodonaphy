@@ -1,9 +1,17 @@
 # dodonaphy
 
-Research into the use of hyperbolic embeddings for approximating phylogenetic posteriors
+## Installing
+Install the dodonaphy package using pip:
+```
+pip install dodonaphy
+```
+alternatively the package can be installed locally using
+```
+pip install -e .
+```
 
-This code is under active research & development and not intended for production use for phylogenetic inference.
-
-## getting started
-
-The script `bin/test_dodonaphy.R` can be run from the top level repo directory to generate some simulated data and run dodonaphy. Several R packages are required including cmdstanr, phangorn, and ape. The build script `build.sh` can be run to build a CmdStan binary of dodonaphy.
+## Running tests
+Once the package is installed tests are run using pytest:
+```
+pytest
+```

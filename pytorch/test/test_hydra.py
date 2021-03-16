@@ -10,9 +10,8 @@ import sys
 import os
 import numpy as np
 
-sys.path.append(os.path.abspath(os.path.join('../dodonaphy')))
+from dodonaphy.utils import utilFunc
 
-from utils import utilFunc
 
 def test_2d():
     
