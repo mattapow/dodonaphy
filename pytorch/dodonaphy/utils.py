@@ -99,15 +99,11 @@ class utilFunc:
             x0 = -x0 # Flip sign if first element negative
         x_min = min(x0) # find minimum
 
-        print('x before')
-        print(X)
         if not control.get('isotropic_adj'): # no isotropic adjustment: rescale Eigenvectors by Eigenvalues
             if np.array([spec_tail>0]).any():
                 warnings.warn("Spectral Values have been truncated to zero. Try to use lower embedding dimension")
                 spec_tail[spec_tail>0] = 0
             X = np.matmul(X, np.diag(np.sqrt(-spec_tail)))
-        print('x after')
-        print(X)
 
         s = np.sqrt(np.sum(X**2,axis=1))        
         directional = X / s[:,None] # convert to directional coordinates
