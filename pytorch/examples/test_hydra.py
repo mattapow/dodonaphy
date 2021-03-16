@@ -10,7 +10,7 @@ import sys
 import os
 import numpy as np
 
-sys.path.append(os.path.abspath(os.path.join('../src')))
+sys.path.append(os.path.abspath(os.path.join('../dodonaphy')))
 
 from utils import utilFunc
 
@@ -43,7 +43,6 @@ def test_3d():
     assert np.allclose(emm['curvature'],1)
     assert np.allclose(emm['dim'],dim)
     assert np.allclose(emm['r'],[0.6274604254, 0.2705702432, 0.6461609880, 0.6779027826, 0.2182178902])
-    print('Directional\n',emm['directional'])
     assert np.allclose(emm['directional'],[ 
     [0.0821320214, -0.7981301820, 0.5968605730],
     [-0.5711268681, -0.6535591501, -0.4966634050],
