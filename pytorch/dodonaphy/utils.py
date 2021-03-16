@@ -153,7 +153,7 @@ class utilFunc:
         output['dim'] = dim
         return(output)
         
-    
+    @staticmethod
     def hyperbolic_distance(r1, r2, directional1, directional2, curvature):
         """Generates hyperbolic distance between two points in poincoire ball
 
@@ -167,20 +167,14 @@ class utilFunc:
         Returns:
             tensor: distance between point 1 and point 2
         """
-        dpl = torch.empty(2)
-        dpl[0] = torch.dot(directional1, directional2)
-        dpl[1] = torch.tensor([-1.0], requires_grad=True)
-        iprod = dpl[0]
-        dpl[0] = 2 * (torch.pow(r1, 2) + torch.pow(r2, 2) - 2*r1 *
-                      r2*iprod)/((1-torch.pow(r1, 2) * (1-torch.pow(r2, 2))))
-        dpl[1] = 0.0
-        acosharg = 1.0 + max(dpl)
+        iprod = torch.clamp(torch.dot(directional1, directional2), min=-1.0, max=1.0)
+        acosharg = 1.0 + torch.clamp(2.0 * (torch.pow(r1, 2) + torch.pow(r2, 2) - 2 * r1 *
+                                            r2 * iprod) / ((1 - torch.pow(r1, 2)) * (1 - torch.pow(r2, 2))), min=0.0)
         # hyperbolic distance between points i and j
-        dist = 1/math.sqrt(curvature) * torch.cosh(acosharg)
-        return dist + 0.000000000001  # add a tiny amount to avoid zero-length branches
+        return 1. / torch.sqrt(curvature) * torch.acosh(acosharg)
 
     @staticmethod
-    def make_peel(leaf_r, leaf_dir, int_r, int_dir):
+    def make_peel(leaf_r, leaf_dir, int_r, int_dir, curvature=torch.ones(1)):
         """Create a tree represtation (peel) from its hyperbolic embedic data
 
         Args:
