@@ -17,10 +17,9 @@ class utilFunc:
         pass
 
     @staticmethod
-    def hydra(D, dim=2, curvature = 1, alpha=1.1, equi_adj=0.5,
-              control={'lorentz': False}):
+    def hydra(D, dim=2, curvature = 1, alpha=1.1, equi_adj=0.5, control={'lorentz': False}):
         """ Strain minimised hyperbolic embedding
-        Python Implementation of KELLER-RESSEL 2019 CRAN function hydra
+        Python Implementation of Keller-Ressel's 2019 CRAN function hydra
         https://arxiv.org/abs/1903.08977
         
         Args:
@@ -28,14 +27,14 @@ class utilFunc:
             dim (positive int): embedding dimension (default: 2)
             curvature (positive real): embedding curvature (default: 1)
             alpha (real greater than 1): adjusts the hyperbolic curvature. Values larger than one yield a more distorted embedding where points are pushed
-            to the outer boundary (i.e. the ideal points) of hyperblic space. The interaction between \code{curvature} and \code{alpha} is non-linear.
-            equi_adj (real): equi-angular adjustment; must be a real number between zero and one; only used if \code{dim} is 2. Value 0 means no ajustment, 1 adjusts
+            to the outer boundary (i.e. the ideal points) of hyperblic space. The interaction between code{curvature} and code{alpha} is non-linear.
+            equi_adj (real): equi-angular adjustment; must be a real number between zero and one; only used if code{dim} is 2. Value 0 means no ajustment, 1 adjusts
             embedded data points such that their angular coordinates in the Poincare disc are uniformly distributed. Other values interpolate between the two extremes.
             Setting the parameter to non-zero values can make the embedding result look more harmoniuous in plots.
         
             control: a list which may contain the following boolean flags:
-                polar: return polar coordinates in dimension 2 (default: TRUE if \code{dim} is 2. This flag is ignored in higher dimension)
-                isotropic_adj: perform isotropic adjustment, ignoring Eigenvalues (default: TRUE if \code{dim} is 2, FALSE else)
+                polar: return polar coordinates in dimension 2 (default: TRUE if code{dim} is 2. This flag is ignored in higher dimension)
+                isotropic_adj: perform isotropic adjustment, ignoring Eigenvalues (default: TRUE if code{dim} is 2, FALSE else)
                 lorentz: return raw Lorentz coordinates (before projection to hyperbolic space) (default: FALSE)
                 
                 (Not implemented)
@@ -121,7 +120,6 @@ class utilFunc:
           
           ## Equiangular adjustment
           if equi_adj > 0.0:
-            delta = 2*math.pi/n
             angles = [(2*x/n-1)*math.pi for x in range(0, n)]
             theta_equi = np.array([x for _,x in sorted(zip(theta,angles))]) # Equi-spaced angles
             theta = (1-equi_adj)*theta + equi_adj*theta_equi # convex combination of original and equi-spaced angles
