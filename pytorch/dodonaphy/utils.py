@@ -216,35 +216,6 @@ class utilFunc:
                     stress_sq = stress_sq + (dist[i][j] - D[i, j]) ** 2
 
         return np.sqrt(stress_sq)
-
-    @staticmethod
-    def post_order_traversal(mst, currentNode, peel, visited):
-        """Post-order traversal of a constrained-MST
-
-        Args:
-            mst ([type]): [description]
-            currentNode ([type]): [description]
-            peel ([type]): [description]
-            visited ([type]): [description]
-
-        Returns:
-            [type]: [description]
-        """
-        visited[currentNode] = True
-        if mst[currentNode].__len__() < 2:      # leaf nodes
-            return currentNode
-        else:                                   # internal nodes
-            childs = []
-            for child in mst[currentNode]:
-                if(not visited[child]):
-                    childs.append(utilFunc.post_order_traversal(mst, child, peel, visited))
-                    # childs.append(child)
-            childs.append(currentNode)
-            peel.append(childs)
-            return currentNode
-            
-
-        
     
     @staticmethod
     def post_order_traversal(mst, currentNode, peel, visited):
@@ -271,9 +242,6 @@ class utilFunc:
             childs.append(currentNode)
             peel.append(childs)
             return currentNode
-            
-
-        
     
     @staticmethod
     def hyperbolic_distance(r1, directional1, r2, directional2, curvature):
@@ -432,7 +400,6 @@ class utilFunc:
 
                 unused.append(n)
 
-
         # transform the MST into a binary tree.
         # find any nodes with more than three adjacencies and introduce
         # intermediate nodes to reduce the number of adjacencies
@@ -454,7 +421,6 @@ class utilFunc:
                             if mst_adjacencies[move][i] == n:
                                 mst_adjacencies[move][i] = new_node
 
-
         # add a fake root above node 0: "outgroup" rooting
         zero_parent = mst_adjacencies[0][0]
         mst_adjacencies[node_count].append(0)
@@ -466,29 +432,6 @@ class utilFunc:
             if mst_adjacencies[zero_parent][i] == 0:
                 mst_adjacencies[zero_parent][i] = fake_root
 
-        # # make peel via pre-order traversal
-        # peel = np.zeros((node_count,3), dtype=np.int64)  # all nodes
-        # visited = (node_count+1) * [False] # all nodes + the fake root 
-        # node_stack = []
-        # node_stack.append(mst_adjacencies[0][0])    # the parent of zero is actually the fake root 
-        # peelI = node_count  # peel index
-        # while node_stack.__len__() != 0:
-        #     cur_node = node_stack.pop()
-        #     if mst_adjacencies[cur_node].__len__() < 2:
-        #         continue    # leaf node, nothing to do
-        #     # remove already-visited nodes from adjacencies, leaving just two children
-        #     for iter in mst_adjacencies[cur_node]:
-        #         if visited[iter]:
-        #             mst_adjacencies[cur_node].remove(iter)
-        #     # peel entries are child, child, parent
-        #     # cur_node should always have two adjacencies
-        #     peelI = peelI - 1
-        #     peel[peelI] = [mst_adjacencies[cur_node][0],
-        #                    mst_adjacencies[cur_node][1], cur_node]
-        #     node_stack.append(peel[peelI][0])
-        #     node_stack.append(peel[peelI][1])
-        #     visited[cur_node] = True
-
         # make peel via post-order
         peel = []
         visited = (node_count+1) * [False] # all nodes + the fake root 
@@ -498,17 +441,4 @@ class utilFunc:
             for j in range(peel[i].__len__()):
                 peel[i][j] += 1     # node re-indexing (1-based)
 
-
         return np.array(peel)
-
-    # def compute_LL(S, L, bcount, D, tipdata, leaf_r, leaf_dir, int_r, int_dir):
-    #     partials =
-
-    # def compute_branch_lengths(S, D, peel, location_map, leaf_r, leaf_dir, int_r, int_dir):
-    #     bcount = 2*S-2
-    #     blens = bcount*[]
-    #     for b in range(1, S-1):
-    #         directional1 = D*[]
-    #         directional2 = D*[]
-    #         r2 = int_r[location_map[peel[b, 3]]-S]
-    #         directional2 = int_dir[location_map[peel[b, 3]]-S, ]
