@@ -4,11 +4,8 @@ from collections import deque
 import numpy as np
 import torch
 import warnings
-<<<<<<< Updated upstream
-=======
 import sys
 from collections import defaultdict
->>>>>>> Stashed changes
 
 
 class u_edge:
@@ -17,11 +14,8 @@ class u_edge:
         self.from_ = node_1
         self.to_ = node_2
 
-<<<<<<< Updated upstream
-=======
     def __lt__(self, other):
         return self.distance < other.distance
->>>>>>> Stashed changes
 
 class utilFunc:
     def __init__(self):
@@ -223,6 +217,35 @@ class utilFunc:
 
         return np.sqrt(stress_sq)
 
+    @staticmethod
+    def post_order_traversal(mst, currentNode, peel, visited):
+        """Post-order traversal of a constrained-MST
+
+        Args:
+            mst ([type]): [description]
+            currentNode ([type]): [description]
+            peel ([type]): [description]
+            visited ([type]): [description]
+
+        Returns:
+            [type]: [description]
+        """
+        visited[currentNode] = True
+        if mst[currentNode].__len__() < 2:      # leaf nodes
+            return currentNode
+        else:                                   # internal nodes
+            childs = []
+            for child in mst[currentNode]:
+                if(not visited[child]):
+                    childs.append(utilFunc.post_order_traversal(mst, child, peel, visited))
+                    # childs.append(child)
+            childs.append(currentNode)
+            peel.append(childs)
+            return currentNode
+            
+
+        
+    
     @staticmethod
     def post_order_traversal(mst, currentNode, peel, visited):
         """Post-order traversal of a constrained-MST
