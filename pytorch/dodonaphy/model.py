@@ -38,14 +38,13 @@ class DodonaphyModel(object):
         for i in range(self.S - 1):
             self.partials.append([None] * self.L)
 
-    def compute_branch_lengths(self, S, D, peel, location_map, leaf_r, leaf_dir, int_r, int_dir):
+    def compute_branch_lengths(self, S, D, peel, leaf_r, leaf_dir, int_r, int_dir, curvature=torch.ones(1)):
         """Computes the hyperbolic distance of two points given in radial/directional coordinates in the Poincare ball
         
         Args:
             S (integer): [description]
             D ([type]): [description]
             peel ([type]): [description]
-            location_map ([type]): [description]
             leaf_r ([type]): [description]
             leaf_dir ([type]): [description]
             int_r ([type]): [description]
@@ -55,40 +54,40 @@ class DodonaphyModel(object):
             [type]: [description]
         """
         blens = torch.empty(self.bcount)
-        for b in range(1, S-1):
+        for b in range(S-1):
             directional1, directional2 = torch.empty(
-                D, requires_grad=True), torch.empty(D, requires_grad=True)
-            directional2 = int_dir[location_map[peel[b, 3]]-S, :]
+                D, requires_grad=False), torch.empty(D, requires_grad=False)
+            directional2 = int_dir[peel[b][2]-S, :]
             r1 = torch.empty(1)
-            r2 = int_r[location_map[peel[b, 3]]-S]
-            if peel[b, 1] <= S:
+            r2 = int_r[peel[b][2]-S]
+            if peel[b][0] <= S:
                 # leaf to internal
-                r1 = leaf_r[peel[b, 1]]
-                directional1 = leaf_dir[peel[b, 1], :]
+                r1 = leaf_r[peel[b][0]]
+                directional1 = leaf_dir[peel[b][0], :]
             else:
                 # internal to internal
-                r1 = int_r[location_map[peel[b, 1]]-S]
-                directional1 = int_dir[location_map[peel[b, 1]]-S, :]
+                r1 = int_r[peel[b][0]-S]
+                directional1 = int_dir[peel[b][0]-S, :]
             # apply the inverse transform from Matsumoto et al 2020
             # add a tiny amount to avoid zero-length branches
-            blens[peel[b, 1]] = torch.log(
-                torch.cosh(blens[peel[b, 1]])) + 0.000000000001
+            blens[peel[b][0]] = torch.log(
+                torch.cosh(blens[peel[b][1]])) + 0.000000000001
 
-            if peel[b, 2] <= S:
+            if peel[b][1] <= S:
                 # leaf to internal
-                r1 = leaf_r[peel[b, 2]]
-                directional1 = leaf_dir[peel[b, 2], :]
+                r1 = leaf_r[peel[b][1]]
+                directional1 = leaf_dir[peel[b][1], :]
             else:
                 # internal to internal
-                r1 = int_r[location_map[peel[b, 2]]-S]
-                directional1 = int_dir[location_map[peel[b, 2]-S], ]
-            blens[peel[b, 2]] = utilFunc.hyperbolic_distance(
-                r1, r2, directional1, directional2, 1)
+                r1 = int_r[peel[b][1]-S]
+                directional1 = int_dir[peel[b][1]-S, :]
+            blens[peel[b][1]] = utilFunc.hyperbolic_distance(
+                r1, directional1, r2, directional2, curvature)
 
             # apply the inverse transform from Matsumoto et al 2020
             # add a tiny amount to avoid zero-length branches
-            blens[peel[b, 2]] = torch.log(
-                torch.cosh(blens[peel[b, 2]])) + 0.000000000001
+            blens[peel[b][1]] = torch.log(
+                torch.cosh(blens[peel[b][1]])) + 0.000000000001
 
         return blens
 
@@ -102,11 +101,11 @@ class DodonaphyModel(object):
             int_dir ([type]): [description]
         """
         with torch.no_grad():
-            peel, location_map = utilFunc.make_peel(leaf_r, leaf_dir, int_r, int_dir)
+            peel = utilFunc.make_peel(leaf_r, leaf_dir, int_r, int_dir)
 
         # brach lenghts
         blens = self.compute_branch_lengths(
-            self.S, self.D, peel, location_map, leaf_r, leaf_dir, int_r, int_dir)
+            self.S, self.D, peel, leaf_r, leaf_dir, int_r, int_dir)
 
         mats = JC69_p_t(np.expand_dims(blens, axis=1))
         return calculate_treelikelihood(self.partials, self.weights, peel, mats, torch.full([4], 0.25))
@@ -173,8 +172,7 @@ class DodonaphyModel(object):
         if param_init is not None:
             # set initial params as a Dict
             self.VarationalParams["leaf_r_mu"], self.VarationalParams["leaf_r_sigma"] = torch.tensor(
-                param_init["leaf_r"].mean(
-                ), requires_grad=True), torch.tensor(param_init["leaf_r"].std(), requires_grad=True)
+                param_init["leaf_r"].mean(), requires_grad=True), torch.tensor(param_init["leaf_r"].std(), requires_grad=True)
 
             self.VarationalParams["leaf_dir_mu"], self.VarationalParams["leaf_dir_sigma"] = torch.tensor(
                 param_init["leaf_dir"].mean(

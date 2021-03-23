@@ -4,6 +4,11 @@ from collections import deque
 import numpy as np
 import torch
 import warnings
+<<<<<<< Updated upstream
+=======
+import sys
+from collections import defaultdict
+>>>>>>> Stashed changes
 
 
 class u_edge:
@@ -12,6 +17,11 @@ class u_edge:
         self.from_ = node_1
         self.to_ = node_2
 
+<<<<<<< Updated upstream
+=======
+    def __lt__(self, other):
+        return self.distance < other.distance
+>>>>>>> Stashed changes
 
 class utilFunc:
     def __init__(self):
@@ -214,14 +224,43 @@ class utilFunc:
         return np.sqrt(stress_sq)
 
     @staticmethod
-    def hyperbolic_distance(r1, r2, directional1, directional2, curvature):
+    def post_order_traversal(mst, currentNode, peel, visited):
+        """Post-order traversal of a constrained-MST
+
+        Args:
+            mst ([type]): [description]
+            currentNode ([type]): [description]
+            peel ([type]): [description]
+            visited ([type]): [description]
+
+        Returns:
+            [type]: [description]
+        """
+        visited[currentNode] = True
+        if mst[currentNode].__len__() < 2:      # leaf nodes
+            return currentNode
+        else:                                   # internal nodes
+            childs = []
+            for child in mst[currentNode]:
+                if(not visited[child]):
+                    childs.append(utilFunc.post_order_traversal(mst, child, peel, visited))
+                    # childs.append(child)
+            childs.append(currentNode)
+            peel.append(childs)
+            return currentNode
+            
+
+        
+    
+    @staticmethod
+    def hyperbolic_distance(r1, directional1, r2, directional2, curvature):
         """Generates hyperbolic distance between two points in poincoire ball
 
         Args:
             r1 (tensor): radius of point 1
             r2 (tensor): radius of point 2
-            directional1 (tensor): directional of point 1
-            directional2 ([type]): directional of point 2
+            directional1 (1D tensor): directional of point 1
+            directional2 (1D tensor): directional of point 2
             curvature (integer): curvature
 
         Returns:
@@ -245,7 +284,8 @@ class utilFunc:
         """
         leaf_node_count = leaf_r.shape[0]
         node_count = leaf_r.shape[0] + int_r.shape[0]
-        edge_list = node_count*[[]]
+        edge_list = defaultdict(list)
+
         # edge_list = np.array(edge_list, dtype=u_edge)
 
         for i in range(node_count):
@@ -253,26 +293,26 @@ class utilFunc:
                 dist_ij = 0
 
                 if(i < leaf_node_count):
+                    # leaf to internal
                     dist_ij = utilFunc.hyperbolic_distance(
                         leaf_r[i],
                         leaf_dir[i],
                         int_r[j-leaf_node_count],
                         int_dir[j - leaf_node_count],
-                        1.0)
+                        curvature)
                 else:
+                    # internal to internal
                     i_node = i - leaf_node_count
                     dist_ij = utilFunc.hyperbolic_distance(
                         int_r[i_node],
                         int_dir[i_node],
                         int_r[j-leaf_node_count],
                         int_dir[j - leaf_node_count],
-                        1.0)
+                        curvature)
 
                 # apply the inverse transform from Matsumoto et al 2020
                 dist_ij = torch.log(torch.cosh(dist_ij))
 
-                # use negative of distance so that least dist has largest
-                # value in the priority queue
                 edge_list[i].append(u_edge(dist_ij, i, j))
                 edge_list[j].append(u_edge(dist_ij, j, i))
 
@@ -280,13 +320,13 @@ class utilFunc:
         queue = []  # queue here is a min-heap
         heapify(queue)
         visited = node_count*[False]  # visited here is a boolen list
-        start_edge = u_edge(0, 0, 0)
-        heappush(queue, start_edge)
-        mst_adjacencies = node_count*[[]]
-        visited_count = 0
-        open_slots = 0
+        heappush(queue, u_edge(0,0,0))    # add a start_edge
+        # heappush(queue, edge_list[0][0])    # add any edge from the edgelist as the start_edge
+        mst_adjacencies = defaultdict(list)
+        visited_count = open_slots = 0
+
         while queue.__len__() != 0 and visited_count < node_count:
-            e = u_edge(heappop(queue))
+            e = heappop(queue)
 
             # ensure the destination node has not been visited yet
             # internal nodes can have up to 3 adjacencies, of which at least
@@ -294,9 +334,12 @@ class utilFunc:
             # leaf nodes can only have a single edge in the MST
             is_valid = True
             if visited[e.to_]:
-                is_valid = True
+                is_valid = False
 
-            if e.from_ < leaf_node_count and mst_adjacencies[e.to_].__len__ > 0:
+            if e.from_ < leaf_node_count and mst_adjacencies[e.from_].__len__() > 0:
+                is_valid = False
+
+            if e.to_ < leaf_node_count and mst_adjacencies[e.to_].__len__() > 0:
                 is_valid = False
 
             if e.from_ >= leaf_node_count:
@@ -320,7 +363,7 @@ class utilFunc:
                     mst_adjacencies[e.to_].append(e.from_)
 
                 # a new internal node has room for 2 more adjacencies
-                if e.to_ != leaf_node_count:
+                if e.to_ >= leaf_node_count:
                     open_slots += 2
                 if e.from_ >= leaf_node_count:
                     open_slots -= 1
@@ -333,7 +376,7 @@ class utilFunc:
                     heappush(queue, new_e)
 
         # prune internal nodes that don't create a bifurcation
-        to_check = deque()
+        to_check = deque()  # performs better than list Re stack
         for n in range(leaf_node_count, mst_adjacencies.__len__()):
             if mst_adjacencies[n].__len__() < 3:
                 to_check.append(n)
@@ -341,7 +384,7 @@ class utilFunc:
         unused = []
         while to_check.__len__() > 0:
             n = to_check.pop()
-            to_check.pop()
+            # to_check.pop()
             if mst_adjacencies[n].__len__() == 1:
                 neighbour = mst_adjacencies[n][0]
                 mst_adjacencies[n].clear()
@@ -366,9 +409,6 @@ class utilFunc:
 
                 unused.append(n)
 
-        # initialize location_map with every node pointing to itself
-        for i in range(location_map.__len__()):
-            location_map[i] = i
 
         # transform the MST into a binary tree.
         # find any nodes with more than three adjacencies and introduce
@@ -391,54 +431,52 @@ class utilFunc:
                             if mst_adjacencies[move][i] == n:
                                 mst_adjacencies[move][i] = new_node
 
-                    # map the location for the new node to the original node
-                    location_map[new_node] = n
 
-        # update the location map - handles multiple reassignments
-        for i in range(location_map.__len__()):
-            parent = location_map[i]
-            while parent != location_map[parent]:
-                location_map[parent] = location_map[location_map[parent]]
-                parent = location_map[parent]
-            location_map[i] = parent
-
-        # add a fake root above node 0
+        # add a fake root above node 0: "outgroup" rooting
         zero_parent = mst_adjacencies[0][0]
-        mst_adjacencies.append({0, zero_parent})
-        mst_adjacencies[0][0] = mst_adjacencies.__len__() - 1
+        mst_adjacencies[node_count].append(0)
+        mst_adjacencies[node_count].append(zero_parent)
+        # mst_adjacencies.append({0, zero_parent})
+        fake_root = mst_adjacencies.__len__() - 1
+        mst_adjacencies[0][0] = fake_root
         for i in range(mst_adjacencies[zero_parent].__len__()):
             if mst_adjacencies[zero_parent][i] == 0:
-                mst_adjacencies[zero_parent][i] = mst_adjacencies.__len__() - 1
-        location_map[mst_adjacencies.__len__() - 1] = zero_parent
+                mst_adjacencies[zero_parent][i] = fake_root
 
-        # make peel via pre-order traversal
-        visited = [node_count]
-        node_stack = []
-        node_stack.append(mst_adjacencies[0][0])
-        peelI = peel.size()
-        while node_stack.__len__() != 0:
-            cur_node = node_stack.pop()
-            if mst_adjacencies[cur_node].__len__() < 2:
-                continue    # leaf node, nothing to do
-            # remove already-visited nodes from adjacencies, leaving just two children
-            for iter in mst_adjacencies[cur_node]:
-                if visited[iter]:
-                    mst_adjacencies[cur_node].remove(iter)
-            # peel entries are child, child, parent
-            # cur_node should always have two adjacencies
-            peelI = peelI - 1
-            peel[peelI] = {mst_adjacencies[cur_node][0],
-                           mst_adjacencies[cur_node][1], cur_node}
-            node_stack.append(peel[peelI][0])
-            node_stack.append(peel[peelI][1])
-            visited[cur_node] = True
+        # # make peel via pre-order traversal
+        # peel = np.zeros((node_count,3), dtype=np.int64)  # all nodes
+        # visited = (node_count+1) * [False] # all nodes + the fake root 
+        # node_stack = []
+        # node_stack.append(mst_adjacencies[0][0])    # the parent of zero is actually the fake root 
+        # peelI = node_count  # peel index
+        # while node_stack.__len__() != 0:
+        #     cur_node = node_stack.pop()
+        #     if mst_adjacencies[cur_node].__len__() < 2:
+        #         continue    # leaf node, nothing to do
+        #     # remove already-visited nodes from adjacencies, leaving just two children
+        #     for iter in mst_adjacencies[cur_node]:
+        #         if visited[iter]:
+        #             mst_adjacencies[cur_node].remove(iter)
+        #     # peel entries are child, child, parent
+        #     # cur_node should always have two adjacencies
+        #     peelI = peelI - 1
+        #     peel[peelI] = [mst_adjacencies[cur_node][0],
+        #                    mst_adjacencies[cur_node][1], cur_node]
+        #     node_stack.append(peel[peelI][0])
+        #     node_stack.append(peel[peelI][1])
+        #     visited[cur_node] = True
+
+        # make peel via post-order
+        peel = []
+        visited = (node_count+1) * [False] # all nodes + the fake root 
+        utilFunc.post_order_traversal(mst_adjacencies, fake_root, peel, visited)
+
         for i in range(peel.__len__()):
             for j in range(peel[i].__len__()):
-                peel[i][j] += 1
-        for i in range(location_map.__len__()):
-            location_map[i] += 1
+                peel[i][j] += 1     # node re-indexing (1-based)
 
-        return peel, location_map
+
+        return np.array(peel)
 
     # def compute_LL(S, L, bcount, D, tipdata, leaf_r, leaf_dir, int_r, int_dir):
     #     partials =
