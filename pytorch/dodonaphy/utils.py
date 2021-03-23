@@ -17,7 +17,6 @@ class u_edge:
     def __lt__(self, other):
         return self.distance < other.distance
 
-
 class utilFunc:
     def __init__(self):
         pass
@@ -217,7 +216,7 @@ class utilFunc:
                     stress_sq = stress_sq + (dist[i][j] - D[i, j]) ** 2
 
         return np.sqrt(stress_sq)
-
+    
     @staticmethod
     def post_order_traversal(mst, currentNode, peel, visited):
         """Post-order traversal of a constrained-MST
@@ -238,15 +237,14 @@ class utilFunc:
             childs = []
             for child in mst[currentNode]:
                 if(not visited[child]):
-                    childs.append(utilFunc.post_order_traversal(
-                        mst, child, peel, visited))
+                    childs.append(utilFunc.post_order_traversal(mst, child, peel, visited))
                     # childs.append(child)
             childs.append(currentNode)
             peel.append(childs)
             return currentNode
-
+    
     @staticmethod
-    def hyperbolic_distance(r1, r2, directional1, directional2, curvature):
+    def hyperbolic_distance(r1, directional1, r2, directional2, curvature):
         """Generates hyperbolic distance between two points in poincoire ball
 
         Args:
@@ -259,8 +257,7 @@ class utilFunc:
         Returns:
             tensor: distance between point 1 and point 2
         """
-        iprod = torch.clamp(
-            torch.dot(directional1, directional2), min=-1.0, max=1.0)
+        iprod = torch.clamp(torch.dot(directional1, directional2), min=-1.0, max=1.0)
         acosharg = 1.0 + torch.clamp(2.0 * (torch.pow(r1, 2) + torch.pow(r2, 2) - 2 * r1 *
                                             r2 * iprod) / ((1 - torch.pow(r1, 2)) * (1 - torch.pow(r2, 2))), min=0.0)
         # hyperbolic distance between points i and j
@@ -272,7 +269,7 @@ class utilFunc:
 
         Args:
             leaf_r (1D tensor): radius of the leaves
-            leaf_dir (2D tensor): directional tensors of leaves
+            leaf_dir (2D tensor): directional tensors of leaves 
             int_r (1D tensor): radius of internal nodes
             int_dir (2D tensor): directional tensors of internal nodes
         """
@@ -314,7 +311,7 @@ class utilFunc:
         queue = []  # queue here is a min-heap
         heapify(queue)
         visited = node_count*[False]  # visited here is a boolen list
-        heappush(queue, u_edge(0, 0, 0))    # add a start_edge
+        heappush(queue, u_edge(0,0,0))    # add a start_edge
         # heappush(queue, edge_list[0][0])    # add any edge from the edgelist as the start_edge
         mst_adjacencies = defaultdict(list)
         visited_count = open_slots = 0
@@ -437,9 +434,8 @@ class utilFunc:
 
         # make peel via post-order
         peel = []
-        visited = (node_count+1) * [False]  # all nodes + the fake root
-        utilFunc.post_order_traversal(
-            mst_adjacencies, fake_root, peel, visited)
+        visited = (node_count+1) * [False] # all nodes + the fake root 
+        utilFunc.post_order_traversal(mst_adjacencies, fake_root, peel, visited)
 
         for i in range(peel.__len__()):
             for j in range(peel[i].__len__()):
