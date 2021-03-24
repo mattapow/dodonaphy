@@ -244,7 +244,7 @@ class utilFunc:
             return currentNode
     
     @staticmethod
-    def hyperbolic_distance(r1, directional1, r2, directional2, curvature):
+    def hyperbolic_distance(r1, r2, directional1, directional2, curvature):
         """Generates hyperbolic distance between two points in poincoire ball
 
         Args:
@@ -252,7 +252,7 @@ class utilFunc:
             r2 (tensor): radius of point 2
             directional1 (1D tensor): directional of point 1
             directional2 (1D tensor): directional of point 2
-            curvature (integer): curvature
+            curvature (tensor): curvature
 
         Returns:
             tensor: distance between point 1 and point 2
@@ -264,7 +264,7 @@ class utilFunc:
         return 1. / torch.sqrt(curvature) * torch.acosh(acosharg)
 
     @staticmethod
-    def make_peel(leaf_r, leaf_dir, int_r, int_dir, curvature=torch.ones(1)):
+    def make_peel(leaf_r, leaf_dir, int_r, int_dir, location_map, curvature=torch.ones(1)):
         """Create a tree represtation (peel) from its hyperbolic embedic data
 
         Args:
@@ -287,8 +287,8 @@ class utilFunc:
                     # leaf to internal
                     dist_ij = utilFunc.hyperbolic_distance(
                         leaf_r[i],
-                        leaf_dir[i],
                         int_r[j-leaf_node_count],
+                        leaf_dir[i],
                         int_dir[j - leaf_node_count],
                         curvature)
                 else:
@@ -296,8 +296,8 @@ class utilFunc:
                     i_node = i - leaf_node_count
                     dist_ij = utilFunc.hyperbolic_distance(
                         int_r[i_node],
-                        int_dir[i_node],
                         int_r[j-leaf_node_count],
+                        int_dir[i_node],
                         int_dir[j - leaf_node_count],
                         curvature)
 
@@ -400,6 +400,10 @@ class utilFunc:
 
                 unused.append(n)
 
+        #initialize location_map with every node pointing to itself
+        for i in range(location_map.__len__()):
+            location_map[i] = i
+        
         # transform the MST into a binary tree.
         # find any nodes with more than three adjacencies and introduce
         # intermediate nodes to reduce the number of adjacencies
@@ -420,7 +424,17 @@ class utilFunc:
                         for i in range(mst_adjacencies[move].__len__()):
                             if mst_adjacencies[move][i] == n:
                                 mst_adjacencies[move][i] = new_node
+                    # map the location for the new node the original node
+                    location_map[new_node] = n
 
+        # update the location map - handles multiple reassignments
+        for i in range(location_map.__len__()):
+            parent = location_map[i]
+            while parent is not location_map[parent]:
+                location_map[parent] = location_map[location_map[parent]]
+                parent = location_map[parent]
+            location_map[i] = parent
+        
         # add a fake root above node 0: "outgroup" rooting
         zero_parent = mst_adjacencies[0][0]
         mst_adjacencies[node_count].append(0)
@@ -431,14 +445,16 @@ class utilFunc:
         for i in range(mst_adjacencies[zero_parent].__len__()):
             if mst_adjacencies[zero_parent][i] == 0:
                 mst_adjacencies[zero_parent][i] = fake_root
+        
+        location_map[mst_adjacencies.__len__()-1] = zero_parent
 
         # make peel via post-order
         peel = []
         visited = (node_count+1) * [False] # all nodes + the fake root 
         utilFunc.post_order_traversal(mst_adjacencies, fake_root, peel, visited)
 
-        for i in range(peel.__len__()):
-            for j in range(peel[i].__len__()):
-                peel[i][j] += 1     # node re-indexing (1-based)
+        # for i in range(peel.__len__()):
+        #     for j in range(peel[i].__len__()):
+        #         peel[i][j] += 1     # node re-indexing (1-based)
 
         return np.array(peel)

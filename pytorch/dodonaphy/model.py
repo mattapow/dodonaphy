@@ -1,5 +1,6 @@
 import numpy as np
 import torch
+import statistics
 from torch.distributions import SigmoidTransform
 
 from .phylo import calculate_treelikelihood, JC69_p_t
@@ -38,7 +39,7 @@ class DodonaphyModel(object):
         for i in range(self.S - 1):
             self.partials.append([None] * self.L)
 
-    def compute_branch_lengths(self, S, D, peel, leaf_r, leaf_dir, int_r, int_dir, curvature=torch.ones(1)):
+    def compute_branch_lengths(self, S, D, peel, leaf_r, leaf_dir, int_r, int_dir, location_map, curvature=torch.ones(1)):
         """Computes the hyperbolic distance of two points given in radial/directional coordinates in the Poincare ball
         
         Args:
@@ -57,32 +58,32 @@ class DodonaphyModel(object):
         for b in range(S-1):
             directional1, directional2 = torch.empty(
                 D, requires_grad=False), torch.empty(D, requires_grad=False)
-            directional2 = int_dir[peel[b][2]-S, :]
+            directional2 = int_dir[location_map[peel[b][2]]-S,]
             r1 = torch.empty(1)
-            r2 = int_r[peel[b][2]-S]
-            if peel[b][0] <= S:
+            r2 = int_r[location_map[peel[b][2]]-S]
+            if peel[b][0] < S:
                 # leaf to internal
                 r1 = leaf_r[peel[b][0]]
                 directional1 = leaf_dir[peel[b][0], :]
             else:
                 # internal to internal
-                r1 = int_r[peel[b][0]-S]
-                directional1 = int_dir[peel[b][0]-S, :]
+                r1 = int_r[location_map[peel[b][0]]-S]
+                directional1 = int_dir[location_map[peel[b][0]]-S,]
             # apply the inverse transform from Matsumoto et al 2020
             # add a tiny amount to avoid zero-length branches
             blens[peel[b][0]] = torch.log(
-                torch.cosh(blens[peel[b][1]])) + 0.000000000001
+                torch.cosh(blens[peel[b][0]])) + 0.000000000001
 
-            if peel[b][1] <= S:
+            if peel[b][1] < S:
                 # leaf to internal
                 r1 = leaf_r[peel[b][1]]
-                directional1 = leaf_dir[peel[b][1], :]
+                directional1 = leaf_dir[peel[b][1], ]
             else:
                 # internal to internal
-                r1 = int_r[peel[b][1]-S]
-                directional1 = int_dir[peel[b][1]-S, :]
+                r1 = int_r[location_map[peel[b][1]]-S]
+                directional1 = int_dir[location_map[peel[b][1]-S],]
             blens[peel[b][1]] = utilFunc.hyperbolic_distance(
-                r1, directional1, r2, directional2, curvature)
+                r1, r2, directional1, directional2, curvature)
 
             # apply the inverse transform from Matsumoto et al 2020
             # add a tiny amount to avoid zero-length branches
@@ -100,15 +101,18 @@ class DodonaphyModel(object):
             int_r ([type]): [description]
             int_dir ([type]): [description]
         """
+        # location_map = np.zeros((2*self.S-1), dtype=np.int64)
+        location_map = (2*self.S-1) * [0]
+
         with torch.no_grad():
-            peel = utilFunc.make_peel(leaf_r, leaf_dir, int_r, int_dir)
+            peel = utilFunc.make_peel(leaf_r, leaf_dir, int_r, int_dir, location_map)
 
         # brach lenghts
         blens = self.compute_branch_lengths(
-            self.S, self.D, peel, leaf_r, leaf_dir, int_r, int_dir)
+            self.S, self.D, peel, leaf_r, leaf_dir, int_r, int_dir, location_map)
 
-        mats = JC69_p_t(np.expand_dims(blens, axis=1))
-        return calculate_treelikelihood(self.partials, self.weights, peel, mats, torch.full([4], 0.25))
+        mats = JC69_p_t(np.expand_dims(blens.detach().numpy(), axis=1))
+        return calculate_treelikelihood(self.partials, self.weights, peel, mats, torch.full([4], 0.25, dtype=torch.float64))
 
     def draw_sample(self):
         """[summary]
@@ -216,45 +220,45 @@ class DodonaphyModel(object):
 
         for epoch in range(epochs):
             # save mus
-            mus['leaf_r_mu'].append(self.VarationalParams["leaf_r_mu"])
-            mus['leaf_dir_mu'].append(
-                self.VarationalParams["leaf_dir_mu"])
-            mus['int_r_mu'].append(self.VarationalParams["int_r_mu"])
-            mus['int_dir_mu'].append(
-                self.VarationalParams["int_dir_mu"])
-            # save sigmas
-            sigmas['leaf_r_sigma'].append(
-                self.VarationalParams["leaf_r_sigma"].exp())
-            sigmas['leaf_dir_sigma'].append(
-                self.VarationalParams["leaf_dir_sigma"].exp())
-            sigmas['int_r_sigma'].append(
-                self.VarationalParams["int_r_sigma"].exp())
-            sigmas['int_dir_sigma'].append(
-                self.VarationalParams["int_dir_sigma"].exp())
+            # mus['leaf_r_mu'].append(self.VarationalParams["leaf_r_mu"])
+            # mus['leaf_dir_mu'].append(
+            #     self.VarationalParams["leaf_dir_mu"])
+            # mus['int_r_mu'].append(self.VarationalParams["int_r_mu"])
+            # mus['int_dir_mu'].append(
+            #     self.VarationalParams["int_dir_mu"])
+            # # save sigmas
+            # sigmas['leaf_r_sigma'].append(
+            #     self.VarationalParams["leaf_r_sigma"].exp())
+            # sigmas['leaf_dir_sigma'].append(
+            #     self.VarationalParams["leaf_dir_sigma"].exp())
+            # sigmas['int_r_sigma'].append(
+            #     self.VarationalParams["int_r_sigma"].exp())
+            # sigmas['int_dir_sigma'].append(
+            #     self.VarationalParams["int_dir_sigma"].exp())
 
             loss = - self.elbo_normal()
 
             elbo_hist.append(-loss.item())
             optimizer.zero_grad()
             loss.backward()
-            # save mu grads
-            mu_grads['leaf_r_mu'].append(
-                self.VarationalParams["leaf_r_mu"].grad.item())
-            mu_grads['leaf_dir_mu'].append(
-                self.VarationalParams["leaf_dir_mu"].grad.item())
-            mu_grads['int_r_mu'].append(
-                self.VarationalParams["int_r_mu"].grad.item())
-            mu_grads['int_dir_mu'].append(
-                self.VarationalParams["int_dir_mu"].grad.item())
-            # save sigma grads
-            sigma_grads['leaf_r_sigma'].append(
-                self.VarationalParams["leaf_r_sigma"].exp().item() ** 2)
-            sigma_grads['leaf_dir_sigma'].append(
-                self.VarationalParams["leaf_dir_sigma"].exp().item() ** 2)
-            sigma_grads['int_r_sigma'].append(
-                self.VarationalParams["int_r_sigma"].exp().item() ** 2)
-            sigma_grads['int_dir_sigma'].append(
-                self.VarationalParams["int_dir_sigma"].exp().item() ** 2)
+            # # save mu grads
+            # mu_grads['leaf_r_mu'].append(
+            #     self.VarationalParams["leaf_r_mu"].grad.item())
+            # mu_grads['leaf_dir_mu'].append(
+            #     self.VarationalParams["leaf_dir_mu"].grad.item())
+            # mu_grads['int_r_mu'].append(
+            #     self.VarationalParams["int_r_mu"].grad.item())
+            # mu_grads['int_dir_mu'].append(
+            #     self.VarationalParams["int_dir_mu"].grad.item())
+            # # save sigma grads
+            # sigma_grads['leaf_r_sigma'].append(
+            #     self.VarationalParams["leaf_r_sigma"].exp().item() ** 2)
+            # sigma_grads['leaf_dir_sigma'].append(
+            #     self.VarationalParams["leaf_dir_sigma"].exp().item() ** 2)
+            # sigma_grads['int_r_sigma'].append(
+            #     self.VarationalParams["int_r_sigma"].exp().item() ** 2)
+            # sigma_grads['int_dir_sigma'].append(
+            #     self.VarationalParams["int_dir_sigma"].exp().item() ** 2)
             optimizer.step()
             scheduler.step()
             print('ELBO: {}'.format(elbo_hist[-1]))
@@ -289,4 +293,4 @@ class DodonaphyModel(object):
         elbos = []
         for i in range(size):
             elbos.append(self.calculate_elbo(q_leaf_r, q_leaf_dir, q_int_r, q_int_dir))
-        return elbos.mean()
+        return torch.mean(torch.tensor(elbos, requires_grad=True))
