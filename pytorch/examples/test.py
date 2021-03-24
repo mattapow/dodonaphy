@@ -1,5 +1,3 @@
-import sys
-
 import dendropy
 from dendropy.simulate import treesim
 from dendropy.model.discrete import simulate_discrete_chars

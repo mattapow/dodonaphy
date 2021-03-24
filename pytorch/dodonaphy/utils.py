@@ -445,8 +445,5 @@ class utilFunc:
         utilFunc.post_order_traversal(
             mst_adjacencies, fake_root, peel, visited)
 
-        for i in range(peel.__len__()):
-            for j in range(peel[i].__len__()):
-                peel[i][j] += 1     # node re-indexing (1-based)
 
-        return np.array(peel)
+        return np.array(peel, dtype = np.int)
