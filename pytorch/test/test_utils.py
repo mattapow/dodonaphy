@@ -13,6 +13,13 @@ def test_hyperbolic_distance():
     assert 1.777365 == pytest.approx(dist.item(), 0.0001)
 
 
+def test_hyperbolic_distance_0d_directionals():
+    dist = utilFunc.hyperbolic_distance(
+        torch.tensor([0.5]), torch.tensor([0.6]), torch.tensor(0.3),
+        torch.tensor(0.5), torch.tensor([1.]))
+    assert pytest.approx(dist.item()) == 1.8199083805084229
+
+
 def test_hydra_2d_compare_output():
 
     D = np.ones((3, 3), float)
