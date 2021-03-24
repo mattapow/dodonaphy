@@ -6,6 +6,16 @@ from pytest import approx
 from dodonaphy.utils import utilFunc
 
 
+def test_make_peel_simple():
+    leaf_r = torch.tensor([0.8247, 0.8175, 0.7591])
+    leaf_dir = torch.tensor([-1.8765e-03,  2.0356e+00, -2.1687e+00])
+    int_r = torch.tensor([0.1163])
+    int_dir = torch.tensor([0.3705])
+    peel = utilFunc.make_peel(leaf_r, leaf_dir, int_r, int_dir)
+    assert not np.all(peel == [0, 1, 4])
+    # should have 2 different internal nodes in peel
+
+
 def test_hyperbolic_distance():
     dist = utilFunc.hyperbolic_distance(
         torch.tensor([0.5]), torch.tensor([0.6]), torch.tensor([0.1, 0.3]),
