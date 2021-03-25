@@ -86,4 +86,3 @@ def test_hydra_lorentz_2d():
 
     utilFunc.hydra(D, dim, lorentz=True, stress=True)
 
-test_make_peel_simple()
