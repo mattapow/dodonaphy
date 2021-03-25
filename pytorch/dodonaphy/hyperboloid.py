@@ -201,7 +201,7 @@ def hyper_to_poincare(location):
     Parameters
     ----------
     location : Tensor
-        1D tensor giving position of points on Hyperboloid in R^n+1.
+        1D tensor giving position of a point on Hyperboloid in R^n+1.
 
     Returns
     -------
