@@ -266,6 +266,28 @@ class utilFunc:
         # hyperbolic distance between points i and j
         return 1. / torch.sqrt(curvature) * torch.acosh(acosharg)
 
+    def angle_to_directional(theta):
+        """
+        Convert polar angles to unit vectors
+
+        Parameters
+        ----------
+        theta : tensor
+            Angle of points.
+
+        Returns
+        -------
+        directional : tensor
+            Unit vectors of points.
+
+        """
+        dim = 2
+        n_points = len(theta)
+        directional = torch.zeros(n_points, dim)
+        directional[:, 0] = torch.cos(theta)
+        directional[:, 1] = torch.sin(theta)
+        return directional
+
     @staticmethod
     def make_peel(leaf_r, leaf_dir, int_r, int_dir, location_map, curvature=torch.ones(1)):
         """Create a tree represtation (peel) from its hyperbolic embedic data
@@ -406,7 +428,7 @@ class utilFunc:
         #initialize location_map with every node pointing to itself
         for i in range(location_map.__len__()):
             location_map[i] = i
-        
+
         # transform the MST into a binary tree.
         # find any nodes with more than three adjacencies and introduce
         # intermediate nodes to reduce the number of adjacencies
@@ -437,7 +459,7 @@ class utilFunc:
                 location_map[parent] = location_map[location_map[parent]]
                 parent = location_map[parent]
             location_map[i] = parent
-        
+
         # add a fake root above node 0: "outgroup" rooting
         zero_parent = mst_adjacencies[0][0]
         mst_adjacencies[node_count].append(0)
@@ -448,7 +470,7 @@ class utilFunc:
         for i in range(mst_adjacencies[zero_parent].__len__()):
             if mst_adjacencies[zero_parent][i] == 0:
                 mst_adjacencies[zero_parent][i] = fake_root
-        
+
         location_map[mst_adjacencies.__len__()-1] = zero_parent
 
         # make peel via post-order

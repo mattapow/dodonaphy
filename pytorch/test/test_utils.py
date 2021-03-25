@@ -7,15 +7,26 @@ from dodonaphy.utils import utilFunc
 
 
 def test_make_peel_simple():
-    leaf_r = torch.tensor([0.8247, 0.8175, 0.7591])
-    leaf_dir = torch.tensor([-1.8765e-03,  2.0356e+00, -2.1687e+00])
-    int_r = torch.tensor([0.1163])
-    int_dir = torch.tensor([0.3705])
-    S = 6
+    # three evenly spaced leaves
+    S = 3
+    leaf_r = .5*torch.ones(S)
+    leaf_theta = torch.tensor([np.pi/6, 0., -np.pi/6])
+    leaf_dir = utilFunc.angle_to_directional(leaf_theta)
+
+    # internal node with angle in between nodes 0 and 1
+    int_r = torch.tensor([.25])
+    int_theta = torch.tensor([np.pi/12])
+    int_dir = utilFunc.angle_to_directional(int_theta)
+
     location_map = (2*S-1) * [0]
-    peel = utilFunc.make_peel(leaf_r, leaf_dir, int_r, int_dir, location_map)
-    assert not np.all(peel == [0, 1, 4])
-    # should have 2 different internal nodes in peel
+
+    # Connect nodes
+    peel = utilFunc.make_peel(leaf_r, leaf_dir, int_r,
+                              int_dir, location_map)
+
+    # Tree should connect 0 and 1 to internal node 3
+    # root node 4, should connect to 2 and 3
+    assert np.allclose(peel, np.array([[0, 1, 3], [2, 3, 4]]))
 
 
 def test_hyperbolic_distance():
@@ -85,4 +96,3 @@ def test_hydra_lorentz_2d():
     dim = 2
 
     utilFunc.hydra(D, dim, lorentz=True, stress=True)
-
