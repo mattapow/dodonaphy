@@ -21,7 +21,8 @@ def testFunc():
 
     # print(weights)
     # have to create and convert dist into hyperbolic embedding
-
+    simtree.print_plot()
+    
     mymod = DodonaphyModel(partials, weights, dim)
     mymod.learn()
 

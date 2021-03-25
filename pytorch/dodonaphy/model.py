@@ -189,7 +189,7 @@ class DodonaphyModel(object):
                 ), requires_grad=True), torch.tensor(param_init["int_dir"].std(), requires_grad=True)
 
         lr_lambda = lambda epoch: 1.0 / np.sqrt(epoch + 1)
-        optimizer = torch.optim.Adam(list(self.VarationalParams.values()), lr=0.1)
+        optimizer = torch.optim.Adam(list(self.VarationalParams.values()), lr=10)
         scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lr_lambda)
 
         elbo_hist = []
@@ -261,7 +261,7 @@ class DodonaphyModel(object):
             #     self.VarationalParams["int_dir_sigma"].exp().item() ** 2)
             optimizer.step()
             scheduler.step()
-            print('ELBO: {}'.format(elbo_hist[-1]))
+            print('epoch {} ELBO: {}'.format(epoch, elbo_hist[-1]))
 
         with torch.no_grad():
             print('Final ELBO: {}'.format(self.elbo_normal(100).item()))
