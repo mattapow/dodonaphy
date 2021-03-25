@@ -111,7 +111,7 @@ class DodonaphyModel(object):
         blens = self.compute_branch_lengths(
             self.S, self.D, peel, leaf_r, leaf_dir, int_r, int_dir, location_map)
 
-        mats = JC69_p_t(np.expand_dims(blens.detach().numpy(), axis=1))
+        mats = JC69_p_t(blens)
         return calculate_treelikelihood(self.partials, self.weights, peel, mats, torch.full([4], 0.25, dtype=torch.float64))
 
     def draw_sample(self):
