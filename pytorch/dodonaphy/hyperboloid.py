@@ -8,6 +8,10 @@ disk as they are isomorphic.
 
 Generally takes torch tensors as inputs.
 
+General methodolgy coming from Nagano 2019
+A Wrapped Normal Distribution on Hyperbolic Space for Gradient-Based Learning
+https://github.com/pfnet-research/hyperbolic_wrapped_distribution
+
 
 """
 
@@ -126,32 +130,10 @@ def parallel_transport(xi, x, y):
     return xi + coef * (x + y)
 
 
-def clamp(a, a_min):
-    """ Clamp number above a_min
-
-
-    Parameters
-    ----------
-    a : Tensor
-        DESCRIPTION.
-    a_min : Tensor
-        Minimum value for a.
-
-    Returns
-    -------
-    Tensor
-        Set all values less than a_min to a_min.
-
-    """
-
-    return torch.max(torch.tensor([a - a_min, 0])) + a_min
-
-
 def exponential_map(x, v):
     """Exponential map
 
     Map a vector v on the tangent space T_x H^n onto the hyperboloid
-    From Nagano 2019
 
     Parameters
     ----------
@@ -167,15 +149,13 @@ def exponential_map(x, v):
 
     """
     eps = torch.finfo(torch.float).eps
-    vnorm = torch.sqrt(clamp(lorentz_product(v), eps))
+    vnorm = torch.sqrt(torch.clamp(lorentz_product(v), min=eps))
     return torch.cosh(vnorm) * x + torch.sinh(vnorm) * v / vnorm
 
 
 def sample_normal_hyper(mu, cov, dim):
     """
     Generate sample from projected normal distribution in H^dim
-
-    Following algorithm 1 of Nagano 2019
 
     Parameters
     ----------
