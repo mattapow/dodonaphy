@@ -4,6 +4,7 @@ from collections import deque
 import numpy as np
 import torch
 import warnings
+import sys
 from collections import defaultdict
 
 
@@ -258,11 +259,6 @@ class utilFunc:
         Returns:
             tensor: distance between point 1 and point 2
         """
-
-        if directional1.dim() == 0:
-            directional1 = directional1.unsqueeze(0)
-            directional2 = directional2.unsqueeze(0)
-
         iprod = torch.clamp(
             torch.dot(directional1, directional2), min=-1.0, max=1.0)
         acosharg = 1.0 + torch.clamp(2.0 * (torch.pow(r1, 2) + torch.pow(r2, 2) - 2 * r1 *
