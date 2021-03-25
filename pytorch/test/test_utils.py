@@ -2,12 +2,14 @@ import pytest
 import torch
 import numpy as np
 from pytest import approx
+import matplotlib.pyplot as plt
 
 from dodonaphy.utils import utilFunc
 
 
 def test_make_peel_simple():
-    # three evenly spaced leaves
+    # Connect three evenly spaced leaves
+    # It seems this is only coming about when S=3
     S = 3
     leaf_r = .5*torch.ones(S)
     leaf_theta = torch.tensor([np.pi/6, 0., -np.pi/6])
@@ -24,9 +26,43 @@ def test_make_peel_simple():
     peel = utilFunc.make_peel(leaf_r, leaf_dir, int_r,
                               int_dir, location_map)
 
+    # See:
+    ax = plt.subplot(1, 1, 1)
+    X = utilFunc.dir_to_cart(leaf_r, int_r, leaf_dir, int_dir)
+    utilFunc.plot_tree(ax, peel, X, color=[0, 0, 0])
+
     # Tree should connect 0 and 1 to internal node 3
     # root node 4, should connect to 2 and 3
     assert np.allclose(peel, np.array([[0, 1, 3], [2, 3, 4]]))
+
+
+def test_make_peel_dogbone():
+    # Take 4 leaves and form a dogbone tree
+    S = 4
+    leaf_r = torch.tensor([.5, .5, .8, .8])
+    leaf_theta = torch.tensor([np.pi/6, 0., -np.pi*.7, -np.pi*.8])
+    leaf_dir = utilFunc.angle_to_directional(leaf_theta)
+
+    int_r = torch.tensor([.25, .4])
+    int_theta = torch.tensor([np.pi/12, -np.pi*.75])
+    int_dir = utilFunc.angle_to_directional(int_theta)
+
+    # make a tree
+    location_map = (2*S-1) * [0]
+    peel = utilFunc.make_peel(leaf_r, leaf_dir, int_r,
+                              int_dir, location_map)
+
+    # See:
+    ax = plt.subplot(1, 1, 1)
+    X = utilFunc.dir_to_cart(leaf_r, int_r, leaf_dir, int_dir)
+    utilFunc.plot_tree(ax, peel, X, color=[0, 0, 0])
+
+    assert np.allclose(peel, np.array([[2, 3, 5],
+                                       [4, 5, 6],
+                                       [0, 1, 4]]))
+
+
+test_make_peel_dogbone()
 
 
 def test_hyperbolic_distance():
