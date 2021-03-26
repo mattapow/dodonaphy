@@ -21,9 +21,16 @@ def testFunc():
 
     # print(weights)
     # have to create and convert dist into hyperbolic embedding
+    simtree.print_plot()
 
     mymod = DodonaphyModel(partials, weights, dim)
-    mymod.learn()
+    mymod.learn(epochs=10)
+
+    peels, blens = mymod.draw_sample(2)
+    # maximum likelihood parameter values
+    # draw a particular tree
+    
+    i = 0
 
 
 testFunc()
