@@ -2,7 +2,6 @@ import pytest
 import torch
 import numpy as np
 from pytest import approx
-import matplotlib.pyplot as plt
 
 from dodonaphy.utils import utilFunc
 
@@ -21,19 +20,13 @@ def test_make_peel_simple():
     int_theta = torch.tensor([np.pi/12])
     int_dir = utilFunc.angle_to_directional(int_theta)
 
-    location_map = (2*S-1) * [0]
-
     # Connect nodes
     peel = utilFunc.make_peel(leaf_r, leaf_dir, int_r,
-                              int_dir, location_map)
+                              int_dir)
 
-    # See:
-    ax = plt.subplot(1, 1, 1)
-    X = utilFunc.dir_to_cart(leaf_r, int_r, leaf_dir, int_dir)
-    utilFunc.plot_tree(ax, peel, X, color=[0, 0, 0])
-
+    # See utilFunc.plot_tree:
     # Tree should connect 0 and 1 to internal node 3
-    # root node 4, should connect to 0 and 3
+    # root node 4, should connect to 0 and 3.
     assert np.allclose(peel, np.array([[1, 2, 3], [0, 3, 4]]))
 
 

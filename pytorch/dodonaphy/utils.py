@@ -367,7 +367,7 @@ class utilFunc:
                         found_internal = True
                     if mst_adjacencies[e.from_][1] >= leaf_node_count:
                         found_internal = True
-                    if not found_internal:
+                    if not found_internal and visited_count < node_count - 1:
                         is_valid = False
                 elif mst_adjacencies[e.from_].__len__() == 3:
                     is_valid = False
@@ -447,7 +447,7 @@ class utilFunc:
                         for i in range(mst_adjacencies[move].__len__()):
                             if mst_adjacencies[move][i] == n:
                                 mst_adjacencies[move][i] = new_node
-        
+
         # add a fake root above node 0: "outgroup" rooting
         zero_parent = mst_adjacencies[0][0]
         mst_adjacencies[node_count].append(0)
@@ -458,7 +458,7 @@ class utilFunc:
         for i in range(mst_adjacencies[zero_parent].__len__()):
             if mst_adjacencies[zero_parent][i] == 0:
                 mst_adjacencies[zero_parent][i] = fake_root
-        
+
         # make peel via post-order
         peel = []
         visited = (node_count+1) * [False]  # all nodes + the fake root
