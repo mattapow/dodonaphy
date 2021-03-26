@@ -4,8 +4,10 @@ from collections import deque
 import numpy as np
 import torch
 import warnings
-import sys
 from collections import defaultdict
+from matplotlib.lines import Line2D
+from matplotlib.patches import Circle
+import matplotlib.pyplot as plt
 
 
 class u_edge:
@@ -266,6 +268,28 @@ class utilFunc:
         # hyperbolic distance between points i and j
         return 1. / torch.sqrt(curvature) * torch.acosh(acosharg)
 
+    def angle_to_directional(theta):
+        """
+        Convert polar angles to unit vectors
+
+        Parameters
+        ----------
+        theta : tensor
+            Angle of points.
+
+        Returns
+        -------
+        directional : tensor
+            Unit vectors of points.
+
+        """
+        dim = 2
+        n_points = len(theta)
+        directional = torch.zeros(n_points, dim)
+        directional[:, 0] = torch.cos(theta)
+        directional[:, 1] = torch.sin(theta)
+        return directional
+
     @staticmethod
     def make_peel(leaf_r, leaf_dir, int_r, int_dir, curvature=torch.ones(1)):
         """Create a tree represtation (peel) from its hyperbolic embedic data
@@ -441,5 +465,80 @@ class utilFunc:
         utilFunc.post_order_traversal(
             mst_adjacencies, fake_root, peel, visited)
 
+        return np.array(peel, dtype=np.int)
 
-        return np.array(peel, dtype = np.int)
+    @staticmethod
+    def dir_to_cart(leaf_r, int_r, leaf_dir, int_dir):
+        # convert radius/ directionals to cartesian coordinates [x,y]
+        n_leaf = len(leaf_r)
+        n_points = n_leaf + len(int_r)
+        dim = 2
+        X = np.zeros((n_points+1, dim))  # extra 0 for root
+
+        leaf_theta = torch.atan2(leaf_dir[:, 1], leaf_dir[:, 0])
+        int_theta = torch.atan2(int_dir[:, 1], int_dir[:, 0])
+
+        X[:n_leaf, 0] = leaf_r * np.cos(leaf_theta)
+        X[:n_leaf, 1] = leaf_r * np.sin(leaf_theta)
+
+        X[n_leaf:n_points, 0] = int_r * np.cos(int_theta)
+        X[n_leaf:n_points, 1] = int_r * np.sin(int_theta)
+
+        # fake root node is above node 0
+        X[-1, 0] = leaf_r[0] * np.cos(leaf_theta[0])
+        X[-1, 1] = leaf_r[0] * np.sin(leaf_theta[0])
+
+        return X
+
+    @staticmethod
+    def cart_to_dir(X):
+        # convert cartesion coordinates in R^2 to radius/ unit directional
+        S = int(X.shape[0]/2+1)
+
+        leaf_r = (X[:S, 0]**2 +
+                  X[:S, 1]**2)**.5
+        int_r = (X[S:, 0]**2 +
+                 X[S:, 1]**2)**.5
+        leaf_theta = torch.atan2(
+            X[:S, 1],  X[:S, 0])
+        int_theta = torch.atan2(
+            X[S:, 1], X[S:, 0])
+        leaf_dir = utilFunc.angle_to_directional(leaf_theta)
+        int_dir = utilFunc.angle_to_directional(int_theta)
+
+        return (leaf_r, int_r, leaf_dir, int_dir)
+
+    @staticmethod
+    def plot_tree(ax, peel, X, color=[0, 0, 0]):
+        # plot the tree encoded by peel with positions X = [x, y]
+        circ = Circle((0, 0), radius=1, fill=False, edgecolor='k')
+        ax.add_patch(circ)
+
+        # nodes
+        plt.plot(X[:, 0], X[:, 1], 'o', color=color)
+
+        # edges
+        n_parents = peel.shape[0]
+        for i in range(n_parents):
+            left = peel[i, 0]
+            right = peel[i, 1]
+            parent = peel[i, 2]
+            line = Line2D([X[left, 0], X[parent, 0]],
+                          [X[left, 1], X[parent, 1]],
+                          linewidth=1,
+                          color=color)
+            ax.add_line(line)
+            line = Line2D([X[right, 0], X[parent, 0]],
+                          [X[right, 1], X[parent, 1]],
+                          linewidth=1,
+                          color=color)
+            ax.add_line(line)
+
+        n_points = X.shape[0]-1
+        for p in range(n_points):
+            msg = str(p)
+            if p == 0:
+                msg = msg + " (" + str(n_points) + ")"
+            plt.annotate(msg,
+                         xy=(float(X[p, 0])+.04, float(X[p, 1])),
+                         xycoords='data')
