@@ -55,12 +55,9 @@ for i in range(N_SAMPLES):
     sample_peel = utilFunc.make_peel(
         leaf_r, leaf_dir, int_r, int_dir, location_map)
 
-    # add origin to end (already in make_peel)
-    origin = torch.zeros(1, DIM)
-    sample_xy = torch.cat((sample_xy, origin), dim=0)
+    # add fake root to end (already in make_peel)
+    root_xy = torch.unsqueeze(sample_xy[0, :], 0)
+    sample_xy = torch.cat((sample_xy, root_xy), dim=0)
 
     # Plot the tree
     utilFunc.plot_tree(ax, sample_peel, sample_xy, cmap(i/N_SAMPLES))
-
-raise UserWarning("I think the root node connection is a bit funny. "
-                  "Check the plots.")
