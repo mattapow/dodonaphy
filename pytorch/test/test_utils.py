@@ -11,9 +11,7 @@ def test_make_peel_simple():
     leaf_dir = torch.tensor([-1.8765e-03,  2.0356e+00, -2.1687e+00])
     int_r = torch.tensor([0.1163])
     int_dir = torch.tensor([0.3705])
-    S = 6
-    location_map = (2*S-1) * [0]
-    peel = utilFunc.make_peel(leaf_r, leaf_dir, int_r, int_dir, location_map)
+    peel = utilFunc.make_peel(leaf_r, leaf_dir, int_r, int_dir)
     assert not np.all(peel == [0, 1, 4])
     # should have 2 different internal nodes in peel
 
