@@ -500,6 +500,10 @@ class utilFunc:
         X[n_leaf:n_points, 0] = int_r * np.cos(int_theta)
         X[n_leaf:n_points, 1] = int_r * np.sin(int_theta)
 
+        # fake root node is above node 0
+        X[-1, 0] = leaf_r[0] * np.cos(leaf_theta[0])
+        X[-1, 1] = leaf_r[0] * np.sin(leaf_theta[0])
+
         return X
 
     @staticmethod
@@ -546,9 +550,11 @@ class utilFunc:
                           color=color)
             ax.add_line(line)
 
-        n_points = X.shape[0]
+        n_points = X.shape[0]-1
         for p in range(n_points):
-            plt.annotate(str(p),
-                         xy=(float(X[p, 0])+.04,
-                         float(X[p, 1])),
+            msg = str(p)
+            if p == 0:
+                msg = msg + " (" + str(n_points) + ")"
+            plt.annotate(msg,
+                         xy=(float(X[p, 0])+.04, float(X[p, 1])),
                          xycoords='data')

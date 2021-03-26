@@ -10,6 +10,7 @@ from dodonaphy.utils import utilFunc
 def test_make_peel_simple():
     # Connect three evenly spaced leaves
     # It seems this is only coming about when S=3
+    # Issue coming from utils.py#L371
     S = 3
     leaf_r = .5*torch.ones(S)
     leaf_theta = torch.tensor([np.pi/6, 0., -np.pi/6])
@@ -32,8 +33,8 @@ def test_make_peel_simple():
     utilFunc.plot_tree(ax, peel, X, color=[0, 0, 0])
 
     # Tree should connect 0 and 1 to internal node 3
-    # root node 4, should connect to 2 and 3
-    assert np.allclose(peel, np.array([[0, 1, 3], [2, 3, 4]]))
+    # root node 4, should connect to 0 and 3
+    assert np.allclose(peel, np.array([[1, 2, 3], [0, 3, 4]]))
 
 
 def test_make_peel_dogbone():
@@ -52,17 +53,9 @@ def test_make_peel_dogbone():
     peel = utilFunc.make_peel(leaf_r, leaf_dir, int_r,
                               int_dir, location_map)
 
-    # See:
-    ax = plt.subplot(1, 1, 1)
-    X = utilFunc.dir_to_cart(leaf_r, int_r, leaf_dir, int_dir)
-    utilFunc.plot_tree(ax, peel, X, color=[0, 0, 0])
-
     assert np.allclose(peel, np.array([[2, 3, 5],
-                                       [4, 5, 6],
-                                       [0, 1, 4]]))
-
-
-test_make_peel_dogbone()
+                                       [1, 5, 4],
+                                       [0, 4, 6]]))
 
 
 def test_hyperbolic_distance():
