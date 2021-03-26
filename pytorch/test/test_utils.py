@@ -39,7 +39,6 @@ def test_make_peel_simple():
 
 def test_make_peel_dogbone():
     # Take 4 leaves and form a dogbone tree
-    S = 4
     leaf_r = torch.tensor([.5, .5, .8, .8])
     leaf_theta = torch.tensor([np.pi/6, 0., -np.pi*.7, -np.pi*.8])
     leaf_dir = utilFunc.angle_to_directional(leaf_theta)
@@ -49,9 +48,8 @@ def test_make_peel_dogbone():
     int_dir = utilFunc.angle_to_directional(int_theta)
 
     # make a tree
-    location_map = (2*S-1) * [0]
     peel = utilFunc.make_peel(leaf_r, leaf_dir, int_r,
-                              int_dir, location_map)
+                              int_dir)
 
     assert np.allclose(peel, np.array([[2, 3, 5],
                                        [1, 5, 4],
