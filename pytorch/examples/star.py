@@ -50,10 +50,9 @@ for i in range(N_SAMPLES):
         sample_xy[j, :] = hyp.hyper_to_poincare(sample_xyz[j, :])
 
     # create the corresponding peel
-    location_map = (2*S+1) * [0]
     (leaf_r, int_r, leaf_dir, int_dir) = utilFunc.cart_to_dir(sample_xy)
     sample_peel = utilFunc.make_peel(
-        leaf_r, leaf_dir, int_r, int_dir, location_map)
+        leaf_r, leaf_dir, int_r, int_dir)
 
     # add fake root to end (already in make_peel)
     root_xy = torch.unsqueeze(sample_xy[0, :], 0)

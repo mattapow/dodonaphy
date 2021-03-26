@@ -4,6 +4,9 @@ from dendropy.model.discrete import simulate_discrete_chars
 from dendropy import DnaCharacterMatrix
 from dodonaphy.model import DodonaphyModel
 from dodonaphy.phylo import compress_alignment
+from dodonaphy.utils import utilFunc
+from matplotlib import pyplot as plt
+import matplotlib.cm
 
 
 def testFunc():
@@ -26,11 +29,20 @@ def testFunc():
     mymod = DodonaphyModel(partials, weights, dim)
     mymod.learn(epochs=10)
 
-    peels, blens = mymod.draw_sample(2)
+    nsamples = 3
+    peels, blens, X = mymod.draw_sample(nsamples)
     # maximum likelihood parameter values
-    # draw a particular tree
-    
-    i = 0
+
+    # draw the tree samples
+    plt.figure(figsize=(7, 7), dpi=100)
+    ax = plt.subplot(1, 1, 1)
+    plt.xlim([-1, 1])
+    plt.ylim([-1, 1])
+    cmap = matplotlib.cm.get_cmap('Spectral')
+    for i in range(nsamples):
+        utilFunc.plot_tree(
+            ax, peels[i], X[i].detach().numpy(), color=cmap(i/nsamples))
+    plt.show()
 
 
 testFunc()

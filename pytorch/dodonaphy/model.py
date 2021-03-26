@@ -42,7 +42,7 @@ class DodonaphyModel(object):
 
     def compute_branch_lengths(self, S, D, peel, leaf_r, leaf_dir, int_r, int_dir, curvature=torch.ones(1)):
         """Computes the hyperbolic distance of two points given in radial/directional coordinates in the Poincare ball
-        
+
         Args:
             S (integer): [description]
             D ([type]): [description]
@@ -102,7 +102,7 @@ class DodonaphyModel(object):
             int_r ([type]): [description]
             int_dir ([type]): [description]
         """
-        
+
         with torch.no_grad():
             peel = utilFunc.make_peel(leaf_r, leaf_dir, int_r, int_dir)
 
@@ -164,12 +164,14 @@ class DodonaphyModel(object):
         # make peel and blens for each of these samples
         peel = []
         blens = []
+        X = []
         for i in range(nSample):
             pl = utilFunc.make_peel(logQ_leaf_r[i], logQ_leaf_dir[i], logQ_int_r[i], logQ_int_dir[i])
             peel.append(pl)
             blens.append(self.compute_branch_lengths(self.S, self.D, pl,logQ_leaf_r[i], logQ_leaf_dir[i], logQ_int_r[i], logQ_int_dir[i]))
+            X.append(utilFunc.dir_to_cart(leaf_r[i], int_r[i], leaf_dir[i], int_dir[i]))
 
-        return peel, blens
+        return peel, blens, X
 
     def calculate_elbo(self, q_leaf_r, q_leaf_dir, q_int_r, q_int_dir):
         """[summary]

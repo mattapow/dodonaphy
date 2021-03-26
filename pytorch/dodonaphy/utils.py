@@ -473,20 +473,20 @@ class utilFunc:
         n_leaf = len(leaf_r)
         n_points = n_leaf + len(int_r)
         dim = 2
-        X = np.zeros((n_points+1, dim))  # extra 0 for root
+        X = torch.zeros((n_points+1, dim))  # extra 0 for root
 
         leaf_theta = torch.atan2(leaf_dir[:, 1], leaf_dir[:, 0])
         int_theta = torch.atan2(int_dir[:, 1], int_dir[:, 0])
 
-        X[:n_leaf, 0] = leaf_r * np.cos(leaf_theta)
-        X[:n_leaf, 1] = leaf_r * np.sin(leaf_theta)
+        X[:n_leaf, 0] = leaf_r * torch.cos(leaf_theta)
+        X[:n_leaf, 1] = leaf_r * torch.sin(leaf_theta)
 
-        X[n_leaf:n_points, 0] = int_r * np.cos(int_theta)
-        X[n_leaf:n_points, 1] = int_r * np.sin(int_theta)
+        X[n_leaf:n_points, 0] = int_r * torch.cos(int_theta)
+        X[n_leaf:n_points, 1] = int_r * torch.sin(int_theta)
 
         # fake root node is above node 0
-        X[-1, 0] = leaf_r[0] * np.cos(leaf_theta[0])
-        X[-1, 1] = leaf_r[0] * np.sin(leaf_theta[0])
+        X[-1, 0] = leaf_r[0] * torch.cos(leaf_theta[0])
+        X[-1, 1] = leaf_r[0] * torch.sin(leaf_theta[0])
 
         return X
 
