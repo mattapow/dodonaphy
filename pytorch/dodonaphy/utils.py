@@ -542,3 +542,23 @@ class utilFunc:
             plt.annotate(msg,
                          xy=(float(X[p, 0])+.04, float(X[p, 1])),
                          xycoords='data')
+
+    @staticmethod
+    def tree_to_newick(tipnames, peel_row, blen_row):
+        newick = ""
+        chunks = []
+        plen = tipnames.__len__()-1
+        for p in range(plen+1):
+            n1 = peel_row[p]
+            n2 = peel_row[p+plen]
+            n3 = peel_row[p+2*plen]
+            if n1 < tipnames.__len__():
+                chunks[n1] = tipnames[n1] + ":" + blen_row[n1]
+            if n2 < tipnames.__len__():
+                chunks[n2] = tipnames[n2] + ":" + blen_row[n2]
+            n3names = str(n3) + ":" + blen_row[n3] 
+            if p == plen:
+                n3names = ";"
+            chunks[n3] = "(" + chunks[n1] + "," + chunks[n2] + ")" + n3names
+        return str(chunks[peel_row[-1]])
+

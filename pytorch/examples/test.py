@@ -24,9 +24,9 @@ def testFunc():
     simtree.print_plot()
 
     mymod = DodonaphyModel(partials, weights, dim)
-    mymod.learn(epochs=10)
+    mymod.learn(epochs=1000)
 
-    peels, blens = mymod.draw_sample(2)
+    peels, blens, lp__ = mymod.draw_sample(1000)
     # maximum likelihood parameter values
     # draw a particular tree
     
