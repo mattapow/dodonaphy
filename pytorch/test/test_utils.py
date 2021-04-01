@@ -49,6 +49,22 @@ def test_make_peel_dogbone():
                                        [0, 4, 6]]))
 
 
+def test_make_peel_first_leaf_connection():
+    leaf_r = torch.tensor([.5, .5, .5, .5])
+    leaf_theta = torch.tensor([0., np.pi / 6, -np.pi / 6, np.pi])
+    leaf_dir = utilFunc.angle_to_directional(leaf_theta)
+
+    int_r = torch.tensor([.3, 0])
+    int_theta = torch.tensor([np.pi/6, 0])
+    int_dir = utilFunc.angle_to_directional(int_theta)
+
+    # make a tree
+    peel = utilFunc.make_peel(leaf_r, leaf_dir, int_r, int_dir)
+
+    assert np.allclose(peel, np.array([[3, 2, 5],
+                                      [1, 5, 4],
+                                      [0, 4, 6]]))
+
 def test_hyperbolic_distance():
     dist = utilFunc.hyperbolic_distance(
         torch.tensor([0.5]), torch.tensor([0.6]), torch.tensor([0.1, 0.3]),
@@ -100,19 +116,39 @@ def test_hydra_3d_compare_output():
     ]))
 
 
-def test_hydra_stress_2d():
-    D = np.random.rand(5, 5)
-    D = D + np.transpose(D)
-    np.fill_diagonal(D, 0.0)
-    dim = 2
+# def test_hydra_stress_2d():
+#     # TODO: compare stress to output of CRAN hyrda
+#     D = np.random.rand(5, 5)
+#     D = D + np.transpose(D)
+#     np.fill_diagonal(D, 0.0)
+#     dim = 2
+#
+#     ..., stress = utilFunc.hydra(D, dim, lorentz=False, stress=True)
+#     assert stress == approx(...)
 
-    utilFunc.hydra(D, dim, lorentz=False, stress=True)
+
+# def test_hydra_lorentz_2d():
+#     # TODO: compare lorentzian to output of CRAN hyrda
+#     D = np.random.rand(4, 4)
+#     D = D + np.transpose(D)
+#     np.fill_diagonal(D, 0.0)
+#     dim = 2
+#
+#     lor... = utilFunc.hydra(D, dim, lorentz=True, stress=True)
+#     assert lor == approx(...)
 
 
-def test_hydra_lorentz_2d():
-    D = np.random.rand(4, 4)
-    D = D + np.transpose(D)
-    np.fill_diagonal(D, 0.0)
-    dim = 2
+def test_dir_to_cart_1d():
+    u = torch.tensor(10.)
+    r = torch.norm(u)
+    directional = u / r
+    loc = utilFunc.dir_to_cart(r, directional)
+    assert loc == approx(u)
 
-    utilFunc.hydra(D, dim, lorentz=True, stress=True)
+
+def test_dir_to_cart_5d():
+    u = torch.tensor((10., 2.3, 43., -4., 4.5))
+    r = torch.norm(u)
+    directional = u / r
+    loc = utilFunc.dir_to_cart(r, directional)
+    assert loc == approx(u)
