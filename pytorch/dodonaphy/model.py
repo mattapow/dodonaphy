@@ -57,40 +57,27 @@ class DodonaphyModel(object):
             [type]: [description]
         """
         blens = torch.empty(self.bcount, dtype=torch.float64)
-        for b in range(S - 1):
-            directional1, directional2 = torch.empty(
-                D, requires_grad=False), torch.empty(D, requires_grad=False)
-            directional2 = int_dir[peel[b][2] - S - 1, ]
-            r1 = torch.empty(1)
-            r2 = int_r[peel[b][2] - S - 1]
-            if peel[b][0] < S:
-                # leaf to internal
-                r1 = leaf_r[peel[b][0]]
-                directional1 = leaf_dir[peel[b][0], :]
-            else:
-                # internal to internal
-                r1 = int_r[peel[b][0] - S - 1]
-                directional1 = int_dir[peel[b][0] - S - 1,]
-            # apply the inverse transform from Matsumoto et al 2020
-            # add a tiny amount to avoid zero-length branches
-            blens[peel[b][0]] = torch.log(
-                torch.cosh(blens[peel[b][0]])) + 0.000000000001
+        for b in range(S-1):
+            directional2 = int_dir[peel[b][2]-S-1,]
+            r2 = int_r[peel[b][2]-S-1]
 
-            if peel[b][1] < S:
-                # leaf to internal
-                r1 = leaf_r[peel[b][1]]
-                directional1 = leaf_dir[peel[b][1],]
-            else:
-                # internal to internal
-                r1 = int_r[peel[b][1] - S - 1]
-                directional1 = int_dir[peel[b][1] - S - 1,]
-            blens[peel[b][1]] = utilFunc.hyperbolic_distance(
-                r1, r2, directional1, directional2, curvature)
+            for i in range(2):
+                if peel[b][i] < S:
+                    # leaf to internal
+                    r1 = leaf_r[peel[b][i]]
+                    directional1 = leaf_dir[peel[b][i], :]
+                else:
+                    # internal to internal
+                    r1 = int_r[peel[b][i]-S-1]
+                    directional1 = int_dir[peel[b][i]-S-1,]
 
-            # apply the inverse transform from Matsumoto et al 2020
-            # add a tiny amount to avoid zero-length branches
-            blens[peel[b][1]] = torch.log(
-                torch.cosh(blens[peel[b][1]])) + 0.000000000001
+                blens[peel[b][i]] = utilFunc.hyperbolic_distance(
+                    r1, r2, directional1, directional2, curvature)
+
+                # apply the inverse transform from Matsumoto et al 2020
+                # add a tiny amount to avoid zero-length branches
+                blens[peel[b][i]] = torch.log(
+                    torch.cosh(blens[peel[b][i]])) + 0.000000000001
 
         return blens
 
