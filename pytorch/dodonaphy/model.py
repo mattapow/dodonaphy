@@ -102,7 +102,7 @@ class DodonaphyModel(object):
         return calculate_treelikelihood(self.partials, self.weights, peel, mats,
                                         torch.full([4], 0.25, dtype=torch.float64))
 
-    def draw_sample(self, nSample=100):
+    def draw_sample(self, nSample=100, **kwargs):
         """[summary]
 
         Args:
@@ -115,6 +115,7 @@ class DodonaphyModel(object):
         peel = []
         blens = []
         location = []
+        lp__ = []
         for _ in range(nSample):
             # q_thetas in tangent space at origin in R^dim. Each point i, has a multivariate normal in dim=D
             q_leaf_x = []
@@ -158,12 +159,19 @@ class DodonaphyModel(object):
             leaf_r, leaf_dir = utilFunc.cart_to_dir(z_leaf_x_poin)
             int_r, int_dir = utilFunc.cart_to_dir(z_int_x_poin)
 
+            # prepare return (peel, branch leagths, locations, and log posteriori)    
             pl = utilFunc.make_peel(leaf_r, leaf_dir, int_r, int_dir)
             peel.append(pl)
-            blens.append(self.compute_branch_lengths(self.S, self.D, pl, leaf_r, leaf_dir, int_r, int_dir))
+            bl = self.compute_branch_lengths(self.S, self.D, pl, leaf_r, leaf_dir, int_r, int_dir)
+            blens.append(bl)
             location.append(utilFunc.dir_to_cart_tree(leaf_r, int_r, leaf_dir, int_dir, self.D))
-
-        return peel, blens, location
+            if kwargs.get('lp'):
+                lp__.append(calculate_treelikelihood(self.partials, self.weights, pl, JC69_p_t(bl), torch.full([4], 0.25, dtype=torch.float64)))
+            
+        if kwargs.get('lp'):
+            return peel, blens, location, lp__
+        else:
+            return peel, blens, location
 
     def calculate_elbo(self, q_leaf_x, q_int_x):
         """Calculate the elbo of a sample from the variational distributions q
@@ -243,7 +251,7 @@ class DodonaphyModel(object):
             self.VariationalParams["int_x_sigma"] = param_init["int_x_sigma"]
 
         lr_lambda = lambda epoch: 1.0 / np.sqrt(epoch + 1)
-        optimizer = torch.optim.Adam(list(self.VariationalParams.values()), lr=0.1)
+        optimizer = torch.optim.Adam(list(self.VariationalParams.values()), lr=10)
         scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lr_lambda)
 
         elbo_hist = []
@@ -292,7 +300,8 @@ class DodonaphyModel(object):
             cov = self.VariationalParams["int_x_sigma"][i] * torch.eye(self.D)
             q_int_x.append(MultivariateNormal(torch.zeros(self.D).double(), cov.double()))
 
-        elbos = []
-        for i in range(size):
-            elbos.append(self.calculate_elbo(q_leaf_x, q_int_x))
-        return torch.mean(torch.tensor(elbos, requires_grad=True))
+        # elbos = []
+        # for i in range(size):
+        #     elbos.append(self.calculate_elbo(q_leaf_x, q_int_x))
+        # return torch.mean(torch.tensor(elbos, requires_grad=True))
+        return self.calculate_elbo(q_leaf_x, q_int_x)
