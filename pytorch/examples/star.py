@@ -9,7 +9,7 @@ import torch
 from matplotlib import pyplot as plt
 import matplotlib.cm
 
-S = 4  # n_seqeunces
+S = 6  # n_seqeunces
 DIM = 2  # Corresponds to H^DIM in R^DIM+1.
 HEIGHT = 5  # HEIGHT of points on hyperboloid
 N_SAMPLES = 1  # number of trees to sample
@@ -25,7 +25,7 @@ STD = 0.3
 VarationalParams = {"sigma": STD*torch.ones(2*S-2, DIM),
                     "xyz_mu": mu}
 
-plt.figure(figsize=(7, 7), dpi=300)
+plt.figure(figsize=(7, 7), dpi=100)
 ax = plt.subplot(1, 1, 1)
 plt.xlim([-1, 1])
 plt.ylim([-1, 1])
@@ -50,10 +50,9 @@ for i in range(N_SAMPLES):
         sample_xy[j, :] = hyp.hyper_to_poincare(sample_xyz[j, :])
 
     # create the corresponding peel
-    location_map = (2*S+1) * [0]
     (leaf_r, int_r, leaf_dir, int_dir) = utilFunc.cart_to_dir(sample_xy)
     sample_peel = utilFunc.make_peel(
-        leaf_r, leaf_dir, int_r, int_dir, location_map)
+        leaf_r, leaf_dir, int_r, int_dir)
 
     # add fake root to end (already in make_peel)
     root_xy = torch.unsqueeze(sample_xy[0, :], 0)

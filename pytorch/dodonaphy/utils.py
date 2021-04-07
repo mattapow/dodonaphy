@@ -7,7 +7,6 @@ import warnings
 from collections import defaultdict
 from matplotlib.lines import Line2D
 from matplotlib.patches import Circle
-import matplotlib.pyplot as plt
 
 
 class u_edge:
@@ -83,7 +82,7 @@ class utilFunc:
         """
 
         # sanitize/check input
-        if(any(np.diag(D) != 0)):  # non-zero diagonal elements are set to zero
+        if any(np.diag(D) != 0):  # non-zero diagonal elements are set to zero
             np.fill_diagonal(D, 0)
             warnings.warn("Diagonal of input matrix D has been set to zero")
 
@@ -110,12 +109,12 @@ class utilFunc:
                     "Equiangular adjustment only possible in dimension two.")
 
         # convert distance matrix to 'hyperbolic Gram matrix'
-        A = np.cosh(np.sqrt(curvature)*D)
+        A = np.cosh(np.sqrt(curvature) * D)
         n = A.shape[0]
 
         # check for large/infinite values
         A_max = np.amax(A)
-        if(A_max > 1e8):
+        if A_max > 1e8:
             warnings.warn(
                 "Gram Matrix contains values > 1e8. Rerun with smaller\
                 curvature parameter or rescaled distances.")
@@ -135,12 +134,12 @@ class utilFunc:
         x0 = v[:, 0]
 
         # Extract lower tail of spectrum)
-        X = v[:, (n-dim):n]  # Last dim Eigenvectors
-        spec_tail = w[(n-dim):n]  # Last dim Eigenvalues
+        X = v[:, (n - dim):n]  # Last dim Eigenvectors
+        spec_tail = w[(n - dim):n]  # Last dim Eigenvalues
         # A_frob = np.sqrt(np.sum(v**2)) # Frobenius norm of A
 
         x0 = x0 * np.sqrt(lambda0)  # scale by Eigenvalue
-        if(x0[0] < 0):
+        if x0[0] < 0:
             x0 = -x0  # Flip sign if first element negative
         x_min = min(x0)  # find minimum
 
@@ -153,28 +152,28 @@ class utilFunc:
                 spec_tail[spec_tail > 0] = 0
             X = np.matmul(X, np.diag(np.sqrt(-spec_tail)))
 
-        s = np.sqrt(np.sum(X**2, axis=1))
+        s = np.sqrt(np.sum(X ** 2, axis=1))
         directional = X / s[:, None]  # convert to directional coordinates
 
         output = {}  # Allocate output list
 
         # Calculate radial coordinate
         # multiplicative adjustment (scaling)
-        r = np.sqrt((alpha*x0 - x_min)/(alpha*x0 + x_min))
+        r = np.sqrt((alpha * x0 - x_min) / (alpha * x0 + x_min))
         output['r'] = r
 
         # Calculate polar coordinates if dimension is 2
-        if(dim == 2):
+        if dim == 2:
             # calculate polar angle
             theta = np.arctan2(X[:, 0], -X[:, 1])
 
             # Equiangular adjustment
             if equi_adj > 0.0:
-                angles = [(2*x/n-1)*math.pi for x in range(0, n)]
+                angles = [(2 * x / n - 1) * math.pi for x in range(0, n)]
                 theta_equi = np.array([x for _, x in sorted(
                     zip(theta, angles))])  # Equi-spaced angles
                 # convex combination of original and equi-spaced angles
-                theta = (1-equi_adj)*theta + equi_adj*theta_equi
+                theta = (1 - equi_adj) * theta + equi_adj * theta_equi
                 # update directional coordinate
                 directional = np.array(
                     [np.cos(theta), np.sin(theta)]).transpose()
@@ -193,7 +192,7 @@ class utilFunc:
 
         output['curvature'] = curvature
         output['dim'] = dim
-        return(output)
+        return output
 
     @staticmethod
     def stress(r, directional, curvature, D):
@@ -214,7 +213,7 @@ class utilFunc:
                 if i != j:
                     dist[i][j] = utilFunc.hyperbolic_distance(
                         r[i], r[j],
-                        directional[i, ], directional[j, ],
+                        directional[i,], directional[j,],
                         curvature)
                     stress_sq = stress_sq + (dist[i][j] - D[i, j]) ** 2
 
@@ -234,12 +233,12 @@ class utilFunc:
             [type]: [description]
         """
         visited[currentNode] = True
-        if mst[currentNode].__len__() < 2:      # leaf nodes
+        if mst[currentNode].__len__() < 2:  # leaf nodes
             return currentNode
-        else:                                   # internal nodes
+        else:  # internal nodes
             childs = []
             for child in mst[currentNode]:
-                if(not visited[child]):
+                if (not visited[child]):
                     childs.append(utilFunc.post_order_traversal(
                         mst, child, peel, visited))
                     # childs.append(child)
@@ -307,14 +306,14 @@ class utilFunc:
         # edge_list = np.array(edge_list, dtype=u_edge)
 
         for i in range(node_count):
-            for j in range(max(i+1, leaf_node_count), node_count):
+            for j in range(max(i + 1, leaf_node_count), node_count):
                 dist_ij = 0
 
-                if(i < leaf_node_count):
+                if (i < leaf_node_count):
                     # leaf to internal
                     dist_ij = utilFunc.hyperbolic_distance(
                         leaf_r[i],
-                        int_r[j-leaf_node_count],
+                        int_r[j - leaf_node_count],
                         leaf_dir[i],
                         int_dir[j - leaf_node_count],
                         curvature)
@@ -323,7 +322,7 @@ class utilFunc:
                     i_node = i - leaf_node_count
                     dist_ij = utilFunc.hyperbolic_distance(
                         int_r[i_node],
-                        int_r[j-leaf_node_count],
+                        int_r[j - leaf_node_count],
                         int_dir[i_node],
                         int_dir[j - leaf_node_count],
                         curvature)
@@ -337,8 +336,8 @@ class utilFunc:
         # construct a minimum spanning tree among the internal nodes
         queue = []  # queue here is a min-heap
         heapify(queue)
-        visited = node_count*[False]  # visited here is a boolen list
-        heappush(queue, u_edge(0, 0, 0))    # add a start_edge
+        visited = node_count * [False]  # visited here is a boolen list
+        heappush(queue, u_edge(0, 0, 0))  # add a start_edge
         # heappush(queue, edge_list[0][0])    # add any edge from the edgelist as the start_edge
         mst_adjacencies = defaultdict(list)
         visited_count = open_slots = 0
@@ -367,7 +366,7 @@ class utilFunc:
                         found_internal = True
                     if mst_adjacencies[e.from_][1] >= leaf_node_count:
                         found_internal = True
-                    if not found_internal:
+                    if not found_internal and visited_count < node_count - 1:
                         is_valid = False
                 elif mst_adjacencies[e.from_].__len__() == 3:
                     is_valid = False
@@ -434,10 +433,10 @@ class utilFunc:
             for n in range(mst_adjacencies.__len__()):
                 while mst_adjacencies[n].__len__() > 3:
                     new_node = unused[-1]
-                    unused.pop(unused[-1]-1)
+                    unused.pop(unused[-1] - 1)
                     move_1 = mst_adjacencies[n][-1]
                     move_2 = mst_adjacencies[n][0]
-                    mst_adjacencies[n].pop(mst_adjacencies[n][-1]-1)
+                    mst_adjacencies[n].pop(mst_adjacencies[n][-1] - 1)
                     mst_adjacencies[n][0] = new_node
                     # link up new node
                     mst_adjacencies[new_node].append(move_1)
@@ -447,7 +446,7 @@ class utilFunc:
                         for i in range(mst_adjacencies[move].__len__()):
                             if mst_adjacencies[move][i] == n:
                                 mst_adjacencies[move][i] = new_node
-        
+
         # add a fake root above node 0: "outgroup" rooting
         zero_parent = mst_adjacencies[0][0]
         mst_adjacencies[node_count].append(0)
@@ -458,64 +457,122 @@ class utilFunc:
         for i in range(mst_adjacencies[zero_parent].__len__()):
             if mst_adjacencies[zero_parent][i] == 0:
                 mst_adjacencies[zero_parent][i] = fake_root
-        
+
         # make peel via post-order
         peel = []
-        visited = (node_count+1) * [False]  # all nodes + the fake root
+        visited = (node_count + 1) * [False]  # all nodes + the fake root
         utilFunc.post_order_traversal(
             mst_adjacencies, fake_root, peel, visited)
 
         return np.array(peel, dtype=np.int)
 
     @staticmethod
-    def dir_to_cart(leaf_r, int_r, leaf_dir, int_dir):
-        # convert radius/ directionals to cartesian coordinates [x,y]
-        n_leaf = len(leaf_r)
-        n_points = n_leaf + len(int_r)
-        dim = 2
-        X = np.zeros((n_points+1, dim))  # extra 0 for root
+    def dir_to_cart(r, directional):
+        """convert radius/ directionals to cartesian coordinates [x,y,z,...]
 
-        leaf_theta = torch.atan2(leaf_dir[:, 1], leaf_dir[:, 0])
-        int_theta = torch.atan2(int_dir[:, 1], int_dir[:, 0])
+        Parameters
+        ----------
+        r (1D tensor): radius of each n_points
+        directional (2D tensor): n_points x dim directional of each point
 
-        X[:n_leaf, 0] = leaf_r * np.cos(leaf_theta)
-        X[:n_leaf, 1] = leaf_r * np.sin(leaf_theta)
+        Returns
+        -------
+        (2D tensor) Cartesian coordinates of each point n_points x dim
 
-        X[n_leaf:n_points, 0] = int_r * np.cos(int_theta)
-        X[n_leaf:n_points, 1] = int_r * np.sin(int_theta)
+        """
+
+        if r.shape == torch.Size([]):
+            return directional * r
+        return directional * r[:, None]
+
+    @staticmethod
+    def dir_to_cart_tree(leaf_r, int_r, leaf_dir, int_dir, dim):
+        """Convert radius/ directionals to cartesian coordinates [x,y] from tree data
+
+        Parameters
+        ----------
+        leaf_r
+        int_r
+        leaf_dir
+        int_dir
+        dim
+
+        Returns
+        -------
+        2D tensor: Cartesian coords of leaves, then internal nodes, then root above node 0
+
+        """
+        n_leaf = leaf_r.shape[0]
+        n_points = n_leaf + int_r.shape[0]
+        X = torch.zeros((n_points + 1, dim))  # extra point for root
+
+        X[:n_leaf, :] = utilFunc.dir_to_cart(leaf_r, leaf_dir)
+        X[n_leaf:-1, :] = utilFunc.dir_to_cart(int_r, int_dir)
 
         # fake root node is above node 0
-        X[-1, 0] = leaf_r[0] * np.cos(leaf_theta[0])
-        X[-1, 1] = leaf_r[0] * np.sin(leaf_theta[0])
+        X[-1, :] = utilFunc.dir_to_cart(leaf_r[0], leaf_dir[0])
 
         return X
 
     @staticmethod
     def cart_to_dir(X):
-        # convert cartesion coordinates in R^2 to radius/ unit directional
-        S = int(X.shape[0]/2+1)
+        """convert positions in X in  R^dim to radius/ unit directional
 
-        leaf_r = (X[:S, 0]**2 +
-                  X[:S, 1]**2)**.5
-        int_r = (X[S:, 0]**2 +
-                 X[S:, 1]**2)**.5
-        leaf_theta = torch.atan2(
-            X[:S, 1],  X[:S, 0])
-        int_theta = torch.atan2(
-            X[S:, 1], X[S:, 0])
-        leaf_dir = utilFunc.angle_to_directional(leaf_theta)
-        int_dir = utilFunc.angle_to_directional(int_theta)
+        Parameters
+        ----------
+        X (2D tensor): Points in R^dim
 
-        return (leaf_r, int_r, leaf_dir, int_dir)
+        Returns
+        -------
+        r: radius
+        directional: unit vectors
+
+        """
+        r = (X[:, 0] ** 2 + X[:, 1] ** 2) ** .5
+        directional = X / r[:, None]
+
+        return r, directional
 
     @staticmethod
-    def plot_tree(ax, peel, X, color=[0, 0, 0]):
-        # plot the tree encoded by peel with positions X = [x, y]
+    def cart_to_dir_tree(X):
+        """Convert Cartesian coordinates in R^2 to radius/ unit directional
+
+        Parameters
+        ----------
+        X (2D Tensor): Cartesian coordinates of leaves and then internal nodes n_points x dim
+
+        Returns
+        -------
+        Location of leaves and internal nodes separately using r, dir
+        """
+
+        S = int(X.shape[0] / 2 + 1)
+
+        (leaf_r, leaf_dir) = utilFunc.cart_to_dir(X[:S, :])
+        (int_r, int_dir) = utilFunc.cart_to_dir(X[S:, :])
+
+        return leaf_r, int_r, leaf_dir, int_dir
+
+    @staticmethod
+    def plot_tree(ax, peel, X, color=(0, 0, 0)):
+        """ Plot a tree in the Poincare disk
+
+        Parameters
+        ----------
+        ax (axes): Axes for plotting
+        peel (2D Tensor): edges
+        X (2D Tensor): node positions [x, y]
+        color (tuple): rgb colour
+
+        Returns
+        -------
+
+        """
         circ = Circle((0, 0), radius=1, fill=False, edgecolor='k')
         ax.add_patch(circ)
 
         # nodes
-        plt.plot(X[:, 0], X[:, 1], 'o', color=color)
+        ax.plot(X[:, 0], X[:, 1], '.', color=color)
 
         # edges
         n_parents = peel.shape[0]
@@ -534,14 +591,14 @@ class utilFunc:
                           color=color)
             ax.add_line(line)
 
-        n_points = X.shape[0]-1
+        n_points = X.shape[0] - 1
         for p in range(n_points):
             msg = str(p)
             if p == 0:
                 msg = msg + " (" + str(n_points) + ")"
-            plt.annotate(msg,
-                         xy=(float(X[p, 0])+.04, float(X[p, 1])),
-                         xycoords='data')
+            ax.annotate(msg,
+                        xy=(float(X[p, 0]) + .04, float(X[p, 1])),
+                        xycoords='data')
 
     @staticmethod
     def tree_to_newick(tipnames, peel_row, blen_row):
