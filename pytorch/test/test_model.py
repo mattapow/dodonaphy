@@ -12,7 +12,7 @@ import torch
 from dendropy.interop import raxml
 
 
-def testFunc():
+def test_model_init_rand():
     dim = 3    # number of dimensions for embedding
     nseqs = 6  # number of sequences to simulate
     seqlen = 1000  # length of sequences to simulate
@@ -141,6 +141,3 @@ def test_model_init_hydra():
                 ax[1], peels[i], X[i].detach().numpy(), color=cmap(i / nsamples))
         ax[1].set_title("Final Embedding Sample")
         fig.show()
-
-# testFunc()
-test_model_init_hydra()
