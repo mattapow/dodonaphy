@@ -466,6 +466,37 @@ class utilFunc:
 
         return np.array(peel, dtype=np.int)
 
+
+    @staticmethod
+    def dendrophy_to_pb(tree):
+        """ Convert Dendrophy tree to peels and blens.
+        Parameters
+        ----------
+        tree : A Dendrophy tree
+        Returns
+        -------
+        peel : adjacencies of internal nodes (left child, right child, node)
+        blens : branch lengths
+        """
+        # Get branch lengths
+        S = len(tree)
+        n_edges = 2 * S - 2
+        blens = torch.zeros(n_edges)
+        # TODO: check dendrophy reverse indexing
+        for i in range(n_edges):
+            blens[i] = tree.bipartition_edge_map[tree.bipartition_encoding[i]].length
+        # Get peel
+        nds = [nd for nd in tree.postorder_internal_node_iter()]
+        n_int_nds = len(nds)
+        peel = np.zeros((n_int_nds, 3), dtype=int)
+        # TODO: make Deondrphy peel the same as the end of make_peel?
+        for i in range(n_int_nds):
+            peel[i, 0] = tree.bipartition_encoding.index(nds[i].child_edges()[0].bipartition)
+            peel[i, 1] = tree.bipartition_encoding.index(nds[i].child_edges()[1].bipartition)
+            peel[i, 2] = tree.bipartition_encoding.index(nds[i].bipartition)
+        return peel, blens.double()
+
+
     @staticmethod
     def dir_to_cart(r, directional):
         """convert radius/ directionals to cartesian coordinates [x,y,z,...]
