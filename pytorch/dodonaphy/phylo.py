@@ -29,7 +29,6 @@ def compress_alignment(alignment):
 
 def calculate_treelikelihood(partials, weights, post_indexing, mats, freqs):
     for left, right, node in post_indexing:
-        # Need comment for strange reasons??
         partials[node] = torch.matmul(mats[left], partials[left]) * torch.matmul(mats[right], partials[right])
     return torch.sum(torch.log(torch.matmul(freqs, partials[post_indexing[-1][0]])) * weights)
 
