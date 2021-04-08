@@ -4,7 +4,7 @@ import numpy as np
 import torch
 from torch.distributions.multivariate_normal import MultivariateNormal
 
-from .hyperboloid import transform_to_hyper, hyper_to_poincare, poincare_to_hyper
+from .hyperboloid import t02p
 from .phylo import calculate_treelikelihood, JC69_p_t
 from .utils import utilFunc
 import matplotlib.pyplot as plt
@@ -127,11 +127,7 @@ class DodonaphyModel(object):
                 cov = self.VariationalParams["int_x_sigma"][i] * torch.eye(self.D)
                 q_int_x.append(MultivariateNormal(torch.zeros(self.D).double(), cov.double()))
 
-            # Convert Mean of distributions from Poincare to hyperboloid in R^dim+1
-            leaf_loc_hyp = poincare_to_hyper(self.VariationalParams["leaf_x_mu"])
-            int_loc_hyp = poincare_to_hyper(self.VariationalParams["int_x_mu"])
-
-            # z in tangent space of hyperboloid at origin T_0 H^n
+            # Sample z in tangent space of hyperboloid at origin T_0 H^n
             z_leaf_x = torch.zeros((self.S, self.D))
             z_int_x = torch.zeros((self.S - 2, self.D))
             for i in range(self.S):
@@ -139,27 +135,15 @@ class DodonaphyModel(object):
             for i in range(self.S - 2):
                 z_int_x[i, :] = q_int_x[i].rsample((1,))
 
-            # transform z from tangent space at origin to hyperboloid at mu
-            z_leaf_x_hyp = torch.zeros((self.S, self.D + 1))
-            z_int_x_hyp = torch.zeros((self.S - 2, self.D + 1))
-            for i in range(self.S):
-                z_leaf_x_hyp[i, :] = transform_to_hyper(leaf_loc_hyp[i, :], z_leaf_x[i, :], self.D)
-            for i in range(self.S - 2):
-                z_int_x_hyp[i, :] = transform_to_hyper(int_loc_hyp[i, :], z_int_x[i, :], self.D)
-
-            # transform z from hyperboloid to poincare ball
-            z_leaf_x_poin = torch.zeros((self.S, self.D))
-            z_int_x_poin = torch.zeros((self.S - 2, self.D))
-            for i in range(self.S):
-                z_leaf_x_poin[i, :] = hyper_to_poincare(z_leaf_x_hyp[i, :])
-            for i in range(self.S - 2):
-                z_int_x_poin[i, :] = hyper_to_poincare(z_int_x_hyp[i, :])
+            # Tangent space at origin to Poincare
+            z_leaf_x_poin = t02p(z_leaf_x, self.VariationalParams["leaf_x_mu"])
+            z_int_x_poin = t02p(z_int_x, self.VariationalParams["int_x_mu"])
 
             # transform z to r, dir
             leaf_r, leaf_dir = utilFunc.cart_to_dir(z_leaf_x_poin)
             int_r, int_dir = utilFunc.cart_to_dir(z_int_x_poin)
 
-            # prepare return (peel, branch leagths, locations, and log posteriori)    
+            # prepare return (peel, branch lengths, locations, and log posteriori)
             pl = utilFunc.make_peel(leaf_r, leaf_dir, int_r, int_dir)
             peel.append(pl)
             bl = self.compute_branch_lengths(self.S, self.D, pl, leaf_r, leaf_dir, int_r, int_dir)
@@ -167,7 +151,7 @@ class DodonaphyModel(object):
             location.append(utilFunc.dir_to_cart_tree(leaf_r, int_r, leaf_dir, int_dir, self.D))
             if kwargs.get('lp'):
                 lp__.append(calculate_treelikelihood(self.partials, self.weights, pl, JC69_p_t(bl), torch.full([4], 0.25, dtype=torch.float64)))
-            
+
         if kwargs.get('lp'):
             return peel, blens, location, lp__
         else:
@@ -185,11 +169,9 @@ class DodonaphyModel(object):
         Returns:
             float: The evidence lower bound of a sample from q
         """
-        # TODO: vectorise for optimisation?
+
         # Mean of distributions in R^dim+1
         # Convert Mean of distributions from Poincare to hyperboloid in R^dim+1
-        leaf_loc_hyp = poincare_to_hyper(self.VariationalParams["leaf_x_mu"])
-        int_loc_hyp = poincare_to_hyper(self.VariationalParams["int_x_mu"])
 
         # z in tangent space at origin
         z_leaf_x = torch.zeros((self.S, self.D))
@@ -199,23 +181,10 @@ class DodonaphyModel(object):
         for i in range(self.S - 2):
             z_int_x[i, :] = q_int_x[i].rsample((1,))
 
-        # transform z from tangent space at origin to hyperboloid at mu
-        z_leaf_x_hyp = torch.zeros((self.S, self.D + 1))
-        z_int_x_hyp = torch.zeros((self.S - 2, self.D + 1))
-        for i in range(self.S):
-            z_leaf_x_hyp[i, :] = transform_to_hyper(leaf_loc_hyp[i, :], z_leaf_x[i, :], self.D)
-        for i in range(self.S - 2):
-            z_int_x_hyp[i, :] = transform_to_hyper(int_loc_hyp[i, :], z_int_x[i, :], self.D)
+        # From (Euclidean) tangent space at origin to Poincare ball
+        z_leaf_x_poin = t02p(z_leaf_x, self.VariationalParams["leaf_x_mu"])
+        z_int_x_poin = t02p(z_int_x, self.VariationalParams["int_x_mu"])
 
-        # transform z to poincare ball
-        z_leaf_x_poin = torch.zeros((self.S, self.D))
-        z_int_x_poin = torch.zeros((self.S - 2, self.D))
-        for i in range(self.S):
-            z_leaf_x_poin[i, :] = hyper_to_poincare(z_leaf_x_hyp[i, :])
-        for i in range(self.S - 2):
-            z_int_x_poin[i, :] = hyper_to_poincare(z_int_x_hyp[i, :])
-
-        # transform z to r, dir
         leaf_r, leaf_dir = utilFunc.cart_to_dir(z_leaf_x_poin)
         int_r, int_dir = utilFunc.cart_to_dir(z_int_x_poin)
 
@@ -229,12 +198,13 @@ class DodonaphyModel(object):
         for i in range(self.S - 2):
             logQ += q_int_x[i].log_prob(z_int_x[i])
 
-        # logPrior, have to think carefully
+        # logPrior
+        # TODO: have to think carefully
         logPrior = torch.zeros(1, requires_grad=True)
 
         logP = self.compute_LL(leaf_r, leaf_dir, int_r, int_dir)
 
-        return logP + logPrior  - logQ + log_abs_det_jacobian
+        return logP + logPrior - logQ + log_abs_det_jacobian
 
     def learn(self, param_init=None, epochs=1000):
         """[summary]
@@ -251,7 +221,7 @@ class DodonaphyModel(object):
             self.VariationalParams["int_x_sigma"] = param_init["int_x_sigma"]
 
         lr_lambda = lambda epoch: 1.0 / np.sqrt(epoch + 1)
-        optimizer = torch.optim.Adam(list(self.VariationalParams.values()), lr=10)
+        optimizer = torch.optim.Adam(list(self.VariationalParams.values()), lr=.01)
         scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lr_lambda)
 
         elbo_hist = []
@@ -262,17 +232,17 @@ class DodonaphyModel(object):
             loss.backward()
             optimizer.step()
             scheduler.step()
-            
+
             print('epoch {} ELBO: {}'.format(epoch, elbo_hist[-1]))
             hist_dat.append(elbo_hist[-1])
 
+        plt.figure()
         plt.plot(range(epochs), elbo_hist, 'r', label='elbo')
         plt.title('Elbo values')
         plt.xlabel('Epochs')
         plt.ylabel('elbo')
         plt.legend()
         plt.show()
-            
 
         # plt.hist(hist_dat)
         # plt.show()

@@ -17,7 +17,6 @@ https://github.com/pfnet-research/hyperbolic_wrapped_distribution
 
 import math
 import torch
-from torch.distributions.multivariate_normal import MultivariateNormal
 
 
 def embed_star_hyperboloid_2d(height=2, nseqs=6):
@@ -151,7 +150,85 @@ def exponential_map(x, v):
     return torch.cosh(vnorm) * x + torch.sinh(vnorm) * v / vnorm
 
 
-def transform_to_hyper(mu, v_tilde, dim):
+def p2t0(loc):
+    """Convert location on Poincare ball to Euclidean space.
+
+    Use stereographic projection of point onto hyperboloid surface in R^n+1,
+    then project onto z=1 plane, the tangent plane at the origin.
+
+    Parameters
+    ----------
+    loc: Location in Poincare ball, loc in R^n with |loc|<1
+
+    Returns
+    -------
+    Projection of location into the tangent space T_0H^n, which is R^n
+
+    """
+    loc_hyp = poincare_to_hyper(loc)
+    if loc.ndim == 1:
+        return loc_hyp[1:]
+    elif loc.ndim == 2:
+        return loc_hyp[:, 1:]
+
+
+def t02p(x, mu):
+    """Transform a vector x in Euclidean space to the Poincare disk.
+
+    Take a vector in the tangent space of a hyperboloid at the origin, project it
+    onto a hyperboloid surface then onto the poincare ball. Mu is the mean of the
+    distribution in the Euclidean space
+
+    Parameters
+    ----------
+    x: Position of sample in tangent space at origin
+    mu: Mean of distribution in tangent space at origin
+
+    Returns
+    -------
+    Transformed vector x, from tangent plane to Poincare ball
+
+    """
+    if x.ndim == 1:
+        dim = len(x)
+        mu_hyp = up_to_hyper(mu)
+        x_hyp = tangent_to_hyper(mu_hyp, x, dim)
+        x_poin = hyper_to_poincare(x_hyp)
+    elif x.ndim == 2:
+        n = len(x)
+        dim = x.shape[1]
+        x_poin = torch.zeros((n, dim))
+        mu_hyp = up_to_hyper(mu)
+        for i in range(n):
+            x_hyp = tangent_to_hyper(mu_hyp[i, :], x[i, :], dim)
+            x_poin[i, :] = hyper_to_poincare(x_hyp)
+    return x_poin
+
+
+def up_to_hyper(loc):
+    """ Project directly up onto the hyperboloid
+
+    Take a position in R^n and return the point in R^n+1 lying on the hyperboloid H^n
+    which is directly 'above' it (in the first dimension)
+
+    Parameters
+    ----------
+    loc: Location in R^n
+
+    Returns
+    -------
+    Location in R^n+1 on Hyperboloid
+
+    """
+    if loc.ndim == 1:
+        z = torch.sqrt(torch.sum(torch.pow(loc,2)) + 1).unsqueeze(0)
+        return torch.cat((z, loc), dim=0)
+    elif loc.ndim == 2:
+        z = torch.sqrt(torch.sum(torch.pow(loc,2), 1) + 1).unsqueeze(1)
+        return torch.cat((z, loc), dim=1)
+
+
+def tangent_to_hyper(mu, v_tilde, dim):
     """ Project a vector onto the hyperboloid
 
     Project a vector from the origin, v_tilde, in the tangent space at the origin T_0 H^n
@@ -193,9 +270,9 @@ def hyper_to_poincare(location):
         A 1D tensor corresponding to a point in the Poincare ball in R^n.
 
     """
-    dim = location.shape[0]
-    out = torch.zeros(dim-1)
-    for i in range(dim-1):
+    dim = location.shape[0]-1
+    out = torch.zeros(dim)
+    for i in range(dim):
         out[i] = location[i+1]/(1+location[0])
     return out
 
@@ -212,13 +289,22 @@ def poincare_to_hyper(location):
     -------
 
     """
-    n_points = location.shape[0]
-    dim = location.shape[1]
-    out = torch.zeros(n_points, dim + 1)
-    for i in range(n_points):
-        a = location[i, :].pow(2).sum(0)
-        out[i, 0] = (1 + a) / (1 - a)
-        out[i, 1:] = 2*location[i, :] / (1 - a)
+    if location.ndim == 1:
+        dim = len(location)
+        out = torch.zeros(dim + 1).double()
+        a = location[:].pow(2).sum(0)
+        out[0] = (1 + a) / (1 - a)
+        out[1:] = 2 * location[:] / (1 - a)
+
+    elif location.ndim == 2:
+        n_points = location.shape[0]
+        dim = location.shape[1]
+
+        out = torch.zeros(n_points, dim + 1)
+        for i in range(n_points):
+            a = location[i, :].pow(2).sum(0)
+            out[i, 0] = (1 + a) / (1 - a)
+            out[i, 1:] = 2*location[i, :] / (1 - a)
     return out
 
 
@@ -252,9 +338,9 @@ def embed_poincare_star(r=.5, nseqs=6):
         # distance between equidistant points at radius r
         dists[i][nseqs] = r
         for j in range(i):
-            d2_ij = (x[i]-x[j])**2 + (y[i]-y[j])**2
-            d2_i0 = x[i]**2 + y[i]**2
-            d2_j0 = x[j]**2 + y[j]**2
+            d2_ij = torch.pow((x[i]-x[j]), 2) + torch.pow((y[i]-y[j]), 2)
+            d2_i0 = torch.pow(x[i], 2) + torch.pow(y[i], 2)
+            d2_j0 = torch.pow(x[j], 2) + torch.pow(y[j], 2)
             dists[i][j] = torch.arccosh(
                 1 + 2 * (d2_ij / ((1 - d2_i0)*(1 - d2_j0))))
 
