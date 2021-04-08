@@ -5,6 +5,7 @@ from dendropy import DnaCharacterMatrix
 from dodonaphy.model import DodonaphyModel
 from dodonaphy.phylo import compress_alignment, JC69_p_t, calculate_treelikelihood
 from dodonaphy.utils import utilFunc
+from dodonaphy.hyperboloid import p2t0
 from matplotlib import pyplot as plt
 import matplotlib.cm
 import numpy as np
@@ -79,7 +80,7 @@ def test_model_init_hydra():
     Plot samples from VM
     """
     dim = 2  # number of dimensions for embedding
-    S = 5  # number of sequences to simulate
+    S = 6  # number of sequences to simulate
     seqlen = 1000  # length of sequences to simulate
 
     # Simulate a tree
@@ -89,6 +90,7 @@ def test_model_init_hydra():
         seq_len=seqlen, tree_model=simtree, seq_model=dendropy.model.discrete.Jc69())
 
     # Initialise model
+    # TODO: Partials is list, which is sometimes an issue for calculate_treelikelihood, expects tensor
     partials, weights = compress_alignment(dna)
     mymod = DodonaphyModel(partials, weights, dim)
 
@@ -113,23 +115,25 @@ def test_model_init_hydra():
 
     # embed tips with Hydra
     emm = utilFunc.hydra(dists, dim=dim, equi_adj=0.0)
-    leaf_loc_poin = utilFunc.dir_to_cart(torch.from_numpy(
-        emm["r"]), torch.from_numpy(emm["directional"]))
+    leaf_loc_poin = utilFunc.dir_to_cart(torch.from_numpy(emm["r"]), torch.from_numpy(emm["directional"]))
+    leaf_loc_t0 = p2t0(leaf_loc_poin)
 
     # set initial leaf positions from hydra with small coefficient of variation
     # set internal nodes to narrow distributions at origin
+    cv = 1./50
+    leaf_sigma = np.abs(np.array(leaf_loc_t0)) * cv
     param_init = {
-        "leaf_x_mu": torch.zeros_like(leaf_loc_poin, requires_grad=True, dtype=torch.float64),
-        "leaf_x_sigma": torch.full([S], 1/50, requires_grad=True, dtype=torch.float64),
+        "leaf_x_mu": leaf_loc_t0.requires_grad_(True),
+        "leaf_x_sigma": torch.tensor(leaf_sigma,requires_grad=True, dtype=torch.float64),
         "int_x_mu": torch.zeros(S-2, dim, requires_grad=True, dtype=torch.float64),
-        "int_x_sigma": torch.full([S-2], 1/50, requires_grad=True, dtype=torch.float64)
+        "int_x_sigma": torch.full([S-2], 1/100, requires_grad=True, dtype=torch.float64)
     }
 
     # Plot initial embedding if dim==2
     mymod.learn(param_init=param_init, epochs=0)
-    nsamples = 3
+    nsamples = 1
     if dim == 2:
-        plt.figure(figsize=(7, 7), dpi=300)
+        plt.figure(figsize=(7, 7), dpi=600)
         fig, ax = plt.subplots(1, 2)
         peels, blens, X = mymod.draw_sample(nsamples)
         ax[0].set(xlim=[-1, 1])
@@ -139,9 +143,10 @@ def test_model_init_hydra():
             utilFunc.plot_tree(
                 ax[0], peels[i], X[i].detach().numpy(), color=cmap(i / nsamples))
         ax[0].set_title("Original Embedding Sample")
+        plt.close()
 
     # learn
-    mymod.learn(param_init=param_init, epochs=1000)
+    mymod.learn(param_init=param_init, epochs=100)
     peels, blens, X = mymod.draw_sample(nsamples)
 
     # draw the tree samples if dim==2
