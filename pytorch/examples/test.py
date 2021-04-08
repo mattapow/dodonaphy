@@ -89,7 +89,7 @@ def test_model_init_hydra():
         seq_len=seqlen, tree_model=simtree, seq_model=dendropy.model.discrete.Jc69())
 
     rx = raxml.RaxmlRunner()
-    tree = rx.estimate_tree(char_matrix=data, raxml_args=["--no-bfgs"])
+    tree = rx.estimate_tree(char_matrix=dna, raxml_args=["--no-bfgs"])
     tree.plot_tree()
 
     partials, weights = compress_alignment(dna)
