@@ -103,10 +103,10 @@ class DodonaphyModel(object):
                                         torch.full([4], 0.25, dtype=torch.float64))
 
     def draw_sample(self, nSample=100, **kwargs):
-        """[summary]
+        """Draw samples from variational posterior distribution
 
         Args:
-            nSample (int, optional): [description]. Defaults to 100.
+            nSample (int, optional): Number of samples to be drawn. Defaults to 100.
 
         Returns:
             [type]: [description]

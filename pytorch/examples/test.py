@@ -10,7 +10,7 @@ import matplotlib.cm
 import numpy as np
 import torch
 from dendropy.interop import raxml
-
+from dendropy import treecalc
 
 def testFunc():
     dim = 3    # number of dimensions for embedding
@@ -23,6 +23,7 @@ def testFunc():
     dna = simulate_discrete_chars(
         seq_len=seqlen, tree_model=simtree, seq_model=dendropy.model.discrete.Jc69())
 
+    s = simtree.postorder_node_iter()
     # testing raxml
     # rx = raxml.RaxmlRunner(raxml_path="raxmlHPC-AVX2")
     # # tree = rx.estimate_tree(char_matrix=dna, raxml_args=['-e', 'likelihoodEpsilon', '-h' '--JC69'])
@@ -40,12 +41,24 @@ def testFunc():
     # have to create and convert dist into hyperbolic embedding
     simtree.print_plot()
 
+
     mymod = DodonaphyModel(partials, weights, dim)
     mymod.learn(epochs=100)
 
     nsamples = 3
     peels, blens, X, lp__ = mymod.draw_sample(nsamples, lp=True)
+
+    # try a tree construction from peel and blens data
+    
+    dodonaphy_tree_nw = utilFunc.tree_to_newick(simtree.taxon_namespace.labels(), peels[0], blens[0])
+    dodonaphy_tree_dp = dendropy.Tree.get(data=dodonaphy_tree_nw, schema="newick")
+    dodonaphy_tree_dp = dendropy.TreeList(taxon_namespace=rxml_tree.taxon_namespace)
     # maximum likelihood parameter values
+
+    # compare raxml and dodonaphy tree based on euclidean and Robinson_foulds distance
+    ec_dist = treecalc.euclidean_distance(rxml_tree, dodonaphy_tree_dp)
+    rf_dist = treecalc.robinson_foulds_distance(rxml_tree, dodonaphy_tree_dp)
+
 
     # draw the tree samples
     plt.figure(figsize=(7, 7), dpi=100)

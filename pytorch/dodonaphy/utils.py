@@ -602,20 +602,20 @@ class utilFunc:
 
     @staticmethod
     def tree_to_newick(tipnames, peel_row, blen_row):
-        newick = ""
-        chunks = []
+        chunks = {}
         plen = tipnames.__len__()-1
-        for p in range(plen+1):
-            n1 = peel_row[p]
-            n2 = peel_row[p+plen]
-            n3 = peel_row[p+2*plen]
-            if n1 < tipnames.__len__():
-                chunks[n1] = tipnames[n1] + ":" + blen_row[n1]
-            if n2 < tipnames.__len__():
-                chunks[n2] = tipnames[n2] + ":" + blen_row[n2]
-            n3names = str(n3) + ":" + blen_row[n3] 
-            if p == plen:
-                n3names = ";"
-            chunks[n3] = "(" + chunks[n1] + "," + chunks[n2] + ")" + n3names
-        return str(chunks[peel_row[-1]])
+        for p in range(plen):
+            n1 = peel_row[p][0]
+            n2 = peel_row[p][1]
+            n3 = peel_row[p][2]
+            if n1 <= plen:
+                chunks[n1] = tipnames[n1] + ":" + str(blen_row[n1].item())
+            if n2 <= plen:
+                chunks[n2] = tipnames[n2] + ":" + str(blen_row[n2].item())
+
+            if p == (plen-1):
+                chunks[n3] = "(" + chunks[n1] + "," + chunks[n2] + ")" + ";"
+            else:
+                chunks[n3] = "(" + chunks[n1] + "," + chunks[n2] + ")" + ":" + str(blen_row[n3].item())
+        return str(chunks[peel_row[-1][2]])
 
