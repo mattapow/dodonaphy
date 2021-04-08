@@ -95,6 +95,8 @@ def test_model_init_hydra():
     mymod = DodonaphyModel(partials, weights, dim)
 
     # Compute RAxML tree likelihood
+    # TODO: set RAxML to use --JC69. Confirm in log file
+    print('Warning: RAxML using GTR model not JC69')
     rx = raxml.RaxmlRunner()
     tree = rx.estimate_tree(char_matrix=dna, raxml_args=["--no-bfgs"])
     peel, blens = utilFunc.dendrophy_to_pb(tree)
@@ -102,8 +104,7 @@ def test_model_init_hydra():
     rml_L = calculate_treelikelihood(partials, weights, peel, mats,
                                      torch.full([4], 0.25, dtype=torch.float64))
     print("RAxML Likelihood: " + str(rml_L.item()))
-    print("NB: ELBO is: Likelihood - log(Q) + Jacobian(=1) + logPrior(=0)")
-    # TODO: compare sample likelihood instead of elbos?
+    print("NB: ELBO is: Likelihood - log(Q) + Jacobian + logPrior(=0)")
 
     # Get tip distances
     pdm = simtree.phylogenetic_distance_matrix()
