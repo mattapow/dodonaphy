@@ -633,6 +633,16 @@ class utilFunc:
 
     @staticmethod
     def tree_to_newick(tipnames, peel_row, blen_row):
+        """This function returns a Tree in newick format from given peel and branch lengths
+
+        Args:
+            tipnames (List): List of Taxa labels
+            peel_row (List of List): Peel in post-order indexing
+            blen_row (List): Branch lengths
+
+        Returns:
+            Newick String: A Tree 
+        """
         chunks = {}
         plen = tipnames.__len__()-1
         for p in range(plen):
