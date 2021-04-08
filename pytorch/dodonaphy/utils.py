@@ -213,7 +213,7 @@ class utilFunc:
                 if i != j:
                     dist[i][j] = utilFunc.hyperbolic_distance(
                         r[i], r[j],
-                        directional[i,], directional[j,],
+                        directional[i, ], directional[j, ],
                         curvature)
                     stress_sq = stress_sq + (dist[i][j] - D[i, j]) ** 2
 
@@ -464,8 +464,7 @@ class utilFunc:
         utilFunc.post_order_traversal(
             mst_adjacencies, fake_root, peel, visited)
 
-        return np.array(peel, dtype=np.int)
-
+        return np.array(peel, dtype=np.intc)
 
     @staticmethod
     def dendrophy_to_pb(tree):
@@ -482,20 +481,18 @@ class utilFunc:
         S = len(tree)
         n_edges = 2 * S - 2
         blens = torch.zeros(n_edges)
-        # TODO: check dendrophy reverse indexing
         for i in range(n_edges):
             blens[i] = tree.bipartition_edge_map[tree.bipartition_encoding[i]].length
+
         # Get peel
         nds = [nd for nd in tree.postorder_internal_node_iter()]
         n_int_nds = len(nds)
         peel = np.zeros((n_int_nds, 3), dtype=int)
-        # TODO: make Deondrphy peel the same as the end of make_peel?
         for i in range(n_int_nds):
             peel[i, 0] = tree.bipartition_encoding.index(nds[i].child_edges()[0].bipartition)
             peel[i, 1] = tree.bipartition_encoding.index(nds[i].child_edges()[1].bipartition)
             peel[i, 2] = tree.bipartition_encoding.index(nds[i].bipartition)
         return peel, blens.double()
-
 
     @staticmethod
     def dir_to_cart(r, directional):
@@ -559,7 +556,9 @@ class utilFunc:
         directional: unit vectors
 
         """
-        r = (X[:, 0] ** 2 + X[:, 1] ** 2) ** .5
+        if X.ndim == 1:
+            X = torch.unsqueeze(X, 0)
+        r = torch.pow(torch.pow(X[:, 0], 2) + torch.pow(X[:, 1], 2), .5)
         directional = X / r[:, None]
 
         return r, directional
@@ -659,4 +658,3 @@ class utilFunc:
             else:
                 chunks[n3] = "(" + chunks[n1] + "," + chunks[n2] + ")" + ":" + str(blen_row[n3].item())
         return str(chunks[peel_row[-1][2]])
-
