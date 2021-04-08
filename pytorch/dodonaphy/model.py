@@ -188,8 +188,25 @@ class DodonaphyModel(object):
         leaf_r, leaf_dir = utilFunc.cart_to_dir(z_leaf_x_poin)
         int_r, int_dir = utilFunc.cart_to_dir(z_int_x_poin)
 
-        # TODO: Compute Jacobian
-        log_abs_det_jacobian = 1
+        # Get Jacobians
+        log_abs_det_jacobian = torch.zeros(1)
+        # Leaves
+        for i in range(self.S):
+            # Jacobian of t02p going from Tangent T_0 to Poincare ball
+            inputs = (z_leaf_x[i, :], self.VariationalParams["leaf_x_mu"][i, :])
+            J_leaf = torch.autograd.functional.jacobian(t02p, inputs)
+            for j in range(len(J_leaf)):
+                log_abs_det_jacobian += torch.log(torch.abs(torch.det(J_leaf[j])))
+        # Jacobian of going to polar
+        log_abs_det_jacobian += torch.log(1/leaf_r).sum(0)
+
+        # Internal nodes
+        for i in range(self.S-2):
+            inputs = (z_int_x[i, :], self.VariationalParams["int_x_mu"][i, :])
+            J_int = torch.autograd.functional.jacobian(t02p, inputs)
+            for j in range(len(J_int)):
+                log_abs_det_jacobian += torch.log(torch.abs(torch.det(J_int[j])))
+        log_abs_det_jacobian += torch.log(1 / int_r).sum(0)
 
         # logQ
         logQ = 0
@@ -227,7 +244,7 @@ class DodonaphyModel(object):
         elbo_hist = []
         hist_dat: List[Any] = []
         for epoch in range(epochs):
-            loss = - self.elbo_normal()
+            loss = - self.elbo_normal(3)
             elbo_hist.append(- loss.item())
             loss.backward()
             optimizer.step()
@@ -247,8 +264,8 @@ class DodonaphyModel(object):
         # plt.hist(hist_dat)
         # plt.show()
 
-        with torch.no_grad():
-            print('Final ELBO: {}'.format(self.elbo_normal(100).item()))
+        #with torch.no_grad(): # need grad for Jacobian in elbo
+        print('Final ELBO: {}'.format(self.elbo_normal(100).item()))
 
     def elbo_normal(self, size=1):
         """[summary]
@@ -270,8 +287,7 @@ class DodonaphyModel(object):
             cov = self.VariationalParams["int_x_sigma"][i] * torch.eye(self.D)
             q_int_x.append(MultivariateNormal(torch.zeros(self.D).double(), cov.double()))
 
-        # elbos = []
-        # for i in range(size):
-        #     elbos.append(self.calculate_elbo(q_leaf_x, q_int_x))
-        # return torch.mean(torch.tensor(elbos, requires_grad=True))
-        return self.calculate_elbo(q_leaf_x, q_int_x)
+        elbos = []
+        for i in range(size):
+            elbos.append(self.calculate_elbo(q_leaf_x, q_int_x))
+        return torch.mean(torch.stack(elbos))
