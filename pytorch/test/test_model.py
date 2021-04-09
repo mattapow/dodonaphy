@@ -5,6 +5,7 @@ from dendropy import DnaCharacterMatrix
 from dodonaphy.model import DodonaphyModel
 from dodonaphy.phylo import compress_alignment, JC69_p_t, calculate_treelikelihood
 from dodonaphy.utils import utilFunc
+from dodonaphy.hyperboloid import p2t0
 from matplotlib import pyplot as plt
 import matplotlib.cm
 import numpy as np
@@ -85,7 +86,7 @@ def test_model_init_hydra():
     Plot samples from VM
     """
     dim = 2  # number of dimensions for embedding
-    S = 5  # number of sequences to simulate
+    S = 6  # number of sequences to simulate
     seqlen = 1000  # length of sequences to simulate
 
     # Simulate a tree
@@ -95,11 +96,14 @@ def test_model_init_hydra():
         seq_len=seqlen, tree_model=simtree, seq_model=dendropy.model.discrete.Jc69())
 
     # Initialise model
+    # TODO: Partials is list, which is sometimes an issue for calculate_treelikelihood, expects tensor
     partials, weights = compress_alignment(dna)
     # mymod = DodonaphyModel(partials, weights, dim)
     DodonaphyModel(partials, weights, dim)
 
     # Compute RAxML tree likelihood
+    # TODO: set RAxML to use --JC69. Confirm in log file
+    print('Warning: RAxML using GTR model not JC69')
     rx = raxml.RaxmlRunner()
     tree = rx.estimate_tree(char_matrix=dna, raxml_args=["--no-bfgs"])
     peel, blens = utilFunc.dendrophy_to_pb(tree)
@@ -107,8 +111,7 @@ def test_model_init_hydra():
     rml_L = calculate_treelikelihood(partials, weights, peel, mats,
                                      torch.full([4], 0.25, dtype=torch.float64))
     print("RAxML Likelihood: " + str(rml_L.item()))
-    print("NB: ELBO is: Likelihood - log(Q) + Jacobian(=1) + logPrior(=0)")
-    # TODO: compare sample likelihood instead of elbos?
+    print("NB: ELBO is: Likelihood - log(Q) + Jacobian + logPrior(=0)")
 
     # Get tip distances
     pdm = simtree.phylogenetic_distance_matrix()
@@ -120,23 +123,25 @@ def test_model_init_hydra():
 
     # embed tips with Hydra
     emm = utilFunc.hydra(dists, dim=dim, equi_adj=0.0)
-    leaf_loc_poin = utilFunc.dir_to_cart(torch.from_numpy(
-        emm["r"]), torch.from_numpy(emm["directional"]))
+    leaf_loc_poin = utilFunc.dir_to_cart(torch.from_numpy(emm["r"]), torch.from_numpy(emm["directional"]))
+    leaf_loc_t0 = p2t0(leaf_loc_poin)
 
     # set initial leaf positions from hydra with small coefficient of variation
     # set internal nodes to narrow distributions at origin
+    cv = 1./50
+    leaf_sigma = np.abs(np.array(leaf_loc_t0)) * cv
     param_init = {
-        "leaf_x_mu": torch.zeros_like(leaf_loc_poin, requires_grad=True, dtype=torch.float64),
-        "leaf_x_sigma": torch.full([S], 1/50, requires_grad=True, dtype=torch.float64),
+        "leaf_x_mu": leaf_loc_t0.requires_grad_(True),
+        "leaf_x_sigma": torch.tensor(leaf_sigma,requires_grad=True, dtype=torch.float64),
         "int_x_mu": torch.zeros(S-2, dim, requires_grad=True, dtype=torch.float64),
-        "int_x_sigma": torch.full([S-2], 1/50, requires_grad=True, dtype=torch.float64)
+        "int_x_sigma": torch.full([S-2], 1/100, requires_grad=True, dtype=torch.float64)
     }
 
     # Plot initial embedding if dim==2
     mymod.learn(param_init=param_init, epochs=0)
-    nsamples = 3
+    nsamples = 1
     if dim == 2:
-        plt.figure(figsize=(7, 7), dpi=300)
+        plt.figure(figsize=(7, 7), dpi=600)
         fig, ax = plt.subplots(1, 2)
         peels, blens, X = mymod.draw_sample(nsamples)
         ax[0].set(xlim=[-1, 1])
@@ -146,9 +151,10 @@ def test_model_init_hydra():
             utilFunc.plot_tree(
                 ax[0], peels[i], X[i].detach().numpy(), color=cmap(i / nsamples))
         ax[0].set_title("Original Embedding Sample")
+        plt.close()
 
     # learn
-    mymod.learn(param_init=param_init, epochs=1000)
+    mymod.learn(param_init=param_init, epochs=100)
     peels, blens, X = mymod.draw_sample(nsamples)
 
     # draw the tree samples if dim==2
@@ -162,4 +168,33 @@ def test_model_init_hydra():
         ax[1].set_title("Final Embedding Sample")
         fig.show()
 
-test_model_init_hydra()
+
+def test_calculate_likelihood():
+    """
+    Sometimes calculate_likelihood was throwing errors about
+    torch.matmul(Tensor, list), where it wanted torch.matmul(Tensor, Tensor)
+    """
+
+    dim = 1  # number of dimensions for embedding
+    S = 4  # number of sequences to simulate
+    seqlen = 10  # length of sequences to simulate
+
+    # Simulate a tree
+    simtree = treesim.birth_death_tree(
+        birth_rate=2., death_rate=0.5, num_extant_tips=S)
+    dna = simulate_discrete_chars(
+        seq_len=seqlen, tree_model=simtree, seq_model=dendropy.model.discrete.Jc69())
+
+    # Initialise model
+    partials, weights = compress_alignment(dna)
+    mymod = DodonaphyModel(partials, weights, dim)
+
+    # Compute RAxML tree
+    rx = raxml.RaxmlRunner()
+    tree = rx.estimate_tree(char_matrix=dna, raxml_args=["--no-bfgs"])
+    peel, blens = utilFunc.dendrophy_to_pb(tree)
+    mats = JC69_p_t(blens)
+
+    _ = calculate_treelikelihood(partials, weights, peel, mats,
+                                     torch.full([4], 0.25, dtype=torch.float64))
+
