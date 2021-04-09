@@ -265,7 +265,7 @@ def test_calculate_likelihood():
 
     dim = 1  # number of dimensions for embedding
     S = 4  # number of sequences to simulate
-    seqlen = 10  # length of sequences to simulate
+    seqlen = 100  # length of sequences to simulate
 
     # Simulate a tree
     simtree = treesim.birth_death_tree(
