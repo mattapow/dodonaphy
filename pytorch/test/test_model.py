@@ -160,3 +160,34 @@ def test_model_init_hydra():
                 ax[1], peels[i], X[i].detach().numpy(), color=cmap(i / nsamples))
         ax[1].set_title("Final Embedding Sample")
         fig.show()
+
+
+def test_calculate_likelihood():
+    """
+    Sometimes calculate_likelihood was throwing errors about
+    torch.matmul(Tensor, list), where it wanted torch.matmul(Tensor, Tensor)
+    """
+
+    dim = 1  # number of dimensions for embedding
+    S = 4  # number of sequences to simulate
+    seqlen = 10  # length of sequences to simulate
+
+    # Simulate a tree
+    simtree = treesim.birth_death_tree(
+        birth_rate=2., death_rate=0.5, num_extant_tips=S)
+    dna = simulate_discrete_chars(
+        seq_len=seqlen, tree_model=simtree, seq_model=dendropy.model.discrete.Jc69())
+
+    # Initialise model
+    partials, weights = compress_alignment(dna)
+    mymod = DodonaphyModel(partials, weights, dim)
+
+    # Compute RAxML tree
+    rx = raxml.RaxmlRunner()
+    tree = rx.estimate_tree(char_matrix=dna, raxml_args=["--no-bfgs"])
+    peel, blens = utilFunc.dendrophy_to_pb(tree)
+    mats = JC69_p_t(blens)
+
+    _ = calculate_treelikelihood(partials, weights, peel, mats,
+                                     torch.full([4], 0.25, dtype=torch.float64))
+
