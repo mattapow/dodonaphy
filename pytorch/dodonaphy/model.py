@@ -39,7 +39,7 @@ class DodonaphyModel(object):
         }
         # make space for internal partials
         for i in range(self.S - 1):
-            self.partials.append([None] * self.L)
+            self.partials.append(torch.zeros(1, partials[0].shape[0], partials[0].shape[1], dtype=torch.float64))
 
     def compute_branch_lengths(self, S, D, peel, leaf_r, leaf_dir, int_r, int_dir, curvature=torch.ones(1)):
         """Computes the hyperbolic distance of two points given in radial/directional coordinates in the Poincare ball

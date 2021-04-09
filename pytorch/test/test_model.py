@@ -11,6 +11,7 @@ import numpy as np
 import torch
 from dendropy.interop import raxml
 from dendropy import treecalc
+import pytest
 
 def test_model_init_rand():
     dim = 3    # number of dimensions for embedding
@@ -49,15 +50,20 @@ def test_model_init_rand():
     peels, blens, X, lp__ = mymod.draw_sample(nsamples, lp=True)
 
     # try a tree construction from peel and blens data
-    
+    rxml_tree.print_plot()
+
+    tip_labels = simtree.taxon_namespace.labels()
+    rxml_peel, rxml_blens = utilFunc.dendrophy_to_pb(rxml_tree)
+    rxml_tree_nw = utilFunc.tree_to_newick(tip_labels, rxml_peel, rxml_blens)
+    rxml_peel_dp = dendropy.Tree.get(data=rxml_tree_nw, schema="newick")
     dodonaphy_tree_nw = utilFunc.tree_to_newick(simtree.taxon_namespace.labels(), peels[0], blens[0])
     dodonaphy_tree_dp = dendropy.Tree.get(data=dodonaphy_tree_nw, schema="newick")
-    dodonaphy_tree_dp = dendropy.TreeList(taxon_namespace=rxml_tree.taxon_namespace)
-    # maximum likelihood parameter values
+    # dodonaphy_tree_dp = dendropy.TreeList(taxon_namespace=rxml_tree.taxon_namespace)
 
+    
     # compare raxml and dodonaphy tree based on euclidean and Robinson_foulds distance
-    ec_dist = treecalc.euclidean_distance(rxml_tree, dodonaphy_tree_dp)
-    rf_dist = treecalc.robinson_foulds_distance(rxml_tree, dodonaphy_tree_dp)
+    ec_dist = treecalc.euclidean_distance(rxml_peel_dp, dodonaphy_tree_dp)
+    # rf_dist = treecalc.robinson_foulds_distance(rxml_tree, dodonaphy_tree_dp)
 
 
     # draw the tree samples
@@ -90,7 +96,8 @@ def test_model_init_hydra():
 
     # Initialise model
     partials, weights = compress_alignment(dna)
-    mymod = DodonaphyModel(partials, weights, dim)
+    # mymod = DodonaphyModel(partials, weights, dim)
+    DodonaphyModel(partials, weights, dim)
 
     # Compute RAxML tree likelihood
     rx = raxml.RaxmlRunner()
@@ -154,3 +161,5 @@ def test_model_init_hydra():
                 ax[1], peels[i], X[i].detach().numpy(), color=cmap(i / nsamples))
         ax[1].set_title("Final Embedding Sample")
         fig.show()
+
+test_model_init_hydra()
