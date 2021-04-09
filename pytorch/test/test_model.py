@@ -188,7 +188,7 @@ def test_model_init_hydra():
     partials, weights = compress_alignment(dna)
     # make space for internal partials
     for i in range(S - 1):
-        partials.append(torch.zeros((1, 4, seqlen), dtype=torch.float64))
+        partials.append(torch.zeros((1, 4, partials[0].shape[1]), dtype=torch.float64))
 
     # Compute RAxML tree likelihood
     # TODO: set RAxML to use --JC69. Confirm in log file
