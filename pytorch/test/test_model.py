@@ -273,16 +273,17 @@ def test_calculate_likelihood():
     dna = simulate_discrete_chars(
         seq_len=seqlen, tree_model=simtree, seq_model=dendropy.model.discrete.Jc69())
 
-    # Initialise model
-    partials, weights = compress_alignment(dna)
-    mymod = DodonaphyModel(partials, weights, dim)
-
     # Compute RAxML tree
     rx = raxml.RaxmlRunner()
     tree = rx.estimate_tree(char_matrix=dna, raxml_args=["--no-bfgs"])
     peel, blens = utilFunc.dendrophy_to_pb(tree)
     mats = JC69_p_t(blens)
 
-    _ = calculate_treelikelihood(partials, weights, peel, mats,
-                                     torch.full([4], 0.25, dtype=torch.float64))
+    # compute partials and weights
+    partials, weights = compress_alignment(dna)
+    # make space for internal partials
+    for i in range(S - 1):
+        partials.append(torch.zeros((1, 4, seqlen), dtype=torch.float64))
 
+    _ = calculate_treelikelihood(partials, weights, peel, mats,
+                                 torch.full([4], 0.25, dtype=torch.float64))
