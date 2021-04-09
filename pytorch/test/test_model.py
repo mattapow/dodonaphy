@@ -99,7 +99,7 @@ def test_model_init_hydra():
     # TODO: Partials is list, which is sometimes an issue for calculate_treelikelihood, expects tensor
     partials, weights = compress_alignment(dna)
     # mymod = DodonaphyModel(partials, weights, dim)
-    mymod = DodonaphyModel(partials, weights, dim)
+    mymodDodonaphyModel(partials, weights, dim)
 
     # Compute RAxML tree likelihood
     # TODO: set RAxML to use --JC69. Confirm in log file
