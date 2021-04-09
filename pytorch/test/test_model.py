@@ -158,7 +158,6 @@ def test_init_RAxML_hydra():
     if dim == 2:
         plt.figure(figsize=(7, 7), dpi=600)
         fig, ax = plt.subplots(1, 1)
-        peels, blens, X = mymod.draw_sample(nsamples)
         ax.set(xlim=[-1, 1])
         ax.set(ylim=[-1, 1])
         cmap = matplotlib.cm.get_cmap('Spectral')
@@ -187,7 +186,9 @@ def test_model_init_hydra():
 
     # Initialise model
     partials, weights = compress_alignment(dna)
-    mymod = DodonaphyModel(partials, weights, dim)
+    # make space for internal partials
+    for i in range(S - 1):
+        partials.append(torch.zeros((1, 4, seqlen), dtype=torch.float64))
 
     # Compute RAxML tree likelihood
     # TODO: set RAxML to use --JC69. Confirm in log file
