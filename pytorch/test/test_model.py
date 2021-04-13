@@ -104,6 +104,10 @@ def test_draws_different():
     # draw
     nsamples = 5
     peels, blens, X, lp__ = mymod.draw_sample(nsamples, lp=True)
+    assert not torch.equal(blens[0], blens[1])
+    assert not torch.equal(blens[0], blens[2])
+    assert not torch.equal(blens[1], blens[2])
+
     assert not torch.equal(lp__[0], lp__[1])
     assert not torch.equal(lp__[0], lp__[2])
     assert not torch.equal(lp__[1], lp__[2])
