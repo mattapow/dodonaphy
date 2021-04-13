@@ -13,19 +13,22 @@ import torch
 from dendropy.interop import raxml
 from dendropy import treecalc
 import pytest
+from ete3 import Tree
 
 def test_model_init_rand():
+    """Testing Dodonaphy model with randomly initialized parameters for variational inference
+    """
     dim = 3    # number of dimensions for embedding
     nseqs = 6  # number of sequences to simulate
     seqlen = 1000  # length of sequences to simulate
 
     # # simulate a tree
     simtree = treesim.birth_death_tree(
-        birth_rate=1.0, death_rate=0.5, num_extant_tips=nseqs)
+        birth_rate=2.0, death_rate=0.5, num_extant_tips=nseqs)
     dna = simulate_discrete_chars(
         seq_len=seqlen, tree_model=simtree, seq_model=dendropy.model.discrete.Jc69())
+    
 
-    s = simtree.postorder_node_iter()
     # testing raxml
     # rx = raxml.RaxmlRunner(raxml_path="raxmlHPC-AVX2")
     # # tree = rx.estimate_tree(char_matrix=dna, raxml_args=['-e', 'likelihoodEpsilon', '-h' '--JC69'])
@@ -38,34 +41,31 @@ def test_model_init_rand():
         assemblage_data[i])] for i in sorted(assemblage_data)])
     emm = utilFunc.hydra(D=dist, dim=dim)
 
+    # model initiation and training
     partials, weights = compress_alignment(dna)
-
-    # have to create and convert dist into hyperbolic embedding
-    simtree.print_plot()
-
-
     mymod = DodonaphyModel(partials, weights, dim)
+    # variational parameters: [default] randomly generated within model constructor
     mymod.learn(epochs=100)
 
-    nsamples = 3
+    # draw samples from variational posterior
+    nsamples = 100
     peels, blens, X, lp__ = mymod.draw_sample(nsamples, lp=True)
 
-    # try a tree construction from peel and blens data
-    rxml_tree.print_plot()
-
+    # compare dodonapy with RAxML
     tip_labels = simtree.taxon_namespace.labels()
-    rxml_peel, rxml_blens = utilFunc.dendrophy_to_pb(rxml_tree)
-    rxml_tree_nw = utilFunc.tree_to_newick(tip_labels, rxml_peel, rxml_blens)
-    rxml_peel_dp = dendropy.Tree.get(data=rxml_tree_nw, schema="newick")
-    dodonaphy_tree_nw = utilFunc.tree_to_newick(simtree.taxon_namespace.labels(), peels[0], blens[0])
-    dodonaphy_tree_dp = dendropy.Tree.get(data=dodonaphy_tree_nw, schema="newick")
+    # rxml_peel, rxml_blens = utilFunc.dendrophy_to_pb(rxml_tree)
+    # rxml_tree_nw = utilFunc.tree_to_newick(tip_labels, rxml_peel, rxml_blens)
+    # rxml_peel_dp = dendropy.Tree.get(data=rxml_tree_nw, schema="newick")
+    dodonaphy_tree_nw = utilFunc.tree_to_newick(
+        simtree.taxon_namespace.labels(), peels[0], blens[0])
+    dodonaphy_tree_dp = dendropy.Tree.get(
+        data=dodonaphy_tree_nw, schema="newick")
+    dodonaphy_tree_dp.print_plot()
     # dodonaphy_tree_dp = dendropy.TreeList(taxon_namespace=rxml_tree.taxon_namespace)
 
-    
     # compare raxml and dodonaphy tree based on euclidean and Robinson_foulds distance
     ec_dist = treecalc.euclidean_distance(rxml_peel_dp, dodonaphy_tree_dp)
-    # rf_dist = treecalc.robinson_foulds_distance(rxml_tree, dodonaphy_tree_dp)
-
+    rf_dist = treecalc.robinson_foulds_distance(rxml_tree, dodonaphy_tree_dp)
 
     # draw the tree samples
     plt.figure(figsize=(7, 7), dpi=100)
@@ -99,10 +99,10 @@ def test_draws_different():
     mymod = DodonaphyModel(partials, weights, dim)
 
     # learn
-    mymod.learn(epochs=0)
+    mymod.learn(epochs=100)
 
     # draw
-    nsamples = 3
+    nsamples = 5
     peels, blens, X, lp__ = mymod.draw_sample(nsamples, lp=True)
     assert not torch.equal(lp__[0], lp__[1])
     assert not torch.equal(lp__[0], lp__[2])
@@ -137,7 +137,8 @@ def test_init_RAxML_hydra():
         assemblage_data[i])] for i in sorted(assemblage_data)])
     emm = utilFunc.hydra(D=dist, dim=dim, equi_adj=0.)
 
-    leaf_loc_poin = utilFunc.dir_to_cart(torch.from_numpy(emm["r"]), torch.from_numpy(emm["directional"]))
+    leaf_loc_poin = utilFunc.dir_to_cart(torch.from_numpy(
+        emm["r"]), torch.from_numpy(emm["directional"]))
     leaf_loc_t0 = p2t0(leaf_loc_poin)
 
     # set initial leaf positions from hydra with small coefficient of variation
@@ -181,7 +182,7 @@ def test_model_init_hydra():
     Optimise VM
     Plot samples from VM
     """
-    dim = 2  # number of dimensions for embedding
+    dim = 3  # number of dimensions for embedding
     S = 6  # number of sequences to simulate
     seqlen = 1000  # length of sequences to simulate
 
@@ -194,7 +195,8 @@ def test_model_init_hydra():
     # Initialise model
     partials, weights = compress_alignment(dna)
     # mymod = DodonaphyModel(partials, weights, dim)
-    mymodDodonaphyModel(partials, weights, dim)
+    mymod = DodonaphyModel(partials, weights, dim)
+    # mymod.learn(epochs=100)
 
     # Compute RAxML tree likelihood
     # TODO: set RAxML to use --JC69. Confirm in log file
@@ -210,15 +212,21 @@ def test_model_init_hydra():
 
     # Get tip distances
     pdm = simtree.phylogenetic_distance_matrix()
-    dists = np.zeros((S, S))
-    for i, t1 in enumerate(simtree.taxon_namespace):
-        for j, t2 in enumerate(simtree.taxon_namespace):
-            dists[i][j] = pdm(t1, t2)
-            dists[j][i] = pdm(t1, t2)
+    # dists = np.zeros((S, S))
+    # for i, t1 in enumerate(simtree.taxon_namespace):
+    #     for j, t2 in enumerate(simtree.taxon_namespace):
+    #         dists[i][j] = pdm(t1, t2)
+    #         dists[j][i] = pdm(t1, t2)
+    print(simtree.as_string(schema='newick'))
+    t = Tree(simtree._as_newick_string() + ";")
+    nodes = t.get_tree_root().get_descendants()
+    dists = [t.get_distance(x,y) for x in nodes for y in nodes]
+    dists = np.array(dists).reshape(len(nodes),len(nodes))
 
     # embed tips with Hydra
     emm = utilFunc.hydra(dists, dim=dim, equi_adj=0.0)
-    leaf_loc_poin = utilFunc.dir_to_cart(torch.from_numpy(emm["r"]), torch.from_numpy(emm["directional"]))
+    leaf_loc_poin = utilFunc.dir_to_cart(torch.from_numpy(
+        emm["r"]), torch.from_numpy(emm["directional"]))
     leaf_loc_t0 = p2t0(leaf_loc_poin)
 
     # set initial leaf positions from hydra with small coefficient of variation
@@ -227,7 +235,7 @@ def test_model_init_hydra():
     leaf_sigma = np.abs(np.array(leaf_loc_t0)) * cv
     param_init = {
         "leaf_x_mu": leaf_loc_t0.requires_grad_(True),
-        "leaf_x_sigma": torch.tensor(leaf_sigma,requires_grad=True, dtype=torch.float64),
+        "leaf_x_sigma": torch.tensor(leaf_sigma, requires_grad=True, dtype=torch.float64),
         "int_x_mu": torch.zeros(S-2, dim, requires_grad=True, dtype=torch.float64),
         "int_x_sigma": torch.full([S-2], 1/100, requires_grad=True, dtype=torch.float64)
     }
@@ -251,6 +259,14 @@ def test_model_init_hydra():
     # learn
     mymod.learn(param_init=param_init, epochs=100)
     peels, blens, X = mymod.draw_sample(nsamples)
+
+    # # pick a sample and make a tree (Dendropy)
+    # dodonaphy_tree_nw = utilFunc.tree_to_newick(
+    #     simtree.taxon_namespace.labels(), peels[0], blens[0])
+    # dodonaphy_tree_dp = dendropy.Tree.get(
+    #     data=dodonaphy_tree_nw, schema="newick")
+    # print(dodonaphy_tree_nw)
+    # dodonaphy_tree_dp.print_plot()
 
     # draw the tree samples if dim==2
     if dim == 2:
@@ -291,5 +307,8 @@ def test_calculate_likelihood():
     mats = JC69_p_t(blens)
 
     _ = calculate_treelikelihood(partials, weights, peel, mats,
-                                     torch.full([4], 0.25, dtype=torch.float64))
+                                 torch.full([4], 0.25, dtype=torch.float64))
 
+
+# test_draws_different()
+test_model_init_hydra()

@@ -39,7 +39,7 @@ class DodonaphyModel(object):
         }
         # make space for internal partials
         for i in range(self.S - 1):
-            self.partials.append(torch.zeros((1, 4, self.L), dtype=torch.float64))
+            self.partials.append(torch.zeros((1, 4, self.L), dtype=torch.float64, requires_grad=False))
 
 
     def compute_branch_lengths(self, S, D, peel, leaf_r, leaf_dir, int_r, int_dir, curvature=torch.ones(1)):
@@ -239,7 +239,7 @@ class DodonaphyModel(object):
             self.VariationalParams["int_x_sigma"] = param_init["int_x_sigma"]
 
         lr_lambda = lambda epoch: 1.0 / np.sqrt(epoch + 1)
-        optimizer = torch.optim.Adam(list(self.VariationalParams.values()), lr=.01)
+        optimizer = torch.optim.Adam(list(self.VariationalParams.values()), lr=0.0001)
         scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lr_lambda)
 
         elbo_hist = []

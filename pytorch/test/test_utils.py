@@ -2,6 +2,7 @@ import pytest
 import torch
 import numpy as np
 from pytest import approx
+import ete3
 
 from dodonaphy.utils import utilFunc
 
@@ -115,6 +116,12 @@ def test_hydra_3d_compare_output():
         [0.8008637619, 0.2731045145, 0.5329457375]
     ]))
 
+def test_all_pairwise_distance_ete3():
+    t = ete3.Tree('(A:1,(B:1,(C:1,D:1):0.5):0.5);')
+    nodes = t.get_tree_root().get_descendants()
+    dist = [t.get_distance(x,y) for x in nodes for y in nodes]
+    dist = np.array(dist).reshape(len(nodes),len(nodes))
+    print(dist)
 
 # def test_hydra_stress_2d():
 #     # TODO: compare stress to output of CRAN hyrda
@@ -152,3 +159,5 @@ def test_dir_to_cart_5d():
     directional = u / r
     loc = utilFunc.dir_to_cart(r, directional)
     assert loc == approx(u)
+
+test_all_pairwise_distance_ete3()
