@@ -165,7 +165,6 @@ def test_init_RAxML_hydra():
     if dim == 2:
         plt.figure(figsize=(7, 7), dpi=600)
         fig, ax = plt.subplots(1, 1)
-        peels, blens, X = mymod.draw_sample(nsamples)
         ax.set(xlim=[-1, 1])
         ax.set(ylim=[-1, 1])
         cmap = matplotlib.cm.get_cmap('Spectral')
@@ -194,9 +193,15 @@ def test_model_init_hydra():
 
     # Initialise model
     partials, weights = compress_alignment(dna)
+<<<<<<< HEAD
     # mymod = DodonaphyModel(partials, weights, dim)
     mymod = DodonaphyModel(partials, weights, dim)
     # mymod.learn(epochs=100)
+=======
+    # make space for internal partials
+    for i in range(S - 1):
+        partials.append(torch.zeros((1, 4, partials[0].shape[1]), dtype=torch.float64))
+>>>>>>> 89ed4393c2173881e04e23337efc5691b3be9668
 
     # Compute RAxML tree likelihood
     # TODO: set RAxML to use --JC69. Confirm in log file
@@ -288,7 +293,7 @@ def test_calculate_likelihood():
 
     dim = 1  # number of dimensions for embedding
     S = 4  # number of sequences to simulate
-    seqlen = 10  # length of sequences to simulate
+    seqlen = 100  # length of sequences to simulate
 
     # Simulate a tree
     simtree = treesim.birth_death_tree(
@@ -296,19 +301,17 @@ def test_calculate_likelihood():
     dna = simulate_discrete_chars(
         seq_len=seqlen, tree_model=simtree, seq_model=dendropy.model.discrete.Jc69())
 
-    # Initialise model
-    partials, weights = compress_alignment(dna)
-    mymod = DodonaphyModel(partials, weights, dim)
-
     # Compute RAxML tree
     rx = raxml.RaxmlRunner()
     tree = rx.estimate_tree(char_matrix=dna, raxml_args=["--no-bfgs"])
     peel, blens = utilFunc.dendrophy_to_pb(tree)
     mats = JC69_p_t(blens)
 
+    # compute partials and weights
+    partials, weights = compress_alignment(dna)
+    # make space for internal partials
+    for i in range(S - 1):
+        partials.append(torch.zeros((1, 4, seqlen), dtype=torch.float64))
+
     _ = calculate_treelikelihood(partials, weights, peel, mats,
                                  torch.full([4], 0.25, dtype=torch.float64))
-
-
-# test_draws_different()
-test_model_init_hydra()
