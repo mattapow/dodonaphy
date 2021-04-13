@@ -63,9 +63,9 @@ def test_model_init_rand():
     dodonaphy_tree_dp.print_plot()
     # dodonaphy_tree_dp = dendropy.TreeList(taxon_namespace=rxml_tree.taxon_namespace)
 
-    # compare raxml and dodonaphy tree based on euclidean and Robinson_foulds distance
-    ec_dist = treecalc.euclidean_distance(rxml_peel_dp, dodonaphy_tree_dp)
-    rf_dist = treecalc.robinson_foulds_distance(rxml_tree, dodonaphy_tree_dp)
+    # # compare raxml and dodonaphy tree based on euclidean and Robinson_foulds distance
+    # ec_dist = treecalc.euclidean_distance(rxml_peel_dp, dodonaphy_tree_dp)
+    # rf_dist = treecalc.robinson_foulds_distance(rxml_tree, dodonaphy_tree_dp)
 
     # draw the tree samples
     plt.figure(figsize=(7, 7), dpi=100)
@@ -193,15 +193,11 @@ def test_model_init_hydra():
 
     # Initialise model
     partials, weights = compress_alignment(dna)
-<<<<<<< HEAD
-    # mymod = DodonaphyModel(partials, weights, dim)
     mymod = DodonaphyModel(partials, weights, dim)
-    # mymod.learn(epochs=100)
-=======
-    # make space for internal partials
-    for i in range(S - 1):
-        partials.append(torch.zeros((1, 4, partials[0].shape[1]), dtype=torch.float64))
->>>>>>> 89ed4393c2173881e04e23337efc5691b3be9668
+
+    # # make space for internal partials
+    # for i in range(S - 1):
+    #     partials.append(torch.zeros((1, 4, partials[0].shape[1]), dtype=torch.float64))
 
     # Compute RAxML tree likelihood
     # TODO: set RAxML to use --JC69. Confirm in log file
@@ -215,14 +211,8 @@ def test_model_init_hydra():
     print("RAxML Likelihood: " + str(rml_L.item()))
     print("NB: ELBO is: Likelihood - log(Q) + Jacobian + logPrior(=0)")
 
-    # Get tip distances
+    # Get all pair-wise node distance
     pdm = simtree.phylogenetic_distance_matrix()
-    # dists = np.zeros((S, S))
-    # for i, t1 in enumerate(simtree.taxon_namespace):
-    #     for j, t2 in enumerate(simtree.taxon_namespace):
-    #         dists[i][j] = pdm(t1, t2)
-    #         dists[j][i] = pdm(t1, t2)
-    print(simtree.as_string(schema='newick'))
     t = Tree(simtree._as_newick_string() + ";")
     nodes = t.get_tree_root().get_descendants()
     dists = [t.get_distance(x,y) for x in nodes for y in nodes]
@@ -263,7 +253,8 @@ def test_model_init_hydra():
 
     # learn
     mymod.learn(param_init=param_init, epochs=100)
-    peels, blens, X = mymod.draw_sample(nsamples)
+    nsamples = 10
+    peels, blens, X, lp__ = mymod.draw_sample(nsamples, lp=True)
 
     # # pick a sample and make a tree (Dendropy)
     # dodonaphy_tree_nw = utilFunc.tree_to_newick(
@@ -315,3 +306,6 @@ def test_calculate_likelihood():
 
     _ = calculate_treelikelihood(partials, weights, peel, mats,
                                  torch.full([4], 0.25, dtype=torch.float64))
+
+
+test_model_init_hydra()
