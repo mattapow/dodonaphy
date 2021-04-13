@@ -197,24 +197,24 @@ class DodonaphyModel(object):
             inputs = (z_leaf_x[i, :], self.VariationalParams["leaf_x_mu"][i, :])
             J_leaf = torch.autograd.functional.jacobian(t02p, inputs)
             for j in range(len(J_leaf)):
-                log_abs_det_jacobian += torch.log(torch.abs(torch.det(J_leaf[j])))
+                log_abs_det_jacobian = log_abs_det_jacobian + torch.log(torch.abs(torch.det(J_leaf[j])))
         # Jacobian of going to polar
-        log_abs_det_jacobian += torch.log(1/leaf_r).sum(0)
+        log_abs_det_jacobian = log_abs_det_jacobian + torch.log(1/leaf_r).sum(0)
 
         # Internal nodes
         for i in range(self.S-2):
             inputs = (z_int_x[i, :], self.VariationalParams["int_x_mu"][i, :])
             J_int = torch.autograd.functional.jacobian(t02p, inputs)
             for j in range(len(J_int)):
-                log_abs_det_jacobian += torch.log(torch.abs(torch.det(J_int[j])))
-        log_abs_det_jacobian += torch.log(1 / int_r).sum(0)
+                log_abs_det_jacobian = log_abs_det_jacobian + torch.log(torch.abs(torch.det(J_int[j])))
+        log_abs_det_jacobian = log_abs_det_jacobian + torch.log(1 / int_r).sum(0)
 
         # logQ
         logQ = 0
         for i in range(self.S):
-            logQ += q_leaf_x[i].log_prob(z_leaf_x[i])
+            logQ = logQ + q_leaf_x[i].log_prob(z_leaf_x[i])
         for i in range(self.S - 2):
-            logQ += q_int_x[i].log_prob(z_int_x[i])
+            logQ = logQ + q_int_x[i].log_prob(z_int_x[i])
 
         # logPrior
         # TODO: have to think carefully
