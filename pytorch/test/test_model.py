@@ -45,7 +45,7 @@ def test_model_init_rand():
     partials, weights = compress_alignment(dna)
     mymod = DodonaphyModel(partials, weights, dim)
     # variational parameters: [default] randomly generated within model constructor
-    mymod.learn(epochs=0)
+    mymod.learn(epochs=100)
 
     # draw samples from variational posterior
     nsamples = 100
@@ -99,7 +99,7 @@ def test_draws_different():
     mymod = DodonaphyModel(partials, weights, dim)
 
     # learn
-    mymod.learn(epochs=100)
+    mymod.learn(epochs=0)
 
     # draw
     nsamples = 5
