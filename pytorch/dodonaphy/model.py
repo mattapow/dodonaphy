@@ -31,11 +31,13 @@ class DodonaphyModel(object):
         # Store mu on poincare ball in R^dim.
         # Distributions stored in tangent space T_0 H^D, then transformed to poincare ball.
         # The distribution for each point has a single sigma (i.e. mean field in x, y).
+        leaf_x_sigma = np.abs(np.random.randn(self.S, self.D))
+        int_x_sigma = np.abs(np.random.randn(self.S - 2))
         self.VariationalParams = {
-            "leaf_x_mu": torch.zeros((self.S, self.D), requires_grad=True, dtype=torch.float64),
-            "leaf_x_sigma": torch.ones(self.S, requires_grad=True, dtype=torch.float64),
-            "int_x_mu": torch.zeros((self.S - 2, self.D), requires_grad=True, dtype=torch.float64),
-            "int_x_sigma": torch.ones((self.S - 2), requires_grad=True, dtype=torch.float64)
+            "leaf_x_mu": torch.randn((self.S, self.D), requires_grad=True, dtype=torch.float64),
+            "leaf_x_sigma": torch.tensor(leaf_x_sigma, requires_grad=True, dtype=torch.float64),
+            "int_x_mu": torch.randn((self.S - 2, self.D), requires_grad=True, dtype=torch.float64),
+            "int_x_sigma": torch.tensor(int_x_sigma, requires_grad=True, dtype=torch.float64)
         }
         # make space for internal partials
         for i in range(self.S - 1):

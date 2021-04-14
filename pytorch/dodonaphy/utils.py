@@ -265,8 +265,7 @@ class utilFunc:
         acosharg = 1.0 + torch.clamp(2.0 * (torch.pow(r1, 2) + torch.pow(r2, 2) - 2 * r1 *
                                             r2 * iprod) / ((1 - torch.pow(r1, 2)) * (1 - torch.pow(r2, 2))), min=0.0)
         # hyperbolic distance between points i and j
-        out = 1. / torch.sqrt(curvature) * torch.acosh(acosharg)
-        return out
+        return 1. / torch.sqrt(curvature) * torch.cosh(acosharg)
 
     def angle_to_directional(theta):
         """
