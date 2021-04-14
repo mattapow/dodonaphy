@@ -161,9 +161,10 @@ def test_init_RAxML_hydra():
     mymod = DodonaphyModel(partials, weights, dim)
 
     # learn
-    mymod.learn(param_init=param_init, epochs=10)
-    nsamples = 3
-    peels, blens, X, lp__ = mymod.draw_sample(nsamples, lp=True)
+    with torch.autograd.set_detect_anomaly(True):
+        mymod.learn(param_init=param_init, epochs=10)
+        nsamples = 3
+        peels, blens, X, lp__ = mymod.draw_sample(nsamples, lp=True)
 
     # Plot embedding if dim==2
     if dim == 2:
@@ -311,5 +312,4 @@ def test_calculate_likelihood():
     _ = calculate_treelikelihood(partials, weights, peel, mats,
                                  torch.full([4], 0.25, dtype=torch.float64))
 
-
-test_model_init_hydra()
+test_init_RAxML_hydra()
