@@ -72,13 +72,12 @@ class DodonaphyModel(object):
                     r1 = int_r[peel[b][i]-S-1]
                     directional1 = int_dir[peel[b][i]-S-1,]
 
-                blens[peel[b][i]] = utilFunc.hyperbolic_distance(
+                hd = utilFunc.hyperbolic_distance(
                     r1, r2, directional1, directional2, curvature)
 
                 # apply the inverse transform from Matsumoto et al 2020
                 # add a tiny amount to avoid zero-length branches
-                blens[peel[b][i]] = torch.log(
-                    torch.cosh(blens[peel[b][i]])) + 0.000000000001
+                blens[peel[b][i]] = torch.log(torch.cosh(hd)) + 0.000000000001
 
         return blens
 
