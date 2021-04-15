@@ -161,10 +161,9 @@ def test_init_RAxML_hydra():
     mymod = DodonaphyModel(partials, weights, dim)
 
     # learn
-    with torch.autograd.set_detect_anomaly(True):
-        mymod.learn(param_init=param_init, epochs=10)
-        nsamples = 3
-        peels, blens, X, lp__ = mymod.draw_sample(nsamples, lp=True)
+    mymod.learn(param_init=param_init, epochs=10)
+    nsamples = 3
+    peels, blens, X, lp__ = mymod.draw_sample(nsamples, lp=True)
 
     # Plot embedding if dim==2
     if dim == 2:

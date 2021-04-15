@@ -290,6 +290,6 @@ class DodonaphyModel(object):
             q_int_x.append(MultivariateNormal(torch.zeros(self.D).double(), cov.double()))
 
         elbos = []
-        for i in range(size):
+        for _ in range(size):
             elbos.append(self.calculate_elbo(q_leaf_x, q_int_x))
         return torch.mean(torch.stack(elbos))
