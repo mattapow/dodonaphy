@@ -248,6 +248,7 @@ class DodonaphyModel(object):
         for epoch in range(epochs):
             loss = - self.elbo_normal(3)
             elbo_hist.append(- loss.item())
+            optimizer.zero_grad()
             loss.backward()
             optimizer.step()
             scheduler.step()
