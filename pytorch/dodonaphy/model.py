@@ -219,7 +219,7 @@ class DodonaphyModel(object):
 
         # logPrior
         # TODO: have to think carefully
-        logPrior = torch.zeros(1, requires_grad=True)
+        logPrior = torch.zeros(1, requires_grad=False)
 
         logP = self.compute_LL(leaf_r, leaf_dir, int_r, int_dir)
 
