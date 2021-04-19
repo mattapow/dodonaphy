@@ -45,10 +45,10 @@ def test_model_init_rand():
     partials, weights = compress_alignment(dna)
     mymod = DodonaphyModel(partials, weights, dim)
     # variational parameters: [default] randomly generated within model constructor
-    mymod.learn(epochs=100)
+    mymod.learn(epochs=10)
 
     # draw samples from variational posterior
-    nsamples = 100
+    nsamples = 3
     peels, blens, X, lp__ = mymod.draw_sample(nsamples, lp=True)
 
     # compare dodonapy with RAxML
@@ -68,15 +68,16 @@ def test_model_init_rand():
     # rf_dist = treecalc.robinson_foulds_distance(rxml_tree, dodonaphy_tree_dp)
 
     # draw the tree samples
-    plt.figure(figsize=(7, 7), dpi=100)
-    ax = plt.subplot(1, 1, 1)
-    plt.xlim([-1, 1])
-    plt.ylim([-1, 1])
-    cmap = matplotlib.cm.get_cmap('Spectral')
-    for i in range(nsamples):
-        utilFunc.plot_tree(
-            ax, peels[i], X[i].detach().numpy(), color=cmap(i / nsamples))
-    plt.show()
+    if dim==2:
+        plt.figure(figsize=(7, 7), dpi=100)
+        ax = plt.subplot(1, 1, 1)
+        plt.xlim([-1, 1])
+        plt.ylim([-1, 1])
+        cmap = matplotlib.cm.get_cmap('Spectral')
+        for i in range(nsamples):
+            utilFunc.plot_tree(
+                ax, peels[i], X[i].detach().numpy(), color=cmap(i / nsamples))
+        plt.show()
 
 
 def test_draws_different():
@@ -256,7 +257,7 @@ def test_model_init_hydra():
         plt.close()
 
     # learn
-    mymod.learn(param_init=param_init, epochs=100)
+    mymod.learn(param_init=param_init, epochs=10)
     nsamples = 10
     peels, blens, X, lp__ = mymod.draw_sample(nsamples, lp=True)
 
@@ -310,5 +311,3 @@ def test_calculate_likelihood():
 
     _ = calculate_treelikelihood(partials, weights, peel, mats,
                                  torch.full([4], 0.25, dtype=torch.float64))
-
-test_init_RAxML_hydra()
