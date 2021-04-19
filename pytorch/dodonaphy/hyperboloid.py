@@ -37,13 +37,13 @@ def embed_star_hyperboloid_2d(height=2, nseqs=6):
 
     """
     assert height > 1
-    x = torch.zeros(2*nseqs-2, 3)
+    x = torch.zeros(2 * nseqs - 2, 3)
     x[:-1, 0] = height
     x[-1, 0] = 1  # origin point
 
     for i in range(nseqs):
-        x[i, 1] = math.sqrt(-1+height**2)*math.cos(i*(2 * math.pi / nseqs))
-        x[i, 2] = math.sqrt(-1+height**2)*math.sin(i*(2 * math.pi / nseqs))
+        x[i, 1] = math.sqrt(-1 + height ** 2) * math.cos(i * (2 * math.pi / nseqs))
+        x[i, 2] = math.sqrt(-1 + height ** 2) * math.sin(i * (2 * math.pi / nseqs))
 
     return x
 
@@ -69,7 +69,7 @@ def lorentz_product(x, y=None):
     """
     if y is None:
         y = x
-    return -x[0]*y[0] + torch.dot(x[1:], y[1:])
+    return -x[0] * y[0] + torch.dot(x[1:], y[1:])
 
 
 def hyperboloid_dists(loc):
@@ -239,10 +239,10 @@ def up_to_hyper(loc):
 
     """
     if loc.ndim == 1:
-        z = torch.sqrt(torch.sum(torch.pow(loc,2)) + 1).unsqueeze(0)
+        z = torch.sqrt(torch.sum(torch.pow(loc, 2)) + 1).unsqueeze(0)
         return torch.cat((z, loc), dim=0)
     elif loc.ndim == 2:
-        z = torch.sqrt(torch.sum(torch.pow(loc,2), 1) + 1).unsqueeze(1)
+        z = torch.sqrt(torch.sum(torch.pow(loc, 2), 1) + 1).unsqueeze(1)
         return torch.cat((z, loc), dim=1)
 
 
@@ -288,10 +288,10 @@ def hyper_to_poincare(location):
         A 1D tensor corresponding to a point in the Poincare ball in R^n.
 
     """
-    dim = location.shape[0]-1
+    dim = location.shape[0] - 1
     out = torch.zeros(dim)
     for i in range(dim):
-        out[i] = location[i+1]/(1+location[0])
+        out[i] = location[i + 1] / (1 + location[0])
     return out
 
 
@@ -307,12 +307,13 @@ def poincare_to_hyper(location):
     -------
 
     """
+    eps = torch.finfo(torch.double).eps
     if location.ndim == 1:
         dim = len(location)
         out = torch.zeros(dim + 1).double()
         a = location[:].pow(2).sum(0)
         out[0] = (1 + a) / (1 - a)
-        out[1:] = 2 * location[:] / (1 - a)
+        out[1:] = 2 * location[:] / (1 - a + eps)
 
     elif location.ndim == 2:
         n_points = location.shape[0]
@@ -322,7 +323,7 @@ def poincare_to_hyper(location):
         for i in range(n_points):
             a = location[i, :].pow(2).sum(0)
             out[i, 0] = (1 + a) / (1 - a)
-            out[i, 1:] = 2*location[i, :] / (1 - a)
+            out[i, 1:] = 2 * location[i, :] / (1 - a + eps)
     return out
 
 
@@ -346,21 +347,21 @@ def embed_poincare_star(r=.5, nseqs=6):
 
     assert abs(r) < 1
 
-    x = torch.zeros(nseqs+1, 1)
-    y = torch.zeros(nseqs+1, 1)
-    dists = torch.zeros(nseqs+1, nseqs+1)
+    x = torch.zeros(nseqs + 1, 1)
+    y = torch.zeros(nseqs + 1, 1)
+    dists = torch.zeros(nseqs + 1, nseqs + 1)
     for i in range(nseqs):
-        x[i] = r*torch.cos(i*(2 * math.pi / nseqs))
-        y[i] = r*torch.sin(i*(2 * math.pi / nseqs))
+        x[i] = r * torch.cos(i * (2 * math.pi / nseqs))
+        y[i] = r * torch.sin(i * (2 * math.pi / nseqs))
 
         # distance between equidistant points at radius r
         dists[i][nseqs] = r
         for j in range(i):
-            d2_ij = torch.pow((x[i]-x[j]), 2) + torch.pow((y[i]-y[j]), 2)
+            d2_ij = torch.pow((x[i] - x[j]), 2) + torch.pow((y[i] - y[j]), 2)
             d2_i0 = torch.pow(x[i], 2) + torch.pow(y[i], 2)
             d2_j0 = torch.pow(x[j], 2) + torch.pow(y[j], 2)
             dists[i][j] = torch.arccosh(
-                1 + 2 * (d2_ij / ((1 - d2_i0)*(1 - d2_j0))))
+                1 + 2 * (d2_ij / ((1 - d2_i0) * (1 - d2_j0))))
 
     dists = dists + dists.transpose(0, 1)
 
