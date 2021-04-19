@@ -558,7 +558,7 @@ class utilFunc:
         """
         if X.ndim == 1:
             X = torch.unsqueeze(X, 0)
-        r = torch.pow(torch.pow(X[:, 0], 2) + torch.pow(X[:, 1], 2), .5)
+        r = torch.pow(torch.pow(X, 2).sum(dim=1), .5)
         directional = X / r[:, None]
 
         return r, directional
