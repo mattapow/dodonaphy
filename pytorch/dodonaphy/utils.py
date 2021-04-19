@@ -508,6 +508,9 @@ class utilFunc:
         (2D tensor) Cartesian coordinates of each point n_points x dim
 
         """
+        # Ensure directional is unit vector
+        if not torch.allclose(torch.norm(directional, dim=-1).double(), torch.tensor(1.).double()):
+            raise RuntimeError('Directional given is not a unit vector.')
 
         if r.shape == torch.Size([]):
             return directional * r
