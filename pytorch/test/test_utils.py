@@ -67,10 +67,34 @@ def test_make_peel_first_leaf_connection():
                                       [0, 4, 6]]))
 
 def test_hyperbolic_distance():
+    r1 = torch.tensor([0.3])
+    r2 = torch.tensor([.6])
+    dir1 =  torch.tensor([torch.as_tensor(1./np.sqrt(2)), torch.as_tensor(1./np.sqrt(2))])
+    dir2 = torch.tensor([torch.as_tensor(-.5), torch.as_tensor(np.sqrt(0.75))])
     dist = utilFunc.hyperbolic_distance(
-        torch.tensor([0.5]), torch.tensor([0.6]), torch.tensor([0.1, 0.3]),
-        torch.tensor([0.5, 0.5]), torch.tensor([1.]))
-    assert 1.777365 == pytest.approx(dist.item(), 0.0001)
+        r1, r2, dir1,
+        dir2, torch.tensor([1.]))
+    assert 1.438266 == pytest.approx(dist.item(), 0.0001)
+
+
+def test_hyperbolic_distance_boundary():
+    r1 = torch.tensor([0.])
+    r2 = torch.tensor([.9999999])
+    dir1 = torch.tensor([torch.as_tensor(0.), torch.as_tensor(1.)])
+    dir2 = torch.tensor([torch.as_tensor(0.), torch.as_tensor(1.)])
+    dist = utilFunc.hyperbolic_distance(
+        r1, r2, dir1,
+        dir2, torch.tensor([1.]))
+    assert 16.635532 == pytest.approx(dist.item(), 0.0001)
+
+
+def test_hyperbolic_distance_zero():
+    dir1 = torch.tensor([torch.as_tensor(1./np.sqrt(2)), torch.as_tensor(1./np.sqrt(2))])
+    dir2 = torch.tensor([torch.as_tensor(1./np.sqrt(2)), torch.as_tensor(1./np.sqrt(2))])
+    dist = utilFunc.hyperbolic_distance(
+        torch.tensor([0.5]), torch.tensor([0.5]), dir1,
+        dir2, torch.tensor([1.]))
+    assert 0. == pytest.approx(dist.item(), abs=0.05)
 
 
 def test_hydra_2d_compare_output():
