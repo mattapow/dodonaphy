@@ -146,7 +146,24 @@ def exponential_map(x, v):
         Projection of v onto the hyperboloid.
 
     """
-    eps = torch.finfo(torch.float).eps
+    """Exponential map
+
+    Map a vector v on the tangent space T_x H^n onto the hyperboloid
+
+    Parameters
+    ----------
+    x : Tensor
+        Vector defining tangent space T_x H^n
+    v : Tensor
+        Vector in tanget space T_x H^n
+
+    Returns
+    -------
+    Tensor
+        Projection of v onto the hyperboloid.
+
+    """
+    eps = torch.finfo(torch.double).eps
     vnorm = torch.sqrt(torch.clamp(lorentz_product(v), min=eps))
     return torch.cosh(vnorm) * x + torch.sinh(vnorm) * v / vnorm
 
