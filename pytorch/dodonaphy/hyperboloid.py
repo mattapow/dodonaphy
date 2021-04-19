@@ -73,7 +73,8 @@ def lorentz_product(x, y=None):
 
 
 def hyperboloid_dists(loc):
-    """ Get hyperbolic distances between points in X
+    """ Get hyperbolic distances between points in X. 
+    Distances start from 0 and are positive, as for a metric.
 
     Parameters
     ----------
@@ -90,13 +91,13 @@ def hyperboloid_dists(loc):
     dists = torch.zeros(n_points, n_points)
 
     for i in range(n_points):
-        for j in range(i+1, n_points):
-            dists[i][j] = lorentz_product(loc[i], loc[j])
+        for j in range(i + 1, n_points):
+            dists[i][j] = -1-lorentz_product(loc[i].squeeze(0), loc[j].squeeze(0))
     dists = dists + torch.transpose(dists, 0, 1)
 
     # Diagonals
     for i in range(n_points):
-        dists[i][i] = lorentz_product(loc[i], loc[i])
+        dists[i][i] = -1-lorentz_product(loc[i].squeeze(0))
 
     return dists
 
