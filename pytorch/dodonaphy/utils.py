@@ -7,6 +7,7 @@ import warnings
 from collections import defaultdict
 from matplotlib.lines import Line2D
 from matplotlib.patches import Circle
+from dodonaphy.hyperboloid import hyperboloid_dists, poincare_to_hyper, lorentz_product
 
 
 class u_edge:
@@ -260,12 +261,13 @@ class utilFunc:
         Returns:
             tensor: distance between point 1 and point 2
         """
-        iprod = torch.clamp(
-            torch.dot(directional1, directional2), min=-1.0, max=1.0)
-        acosharg = 1.0 + torch.clamp(2.0 * (torch.pow(r1, 2) + torch.pow(r2, 2) - 2 * r1 *
-                                            r2 * iprod) / ((1 - torch.pow(r1, 2)) * (1 - torch.pow(r2, 2))), min=0.0)
-        # hyperbolic distance between points i and j
-        return 1. / torch.sqrt(curvature) * torch.cosh(acosharg)
+        # Use lorentz distance for numerical stability
+        z1 = poincare_to_hyper(utilFunc.dir_to_cart(r1, directional1)).squeeze()
+        z2 = poincare_to_hyper(utilFunc.dir_to_cart(r2, directional2)).squeeze()
+        eps = torch.finfo(torch.float64).eps
+        inner = torch.clamp(-lorentz_product(z1, z2), min=1+eps)
+        return 1. / torch.sqrt(curvature) * torch.acosh(inner)
+
 
     def angle_to_directional(theta):
         """
