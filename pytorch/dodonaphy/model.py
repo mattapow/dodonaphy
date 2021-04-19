@@ -78,8 +78,11 @@ class DodonaphyModel(object):
                     r1, r2, directional1, directional2, curvature)
 
                 # apply the inverse transform from Matsumoto et al 2020
+                hd = torch.log(torch.cosh(hd))
+
                 # add a tiny amount to avoid zero-length branches
-                blens[peel[b][i]] = torch.log(torch.cosh(hd)) + 0.000000000001
+                eps = torch.finfo(torch.double).eps
+                blens[peel[b][i]] = torch.clamp(hd, min=eps)
 
         return blens
 
