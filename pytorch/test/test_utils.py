@@ -140,33 +140,13 @@ def test_hydra_3d_compare_output():
         [0.8008637619, 0.2731045145, 0.5329457375]
     ]))
 
+
 def test_all_pairwise_distance_ete3():
     t = ete3.Tree('(A:1,(B:1,(C:1,D:1):0.5):0.5);')
     nodes = t.get_tree_root().get_descendants()
     dist = [t.get_distance(x,y) for x in nodes for y in nodes]
     dist = np.array(dist).reshape(len(nodes),len(nodes))
     print(dist)
-
-# def test_hydra_stress_2d():
-#     # TODO: compare stress to output of CRAN hyrda
-#     D = np.random.rand(5, 5)
-#     D = D + np.transpose(D)
-#     np.fill_diagonal(D, 0.0)
-#     dim = 2
-#
-#     ..., stress = utilFunc.hydra(D, dim, lorentz=False, stress=True)
-#     assert stress == approx(...)
-
-
-# def test_hydra_lorentz_2d():
-#     # TODO: compare lorentzian to output of CRAN hyrda
-#     D = np.random.rand(4, 4)
-#     D = D + np.transpose(D)
-#     np.fill_diagonal(D, 0.0)
-#     dim = 2
-#
-#     lor... = utilFunc.hydra(D, dim, lorentz=True, stress=True)
-#     assert lor == approx(...)
 
 
 def test_dir_to_cart_1d():
