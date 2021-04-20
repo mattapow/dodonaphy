@@ -24,3 +24,11 @@ def test_poincare_to_hyper():
 
     assert hyp.lorentz_product(loc_hyp[0, :]).item() == approx(-1)
     assert hyp.lorentz_product(loc_hyp[1, :]).item() == approx(-1)
+
+
+def test_tangent_to_hyper():
+    dim = 2
+    mu = torch.tensor([3, 2, 2])
+    v_tilde = torch.tensor([2.4, -.3])
+    z = hyp.tangent_to_hyper(mu, v_tilde, dim)
+    assert torch.isclose(hyp.lorentz_product(z), torch.as_tensor(-1).double())
