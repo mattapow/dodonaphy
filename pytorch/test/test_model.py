@@ -152,7 +152,7 @@ def test_init_RAxML_hydra():
     leaf_sigma = np.abs(np.array(leaf_loc_t0)) * cv
     param_init = {
         "leaf_x_mu": leaf_loc_t0.requires_grad_(True),
-        "leaf_x_sigma": torch.full([nseqs], 1 / 100, requires_grad=True, dtype=torch.float64),
+        "leaf_x_sigma": torch.tensor(leaf_sigma, requires_grad=True, dtype=torch.float64),
         "int_x_mu": torch.zeros(nseqs - 2, dim, requires_grad=True, dtype=torch.float64),
         "int_x_sigma": torch.full([nseqs - 2], 1 / 100, requires_grad=True, dtype=torch.float64)
     }
