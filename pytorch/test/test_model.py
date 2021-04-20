@@ -15,6 +15,7 @@ from dendropy import treecalc
 import pytest
 from ete3 import Tree
 
+
 def test_model_init_rand():
     """Testing Dodonaphy model with randomly initialized parameters for variational inference
     """
@@ -27,19 +28,18 @@ def test_model_init_rand():
         birth_rate=2.0, death_rate=0.5, num_extant_tips=nseqs)
     dna = simulate_discrete_chars(
         seq_len=seqlen, tree_model=simtree, seq_model=dendropy.model.discrete.Jc69())
-    
 
     # testing raxml
     # rx = raxml.RaxmlRunner(raxml_path="raxmlHPC-AVX2")
     # # tree = rx.estimate_tree(char_matrix=dna, raxml_args=['-e', 'likelihoodEpsilon', '-h' '--JC69'])
     # tree = rx.estimate_tree(char_matrix=dna, raxml_args=["-h", "--JC69"])
 
-    rx = raxml.RaxmlRunner()
-    rxml_tree = rx.estimate_tree(char_matrix=dna)
-    assemblage_data = rxml_tree.phylogenetic_distance_matrix().as_data_table()._data
-    dist = np.array([[assemblage_data[i][j] for j in sorted(
-        assemblage_data[i])] for i in sorted(assemblage_data)])
-    emm = utilFunc.hydra(D=dist, dim=dim)
+    # rx = raxml.RaxmlRunner()
+    # rxml_tree = rx.estimate_tree(char_matrix=dna)
+    # assemblage_data = rxml_tree.phylogenetic_distance_matrix().as_data_table()._data
+    # dist = np.array([[assemblage_data[i][j] for j in sorted(
+    #     assemblage_data[i])] for i in sorted(assemblage_data)])
+    # emm = utilFunc.hydra(D=dist, dim=dim)
 
     # model initiation and training
     partials, weights = compress_alignment(dna)
@@ -52,7 +52,7 @@ def test_model_init_rand():
     peels, blens, X, lp__ = mymod.draw_sample(nsamples, lp=True)
 
     # compare dodonapy with RAxML
-    tip_labels = simtree.taxon_namespace.labels()
+    # tip_labels = simtree.taxon_namespace.labels()
     # rxml_peel, rxml_blens = utilFunc.dendrophy_to_pb(rxml_tree)
     # rxml_tree_nw = utilFunc.tree_to_newick(tip_labels, rxml_peel, rxml_blens)
     # rxml_peel_dp = dendropy.Tree.get(data=rxml_tree_nw, schema="newick")
@@ -220,8 +220,8 @@ def test_model_init_hydra():
     pdm = simtree.phylogenetic_distance_matrix()
     t = Tree(simtree._as_newick_string() + ";")
     nodes = t.get_tree_root().get_descendants()
-    dists = [t.get_distance(x,y) for x in nodes for y in nodes]
-    dists = np.array(dists).reshape(len(nodes),len(nodes))
+    dists = [t.get_distance(x, y) for x in nodes for y in nodes]
+    dists = np.array(dists).reshape(len(nodes), len(nodes))
 
     # embed tips with Hydra
     emm = utilFunc.hydra(dists, dim=dim, equi_adj=0.0)
@@ -287,7 +287,6 @@ def test_calculate_likelihood():
     torch.matmul(Tensor, list), where it wanted torch.matmul(Tensor, Tensor)
     """
 
-    dim = 1  # number of dimensions for embedding
     S = 4  # number of sequences to simulate
     seqlen = 100  # length of sequences to simulate
 

@@ -73,7 +73,7 @@ def lorentz_product(x, y=None):
 
 
 def hyperboloid_dists(loc):
-    """ Get hyperbolic distances between points in X. 
+    """ Get hyperbolic distances between points in X.
     Distances start from 0 and are positive, as for a metric.
 
     Parameters

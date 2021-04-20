@@ -32,6 +32,7 @@ def calculate_treelikelihood(partials, weights, post_indexing, mats, freqs):
         partials[node] = torch.matmul(mats[left], partials[left]) * torch.matmul(mats[right], partials[right])
     return torch.sum(torch.log(torch.matmul(freqs, partials[post_indexing[-1][-1]])) * weights)
 
+
 def JC69_p_t(branch_lengths):
     d = torch.unsqueeze(branch_lengths, -1)
     a = 0.25 + 3. / 4. * torch.exp(-4. / 3. * d)

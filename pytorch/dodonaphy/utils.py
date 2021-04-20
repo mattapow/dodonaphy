@@ -7,7 +7,7 @@ import warnings
 from collections import defaultdict
 from matplotlib.lines import Line2D
 from matplotlib.patches import Circle
-from dodonaphy.hyperboloid import hyperboloid_dists, poincare_to_hyper, lorentz_product
+from dodonaphy.hyperboloid import poincare_to_hyper, lorentz_product
 
 
 class u_edge:
@@ -267,7 +267,6 @@ class utilFunc:
         eps = torch.finfo(torch.float64).eps
         inner = torch.clamp(-lorentz_product(z1, z2), min=1+eps)
         return 1. / torch.sqrt(curvature) * torch.acosh(inner)
-
 
     def angle_to_directional(theta):
         """
@@ -645,7 +644,7 @@ class utilFunc:
             blen_row (List): Branch lengths
 
         Returns:
-            Newick String: A Tree 
+            Newick String: A Tree
         """
         chunks = {}
         plen = tipnames.__len__()-1

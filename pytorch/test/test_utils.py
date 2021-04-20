@@ -66,10 +66,11 @@ def test_make_peel_first_leaf_connection():
                                       [1, 5, 4],
                                       [0, 4, 6]]))
 
+
 def test_hyperbolic_distance():
     r1 = torch.tensor([0.3])
     r2 = torch.tensor([.6])
-    dir1 =  torch.tensor([torch.as_tensor(1./np.sqrt(2)), torch.as_tensor(1./np.sqrt(2))])
+    dir1 = torch.tensor([torch.as_tensor(1./np.sqrt(2)), torch.as_tensor(1./np.sqrt(2))])
     dir2 = torch.tensor([torch.as_tensor(-.5), torch.as_tensor(np.sqrt(0.75))])
     dist = utilFunc.hyperbolic_distance(
         r1, r2, dir1,
@@ -144,8 +145,8 @@ def test_hydra_3d_compare_output():
 def test_all_pairwise_distance_ete3():
     t = ete3.Tree('(A:1,(B:1,(C:1,D:1):0.5):0.5);')
     nodes = t.get_tree_root().get_descendants()
-    dist = [t.get_distance(x,y) for x in nodes for y in nodes]
-    dist = np.array(dist).reshape(len(nodes),len(nodes))
+    dist = [t.get_distance(x, y) for x in nodes for y in nodes]
+    dist = np.array(dist).reshape(len(nodes), len(nodes))
     print(dist)
 
 
@@ -163,5 +164,6 @@ def test_dir_to_cart_5d():
     directional = u / r
     loc = utilFunc.dir_to_cart(r, directional)
     assert loc == approx(u)
+
 
 test_all_pairwise_distance_ete3()
