@@ -12,7 +12,6 @@ import numpy as np
 import torch
 from dendropy.interop import raxml
 from dendropy import treecalc
-import pytest
 from ete3 import Tree
 
 
@@ -68,7 +67,7 @@ def test_model_init_rand():
     # rf_dist = treecalc.robinson_foulds_distance(rxml_tree, dodonaphy_tree_dp)
 
     # draw the tree samples
-    if dim==2:
+    if dim == 2:
         plt.figure(figsize=(7, 7), dpi=100)
         ax = plt.subplot(1, 1, 1)
         plt.xlim([-1, 1])
@@ -129,7 +128,7 @@ def test_init_RAxML_hydra():
     dna = simulate_discrete_chars(
         seq_len=seqlen, tree_model=simtree, seq_model=dendropy.model.discrete.Jc69())
 
-    s = simtree.postorder_node_iter()
+    # s = simtree.postorder_node_iter()
     # testing raxml
     # rx = raxml.RaxmlRunner(raxml_path="raxmlHPC-AVX2")
     # # tree = rx.estimate_tree(char_matrix=dna, raxml_args=['-e', 'likelihoodEpsilon', '-h' '--JC69'])
@@ -144,17 +143,18 @@ def test_init_RAxML_hydra():
 
     leaf_loc_poin = utilFunc.dir_to_cart(torch.from_numpy(
         emm["r"]), torch.from_numpy(emm["directional"]))
-    leaf_loc_t0 = p2t0(leaf_loc_poin)
+    leaf_loc_t0 = p2t0(leaf_loc_poin).detach().numpy()
 
     # set initial leaf positions from hydra with small coefficient of variation
     # set internal nodes to narrow distributions at origin
     cv = 1. / 50
-    leaf_sigma = np.abs(np.array(leaf_loc_t0)) * cv
+    eps = np.finfo(np.double).eps
+    leaf_sigma = np.log(np.abs(np.array(leaf_loc_t0)) * cv + eps)
     param_init = {
-        "leaf_x_mu": leaf_loc_t0.requires_grad_(True),
-        "leaf_x_sigma": torch.tensor(leaf_sigma, requires_grad=True, dtype=torch.float64),
-        "int_x_mu": torch.zeros(nseqs - 2, dim, requires_grad=True, dtype=torch.float64),
-        "int_x_sigma": torch.full([nseqs - 2], 1 / 100, requires_grad=True, dtype=torch.float64)
+        "leaf_mu": torch.tensor(leaf_loc_t0, requires_grad=True, dtype=torch.float64),
+        "leaf_sigma": torch.tensor(leaf_sigma, requires_grad=True, dtype=torch.float64),
+        "int_mu": torch.zeros(nseqs - 2, dim, requires_grad=True, dtype=torch.float64),
+        "int_sigma": torch.full((nseqs - 2, dim), 1 / 100, requires_grad=True, dtype=torch.float64)
     }
 
     # Initialise model
@@ -186,7 +186,7 @@ def test_model_init_hydra():
     Optimise VM
     Plot samples from VM
     """
-    dim = 3  # number of dimensions for embedding
+    dim = 2  # number of dimensions for embedding
     S = 6  # number of sequences to simulate
     seqlen = 1000  # length of sequences to simulate
 
@@ -206,50 +206,53 @@ def test_model_init_hydra():
 
     # Compute RAxML tree likelihood
     # TODO: set RAxML to use --JC69. Confirm in log file
-    print('Warning: RAxML using GTR model not JC69')
-    rx = raxml.RaxmlRunner()
-    tree = rx.estimate_tree(char_matrix=dna, raxml_args=["--no-bfgs"])
-    peel, blens = utilFunc.dendrophy_to_pb(tree)
-    mats = JC69_p_t(blens)
-    rml_L = calculate_treelikelihood(partials, weights, peel, mats,
-                                     torch.full([4], 0.25, dtype=torch.float64))
-    print("RAxML Likelihood: " + str(rml_L.item()))
-    print("NB: ELBO is: Likelihood - log(Q) + Jacobian + logPrior(=0)")
+    # print('Warning: RAxML using GTR model not JC69')
+    # rx = raxml.RaxmlRunner()
+    # tree = rx.estimate_tree(char_matrix=dna, raxml_args=["--no-bfgs"])
+    # peel, blens = utilFunc.dendrophy_to_pb(tree)
+    # mats = JC69_p_t(blens)
+    # rml_L = calculate_treelikelihood(partials, weights, peel, mats,
+    #                                  torch.full([4], 0.25, dtype=torch.float64))
+    # print("RAxML Likelihood: " + str(rml_L.item()))
+    # print("NB: ELBO is: Likelihood - log(Q) + Jacobian + logPrior(=0)")
 
     # Get all pair-wise node distance
-    pdm = simtree.phylogenetic_distance_matrix()
+    # pdm = simtree.phylogenetic_distance_matrix()
     t = Tree(simtree._as_newick_string() + ";")
-    nodes = t.get_tree_root().get_descendants()
+    nodes = t.get_tree_root().get_descendants(strategy="levelorder")
     dists = [t.get_distance(x, y) for x in nodes for y in nodes]
     dists = np.array(dists).reshape(len(nodes), len(nodes))
 
-    # embed tips with Hydra
+    # embed points with Hydra
     emm = utilFunc.hydra(dists, dim=dim, equi_adj=0.0)
-    leaf_loc_poin = utilFunc.dir_to_cart(torch.from_numpy(
+    loc_poin = utilFunc.dir_to_cart(torch.from_numpy(
         emm["r"]), torch.from_numpy(emm["directional"]))
-    leaf_loc_t0 = p2t0(leaf_loc_poin)
+    loc_t0 = p2t0(loc_poin)
+    leaf_loc_t0 = loc_t0[:S, :].detach().numpy()
+    int_loc_t0 = loc_t0[S:, :].detach().numpy()
 
     # set initial leaf positions from hydra with small coefficient of variation
     # set internal nodes to narrow distributions at origin
-    cv = 1./50
-    leaf_sigma = np.abs(np.array(leaf_loc_t0)) * cv
+    cv = 1 / 50
+    eps = np.finfo(np.double).eps
+    leaf_sigma = np.log(np.abs(np.array(leaf_loc_t0)) * cv + eps)
+    int_sigma = np.log(np.abs(np.array(int_loc_t0)) * cv + eps)
     param_init = {
-        "leaf_x_mu": leaf_loc_t0.requires_grad_(True),
-        "leaf_x_sigma": torch.tensor(leaf_sigma, requires_grad=True, dtype=torch.float64),
-        "int_x_mu": torch.zeros(S-2, dim, requires_grad=True, dtype=torch.float64),
-        "int_x_sigma": torch.full([S-2], 1/100, requires_grad=True, dtype=torch.float64)
+        "leaf_mu": torch.tensor(leaf_loc_t0, requires_grad=True, dtype=torch.float64),
+        "leaf_sigma": torch.tensor(leaf_sigma, requires_grad=True, dtype=torch.float64),
+        "int_mu": torch.tensor(int_loc_t0, requires_grad=True, dtype=torch.float64),
+        "int_sigma": torch.tensor(int_sigma, requires_grad=True, dtype=torch.float64)
     }
 
     # Plot initial embedding if dim==2
-    mymod.learn(param_init=param_init, epochs=0)
-    nsamples = 1
     if dim == 2:
-        plt.figure(figsize=(7, 7), dpi=600)
-        fig, ax = plt.subplots(1, 2)
+        mymod.learn(param_init=param_init, epochs=0)
+        nsamples = 2
+        _, ax = plt.subplots(1, 2)
         peels, blens, X = mymod.draw_sample(nsamples)
         ax[0].set(xlim=[-1, 1])
         ax[0].set(ylim=[-1, 1])
-        cmap = matplotlib.cm.get_cmap('Spectral')
+        cmap = matplotlib.cm.get_cmap('hot')
         for i in range(nsamples):
             utilFunc.plot_tree(
                 ax[0], peels[i], X[i].detach().numpy(), color=cmap(i / nsamples))
@@ -258,8 +261,6 @@ def test_model_init_hydra():
 
     # learn
     mymod.learn(param_init=param_init, epochs=10)
-    nsamples = 10
-    peels, blens, X, lp__ = mymod.draw_sample(nsamples, lp=True)
 
     # # pick a sample and make a tree (Dendropy)
     # dodonaphy_tree_nw = utilFunc.tree_to_newick(
@@ -271,14 +272,14 @@ def test_model_init_hydra():
 
     # draw the tree samples if dim==2
     if dim == 2:
+        peels, blens, X, lp__ = mymod.draw_sample(nsamples, lp=True)
         ax[1].set(xlim=[-1, 1])
         ax[1].set(ylim=[-1, 1])
-        cmap = matplotlib.cm.get_cmap('Spectral')
         for i in range(nsamples):
             utilFunc.plot_tree(
                 ax[1], peels[i], X[i].detach().numpy(), color=cmap(i / nsamples))
         ax[1].set_title("Final Embedding Sample")
-        fig.show()
+        plt.show()
 
 
 def test_calculate_likelihood():
