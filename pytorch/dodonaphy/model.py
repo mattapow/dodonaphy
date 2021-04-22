@@ -208,8 +208,8 @@ class DodonaphyModel(object):
 
         # logQ
         logQ = 0
-        logQ = logQ + q_leaf.log_prob(z_leaf.reshape(-1))
-        logQ = logQ + q_int.log_prob(z_int.reshape(-1))
+        logQ = logQ + q_leaf.log_prob(z_leaf)
+        logQ = logQ + q_int.log_prob(z_int)
 
         # logPrior
         # TODO: have to think carefully
