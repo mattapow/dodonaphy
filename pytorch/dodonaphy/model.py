@@ -134,16 +134,16 @@ class DodonaphyModel(object):
         lp__ = []
         for _ in range(nSample):
             # Sample z in tangent space of hyperboloid at origin T_0 H^n
-            z_leaf = q_leaf.rsample((1,)).reshape((self.S, self.D))
-            z_int = q_int.rsample((1,)).reshape((self.S - 2, self.D))
+            z_leaf = q_leaf.rsample((1,)).squeeze()
+            z_int = q_int.rsample((1,)).squeeze()
 
             # From (Euclidean) tangent space at origin to Poincare ball
-            mu_leaf = q_leaf.loc.reshape((self.S, self.D))
-            mu_int = q_int.loc.reshape((self.S - 2, self.D))
+            mu_leaf = q_leaf.loc
+            mu_int = q_int.loc
 
             # Tangent space at origin to Poincare
-            z_leaf_poin = t02p(z_leaf, mu_leaf)
-            z_int_poin = t02p(z_int, mu_int)
+            z_leaf_poin = t02p(z_leaf, mu_leaf, self.D)
+            z_int_poin = t02p(z_int, mu_int, self.D)
 
             # transform z to r, dir
             leaf_r, leaf_dir = utilFunc.cart_to_dir(z_leaf_poin)
@@ -177,14 +177,15 @@ class DodonaphyModel(object):
             float: The evidence lower bound of a sample from q
         """
         # z in tangent space at origin
-        z_leaf = q_leaf.rsample((1,)).reshape((self.S, self.D))
-        z_int = q_int.rsample((1,)).reshape((self.S - 2, self.D))
+        z_leaf = q_leaf.rsample((1,)).squeeze()
+        z_int = q_int.rsample((1,)).squeeze()
 
         # From (Euclidean) tangent space at origin to Poincare ball
-        mu_leaf = q_leaf.loc.reshape((self.S, self.D))
-        mu_int = q_int.loc.reshape((self.S - 2, self.D))
-        z_leaf_poin = t02p(z_leaf, mu_leaf)
-        z_int_poin = t02p(z_int, mu_int)
+        mu_leaf = q_leaf.loc
+        mu_int = q_int.loc
+        D = torch.tensor(self.D, dtype=float)
+        z_leaf_poin = t02p(z_leaf, mu_leaf, D)
+        z_int_poin = t02p(z_int, mu_int, D)
 
         leaf_r, leaf_dir = utilFunc.cart_to_dir(z_leaf_poin)
         int_r, int_dir = utilFunc.cart_to_dir(z_int_poin)
@@ -193,15 +194,14 @@ class DodonaphyModel(object):
         log_abs_det_jacobian = torch.zeros(1)
         # Leaves
         # Jacobian of t02p going from Tangent T_0 to Poincare ball
-        # TODO What does 4 dimensions in Jacobian mean? Double check Jacobian
-        J_leaf = torch.autograd.functional.jacobian(t02p, (z_leaf, mu_leaf))
+        J_leaf = torch.autograd.functional.jacobian(t02p, (z_leaf, mu_leaf, D))
         J_leaf = J_leaf[0].reshape((self.S * self.D, self.S * self.D))
         log_abs_det_jacobian = log_abs_det_jacobian + torch.log(torch.abs(torch.det(J_leaf)))
         # Jacobian of going to polar
         log_abs_det_jacobian = log_abs_det_jacobian + torch.log(1/leaf_r).sum(0)
 
         # Internal nodes
-        J_int = torch.autograd.functional.jacobian(t02p, (z_int, mu_int))
+        J_int = torch.autograd.functional.jacobian(t02p, (z_int, mu_int, D))
         J_int = J_int[0].reshape(((self.S - 2) * self.D, (self.S - 2) * self.D))
         log_abs_det_jacobian = log_abs_det_jacobian + torch.log(torch.abs(torch.det(J_int)))
         log_abs_det_jacobian = log_abs_det_jacobian + torch.log(1 / int_r).sum(0)

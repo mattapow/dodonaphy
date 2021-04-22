@@ -190,7 +190,7 @@ def p2t0(loc):
         return loc_hyp[:, 1:]
 
 
-def t02p(x, mu):
+def t02p(x, mu, dim):
     """Transform a vector x in Euclidean space to the Poincare disk.
 
     Take a vector in the tangent space of a hyperboloid at the origin, project it
@@ -207,19 +207,15 @@ def t02p(x, mu):
     Transformed vector x, from tangent plane to Poincare ball
 
     """
-    if x.ndim == 1:
-        dim = len(x)
-        mu_hyp = up_to_hyper(mu)
-        x_hyp = tangent_to_hyper(mu_hyp, x, dim)
-        x_poin = hyper_to_poincare(x_hyp)
-    elif x.ndim == 2:
-        n = len(x)
-        dim = x.shape[1]
-        x_poin = torch.zeros((n, dim))
-        mu_hyp = up_to_hyper(mu)
-        for i in range(n):
-            x_hyp = tangent_to_hyper(mu_hyp[i, :], x[i, :], dim)
-            x_poin[i, :] = hyper_to_poincare(x_hyp)
+    dim = int(dim)
+    n_loc = int(len(x.squeeze())/dim)
+
+    x = x.reshape(n_loc, dim)
+    x_poin = torch.zeros((n_loc, dim))
+    mu_hyp = up_to_hyper(mu.reshape(n_loc, dim))
+    for i in range(n_loc):
+        x_hyp = tangent_to_hyper(mu_hyp[i, :], x[i, :], dim)
+        x_poin[i, :] = hyper_to_poincare(x_hyp)
     return x_poin
 
 
