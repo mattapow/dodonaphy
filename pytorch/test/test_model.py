@@ -154,7 +154,7 @@ def test_init_RAxML_hydra():
         "leaf_mu": torch.tensor(leaf_loc_t0, requires_grad=True, dtype=torch.float64),
         "leaf_sigma": torch.tensor(leaf_sigma, requires_grad=True, dtype=torch.float64),
         "int_mu": torch.zeros(nseqs - 2, dim, requires_grad=True, dtype=torch.float64),
-        "int_sigma": torch.full((nseqs - 2, dim), 1 / 100, requires_grad=True, dtype=torch.float64)
+        "int_sigma": torch.full((nseqs - 2, dim), np.log(.01), requires_grad=True, dtype=torch.float64)
     }
 
     # Initialise model
@@ -232,8 +232,8 @@ def test_model_init_hydra():
     int_loc_t0 = loc_t0[S:, :].detach().numpy()
 
     # set initial leaf positions from hydra with small coefficient of variation
-    # set internal nodes to narrow distributions at origin
-    cv = 1 / 50
+    # set internal nodes likewise
+    cv = 0.1
     eps = np.finfo(np.double).eps
     leaf_sigma = np.log(np.abs(np.array(leaf_loc_t0)) * cv + eps)
     int_sigma = np.log(np.abs(np.array(int_loc_t0)) * cv + eps)

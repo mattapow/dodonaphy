@@ -234,7 +234,7 @@ class DodonaphyModel(object):
             self.VariationalParams["int_sigma"] = param_init["int_sigma"]
 
         lr_lambda = lambda epoch: 1.0 / np.sqrt(epoch + 1)
-        optimizer = torch.optim.Adam(list(self.VariationalParams.values()), lr=0.0001)
+        optimizer = torch.optim.Adam(list(self.VariationalParams.values()), lr=0.01)
         scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lr_lambda)
 
         elbo_hist = []
