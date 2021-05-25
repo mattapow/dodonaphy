@@ -7,7 +7,7 @@ import warnings
 from collections import defaultdict
 from matplotlib.lines import Line2D
 from matplotlib.patches import Circle
-from dodonaphy.hyperboloid import poincare_to_hyper, lorentz_product
+from src.hyperboloid import poincare_to_hyper, lorentz_product
 
 
 class u_edge:

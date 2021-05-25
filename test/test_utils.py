@@ -4,7 +4,7 @@ import numpy as np
 from pytest import approx
 import ete3
 
-from dodonaphy.utils import utilFunc
+from src.utils import utilFunc
 
 
 def test_make_peel_simple():
@@ -164,6 +164,3 @@ def test_dir_to_cart_5d():
     directional = u / r
     loc = utilFunc.dir_to_cart(r, directional)
     assert loc == approx(u)
-
-
-test_all_pairwise_distance_ete3()

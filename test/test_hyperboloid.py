@@ -6,8 +6,9 @@ Created on Sat Mar 20 07:55:22 2021
 @author: 151569
 """
 import torch
-import dodonaphy.hyperboloid as hyp
+import src.hyperboloid as hyp
 from pytest import approx
+
 
 def test_embed_star_hyperboloid_valid_out():
     n_seqs = 6
@@ -16,6 +17,7 @@ def test_embed_star_hyperboloid_valid_out():
 
     for i in range(n_seqs):
         assert torch.isclose(hyp.lorentz_product(X[i, :]), -torch.ones(1))
+
 
 def test_poincare_to_hyper():
     loc_poin = torch.tensor([[.5, .3],
