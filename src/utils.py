@@ -552,18 +552,27 @@ class utilFunc:
 
         Parameters
         ----------
-        X (2D tensor): Points in R^dim
+        X (2D tensor or ndarray): Points in R^dim
 
         Returns
         -------
-        r: radius
-        directional: unit vectors
+        r (Tensor): radius
+        directional (Tensor): unit vectors
 
         """
+        np_flag = False
+        if type(X).__module__ == np.__name__:
+            np_flag = True
+            X = torch.from_numpy(X)
+
         if X.ndim == 1:
             X = torch.unsqueeze(X, 0)
         r = torch.pow(torch.pow(X, 2).sum(dim=1), .5)
         directional = X / r[:, None]
+
+        if np_flag:
+            r.detach().numpy()
+            directional.detach().numpy()
 
         return r, directional
 
@@ -573,9 +582,9 @@ class utilFunc:
 
         Parameters
         ----------
-        X (2D Tensor): Cartesian coordinates of leaves and then internal nodes n_points x dim
+        X (2D Tensor or ndarray): Cartesian coordinates of leaves and then internal nodes n_points x dim
 
-        Returns
+        Returns (Tensor)
         -------
         Location of leaves and internal nodes separately using r, dir
         """
@@ -588,7 +597,7 @@ class utilFunc:
         return leaf_r, int_r, leaf_dir, int_dir
 
     @staticmethod
-    def plot_tree(ax, peel, X, color=(0, 0, 0)):
+    def plot_tree(ax, peel, X, color=(0, 0, 0), labels=True):
         """ Plot a tree in the Poincare disk
 
         Parameters
@@ -625,14 +634,15 @@ class utilFunc:
                           color=color)
             ax.add_line(line)
 
-        n_points = X.shape[0] - 1
-        for p in range(n_points):
-            msg = str(p)
-            if p == 0:
-                msg = msg + " (" + str(n_points) + ")"
-            ax.annotate(msg,
-                        xy=(float(X[p, 0]) + .04, float(X[p, 1])),
-                        xycoords='data')
+        if labels:
+            n_points = X.shape[0] - 1
+            for p in range(n_points):
+                msg = str(p)
+                if p == 0:
+                    msg = msg + " (" + str(n_points) + ")"
+                ax.annotate(msg,
+                            xy=(float(X[p, 0]) + .04, float(X[p, 1])),
+                            xycoords='data')
 
     @staticmethod
     def tree_to_newick(tipnames, peel_row, blen_row):

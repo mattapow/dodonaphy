@@ -17,6 +17,7 @@ https://github.com/pfnet-research/hyperbolic_wrapped_distribution
 
 import math
 import torch
+import numpy as np
 
 
 def embed_star_hyperboloid_2d(height=2, nseqs=6):
@@ -208,9 +209,18 @@ def t02p(x, mu, dim):
 
     """
     dim = int(dim)
-    n_loc = int(len(x.squeeze())/dim)
+    if x.ndim == 1:
+        n_loc = int(len(x.squeeze())/dim)
+        x = x.reshape(n_loc, dim)
+    elif x.ndim == 2:
+        n_loc = len(x.squeeze())
 
-    x = x.reshape(n_loc, dim)
+    if type(x).__module__ == np.__name__:
+        x = torch.from_numpy(x)
+
+    if type(mu).__module__ == np.__name__:
+        mu = torch.from_numpy(mu)
+
     x_poin = torch.zeros((n_loc, dim))
     mu_hyp = up_to_hyper(mu.reshape(n_loc, dim))
     for i in range(n_loc):
