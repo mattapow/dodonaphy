@@ -261,6 +261,9 @@ class utilFunc:
         Returns:
             tensor: distance between point 1 and point 2
         """
+        if torch.allclose(r1, r2) and torch.allclose(directional1, directional2):
+            return torch.zeros(1)
+
         # Use lorentz distance for numerical stability
         z1 = poincare_to_hyper(utilFunc.dir_to_cart(r1, directional1)).squeeze()
         z2 = poincare_to_hyper(utilFunc.dir_to_cart(r2, directional2)).squeeze()
@@ -569,6 +572,10 @@ class utilFunc:
             X = torch.unsqueeze(X, 0)
         r = torch.pow(torch.pow(X, 2).sum(dim=1), .5)
         directional = X / r[:, None]
+
+        for i, _ in enumerate(torch.isclose(r, torch.zeros_like(r))):
+            directional[i, 0] = 1
+            directional[i, 1:] = 0
 
         if np_flag:
             r.detach().numpy()
