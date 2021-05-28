@@ -10,6 +10,7 @@ import matplotlib.cm
 import numpy as np
 import torch
 from dendropy.interop import raxml
+import random
 
 """
 Initialise the emebedding with RAxML distances given to hydra.
@@ -21,10 +22,9 @@ nseqs = 6  # number of sequences to simulate
 seqlen = 1000  # length of sequences to simulate
 
 # # simulate a tree
-simtree = treesim.birth_death_tree(
-    birth_rate=1.0, death_rate=0.5, num_extant_tips=nseqs)
-dna = simulate_discrete_chars(
-    seq_len=seqlen, tree_model=simtree, seq_model=dendropy.model.discrete.Jc69())
+rng = random.Random(1)
+simtree = treesim.birth_death_tree(birth_rate=1.0, death_rate=0.5, num_extant_tips=nseqs, rng=rng)
+dna = simulate_discrete_chars(seq_len=seqlen, tree_model=simtree, seq_model=dendropy.model.discrete.Jc69())
 
 # s = simtree.postorder_node_iter()
 # testing raxml
@@ -37,7 +37,8 @@ rxml_tree = rx.estimate_tree(char_matrix=dna)
 assemblage_data = rxml_tree.phylogenetic_distance_matrix().as_data_table()._data
 dist = np.array([[assemblage_data[i][j] for j in sorted(
     assemblage_data[i])] for i in sorted(assemblage_data)])
-emm = utilFunc.hydra(D=dist, dim=dim, equi_adj=0.)
+emm = utilFunc.hydra(D=dist, dim=dim, equi_adj=0., stress=True)
+print('stress = ' + str(emm["stress"]))
 
 leaf_loc_poin = utilFunc.dir_to_cart(torch.from_numpy(
     emm["r"]), torch.from_numpy(emm["directional"]))
@@ -66,8 +67,7 @@ peels, blens, X, lp__ = mymod.draw_sample(nsamples, lp=True)
 
 # Plot embedding if dim==2
 if dim == 2:
-    plt.figure(figsize=(7, 7), dpi=600)
-    fig, ax = plt.subplots(1, 1)
+    _, ax = plt.subplots(1, 1)
     ax.set(xlim=[-1, 1])
     ax.set(ylim=[-1, 1])
     cmap = matplotlib.cm.get_cmap('Spectral')
