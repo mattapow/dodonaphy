@@ -35,34 +35,39 @@ class Mcmc(DodonaphyModel):
             self.step()
 
         accepted = 0
-        fig, ax = plt.subplots(1, 1, sharex=True, sharey=True)
-        cmap = matplotlib.cm.get_cmap('plasma')
+        if self.D == 2:
+            _, ax = plt.subplots(1, 1, sharex=True, sharey=True)
+            cmap = matplotlib.cm.get_cmap('plasma')
         for i in range(n_steps):
             # step
             accepted += self.step()
 
-            # set peel + blens
+            # set peel + blens + poincare locations
             loc_poin = t02p(self.loc, np.zeros_like(self.loc), self.D)
             leaf_r, int_r, leaf_dir, int_dir = utilFunc.cart_to_dir_tree(loc_poin)
             self.peel = utilFunc.make_peel(leaf_r, leaf_dir, int_r, int_dir)
             self.blens = super().compute_branch_lengths(self.S, self.D, self.peel, leaf_r, leaf_dir, int_r, int_dir)
+            loc_poin = np.concatenate((loc_poin, np.expand_dims(loc_poin[0, :], axis=0)))
 
             # plot
-            loc_poin = np.concatenate((loc_poin, np.expand_dims(loc_poin[0, :], axis=0)))
-            utilFunc.plot_tree(ax, self.peel, loc_poin, color=cmap(i / n_steps), labels=False)
+            if self.S == 2:
+                utilFunc.plot_tree(ax, self.peel, loc_poin, color=cmap(i / n_steps), labels=False)
 
             # save
             if i % self.save_period == 0:
                 print('Iteration: ' + str(i) + ' / ' + str(n_steps) + '   Acceptance Rate: ' + str(accepted/(i+1)))
                 utilFunc.save_tree(path_write, 'mcmc', self.peel, self.blens)
 
-        utilFunc.plot_tree(ax, self.peel, loc_poin, color=cmap(i / n_steps), labels=True)
         print('Acceptance ratio: ' + str(accepted/n_steps))
-        plt.show()
+
+        if self.D == 2:
+            utilFunc.plot_tree(ax, self.peel, loc_poin, color=cmap(i / n_steps), labels=True)
+            plt.show()
 
     def step(self):
         loc_proposal = self.loc + normal(0, self.step_scale, size=(2*self.S - 2, self.D))
         r = self.accept_ratio(loc_proposal)
+        # TODO: maybe move each node one at a time?
 
         accept = False
         if r >= 1:
@@ -80,10 +85,13 @@ class Mcmc(DodonaphyModel):
         like_proposal = self.compute_LL(leaf_r, leaf_dir, int_r, int_dir).detach().numpy()
         like_ratio = np.exp(like_proposal - like_current)
 
-        # TODO: priors - have to think carefully
+        # TODO: priors?
+        # log(distToOrigin)
+        # log(distToReferenceSeq)
+        # log(distToFather)
         prior_ratio = 1
 
-        # TODO: hastings ratio
+        # Proposals are symmetric Guassians
         hastings_ratio = 1
 
         return np.minimum(1., prior_ratio * like_ratio * hastings_ratio)
