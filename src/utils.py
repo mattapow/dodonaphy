@@ -672,3 +672,13 @@ class utilFunc:
             else:
                 chunks[n3] = "(" + chunks[n1] + "," + chunks[n2] + ")" + ":" + str(blen_row[n3].item())
         return str(chunks[peel_row[-1][2]])
+
+    @staticmethod
+    def save_tree(dir, filename, peel, blens):
+        S = len(peel)+1
+        tipnames = ['t' + str(x) for x in range(S)]
+        tree = utilFunc.tree_to_newick(tipnames, peel, blens)
+
+        fn = dir + '/' + filename + '.tree'
+        with open(fn, 'a+') as file:
+            file.write(tree + '\n')

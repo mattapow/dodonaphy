@@ -17,15 +17,23 @@ class Mcmc(DodonaphyModel):
     def learn(self, n_steps, burnin=0, path_write='./out', save_period=1, step_scale=0.01):
         self.step_scale = step_scale
 
-        self.path_write = path_write
-        os.makedirs(self.path_write, exist_ok=True)  # TODO: mkdir below is safer
-        # os.mkdir(self.path_write)
+        # os.makedirs(path_write, exist_ok=True)
+        os.mkdir(path_write)
         self.save_period = save_period
+
+        fn = path_write + '/' + 'mcmc.info'
+        with open(fn, 'w') as file:
+            file.write('# steps:     ' + str(n_steps) + '\n')
+            file.write('Burnin:      ' + str(burnin) + '\n')
+            file.write('Save period: ' + str(save_period) + '\n')
+            file.write('Step scale:  ' + str(step_scale) + '\n')
+            file.write('Dimensions:  ' + str(self.D) + '\n')
+            file.write('# Taxa:      ' + str(self.S) + '\n')
+            file.write('Seq. length: ' + str(self.L) + '\n')
 
         for _ in range(burnin):
             self.step()
 
-        save_inrc = 0
         accepted = 0
         fig, ax = plt.subplots(1, 1, sharex=True, sharey=True)
         cmap = matplotlib.cm.get_cmap('plasma')
@@ -45,9 +53,8 @@ class Mcmc(DodonaphyModel):
 
             # save
             if i % self.save_period == 0:
-                print('Iteration: ' + str(i) + ' / ' + str(n_steps))
-                self.save_tree(save_inrc)
-                save_inrc += 1
+                print('Iteration: ' + str(i) + ' / ' + str(n_steps) + '   Acceptance Rate: ' + str(accepted/(i+1)))
+                utilFunc.save_tree(path_write, 'mcmc', self.peel, self.blens)
 
         utilFunc.plot_tree(ax, self.peel, loc_poin, color=cmap(i / n_steps), labels=True)
         print('Acceptance ratio: ' + str(accepted/n_steps))
@@ -80,11 +87,3 @@ class Mcmc(DodonaphyModel):
         hastings_ratio = 1
 
         return np.minimum(1., prior_ratio * like_ratio * hastings_ratio)
-
-    def save_tree(self, step):
-        tipnames = ['t' + str(x) for x in range(self.S)]
-        tree = utilFunc.tree_to_newick(tipnames, self.peel, self.blens)
-
-        file_path = self.path_write + '/mcmc_' + str(step) + '.tree'
-        with open(file_path, 'w') as file:
-            file.write(tree)
