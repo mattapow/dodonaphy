@@ -33,6 +33,15 @@ class Mcmc(object):
             file.write('# Taxa:      ' + str(self.S) + '\n')
             file.write('Seq. length: ' + str(self.L) + '\n')
 
+        fn = path_write + '/mcmc.trees'
+        with open(fn, 'w') as file:
+            file.write("#NEXUS\n")
+            file.write("Begin taxa;\tDimensions ntax=" + str(self.S) + ";\n")
+            file.write("\t\tTaxlabels\n")
+            for i in range(self.S):
+                file.write("\t\t" + "T" + str(i+1) + "\n")
+            file.write("End;")
+
         for _ in range(burnin):
             self.step()
 
@@ -157,4 +166,5 @@ class Mcmc(object):
         blens = self.compute_branch_lengths(self.S, self.D, peel, leaf_r, leaf_dir, int_r, int_dir)
 
         mats = JC69_p_t(blens)
-        return calculate_treelikelihood(self.partials, self.weights, peel, mats, torch.full([4], 0.25, dtype=torch.float64))
+        return calculate_treelikelihood(
+            self.partials, self.weights, peel, mats, torch.full([4], 0.25, dtype=torch.float64))

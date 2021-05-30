@@ -683,9 +683,9 @@ class utilFunc:
     @staticmethod
     def save_tree(dir, filename, peel, blens):
         S = len(peel)+1
-        tipnames = ['t' + str(x) for x in range(S)]
+        tipnames = ['T' + str(x+1) for x in range(S)]
         tree = utilFunc.tree_to_newick(tipnames, peel, blens)
 
-        fn = dir + '/' + filename + '.tree'
+        fn = dir + '/' + filename + '.trees'
         with open(fn, 'a+') as file:
             file.write(tree + '\n')
