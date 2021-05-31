@@ -20,35 +20,6 @@ import torch
 import numpy as np
 
 
-def embed_star_hyperboloid_2d(height=2, nseqs=6):
-    """Embed points in 2D hyperboloid H^2 spread evenly around a circle.
-
-    Points are at height z on Hyperboloid H^2 in R^3.
-
-    Parameters
-    ----------
-    height : Double, optional
-        Height of points on the hyperboloid. The default is 2.
-    nseqs : Int, optional
-        Number of tip points (sequences). The default is 6.
-
-    Returns
-    -------
-    nseqs x 3 tensor with positions of the points in R^3 on the Hyperboloid.
-
-    """
-    assert height > 1
-    x = torch.zeros(2 * nseqs - 2, 3)
-    x[:-1, 0] = height
-    x[-1, 0] = 1  # origin point
-
-    for i in range(nseqs):
-        x[i, 1] = math.sqrt(-1 + height ** 2) * math.cos(i * (2 * math.pi / nseqs))
-        x[i, 2] = math.sqrt(-1 + height ** 2) * math.sin(i * (2 * math.pi / nseqs))
-
-    return x
-
-
 def lorentz_product(x, y=None):
     """
     The lorentzian product of x and y
