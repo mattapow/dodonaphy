@@ -7,7 +7,6 @@ import warnings
 from collections import defaultdict
 from matplotlib.lines import Line2D
 from matplotlib.patches import Circle
-from src.hyperboloid import poincare_to_hyper, lorentz_product
 
 
 class u_edge:
@@ -246,30 +245,6 @@ class utilFunc:
             childs.append(currentNode)
             peel.append(childs)
             return currentNode
-
-    @staticmethod
-    def hyperbolic_distance(r1, r2, directional1, directional2, curvature):
-        """Generates hyperbolic distance between two points in poincoire ball
-
-        Args:
-            r1 (tensor): radius of point 1
-            r2 (tensor): radius of point 2
-            directional1 (1D tensor): directional of point 1
-            directional2 (1D tensor): directional of point 2
-            curvature (tensor): curvature
-
-        Returns:
-            tensor: distance between point 1 and point 2
-        """
-        if torch.allclose(r1, r2) and torch.allclose(directional1, directional2):
-            return torch.zeros(1)
-
-        # Use lorentz distance for numerical stability
-        z1 = poincare_to_hyper(utilFunc.dir_to_cart(r1, directional1)).squeeze()
-        z2 = poincare_to_hyper(utilFunc.dir_to_cart(r2, directional2)).squeeze()
-        eps = torch.finfo(torch.float64).eps
-        inner = torch.clamp(-lorentz_product(z1, z2), min=1+eps)
-        return 1. / torch.sqrt(curvature) * torch.acosh(inner)
 
     def angle_to_directional(theta):
         """
@@ -512,9 +487,9 @@ class utilFunc:
         (2D tensor) Cartesian coordinates of each point n_points x dim
 
         """
-        # Ensure directional is unit vector
-        if not torch.allclose(torch.norm(directional, dim=-1).double(), torch.tensor(1.).double()):
-            raise RuntimeError('Directional given is not a unit vector.')
+        # # Ensure directional is unit vector
+        # if not torch.allclose(torch.norm(directional, dim=-1).double(), torch.tensor(1.).double()):
+        #     raise RuntimeError('Directional given is not a unit vector.')
 
         if r.shape == torch.Size([]):
             return directional * r
