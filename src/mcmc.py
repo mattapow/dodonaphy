@@ -19,6 +19,10 @@ class Mcmc(object):
         self.L = partials[0].shape[1]
         self.bcount = 2 * self.S - 2
 
+        # make space for internal partials
+        for i in range(self.S - 1):
+            self.partials.append(torch.zeros((1, 4, self.L), dtype=torch.float64, requires_grad=False))
+
     def learn(self, n_steps, burnin=0, path_write='./out', save_period=1, step_scale=0.01):
         self.step_scale = step_scale
         self.save_period = save_period
