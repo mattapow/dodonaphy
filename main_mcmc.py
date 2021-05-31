@@ -11,6 +11,7 @@ import numpy as np
 import torch
 import random
 from dendropy.interop import raxml
+import os
 
 
 def main():
@@ -23,6 +24,12 @@ def main():
     simtree = treesim.birth_death_tree(birth_rate=2., death_rate=0.5, num_extant_tips=S, rng=rng)
     dna = simulate_discrete_chars(seq_len=seqlen, tree_model=simtree, seq_model=dendropy.model.discrete.Jc69())
 
+    # save dna to nexus
+    path_write = "./out"
+    os.mkdir(path_write)  # os.makedirs(path_write, exist_ok=True)
+    dest = path_write + "/dna.nex"
+    dna.write_to_path(dest, "nexus")
+
     all_dists = False
     if all_dists:
         # Get all pair-wise node distance
@@ -33,7 +40,7 @@ def main():
 
         # embed points from distances with Hydra
         emm = utilFunc.hydra(dists, dim=dim, equi_adj=0.0, stress=True)
-        print('Embedding Stress = {:.4}'.format(emm["stress"].item()))
+        print("Embedding Stress = {:.4}".format(emm["stress"].item()))
     else:
         # Get tip pair-wise distance from RAxML tree
         rx = raxml.RaxmlRunner()
@@ -55,15 +62,15 @@ def main():
 
     # store in tangent plane R^dim
     loc_poin = utilFunc.dir_to_cart(torch.from_numpy(emm["r"]), torch.from_numpy(emm["directional"]))
-    loc_t0 = p2t0(loc_poin).detach().numpy()
+    loc_t0 = p2t0(loc_poin)
 
     # Initialise model
     partials, weights = compress_alignment(dna)
     mymod = Mcmc(partials, weights, dim, loc_t0)
 
     # Learn
-    n_steps = 10
-    mymod.learn(n_steps, step_scale=.01, save_period=1)
+    n_steps = 100
+    mymod.learn(n_steps, path_write=path_write, step_scale=0.01, save_period=1)
 
     # path = './out/mcmc.tree'
     # treelist = dendropy.TreeList.get(path=path, schema='newick')
@@ -71,4 +78,5 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    with torch.no_grad():
+        main()

@@ -62,16 +62,16 @@ class Mcmc(object):
             loc_poin = t02p(self.loc, torch.zeros_like(self.loc), self.D)
             leaf_r, int_r, leaf_dir, int_dir = utilFunc.cart_to_dir_tree(loc_poin)
             self.peel = utilFunc.make_peel(leaf_r, leaf_dir, int_r, int_dir)
-            self.blens = super().compute_branch_lengths(self.S, self.D, self.peel, leaf_r, leaf_dir, int_r, int_dir)
+            self.blens = self.compute_branch_lengths(self.S, self.D, self.peel, leaf_r, leaf_dir, int_r, int_dir)
             loc_poin = torch.cat((loc_poin, torch.unsqueeze(loc_poin[0, :], axis=0)))
 
             # plot
-            if self.S == 2:
+            if self.D == 2:
                 utilFunc.plot_tree(ax, self.peel, loc_poin, color=cmap(i / n_steps), labels=False)
 
             # save
             if i % self.save_period == 0:
-                print('Iteration: ' + str(i) + ' / ' + str(n_steps) + '   Acceptance Rate: ' + str(accepted/(i+1)))
+                print('Epoch: ' + str(i) + ' / ' + str(n_steps) + '   Acceptance Rate: ' + str(accepted/(i+1)))
                 utilFunc.save_tree(path_write, 'mcmc', self.peel, self.blens)
 
         print('Acceptance ratio: ' + str(accepted/n_steps))
@@ -96,9 +96,9 @@ class Mcmc(object):
 
     def accept_ratio(self, loc_proposal):
         leaf_r, int_r, leaf_dir, int_dir = utilFunc.cart_to_dir_tree(self.loc)
-        like_current = self.compute_LL(leaf_r, leaf_dir, int_r, int_dir).detach().numpy()
+        like_current = self.compute_LL(leaf_r, leaf_dir, int_r, int_dir)
         leaf_r, int_r, leaf_dir, int_dir = utilFunc.cart_to_dir_tree(loc_proposal)
-        like_proposal = self.compute_LL(leaf_r, leaf_dir, int_r, int_dir).detach().numpy()
+        like_proposal = self.compute_LL(leaf_r, leaf_dir, int_r, int_dir)
         like_ratio = torch.exp(like_proposal - like_current)
 
         # TODO: priors?
@@ -110,9 +110,9 @@ class Mcmc(object):
         # Proposals are symmetric Guassians
         hastings_ratio = 1
 
-        return torch.minimum(1., prior_ratio * like_ratio * hastings_ratio)
+        return torch.minimum(torch.ones(1), prior_ratio * like_ratio * hastings_ratio)
 
-    def compute_branch_lengths(self, S, dim, peel, leaf_r, leaf_dir, int_r, int_dir, curvature=1):
+    def compute_branch_lengths(self, S, dim, peel, leaf_r, leaf_dir, int_r, int_dir, curvature=torch.ones(1)):
         """Computes the hyperbolic distance of two points given in radial/directional coordinates in the Poincare ball
 
         Args:
@@ -150,7 +150,7 @@ class Mcmc(object):
 
                 # add a tiny amount to avoid zero-length branches
                 eps = torch.finfo(torch.double).eps
-                blens[peel[b][i]] = torch.maximum(hd, eps)
+                blens[peel[b][i]] = torch.maximum(hd, torch.tensor(eps))
 
         return blens
 
@@ -164,11 +164,13 @@ class Mcmc(object):
             int_dir ([type]): [description]
         """
 
-        peel = utilFunc.make_peel(leaf_r, leaf_dir, int_r, int_dir)
+        with torch.no_grad():
+            peel = utilFunc.make_peel(leaf_r, leaf_dir, int_r, int_dir)
 
         # branch lengths
-        blens = self.compute_branch_lengths(self.S, self.D, peel, leaf_r, leaf_dir, int_r, int_dir)
+        blens = self.compute_branch_lengths(
+            self.S, self.D, peel, leaf_r, leaf_dir, int_r, int_dir)
 
         mats = JC69_p_t(blens)
-        return calculate_treelikelihood(
-            self.partials, self.weights, peel, mats, torch.full([4], 0.25, dtype=torch.float64))
+        return calculate_treelikelihood(self.partials, self.weights, peel, mats,
+                                        torch.full([4], 0.25, dtype=torch.float64))
