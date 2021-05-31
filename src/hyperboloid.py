@@ -272,6 +272,7 @@ def hyper_to_poincare(location):
 
 def poincare_to_hyper(location):
     """
+    Take points in Poincare ball to hyperbolic sheet
 
     Parameters
     ----------
@@ -293,10 +294,10 @@ def poincare_to_hyper(location):
     elif location.ndim == 2:
         n_points = location.shape[0]
         dim = location.shape[1]
-
-        out = torch.zeros(n_points, dim + 1)
-        for i in range(n_points):
-            a = location[i, :].pow(2).sum(0)
-            out[i, 0] = (1 + a) / (1 - a)
-            out[i, 1:] = 2 * location[i, :] / (1 - a + eps)
+        a = torch.as_tensor(
+            [location[i, :].pow(2).sum(0) for i in range(n_points)])
+        out0 = torch.div((1 + a), (1 - a))
+        out1 = torch.stack(
+            [2 * location[i, :] / (1 - location[i, :].pow(2).sum(0) + eps) for i in range(n_points)])
+        out = torch.cat((out0.unsqueeze(dim=1), out1), dim=1)
     return out
