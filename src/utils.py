@@ -7,6 +7,7 @@ import warnings
 from collections import defaultdict
 from matplotlib.lines import Line2D
 from matplotlib.patches import Circle
+from .hyperboloid import poincare_to_hyper, lorentz_product
 
 
 class u_edge:
@@ -656,11 +657,13 @@ class utilFunc:
         return str(chunks[peel_row[-1][2]])
 
     @staticmethod
-    def save_tree(dir, filename, peel, blens):
+    def save_tree(dir, filename, peel, blens, iteration):
         S = len(peel)+1
         tipnames = ['T' + str(x+1) for x in range(S)]
         tree = utilFunc.tree_to_newick(tipnames, peel, blens)
 
         fn = dir + '/' + filename + '.trees'
         with open(fn, 'a+') as file:
+            file.write("tree STATE_" + str(iteration))
+            file.write(" [&lnP=-0,joint=-0] = [&R] ")
             file.write(tree + '\n')

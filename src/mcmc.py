@@ -23,13 +23,13 @@ class Mcmc(object):
         for i in range(self.S - 1):
             self.partials.append(torch.zeros((1, 4, self.L), dtype=torch.float64, requires_grad=False))
 
-    def learn(self, n_steps, burnin=0, path_write='./out', save_period=1, step_scale=0.01):
+    def learn(self, epochs, burnin=0, path_write='./out', save_period=1, step_scale=0.01):
         self.step_scale = step_scale
         self.save_period = save_period
 
         fn = path_write + '/' + 'mcmc.info'
         with open(fn, 'w') as file:
-            file.write('# steps:     ' + str(n_steps) + '\n')
+            file.write('# epochs:     ' + str(epochs) + '\n')
             file.write('Burnin:      ' + str(burnin) + '\n')
             file.write('Save period: ' + str(save_period) + '\n')
             file.write('Step scale:  ' + str(step_scale) + '\n')
@@ -39,12 +39,13 @@ class Mcmc(object):
 
         fn = path_write + '/mcmc.trees'
         with open(fn, 'w') as file:
-            file.write("#NEXUS\n")
-            file.write("Begin taxa;\tDimensions ntax=" + str(self.S) + ";\n")
-            file.write("\t\tTaxlabels\n")
+            file.write("#NEXUS\n\n")
+            file.write("Begin taxa;\n\tDimensions ntax=" + str(self.S) + ";\n")
+            file.write("\tTaxlabels\n")
             for i in range(self.S):
                 file.write("\t\t" + "T" + str(i+1) + "\n")
-            file.write("End;\n")
+            file.write("\t\t;\nEnd;\n\n")
+            file.write("Begin trees;\n")
 
         for _ in range(burnin):
             self.evolove()
@@ -54,7 +55,18 @@ class Mcmc(object):
             _, ax = plt.subplots(1, 1, sharex=True, sharey=True)
             cmap = matplotlib.cm.get_cmap('plasma')
 
-        for i in range(n_steps):
+        # initial time step
+        print('Epoch: ' + str(0) + ' / ' + str(epochs))
+        # set peel + blens + poincare locations
+        loc_poin = t02p(self.loc, torch.zeros_like(self.loc), self.D)
+        leaf_r, int_r, leaf_dir, int_dir = utilFunc.cart_to_dir_tree(loc_poin)
+        self.peel = utilFunc.make_peel(leaf_r, leaf_dir, int_r, int_dir)
+        self.blens = self.compute_branch_lengths(self.S, self.D, self.peel, leaf_r, leaf_dir, int_r, int_dir)
+        loc_poin = torch.cat((loc_poin, torch.unsqueeze(loc_poin[0, :], axis=0)))
+        # save
+        utilFunc.save_tree(path_write, 'mcmc', self.peel, self.blens, 0)
+
+        for i in range(epochs):
             # step
             accepted += self.evolve()
 
@@ -67,17 +79,17 @@ class Mcmc(object):
 
             # plot
             if self.D == 2:
-                utilFunc.plot_tree(ax, self.peel, loc_poin, color=cmap(i / n_steps), labels=False)
+                utilFunc.plot_tree(ax, self.peel, loc_poin, color=cmap(i / epochs), labels=False)
 
             # save
             if i % self.save_period == 0:
-                print('Epoch: ' + str(i) + ' / ' + str(n_steps) + '   Acceptance Rate: ' + str(accepted/(i+1)))
-                utilFunc.save_tree(path_write, 'mcmc', self.peel, self.blens)
+                print('Epoch: %i / %i\tAcceptance Rate: %.3f' % (i+1, epochs, accepted/(i+1)))
+                utilFunc.save_tree(path_write, 'mcmc', self.peel, self.blens, i*self.bcount)
 
-        print('Acceptance ratio: ' + str(accepted/n_steps))
+        print('Acceptance ratio: %.3f' % (accepted/epochs))
 
         if self.D == 2:
-            utilFunc.plot_tree(ax, self.peel, loc_poin, color=cmap(i / n_steps), labels=True)
+            utilFunc.plot_tree(ax, self.peel, loc_poin, color=cmap((i+1) / epochs), labels=True)
             plt.show()
 
     def evolve(self):
