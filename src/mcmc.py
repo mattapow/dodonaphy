@@ -40,7 +40,7 @@ class Mcmc(object):
             file.write("\t\tTaxlabels\n")
             for i in range(self.S):
                 file.write("\t\t" + "T" + str(i+1) + "\n")
-            file.write("End;")
+            file.write("End;\n")
 
         for _ in range(burnin):
             self.step()
