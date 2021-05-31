@@ -3,11 +3,12 @@ Sample Gaussian points around a perfect star topology in a hyperboloid.
 View them on a Poincare disk and make a tree out these samples.
 """
 
-import dodonaphy.hyperboloid as hyp
-from dodonaphy.utils import utilFunc
+import from .src.hyperboloid as hyp
+from from ..src.utils import utilFunc
 import torch
 from matplotlib import pyplot as plt
 import matplotlib.cm
+import math
 
 def star():
     S = 6  # n_seqeunces
@@ -90,5 +91,49 @@ def embed_star_hyperboloid_2d(height=2, nseqs=6):
         x[i, 2] = math.sqrt(-1 + height ** 2) * math.sin(i * (2 * math.pi / nseqs))
 
     return x
+
+def embed_poincare_star(r=.5, nseqs=6):
+    """
+    Embed equidistant points at radius r in Poincare disk
+
+    Parameters
+    ----------
+    r : Float, optional
+        0<radius<1. The default is .5.
+    nseqs : Int, optional
+        Number of points/ sequences to embed. The default is 6.
+
+    Returns
+    -------
+        Tensor
+        Positions of points on 2D Poincaré disk.
+
+    """
+
+    assert abs(r) < 1
+
+    x = torch.zeros(nseqs + 1, 1)
+    y = torch.zeros(nseqs + 1, 1)
+    dists = torch.zeros(nseqs + 1, nseqs + 1)
+    for i in range(nseqs):
+        x[i] = r * torch.cos(i * (2 * math.pi / nseqs))
+        y[i] = r * torch.sin(i * (2 * math.pi / nseqs))
+
+        # distance between equidistant points at radius r
+        dists[i][nseqs] = r
+        for j in range(i):
+            d2_ij = torch.pow((x[i] - x[j]), 2) + torch.pow((y[i] - y[j]), 2)
+            d2_i0 = torch.pow(x[i], 2) + torch.pow(y[i], 2)
+            d2_j0 = torch.pow(x[j], 2) + torch.pow(y[j], 2)
+            dists[i][j] = torch.arccosh(
+                1 + 2 * (d2_ij / ((1 - d2_i0) * (1 - d2_j0))))
+
+    dists = dists + dists.transpose(0, 1)
+
+    emm = {'x': x,
+           'y': y,
+           'D': dists}
+    return emm
+
 
 star()
