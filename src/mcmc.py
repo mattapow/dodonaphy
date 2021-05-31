@@ -47,7 +47,7 @@ class Mcmc(object):
             file.write("End;\n")
 
         for _ in range(burnin):
-            self.step()
+            self.evolove()
 
         accepted = 0
         if self.D == 2:
@@ -56,7 +56,7 @@ class Mcmc(object):
 
         for i in range(n_steps):
             # step
-            accepted += self.step()
+            accepted += self.evolve()
 
             # set peel + blens + poincare locations
             loc_poin = t02p(self.loc, torch.zeros_like(self.loc), self.D)
@@ -80,19 +80,23 @@ class Mcmc(object):
             utilFunc.plot_tree(ax, self.peel, loc_poin, color=cmap(i / n_steps), labels=True)
             plt.show()
 
-    def step(self):
-        loc_proposal = self.loc + normal.Normal(0, self.step_scale, size=(2*self.S - 2, self.D))
-        r = self.accept_ratio(loc_proposal)
-        # TODO: maybe move each node one at a time?
+    def evolve(self):
+        accepted = 0
+        for i in range(self.bcount):
+            loc_proposal = self.loc.detach().clone()
+            loc_proposal[i, :] = loc_proposal[i, :] + normal.Normal(0, self.step_scale).sample((1, self.D))
+            r = self.accept_ratio(loc_proposal)
 
-        accept = False
-        if r >= 1:
-            accept = True
-        elif uniform.Uniform(torch.zeros(1), torch.ones(1)) < r:
-            accept = True
-        if accept:
-            self.loc = loc_proposal
-        return int(accept)
+            accept = False
+            if r >= 1:
+                accept = True
+            elif uniform.Uniform(torch.zeros(1), torch.ones(1)).sample() < r:
+                accept = True
+            if accept:
+                self.loc = loc_proposal
+                accepted += 1
+
+        return accept
 
     def accept_ratio(self, loc_proposal):
         leaf_r, int_r, leaf_dir, int_dir = utilFunc.cart_to_dir_tree(self.loc)
