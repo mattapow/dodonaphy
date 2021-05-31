@@ -10,15 +10,6 @@ import src.hyperboloid as hyp
 from pytest import approx
 
 
-def test_embed_star_hyperboloid_valid_out():
-    n_seqs = 6
-    z = 5
-    X = hyp.embed_star_hyperboloid_2d(z, n_seqs)
-
-    for i in range(n_seqs):
-        assert torch.isclose(hyp.lorentz_product(X[i, :]), -torch.ones(1))
-
-
 def test_poincare_to_hyper():
     loc_poin = torch.tensor([[.5, .3],
                              [-.1, .7]])
