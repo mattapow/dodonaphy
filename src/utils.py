@@ -606,6 +606,7 @@ class utilFunc:
             left = peel[i, 0]
             right = peel[i, 1]
             parent = peel[i, 2]
+            # TODO: correctly curved lines, not straight lines
             line = Line2D([X[left, 0], X[parent, 0]],
                           [X[left, 1], X[parent, 1]],
                           linewidth=1,

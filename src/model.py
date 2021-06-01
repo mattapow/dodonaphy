@@ -250,14 +250,14 @@ class DodonaphyModel(object):
             print('epoch {} ELBO: {}'.format(epoch, elbo_hist[-1]))
             hist_dat.append(elbo_hist[-1])
 
-        # if epochs > 0:
-        #     plt.figure()
-        #     plt.plot(range(epochs), elbo_hist, 'r', label='elbo')
-        #     plt.title('Elbo values')
-        #     plt.xlabel('Epochs')
-        #     plt.ylabel('elbo')
-        #     plt.legend()
-        #     plt.show()
+        if epochs > 0:
+            plt.figure()
+            plt.plot(range(epochs), elbo_hist, 'r', label='elbo')
+            plt.title('Elbo values')
+            plt.xlabel('Epochs')
+            plt.ylabel('elbo')
+            plt.legend()
+            plt.show()
 
         # plt.hist(hist_dat)
         # plt.show()

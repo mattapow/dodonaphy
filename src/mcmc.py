@@ -23,7 +23,7 @@ class Mcmc(object):
         for i in range(self.S - 1):
             self.partials.append(torch.zeros((1, 4, self.L), dtype=torch.float64, requires_grad=False))
 
-    def learn(self, epochs, burnin=0, path_write='./out', save_period=1, step_scale=0.01):
+    def learn(self, epochs, burnin=0, path_write='./out', save_period=1, step_scale=0.01, showPlot=False):
         self.step_scale = step_scale
         self.save_period = save_period
 
@@ -51,25 +51,11 @@ class Mcmc(object):
             self.evolove()
 
         accepted = 0
-        if self.D == 2:
+        if self.D == 2 and showPlot:
             _, ax = plt.subplots(1, 1, sharex=True, sharey=True)
             cmap = matplotlib.cm.get_cmap('plasma')
 
-        # initial time step
-        print('Epoch: ' + str(0) + ' / ' + str(epochs))
-        # set peel + blens + poincare locations
-        loc_poin = t02p(self.loc, torch.zeros_like(self.loc), self.D)
-        leaf_r, int_r, leaf_dir, int_dir = utilFunc.cart_to_dir_tree(loc_poin)
-        self.peel = utilFunc.make_peel(leaf_r, leaf_dir, int_r, int_dir)
-        self.blens = self.compute_branch_lengths(self.S, self.D, self.peel, leaf_r, leaf_dir, int_r, int_dir)
-        loc_poin = torch.cat((loc_poin, torch.unsqueeze(loc_poin[0, :], axis=0)))
-        # save
-        utilFunc.save_tree(path_write, 'mcmc', self.peel, self.blens, 0)
-
         for i in range(epochs):
-            # step
-            accepted += self.evolve()
-
             # set peel + blens + poincare locations
             loc_poin = t02p(self.loc, torch.zeros_like(self.loc), self.D)
             leaf_r, int_r, leaf_dir, int_dir = utilFunc.cart_to_dir_tree(loc_poin)
@@ -78,17 +64,19 @@ class Mcmc(object):
             loc_poin = torch.cat((loc_poin, torch.unsqueeze(loc_poin[0, :], axis=0)))
 
             # plot
-            if self.D == 2:
+            if self.D == 2 and showPlot:
                 utilFunc.plot_tree(ax, self.peel, loc_poin, color=cmap(i / epochs), labels=False)
 
             # save
             if i % self.save_period == 0:
-                print('Epoch: %i / %i\tAcceptance Rate: %.3f' % (i+1, epochs, accepted/(i+1)))
+                if i > 0:
+                    print('Epoch: %i / %i\tAcceptance Rate: %.3f' % (i, epochs, accepted/i))
                 utilFunc.save_tree(path_write, 'mcmc', self.peel, self.blens, i*self.bcount)
 
-        print('Acceptance ratio: %.3f' % (accepted/epochs))
+            # step
+            accepted += self.evolve()
 
-        if self.D == 2:
+        if self.D == 2 and showPlot:
             utilFunc.plot_tree(ax, self.peel, loc_poin, color=cmap((i+1) / epochs), labels=True)
             plt.show()
 
