@@ -53,7 +53,8 @@ class Mcmc(object):
 
         for i in range(epochs):
             # set peel + blens + poincare locations
-            loc_poin = t02p(self.loc, torch.zeros_like(self.loc), self.D)
+            loc_vec = self.loc.reshape(self.bcount * self.D)
+            loc_poin = t02p(loc_vec, torch.zeros_like(loc_vec), self.D).reshape(self.bcount, self.D)
             leaf_r, int_r, leaf_dir, int_dir = utilFunc.cart_to_dir_tree(loc_poin)
             self.peel = utilFunc.make_peel(leaf_r, leaf_dir, int_r, int_dir)
             self.blens = self.compute_branch_lengths(self.S, self.D, self.peel, leaf_r, leaf_dir, int_r, int_dir)

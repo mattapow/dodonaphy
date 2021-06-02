@@ -169,8 +169,15 @@ def t02p(x, mu, dim):
 
     Parameters
     ----------
-    x: Position of sample in tangent space at origin
-    mu: Mean of distribution in tangent space at origin
+    x (Tensor or ndarray): Position of sample in tangent space at origin. Must be
+        1 dimensional. Use reshape to convert input matrix:
+            x_1, y_1;
+            x_2, y_2;
+            ...
+        into a vector:
+            x_1, y_1, x_2, y_2, ...
+    mu (Tensor or ndarray): Mean of distribution in tangent space at origin. Must
+        be same size as x.
 
     Returns
     -------
@@ -178,11 +185,8 @@ def t02p(x, mu, dim):
 
     """
     dim = int(dim)
-    if x.ndim == 1:
-        n_loc = int(len(x.squeeze())/dim)
-        x = x.reshape(n_loc, dim)
-    elif x.ndim == 2:
-        n_loc = len(x.squeeze())
+    n_loc = int(len(x)/dim)
+    x = x.reshape(n_loc, dim)
 
     if type(x).__module__ == np.__name__:
         x = torch.from_numpy(x)
@@ -195,7 +199,7 @@ def t02p(x, mu, dim):
     for i in range(n_loc):
         x_hyp = tangent_to_hyper(mu_hyp[i, :], x[i, :], dim)
         x_poin[i, :] = hyper_to_poincare(x_hyp)
-    return x_poin
+    return x_poin.reshape(n_loc*dim)
 
 
 def up_to_hyper(loc):
@@ -264,10 +268,11 @@ def hyper_to_poincare(location):
 
     """
     dim = location.shape[0] - 1
-    # out = torch.zeros(dim)
-    # for i in range(dim):
-    #     out[i] = location[i + 1] / (1 + location[0])
-    return torch.as_tensor([location[i + 1] / (1 + location[0]) for i in range(dim)])
+    out = torch.zeros(dim)
+    for i in range(dim):
+        out[i] = location[i + 1] / (1 + location[0])
+    return out
+    # return torch.as_tensor([location[i + 1] / (1 + location[0]) for i in range(dim)])
 
 
 def poincare_to_hyper(location):

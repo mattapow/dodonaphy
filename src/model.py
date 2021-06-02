@@ -142,8 +142,8 @@ class DodonaphyModel(object):
             mu_int = q_int.loc
 
             # Tangent space at origin to Poincare
-            z_leaf_poin = t02p(z_leaf, mu_leaf, self.D)
-            z_int_poin = t02p(z_int, mu_int, self.D)
+            z_leaf_poin = t02p(z_leaf, mu_leaf, self.D).reshape(self.S, self.D)
+            z_int_poin = t02p(z_int, mu_int, self.D).reshape(self.S-2, self.D)
 
             # transform z to r, dir
             leaf_r, leaf_dir = utilFunc.cart_to_dir(z_leaf_poin)
@@ -184,8 +184,8 @@ class DodonaphyModel(object):
         mu_leaf = q_leaf.loc
         mu_int = q_int.loc
         D = torch.tensor(self.D, dtype=float)
-        z_leaf_poin = t02p(z_leaf, mu_leaf, D)
-        z_int_poin = t02p(z_int, mu_int, D)
+        z_leaf_poin = t02p(z_leaf, mu_leaf, D).reshape(self.S, self.D)
+        z_int_poin = t02p(z_int, mu_int, D).reshape(self.S-2, self.D)
 
         leaf_r, leaf_dir = utilFunc.cart_to_dir(z_leaf_poin)
         int_r, int_dir = utilFunc.cart_to_dir(z_int_poin)
