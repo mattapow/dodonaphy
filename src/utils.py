@@ -549,7 +549,7 @@ class utilFunc:
         r = torch.pow(torch.pow(X, 2).sum(dim=1), .5)
         directional = X / r[:, None]
 
-        for i, _ in enumerate(torch.isclose(r, torch.zeros_like(r))):
+        for i in torch.where(torch.isclose(r, torch.zeros_like(r))):
             directional[i, 0] = 1
             directional[i, 1:] = 0
 
