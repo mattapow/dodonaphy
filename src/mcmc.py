@@ -63,6 +63,8 @@ class Mcmc(object):
             if i % self.save_period == 0:
                 if i > 0:
                     print('Epoch: %i / %i\tAcceptance Rate: %.3f' % (i, epochs, accepted/i))
+                else:
+                    self.lnP = self.compute_LL(leaf_r, leaf_dir, int_r, int_dir)
                 utilFunc.save_tree(path_write, 'mcmc', self.peel, self.blens, i*self.bcount, self.lnP)
 
             # step
