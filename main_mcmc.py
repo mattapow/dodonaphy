@@ -17,7 +17,7 @@ import os
 def main():
     dim = 2  # number of dimensions for embedding
     S = 10  # number of sequences to simulate
-    seqlen = 10000  # length of sequences to simulate
+    seqlen = 1000  # length of sequences to simulate
 
     # Simulate a tree
     rng = random.Random(1)
@@ -70,7 +70,7 @@ def main():
 
     # Learn
     epochs = 1000
-    mymod.learn(epochs, path_write=path_write, step_scale=0.03, save_period=1, showPlot=False)
+    mymod.learn(epochs, path_write=path_write, step_scale=0.01, save_period=1)
 
     # path = './out/mcmc.tree'
     # treelist = dendropy.TreeList.get(path=path, schema='newick')

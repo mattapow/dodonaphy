@@ -3,8 +3,6 @@ from .hyperboloid import t02p
 from .phylo import calculate_treelikelihood, JC69_p_t
 from torch.distributions import normal, uniform
 import torch
-import matplotlib.pyplot as plt
-import matplotlib.cm
 
 
 class Mcmc(object):
@@ -23,7 +21,8 @@ class Mcmc(object):
         for i in range(self.S - 1):
             self.partials.append(torch.zeros((1, 4, self.L), dtype=torch.float64, requires_grad=False))
 
-    def learn(self, epochs, burnin=0, path_write='./out', save_period=1, step_scale=0.01, showPlot=False):
+    def learn(self, epochs, burnin=0, path_write='./out', save_period=1, step_scale=0.01):
+        # TODO: add a hot chain?
         self.step_scale = step_scale
         self.save_period = save_period
 
@@ -51,9 +50,6 @@ class Mcmc(object):
             self.evolove()
 
         accepted = 0
-        if self.D == 2 and showPlot:
-            _, ax = plt.subplots(1, 1, sharex=True, sharey=True)
-            cmap = matplotlib.cm.get_cmap('plasma')
 
         for i in range(epochs):
             # set peel + blens + poincare locations
@@ -62,10 +58,6 @@ class Mcmc(object):
             self.peel = utilFunc.make_peel(leaf_r, leaf_dir, int_r, int_dir)
             self.blens = self.compute_branch_lengths(self.S, self.D, self.peel, leaf_r, leaf_dir, int_r, int_dir)
             loc_poin = torch.cat((loc_poin, torch.unsqueeze(loc_poin[0, :], axis=0)))
-
-            # plot
-            if self.D == 2 and showPlot:
-                utilFunc.plot_tree(ax, self.peel, loc_poin, color=cmap(i / epochs), labels=False)
 
             # save
             if i % self.save_period == 0:
@@ -76,9 +68,9 @@ class Mcmc(object):
             # step
             accepted += self.evolve()
 
-        if self.D == 2 and showPlot:
-            utilFunc.plot_tree(ax, self.peel, loc_poin, color=cmap((i+1) / epochs), labels=True)
-            plt.show()
+        fn = path_write + '/' + 'mcmc.info'
+        with open(fn, 'w') as file:
+            file.write('Acceptance:   ' + str(epochs) + '\n')
 
     def evolve(self):
         accepted = 0
