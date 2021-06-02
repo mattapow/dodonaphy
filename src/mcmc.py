@@ -71,7 +71,7 @@ class Mcmc(object):
             accepted += self.evolve()
 
         fn = path_write + '/' + 'mcmc.info'
-        with open(fn, 'w') as file:
+        with open(fn, 'a') as file:
             file.write('Acceptance:   ' + str(epochs) + '\n')
 
     def evolve(self):
