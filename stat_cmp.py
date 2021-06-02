@@ -8,13 +8,14 @@ def stat_cmp():
     Compare statistics in output of TreeStat
     """
 
-    fn1 = 'out/mcmc_stat.txt'
-    fn2 = 'out/beast_stat.txt'
+    dir = "../outs/S10_D2_STEP03_EPOCH1000/Int_all_hydra"
+    fn1 = dir + "/mcmc_stat.txt"
+    fn2 = dir + "/beast_stat.txt"
 
     df1 = pd.read_csv(fn1, delimiter='\t', header=0, index_col='state')
     df2 = pd.read_csv(fn2, delimiter='\t', header=0, index_col='state')
 
-    assert df1.columns == df2.columns
+    assert all(df1.columns == df2.columns)
 
     for name in df1.columns:
         df1[name].plot.kde()
