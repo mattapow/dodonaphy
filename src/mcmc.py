@@ -63,7 +63,7 @@ class Mcmc(object):
             if i % self.save_period == 0:
                 if i > 0:
                     print('Epoch: %i / %i\tAcceptance Rate: %.3f' % (i, epochs, accepted/i))
-                utilFunc.save_tree(path_write, 'mcmc', self.peel, self.blens, i*self.bcount)
+                utilFunc.save_tree(path_write, 'mcmc', self.peel, self.blens, i*self.bcount, self.lnP)
 
             # step
             accepted += self.evolve()
@@ -77,15 +77,17 @@ class Mcmc(object):
         for i in range(self.bcount):
             loc_proposal = self.loc.detach().clone()
             loc_proposal[i, :] = loc_proposal[i, :] + normal.Normal(0, self.step_scale).sample((1, self.D))
-            r = self.accept_ratio(loc_proposal)
+            r, like_proposal = self.accept_ratio(loc_proposal)
 
             accept = False
             if r >= 1:
                 accept = True
             elif uniform.Uniform(torch.zeros(1), torch.ones(1)).sample() < r:
                 accept = True
+
             if accept:
                 self.loc = loc_proposal
+                self.lnP = like_proposal
                 accepted += 1
 
         return accept
@@ -98,15 +100,15 @@ class Mcmc(object):
         like_ratio = torch.exp(like_proposal - like_current)
 
         # TODO: priors?
-        # log(distToOrigin)
-        # log(distToReferenceSeq)
-        # log(distToFather)
+        # gamma/exp(distToOrigin)
+        # gamma/exp(distToReferenceSeq)
+        # exp(distToFather)
         prior_ratio = 1
 
         # Proposals are symmetric Guassians
         hastings_ratio = 1
 
-        return torch.minimum(torch.ones(1), prior_ratio * like_ratio * hastings_ratio)
+        return torch.minimum(torch.ones(1), prior_ratio * like_ratio * hastings_ratio), like_proposal
 
     def compute_branch_lengths(self, S, dim, peel, leaf_r, leaf_dir, int_r, int_dir, curvature=torch.ones(1)):
         """Computes the hyperbolic distance of two points given in radial/directional coordinates in the Poincare ball
