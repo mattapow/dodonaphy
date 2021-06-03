@@ -1,7 +1,7 @@
 import dendropy
 from dendropy.simulate import treesim
 from dendropy.model.discrete import simulate_discrete_chars
-from src.model import DodonaphyModel
+from src.vi import DodonaphyModel
 from src.phylo import compress_alignment, JC69_p_t, calculate_treelikelihood
 from src.utils import utilFunc
 import torch
