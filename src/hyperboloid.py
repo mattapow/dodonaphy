@@ -297,12 +297,9 @@ def poincare_to_hyper(location):
         out[1:] = 2 * location[:] / (1 - a + eps)
 
     elif location.ndim == 2:
-        n_points = location.shape[0]
         dim = location.shape[1]
-        a = torch.as_tensor(
-            [location[i, :].pow(2).sum(0) for i in range(n_points)])
+        a = location.pow(2).sum(-1)
         out0 = torch.div((1 + a), (1 - a))
-        out1 = torch.stack(
-            [2 * location[i, :] / (1 - location[i, :].pow(2).sum(0) + eps) for i in range(n_points)])
+        out1 = 2 * location / (1 - a.unsqueeze(dim=1) + eps)
         out = torch.cat((out0.unsqueeze(dim=1), out1), dim=1)
     return out
