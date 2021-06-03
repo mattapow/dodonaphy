@@ -10,7 +10,6 @@ from ete3 import Tree
 import numpy as np
 import torch
 import random
-from dendropy.interop import raxml
 import os
 import math
 
@@ -24,6 +23,7 @@ def main():
     rng = random.Random(1)
     simtree = treesim.birth_death_tree(birth_rate=2., death_rate=0.5, num_extant_tips=S, rng=rng)
     dna = simulate_discrete_chars(seq_len=seqlen, tree_model=simtree, seq_model=dendropy.model.discrete.Jc69())
+
     # compress alignment
     partials, weights = compress_alignment(dna)
 
@@ -45,12 +45,13 @@ def main():
         emm = utilFunc.hydra(dists, dim=dim, equi_adj=0.0, stress=True)
         print("Embedding Stress = {:.4}".format(emm["stress"].item()))
     else:
-        # Get tip pair-wise distance from RAxML tree
-        rx = raxml.RaxmlRunner()
-        rxml_tree = rx.estimate_tree(char_matrix=dna)
-        assemblage_data = rxml_tree.phylogenetic_distance_matrix().as_data_table()._data
-        dists = np.array([[assemblage_data[i][j] for j in sorted(
-            assemblage_data[i])] for i in sorted(assemblage_data)])
+        # Get tip pair-wise distance
+        dists = np.zeros((S, S))
+        pdc = simtree.phylogenetic_distance_matrix()
+        for i, t1 in enumerate(simtree.taxon_namespace[:-1]):
+            for j, t2 in enumerate(simtree.taxon_namespace[i+1:]):
+                dists[i][i+j+1] = pdc(t1, t2)
+        dists = dists + dists.transpose()
 
         # embed points from distances with Hydra
         emm = utilFunc.hydra(dists, dim=dim, equi_adj=0.0, stress=True)
@@ -76,7 +77,9 @@ def main():
 
 def initialise(emm_tips, dim, partials, weights):
     # try out some inner node positions and pick the best
-    print("Randomly initialising internal node positions.")
+    n_scale = 10
+    n_trials = 10
+    print("Randomly initialising internal node positions from {} samples: ".format(n_scale*n_trials), end='')
 
     S = len(emm_tips['r'])
     scale = torch.as_tensor(.5 * emm_tips['r'].min())
@@ -88,9 +91,7 @@ def initialise(emm_tips, dim, partials, weights):
     _int_r = np.random.exponential(scale=scale, size=(S-2))
     _int_dir = dir/abs.reshape(S-2, 1)
 
-    n_scale = 10
     max_scale = 5 * emm_tips['r'].min()
-    n_trials = 100
     for i in range(n_scale):
         _scale = torch.as_tensor((i+1)/(n_scale+1) * max_scale)
         for _ in range(n_trials):
@@ -109,7 +110,7 @@ def initialise(emm_tips, dim, partials, weights):
             _int_r = np.random.exponential(scale=_scale, size=(S-2))
             _int_dir = dir/abs.reshape(S-2, 1)
 
-    print("Best internal node positions found.")
+    print("done.\nBest internal node positions selected.")
 
     return int_r, int_dir
 
