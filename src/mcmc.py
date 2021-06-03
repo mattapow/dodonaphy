@@ -67,6 +67,9 @@ class Mcmc(object):
                 else:
                     self.lnP = self.compute_LL(leaf_r, leaf_dir, int_r, int_dir)
                 utilFunc.save_tree(path_write, 'mcmc', self.peel, self.blens, i*self.bcount, self.lnP)
+                fn = path_write + '/locations.txt'
+                with open(fn, 'a') as file:
+                    file.write(str(loc_vec.data.numpy()).replace('\n', '').replace('[', '').replace(']', '') + "\n")
 
             # step
             accepted += self.evolve()
