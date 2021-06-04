@@ -7,8 +7,8 @@ import torch
 
 class Mcmc(BaseModel):
 
-    def __init__(self, partials, weights, dim, loc):
-        super().__init__(partials, weights, dim)
+    def __init__(self, partials, weights, dim, loc, **prior):
+        super().__init__(partials, weights, dim, **prior)
         self.loc = loc
 
     def learn(self, epochs, burnin=0, path_write='./out', save_period=1, step_scale=0.01):
@@ -89,19 +89,24 @@ class Mcmc(BaseModel):
         return accept
 
     def accept_ratio(self, loc_proposal):
-        leaf_r, int_r, leaf_dir, int_dir = utilFunc.cart_to_dir_tree(self.loc)
-        like_current = self.compute_LL(leaf_r, leaf_dir, int_r, int_dir)
-        leaf_r, int_r, leaf_dir, int_dir = utilFunc.cart_to_dir_tree(loc_proposal)
-        like_proposal = self.compute_LL(leaf_r, leaf_dir, int_r, int_dir)
-        like_ratio = torch.exp(like_proposal - like_current)
 
-        # TODO: priors?
-        # gamma/exp(distToOrigin)
-        # gamma/exp(distToReferenceSeq)
-        # exp(distToFather)
-        prior_ratio = 1
+        # current likelihood + prior
+        leaf_r, int_r, leaf_dir, int_dir = utilFunc.cart_to_dir_tree(self.loc)
+        current_like = self.compute_LL(leaf_r, leaf_dir, int_r, int_dir)
+        current_prior = self.compute_prior(leaf_r, leaf_dir, int_r, int_dir, **self.prior)
+
+        # proposal likelihood + prior
+        leaf_r, int_r, leaf_dir, int_dir = utilFunc.cart_to_dir_tree(loc_proposal)
+        prop_like = self.compute_LL(leaf_r, leaf_dir, int_r, int_dir)
+        prop_prior = self.compute_prior(leaf_r, leaf_dir, int_r, int_dir, **self.prior)
+
+        # likelihood ratio
+        like_ratio = torch.exp(prop_like - current_like)
+
+        # prior ratio
+        prior_ratio = prop_prior / current_prior
 
         # Proposals are symmetric Guassians
         hastings_ratio = 1
 
-        return torch.minimum(torch.ones(1), prior_ratio * like_ratio * hastings_ratio), like_proposal
+        return torch.minimum(torch.ones(1), prior_ratio * like_ratio * hastings_ratio), prop_like

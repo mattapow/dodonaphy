@@ -25,7 +25,9 @@ def main():
 
     # simulate a tree
     rng = random.Random(1)
-    simtree = treesim.birth_death_tree(birth_rate=1.0, death_rate=0.5, num_extant_tips=S, rng=rng)
+    prior = {"birth_rate": 2., "death_rate": .5}
+    simtree = treesim.birth_death_tree(
+        birth_rate=prior['birth_rate'], death_rate=prior['death_rate'], num_extant_tips=S, rng=rng)
     dna = simulate_discrete_chars(seq_len=L, tree_model=simtree, seq_model=dendropy.model.discrete.Jc69(), rng=rng)
 
     # save dna to nexus
@@ -64,7 +66,7 @@ def main():
 
     # Initialise model
     partials, weights = compress_alignment(dna)
-    mymod = DodonaphyModel(partials, weights, dim)
+    mymod = DodonaphyModel(partials, weights, dim, **prior)
 
     # learn
     mymod.learn(param_init=param_init, epochs=10)

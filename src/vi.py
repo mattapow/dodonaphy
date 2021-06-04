@@ -13,8 +13,8 @@ import matplotlib.pyplot as plt
 
 class DodonaphyModel(BaseModel):
 
-    def __init__(self, partials, weights, dim):
-        super().__init__(partials, weights, dim)
+    def __init__(self, partials, weights, dim, **prior):
+        super().__init__(partials, weights, dim, **prior)
 
         # Store mu on poincare ball in R^dim.
         # Distributions stored in tangent space T_0 H^D, then transformed to poincare ball.
@@ -113,6 +113,7 @@ class DodonaphyModel(BaseModel):
         # Get Jacobians
         log_abs_det_jacobian = torch.zeros(1)
         D = torch.tensor(self.D, dtype=float)
+
         # Leaves
         # Jacobian of t02p going from Tangent T_0 to Poincare ball
         J_leaf = torch.autograd.functional.jacobian(t02p, (z_leaf, mu_leaf, D))
@@ -133,8 +134,8 @@ class DodonaphyModel(BaseModel):
         logQ = logQ + q_int.log_prob(z_int)
 
         # logPrior
-        # TODO: have to think carefully
-        logPrior = torch.zeros(1, requires_grad=False)
+        logPrior = torch.tensor(self.compute_prior(
+            leaf_r, leaf_dir, int_r, int_dir, **self.prior), requires_grad=False)
 
         logP = self.compute_LL(leaf_r, leaf_dir, int_r, int_dir)
 

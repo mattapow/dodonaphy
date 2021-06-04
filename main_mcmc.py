@@ -21,8 +21,10 @@ def main():
 
     # Simulate a tree
     rng = random.Random(1)
-    simtree = treesim.birth_death_tree(birth_rate=2., death_rate=0.5, num_extant_tips=S, rng=rng)
-    dna = simulate_discrete_chars(seq_len=seqlen, tree_model=simtree, seq_model=dendropy.model.discrete.Jc69())
+    prior = {"birth_rate": 2., "death_rate": .5}
+    simtree = treesim.birth_death_tree(
+        birth_rate=prior['birth_rate'], death_rate=prior['death_rate'], num_extant_tips=S, rng=rng)
+    dna = simulate_discrete_chars(seq_len=seqlen, tree_model=simtree, seq_model=dendropy.model.discrete.Jc69(), rng=rng)
 
     # compress alignment
     partials, weights = compress_alignment(dna)
@@ -68,7 +70,7 @@ def main():
 
     # Initialise model
     partials, weights = compress_alignment(dna)
-    mymod = Mcmc(partials, weights, dim, loc_t0)
+    mymod = Mcmc(partials, weights, dim, loc_t0, **prior)
 
     # Learn
     epochs = 1000
