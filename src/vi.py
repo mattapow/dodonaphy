@@ -141,13 +141,15 @@ class DodonaphyModel(BaseModel):
 
         return logP + logPrior - logQ + log_abs_det_jacobian
 
-    def learn(self, param_init=None, epochs=1000):
-        """[summary]
-
+    def learn(self, param_init=None, epochs=1000, k_samples=3):
+        """Learn the variational parameters using Adam optimiser
         Args:
-            param_init ([type]): [description]
-            epochs (int, optional): [description]. Defaults to 1000.
+            param_init (dict, optional): Initial parameters. Defaults to None.
+            epochs (int, optional): Number of epochs. Defaults to 1000.
+            k_samples (int, optional): Number of tree samples at each epoch. Defaults to 3.
         """
+        print("Using %i tree samples at each epoch." % k_samples)
+        print("Running for %i epochs." % epochs)
         if param_init is not None:
             # set initial params as a Dict
             self.VariationalParams["leaf_mu"] = param_init["leaf_mu"]
@@ -162,14 +164,14 @@ class DodonaphyModel(BaseModel):
         elbo_hist = []
         hist_dat: List[Any] = []
         for epoch in range(epochs):
-            loss = - self.elbo_normal(3)
+            loss = - self.elbo_normal(k_samples)
             elbo_hist.append(- loss.item())
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
             scheduler.step()
 
-            print('epoch {} ELBO: {}'.format(epoch, elbo_hist[-1]))
+            print('epoch %-8i ELBO: %10.3f' % (epoch+1, elbo_hist[-1]))
             hist_dat.append(elbo_hist[-1])
 
         if epochs > 0:
@@ -184,7 +186,6 @@ class DodonaphyModel(BaseModel):
         # plt.hist(hist_dat)
         # plt.show()
 
-        # with torch.no_grad(): # need grad for Jacobian in elbo
         print('Final ELBO: {}'.format(self.elbo_normal(100).item()))
 
     def elbo_normal(self, size=1):

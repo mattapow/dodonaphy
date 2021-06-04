@@ -69,10 +69,10 @@ def main():
     mymod = DodonaphyModel(partials, weights, dim, **prior)
 
     # learn
-    mymod.learn(param_init=param_init, epochs=10)
+    mymod.learn(param_init=param_init, epochs=10000, k_samples=5)
 
     # draw samples
-    nsamples = 2
+    nsamples = 200
     peels, blens, X, lp = mymod.draw_sample(nsamples, lp=True)
 
     # # Plot embedding if dim==2
