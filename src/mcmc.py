@@ -16,6 +16,7 @@ class DodonaphyMCMC(BaseModel):
         self.loc = loc
 
     def learn(self, epochs, burnin=0, path_write='./out', save_period=1, step_scale=0.01):
+        print("Running for %i epochs." % epochs)
         self.step_scale = step_scale
         self.save_period = save_period
 

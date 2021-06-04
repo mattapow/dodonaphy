@@ -253,7 +253,7 @@ class DodonaphyVI(BaseModel):
         mymod.learn(param_init=param_init, epochs=epochs, k_samples=k_samples)
 
         # draw samples
-        peels, blens, X, lp = mymod.draw_sample(n_draws, lp=True)
+        peels, blens, _, lp = mymod.draw_sample(n_draws, lp=True)
 
         # # Plot embedding if dim==2
         # if dim == 2:
@@ -268,4 +268,4 @@ class DodonaphyVI(BaseModel):
 
         utilFunc.save_tree_head(path_write, "vi", S)
         for i in range(n_draws):
-            utilFunc.save_tree(path_write, "vi", peels[i], blens[i], i, 0)
+            utilFunc.save_tree(path_write, "vi", peels[i], blens[i], i, lp)
