@@ -8,10 +8,12 @@ from .hyperboloid import t02p
 from .phylo import calculate_treelikelihood, JC69_p_t
 from .utils import utilFunc
 from .base_model import BaseModel
+from src.phylo import compress_alignment
+from src.hyperboloid import p2t0
 import matplotlib.pyplot as plt
 
 
-class DodonaphyModel(BaseModel):
+class DodonaphyVI(BaseModel):
 
     def __init__(self, partials, weights, dim, **prior):
         super().__init__(partials, weights, dim, **prior)
@@ -171,7 +173,7 @@ class DodonaphyModel(BaseModel):
             optimizer.step()
             scheduler.step()
 
-            print('epoch %-8i ELBO: %10.3f' % (epoch+1, elbo_hist[-1]))
+            print('epoch %-12i ELBO: %10.3f' % (epoch+1, elbo_hist[-1]))
             hist_dat.append(elbo_hist[-1])
 
         if epochs > 0:
@@ -183,8 +185,8 @@ class DodonaphyModel(BaseModel):
             plt.legend()
             plt.show()
 
-        # plt.hist(hist_dat)
-        # plt.show()
+            plt.hist(hist_dat)
+            plt.show()
 
         print('Final ELBO: {}'.format(self.elbo_normal(100).item()))
 
@@ -212,3 +214,58 @@ class DodonaphyModel(BaseModel):
         for _ in range(size):
             elbos.append(self.calculate_elbo(q_leaf, q_int))
         return torch.mean(torch.stack(elbos))
+
+    @staticmethod
+    def run_tips(dim, S, dna, dists, path_write, epochs=1000, k_samples=3, n_draws=100, **prior):
+        """Initialise and run Dodonaphy's variational inference
+
+        Initialise the emebedding with tips distances given to hydra.
+        Internal nodes are in distributions at origin.
+
+        """
+        print('Running Dodonaphy Variational Inference\n')
+
+        # embed with hydra
+        emm = utilFunc.hydra(D=dists, dim=dim, equi_adj=0., stress=True)
+        print('Embedding Stress (tips only) = {:.4}'.format(emm["stress"].item()))
+
+        leaf_loc_poin = utilFunc.dir_to_cart(torch.from_numpy(
+            emm["r"]), torch.from_numpy(emm["directional"]))
+        leaf_loc_t0 = p2t0(leaf_loc_poin).detach().numpy()
+
+        # set initial leaf positions from hydra with small coefficient of variation
+        # set internal nodes to narrow distributions at origin
+        cv = 1. / 50
+        eps = np.finfo(np.double).eps
+        leaf_sigma = np.log(np.abs(np.array(leaf_loc_t0)) * cv + eps)
+        param_init = {
+            "leaf_mu": torch.tensor(leaf_loc_t0, requires_grad=True, dtype=torch.float64),
+            "leaf_sigma": torch.tensor(leaf_sigma, requires_grad=True, dtype=torch.float64),
+            "int_mu": torch.zeros(S - 2, dim, requires_grad=True, dtype=torch.float64),
+            "int_sigma": torch.full((S - 2, dim), np.log(.01), requires_grad=True, dtype=torch.float64)
+        }
+
+        # Initialise model
+        partials, weights = compress_alignment(dna)
+        mymod = DodonaphyVI(partials, weights, dim, **prior)
+
+        # learn
+        mymod.learn(param_init=param_init, epochs=epochs, k_samples=k_samples)
+
+        # draw samples
+        peels, blens, X, lp = mymod.draw_sample(n_draws, lp=True)
+
+        # # Plot embedding if dim==2
+        # if dim == 2:
+        #     _, ax = plt.subplots(1, 1)
+        #     ax.set(xlim=[-1, 1])
+        #     ax.set(ylim=[-1, 1])
+        #     cmap = matplotlib.cm.get_cmap('Spectral')
+        #     for i in range(nsamples):
+        #         utilFunc.plot_tree(ax, peels[i], X[i].detach().numpy(), color=cmap(i / nsamples))
+        #     ax.set_title("Final Embedding Sample")
+        #     plt.show()
+
+        utilFunc.save_tree_head(path_write, "vi", S)
+        for i in range(n_draws):
+            utilFunc.save_tree(path_write, "vi", peels[i], blens[i], i, 0)

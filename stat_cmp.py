@@ -16,6 +16,8 @@ def stat_cmp():
     fn1 = dir + "/mcmc.trees"
     fn2 = dir + "/beast.trees"
 
+    # TODO: burnin
+
     dodo_trees = dendropy.TreeList.get(path=fn1, schema="nexus")
     bst_trees = dendropy.TreeList.get(path=fn2, schema="nexus")
 

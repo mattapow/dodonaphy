@@ -8,10 +8,12 @@ Histogram of node locations from MCMC
 """
 
 dir = "./out"
-fn = dir + "/locations.txt"
+fp = dir + "/mcmc_locations.csv"
 
-X = genfromtxt(fn)
+X = genfromtxt(fp)
 n = X.shape[1]
+
+# TODO: burnin
 
 for i in range(n):
     sns.kdeplot(X[:, i])

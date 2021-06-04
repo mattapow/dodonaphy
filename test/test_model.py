@@ -1,7 +1,7 @@
 import dendropy
 from dendropy.simulate import treesim
 from dendropy.model.discrete import simulate_discrete_chars
-from src.vi import DodonaphyModel
+from src.vi import DodonaphyVI as vi
 from src.phylo import compress_alignment, JC69_p_t, calculate_treelikelihood
 from src.utils import utilFunc
 import torch
@@ -25,7 +25,7 @@ def test_draws_different():
 
     # Initialise model
     partials, weights = compress_alignment(dna)
-    mymod = DodonaphyModel(partials, weights, dim)
+    mymod = vi(partials, weights, dim)
 
     # learn
     mymod.learn(epochs=0)
@@ -52,10 +52,8 @@ def test_calculate_likelihood():
     seqlen = 100  # length of sequences to simulate
 
     # Simulate a tree
-    simtree = treesim.birth_death_tree(
-        birth_rate=2., death_rate=0.5, num_extant_tips=S)
-    dna = simulate_discrete_chars(
-        seq_len=seqlen, tree_model=simtree, seq_model=dendropy.model.discrete.Jc69())
+    simtree = treesim.birth_death_tree(birth_rate=2., death_rate=0.5, num_extant_tips=S)
+    dna = simulate_discrete_chars(seq_len=seqlen, tree_model=simtree, seq_model=dendropy.model.discrete.Jc69())
 
     # Compute RAxML tree
     rx = raxml.RaxmlRunner()

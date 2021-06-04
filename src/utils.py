@@ -682,6 +682,18 @@ class utilFunc:
         return str(chunks[peel_row[-1][2]])
 
     @staticmethod
+    def save_tree_head(path_write, filename, S):
+        fn = path_write + '/' + filename + '.trees'
+        with open(fn, 'w') as file:
+            file.write("#NEXUS\n\n")
+            file.write("Begin taxa;\n\tDimensions ntax=" + str(S) + ";\n")
+            file.write("\tTaxlabels\n")
+            for i in range(S):
+                file.write("\t\t" + "T" + str(i+1) + "\n")
+            file.write("\t\t;\nEnd;\n\n")
+            file.write("Begin trees;\n")
+
+    @staticmethod
     def save_tree(dir, filename, peel, blens, iteration, LL):
         S = len(peel)+1
         tipnames = ['T' + str(x+1) for x in range(S)]
