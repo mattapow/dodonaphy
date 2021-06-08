@@ -28,7 +28,7 @@ def test_draws_different():
     mymod = vi(partials, weights, dim)
 
     # learn
-    mymod.learn(epochs=0)
+    mymod.learn(epochs=0, path_write="")
 
     # draw
     nsamples = 3

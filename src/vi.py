@@ -8,9 +8,9 @@ from .hyperboloid import t02p
 from .phylo import calculate_treelikelihood, JC69_p_t
 from .utils import utilFunc
 from .base_model import BaseModel
-from src.phylo import compress_alignment
 from src.hyperboloid import p2t0
 import matplotlib.pyplot as plt
+import matplotlib.cm
 
 
 class DodonaphyVI(BaseModel):
@@ -143,7 +143,7 @@ class DodonaphyVI(BaseModel):
 
         return logP + logPrior - logQ + log_abs_det_jacobian
 
-    def learn(self, param_init=None, epochs=1000, k_samples=3):
+    def learn(self, param_init=None, epochs=1000, k_samples=3, path_write='./out'):
         """Learn the variational parameters using Adam optimiser
         Args:
             param_init (dict, optional): Initial parameters. Defaults to None.
@@ -151,7 +151,19 @@ class DodonaphyVI(BaseModel):
             k_samples (int, optional): Number of tree samples at each epoch. Defaults to 3.
         """
         print("Using %i tree samples at each epoch." % k_samples)
-        print("Running for %i epochs." % epochs)
+        print("Running for %i epochs.\n" % epochs)
+
+        if not path_write == "":
+            fn = path_write + '/' + 'vi.info'
+            with open(fn, 'w') as file:
+                file.write('%-12s: %i\n' % ("# epochs", epochs))
+                file.write('%-12s: %i\n' % ("k_samples", k_samples))
+                file.write('%-12s: %i\n' % ("Dimensions", self.D))
+                file.write('%-12s: %i\n' % ("# Taxa", self.S))
+                file.write('%-12s: %i\n' % ("Unique sites", self.L))
+                for key, value in self.prior.items():
+                    file.write('%-12s: %f\n' % (key, value))
+
         if param_init is not None:
             # set initial params as a Dict
             self.VariationalParams["leaf_mu"] = param_init["leaf_mu"]
@@ -176,17 +188,18 @@ class DodonaphyVI(BaseModel):
             print('epoch %-12i ELBO: %10.3f' % (epoch+1, elbo_hist[-1]))
             hist_dat.append(elbo_hist[-1])
 
-        if epochs > 0:
+        if epochs > 0 and not path_write == "":
             plt.figure()
             plt.plot(range(epochs), elbo_hist, 'r', label='elbo')
             plt.title('Elbo values')
             plt.xlabel('Epochs')
             plt.ylabel('elbo')
             plt.legend()
-            plt.show()
+            plt.savefig(path_write + "/elbo_trace.png")
 
+            plt.clf()
             plt.hist(hist_dat)
-            plt.show()
+            plt.savefig(path_write + "/elbo_hist.png")
 
         print('Final ELBO: {}'.format(self.elbo_normal(100).item()))
 
@@ -216,56 +229,63 @@ class DodonaphyVI(BaseModel):
         return torch.mean(torch.stack(elbos))
 
     @staticmethod
-    def run_tips(dim, S, dna, dists, path_write, epochs=1000, k_samples=3, n_draws=100, **prior):
+    def run_tips(dim, S, partials, weights, dists, path_write, epochs=1000, k_samples=3, n_draws=100, **prior):
         """Initialise and run Dodonaphy's variational inference
 
         Initialise the emebedding with tips distances given to hydra.
         Internal nodes are in distributions at origin.
 
         """
-        print('Running Dodonaphy Variational Inference\n')
+        print('\nRunning Dodonaphy Variational Inference')
 
-        # embed with hydra
-        emm = utilFunc.hydra(D=dists, dim=dim, equi_adj=0., stress=True)
-        print('Embedding Stress (tips only) = {:.4}'.format(emm["stress"].item()))
+        # embed tips with hydra
+        emm_tips = utilFunc.hydra(D=dists, dim=dim, equi_adj=0., stress=True)
+        print('Embedding Stress (tips only) = {:.4}'.format(emm_tips["stress"].item()))
 
-        leaf_loc_poin = utilFunc.dir_to_cart(torch.from_numpy(
-            emm["r"]), torch.from_numpy(emm["directional"]))
+        # Initialise model
+        mymod = DodonaphyVI(partials, weights, dim, **prior)
+
+        # Choose internal node locations from best random initialisation
+        int_r, int_dir = mymod.initialise_ints(emm_tips, n_scale=10, n_trials=100, max_scale=5)
+
+        # convert to tangent space
+        leaf_loc_poin = utilFunc.dir_to_cart(torch.from_numpy(emm_tips["r"]), torch.from_numpy(emm_tips["directional"]))
         leaf_loc_t0 = p2t0(leaf_loc_poin).detach().numpy()
+        int_loc_poin = torch.from_numpy(utilFunc.dir_to_cart(int_r, int_dir))
+        int_loc_t0 = p2t0(int_loc_poin).detach().numpy()
 
-        # set initial leaf positions from hydra with small coefficient of variation
-        # set internal nodes to narrow distributions at origin
+        # set variational parameters with small coefficient of variation
         cv = 1. / 50
         eps = np.finfo(np.double).eps
         leaf_sigma = np.log(np.abs(np.array(leaf_loc_t0)) * cv + eps)
+        int_sigma = np.log(np.abs(np.array(int_loc_t0)) * cv + eps)
         param_init = {
             "leaf_mu": torch.tensor(leaf_loc_t0, requires_grad=True, dtype=torch.float64),
             "leaf_sigma": torch.tensor(leaf_sigma, requires_grad=True, dtype=torch.float64),
-            "int_mu": torch.zeros(S - 2, dim, requires_grad=True, dtype=torch.float64),
-            "int_sigma": torch.full((S - 2, dim), np.log(.01), requires_grad=True, dtype=torch.float64)
+            "int_mu": torch.tensor(int_loc_t0, requires_grad=True, dtype=torch.float64),
+            "int_sigma": torch.tensor(int_sigma, requires_grad=True, dtype=torch.float64)
         }
 
-        # Initialise model
-        partials, weights = compress_alignment(dna)
-        mymod = DodonaphyVI(partials, weights, dim, **prior)
-
         # learn
-        mymod.learn(param_init=param_init, epochs=epochs, k_samples=k_samples)
+        mymod.learn(param_init=param_init, epochs=epochs, k_samples=k_samples, path_write='./out')
 
         # draw samples
-        peels, blens, _, lp = mymod.draw_sample(n_draws, lp=True)
+        peels, blens, X, lp = mymod.draw_sample(n_draws, lp=True)
 
-        # # Plot embedding if dim==2
-        # if dim == 2:
-        #     _, ax = plt.subplots(1, 1)
-        #     ax.set(xlim=[-1, 1])
-        #     ax.set(ylim=[-1, 1])
-        #     cmap = matplotlib.cm.get_cmap('Spectral')
-        #     for i in range(nsamples):
-        #         utilFunc.plot_tree(ax, peels[i], X[i].detach().numpy(), color=cmap(i / nsamples))
-        #     ax.set_title("Final Embedding Sample")
-        #     plt.show()
+        # Plot embedding if dim==2
+        if dim == 2:
+            _, ax = plt.subplots(1, 1)
+            ax.set(xlim=[-1, 1])
+            ax.set(ylim=[-1, 1])
+            cmap = matplotlib.cm.get_cmap('Spectral')
+            n_plots = min(n_draws, 10)
+            for i in range(n_plots-1):
+                utilFunc.plot_tree(ax, peels[i], X[i].detach().numpy(), color=cmap(i / n_draws), labels=False)
+            utilFunc.plot_tree(ax, peels[i+1], X[i+1].detach().numpy(), color=cmap((i+1) / n_draws), labels=True)
+            ax.set_title("Final Embedding Sample")
+            plt.clf()
+            plt.savefig("./out/vi_embeddings.png")
 
         utilFunc.save_tree_head(path_write, "vi", S)
         for i in range(n_draws):
-            utilFunc.save_tree(path_write, "vi", peels[i], blens[i], i, lp)
+            utilFunc.save_tree(path_write, "vi", peels[i], blens[i], i, lp[i].item())

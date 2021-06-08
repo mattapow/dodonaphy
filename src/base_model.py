@@ -3,6 +3,8 @@ from .phylo import calculate_treelikelihood, JC69_p_t
 from .utils import utilFunc
 from dendropy import Tree as Tree
 from dendropy.model.birthdeath import birth_death_likelihood as birth_death_likelihood
+import numpy as np
+import math
 
 
 class BaseModel(object):
@@ -21,6 +23,42 @@ class BaseModel(object):
         # make space for internal partials
         for i in range(self.S - 1):
             self.partials.append(torch.zeros((1, 4, self.L), dtype=torch.float64, requires_grad=False))
+
+    def initialise_ints(self, emm_tips, n_scale=10, n_trials=10, max_scale=5):
+        # try out some inner node positions and pick the best
+        print("Randomly initialising internal node positions from {} samples: ".format(n_scale*n_trials), end='')
+
+        S = len(emm_tips['r'])
+        scale = torch.as_tensor(.5 * emm_tips['r'].min())
+        lnP = -math.inf
+
+        dir = np.random.normal(0, 1, (S-2, self.D))
+        abs = np.sum(dir**2, axis=1)**0.5
+        _int_r = np.random.exponential(scale=scale, size=(S-2))
+        _int_dir = dir/abs.reshape(S-2, 1)
+
+        max_scale = max_scale * emm_tips['r'].min()
+        for i in range(n_scale):
+            _scale = torch.as_tensor((i+1)/(n_scale+1) * max_scale)
+            for _ in range(n_trials):
+                _lnP = self.compute_LL(
+                    torch.from_numpy(emm_tips['r']), torch.from_numpy(emm_tips['directional']),
+                    torch.from_numpy(_int_r), torch.from_numpy(_int_dir))
+
+                if _lnP > lnP:
+                    int_r = _int_r
+                    int_dir = _int_dir
+                    lnP = _lnP
+                    scale = _scale
+
+                dir = np.random.normal(0, 1, (S-2, self.D))
+                abs = np.sum(dir**2, axis=1)**0.5
+                _int_r = np.random.exponential(scale=_scale, size=(S-2))
+                _int_dir = dir/abs.reshape(S-2, 1)
+
+        print("done.\nBest internal node positions selected.")
+
+        return int_r, int_dir
 
     def compute_branch_lengths(self, S, D, peel, leaf_r, leaf_dir, int_r, int_dir, curvature=torch.ones(1)):
         """Computes the hyperbolic distance of two points given in radial/directional coordinates in the Poincare ball
@@ -78,8 +116,7 @@ class BaseModel(object):
             peel = utilFunc.make_peel(leaf_r, leaf_dir, int_r, int_dir)
 
         # branch lengths
-        blens = self.compute_branch_lengths(
-            self.S, self.D, peel, leaf_r, leaf_dir, int_r, int_dir)
+        blens = self.compute_branch_lengths(self.S, self.D, peel, leaf_r, leaf_dir, int_r, int_dir)
 
         mats = JC69_p_t(blens)
         return calculate_treelikelihood(self.partials, self.weights, peel, mats,
