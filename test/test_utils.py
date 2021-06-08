@@ -164,3 +164,62 @@ def test_dir_to_cart_5d():
     directional = u / r
     loc = utilFunc.dir_to_cart(r, directional)
     assert loc == approx(u)
+
+
+def test_make_peel_geodesic():
+    leaf_locs = torch.tensor([
+        [0.06644704, 0.18495312, -0.03839615],
+        [-0.12724270, -0.02395994, 0.20075329]])
+    lca = utilFunc.hyp_lca(leaf_locs[0], leaf_locs[1])
+    d0_1 = utilFunc.hyperbolic_distance_locs(leaf_locs[0], leaf_locs[1])
+    d0_lca = utilFunc.hyperbolic_distance_locs(leaf_locs[0], lca)
+    d1_lca = utilFunc.hyperbolic_distance_locs(leaf_locs[1], lca)
+    d0_lca_d1 = d0_lca + d1_lca
+    # // d0_1 should be the same as d0_lca_d1
+    assert pytest.approx(d0_1, d0_lca_d1)
+
+    leaf_locs = torch.tensor([
+        (0.05909264, 0.16842421, -0.03628194),
+        (0.08532969, -0.07187002, 0.17884444),
+        (-0.11422830, 0.01955054, 0.14127290),
+        (-0.06550432, 0.07029946, -0.14566249),
+        (-0.07060744, -0.12278600, -0.17569585),
+        (0.11386343, -0.03121063, -0.18112418)])
+
+    # d01 = torch.log(torch.cosh(utilFunc.hyperbolic_distance_locs(leaf_locs[0], leaf_locs[1])))
+    # d02 = torch.log(torch.cosh(utilFunc.hyperbolic_distance_locs(leaf_locs[0], leaf_locs[2])))
+    # d03 = torch.log(torch.cosh(utilFunc.hyperbolic_distance_locs(leaf_locs[0], leaf_locs[3])))
+
+    peel, int_locs = utilFunc.make_peel_geodesics(leaf_locs)
+    print(peel)
+
+    import matplotlib.pyplot as plt
+    X = torch.cat((leaf_locs, int_locs), dim=0)
+    ax = plt.subplot(1, 1, 1)
+    utilFunc.plot_tree(ax, peel, X)
+    plt.show()
+
+
+def test_make_peel_geodesic_dogbone():
+
+    leaf_r = torch.tensor([.5, .5, .8, .8])
+    leaf_theta = torch.tensor([np.pi/6, 0., -np.pi*.7, -np.pi*.8])
+    leaf_dir = utilFunc.angle_to_directional(leaf_theta)
+    leaf_locs = utilFunc.dir_to_cart(leaf_r, leaf_dir)
+
+    peel, int_locs = utilFunc.make_peel_geodesics(leaf_locs)
+    X = torch.cat((leaf_locs, int_locs), dim=0)
+    print("\npeel")
+    print(peel)
+    print("locs")
+    print(X.detach().numpy())
+
+    import matplotlib.pyplot as plt
+    X = torch.cat((leaf_locs, int_locs), dim=0)
+    ax = plt.subplot(1, 1, 1)
+    utilFunc.plot_tree(ax, peel, X)
+    plt.show()
+
+    assert np.allclose(peel, np.array([[2, 3, 5],
+                                       [1, 5, 4],
+                                       [0, 4, 6]]))

@@ -270,20 +270,20 @@ class utilFunc:
         return directional
 
     @staticmethod
-    def make_peel(leaf_r, leaf_dir, int_r, int_dir, curvature=torch.ones(1)):
-        """Create a tree represtation (peel) from its hyperbolic embedic data
+    def make_peel(leaf_r, leaf_dir, int_r, int_dir, curvature=torch.ones(1), method='mst'):
+        if method == 'mst':
+            return utilFunc.make_peel_mst(leaf_r, leaf_dir, int_r, int_dir, curvature)
+        elif method == 'geodesics':
+            leaf_locs = utilFunc.dir_to_cart(leaf_r, leaf_dir)
+            return utilFunc.make_peel_geodesics(leaf_locs)
+        else:
+            raise KeyError("Invalid method key. Use 'mst' or 'geodesics'.")
 
-        Args:
-            leaf_r (1D tensor): radius of the leaves
-            leaf_dir (2D tensor): directional tensors of leaves
-            int_r (1D tensor): radius of internal nodes
-            int_dir (2D tensor): directional tensors of internal nodes
-        """
+    @staticmethod
+    def get_pdm(leaf_r, leaf_dir, int_r, int_dir, curvature=torch.ones(1)):
         leaf_node_count = leaf_r.shape[0]
         node_count = leaf_r.shape[0] + int_r.shape[0]
         edge_list = defaultdict(list)
-
-        # edge_list = np.array(edge_list, dtype=u_edge)
 
         for i in range(node_count):
             for j in range(max(i + 1, leaf_node_count), node_count):
@@ -312,6 +312,41 @@ class utilFunc:
 
                 edge_list[i].append(u_edge(dist_ij, i, j))
                 edge_list[j].append(u_edge(dist_ij, j, i))
+
+        return edge_list
+
+    @staticmethod
+    def get_pdm_tips(leaf_r, leaf_dir, curvature=torch.ones(1)):
+        leaf_node_count = leaf_r.shape[0]
+        edge_list = [[] for _ in range(leaf_node_count)]
+
+        for i in range(leaf_node_count):
+            for j in range(i):
+                dist_ij = 0
+                dist_ij = utilFunc.hyperbolic_distance(
+                    leaf_r[i], leaf_r[j], leaf_dir[i], leaf_dir[j], curvature)
+
+                # apply the inverse transform from Matsumoto et al 2020
+                dist_ij = torch.log(torch.cosh(dist_ij))
+
+                edge_list[i].append(u_edge(dist_ij, i, j))
+                edge_list[j].append(u_edge(dist_ij, j, i))
+
+        return edge_list
+
+    @staticmethod
+    def make_peel_mst(leaf_r, leaf_dir, int_r, int_dir, curvature=torch.ones(1)):
+        """Create a tree represtation (peel) from its hyperbolic embedic data
+
+        Args:
+            leaf_r (1D tensor): radius of the leaves
+            leaf_dir (2D tensor): directional tensors of leaves
+            int_r (1D tensor): radius of internal nodes
+            int_dir (2D tensor): directional tensors of internal nodes
+        """
+        leaf_node_count = leaf_r.shape[0]
+        node_count = leaf_r.shape[0] + int_r.shape[0]
+        edge_list = utilFunc.get_pdm(leaf_r, leaf_dir, int_r, int_dir, curvature=torch.ones(1))
 
         # construct a minimum spanning tree among the internal nodes
         queue = []  # queue here is a min-heap
@@ -653,6 +688,26 @@ class utilFunc:
         return 1. / torch.sqrt(curvature) * torch.acosh(inner)
 
     @staticmethod
+    def hyperbolic_distance_locs(z1, z2, curvature=torch.ones(1)):
+        """Generates hyperbolic distance between two points in poincoire ball
+
+        Args:
+            z1 (tensor): coords or point 1 in Poincare ball
+            z2 (tensor): coords or point 2 in Poincare ball
+            curvature (tensor): curvature
+
+        Returns:
+            tensor: distance between point 1 and point 2
+        """
+
+        # Use lorentz distance for numerical stability
+        z1 = poincare_to_hyper(z1).squeeze()
+        z2 = poincare_to_hyper(z2).squeeze()
+        eps = torch.finfo(torch.float64).eps
+        inner = torch.clamp(-lorentz_product(z1, z2), min=1+eps)
+        return 1. / torch.sqrt(curvature) * torch.acosh(inner)
+
+    @staticmethod
     def tree_to_newick(tipnames, peel_row, blen_row):
         """This function returns a Tree in newick format from given peel and branch lengths
 
@@ -705,3 +760,138 @@ class utilFunc:
             # TODO: output likelihoods
             file.write(" [&lnP={}] = [&R] ".format(LL))
             file.write(tree + '\n')
+
+    @staticmethod
+    def make_peel_geodesics(leaf_locs):
+        # /**
+        #  * use geodesic arcs to make a binary tree from a set of leaf node points embedded
+        #  * in hyperbolic space.
+        #  * Output: int_locs, peel
+        #  */
+        dims = leaf_locs.shape[1]
+        leaf_node_count = leaf_locs.shape[0]
+        int_node_count = leaf_locs.shape[0] - 2
+        node_count = leaf_locs.shape[0] * 2 - 2
+        leaf_r, leaf_dir = utilFunc.cart_to_dir(leaf_locs)
+        leaf_r = torch.cat((leaf_r, leaf_r[0].unsqueeze(dim=0)))
+        leaf_dir = torch.cat((leaf_dir, leaf_dir[-1, :].unsqueeze(dim=0)), dim=0)
+        int_locs = torch.zeros(int_node_count+1, dims)
+        int_locs[-1, :] = leaf_locs[0, :]
+        edge_list = utilFunc.get_pdm_tips(leaf_r, leaf_dir, curvature=torch.ones(1))
+        peel = np.zeros((int_node_count+1, 3), dtype=np.int16)
+
+        # queue = [edges for neighbours in edge_list for edges in neighbours]
+        queue = []
+        heapify(queue)
+        heappush(queue, min(edge_list[0]))
+        visited = node_count * [False]
+        print('int_node_count: %d\n' % int_node_count)
+        int_i = 0
+        while int_i < int_node_count:
+            print('int_i = %d' % int_i)
+            e = queue.pop()
+            if(visited[e.from_] | visited[e.to_]):
+                continue
+
+            # create a new internal node to link these
+            cur_internal = int_i + leaf_node_count
+
+            if e.from_ < leaf_node_count:
+                from_point = leaf_locs[e.from_]
+            else:
+                from_point = int_locs[e.from_-leaf_node_count]
+            if e.to_ < leaf_node_count:
+                to_point = leaf_locs[e.to_]
+            else:
+                to_point = int_locs[e.to_-leaf_node_count]
+
+            int_locs[int_i] = utilFunc.hyp_lca(from_point, to_point)
+            cur_peel = cur_internal - leaf_node_count
+            peel[cur_peel][0] = e.from_
+            peel[cur_peel][1] = e.to_
+            peel[cur_peel][2] = cur_internal
+            visited[e.from_] = True
+            visited[e.to_] = True
+
+            print(peel)
+            # print(e)
+            # print(visited)
+            # print(int_locs)
+            # print(int_i)
+            print('done')
+
+            # add all pairwise distances between the new node and other active nodes
+            for i in range(cur_internal):
+                if visited[i]:
+                    continue
+                if i < leaf_node_count:
+                    dist_ij = utilFunc.hyperbolic_distance_locs(leaf_locs[i], int_locs[int_i])
+                else:
+                    dist_ij = utilFunc.hyperbolic_distance_locs(int_locs[i-leaf_node_count], int_locs[int_i])
+                #  // apply the inverse transform from Matsumoto et al 2020
+                dist_ij = torch.log(torch.cosh(dist_ij))
+                # // use negative of distance so that least dist has largest value in the priority queue
+                heappush(queue, u_edge(-dist_ij, i, cur_internal))
+            int_i += 1
+
+        # add fake root
+        int_locs[-1, :] = leaf_locs[0, :]
+        child = peel[0][2]
+        peel[-1, :] = [0, child, node_count]
+
+        return peel, int_locs
+
+    @staticmethod
+    def isometric_transform(a, x):
+        """Reflection (circle inversion of x through orthogonal circle centered at a)."""
+        r2 = torch.sum(a ** 2, dim=-1, keepdim=True) - 1.
+        u = x - a
+        return r2 / torch.sum(u ** 2, dim=-1, keepdim=True) * u + a
+
+    @staticmethod
+    def reflection_center(mu):
+        """Center of inversion circle."""
+        return mu / torch.sum(mu ** 2, dim=-1, keepdim=True)
+
+    @staticmethod
+    def euc_reflection(x, a):
+        """
+        Euclidean reflection (also hyperbolic) of x
+        Along the geodesic that goes through a and the origin
+        (straight line)
+        """
+        MIN_NORM = 1e-15
+        xTa = torch.sum(x * a, dim=-1, keepdim=True)
+        norm_a_sq = torch.sum(a ** 2, dim=-1, keepdim=True).clamp_min(MIN_NORM)
+        proj = xTa * a / norm_a_sq
+        return 2 * proj - x
+
+    @staticmethod
+    def _halve(x):
+        """ computes the point on the geodesic segment from o to x at half the distance """
+        return x / (1. + torch.sqrt(1 - torch.sum(x ** 2, dim=-1, keepdim=True)))
+
+    @staticmethod
+    def hyp_lca(a, b, return_coord=True):
+        """
+        Computes projection of the origin on the geodesic between a and b, at scale c
+        More optimized than hyp_lca1
+        """
+        r = utilFunc.reflection_center(a)
+        b_inv = utilFunc.isometric_transform(r, b)
+        o_inv = a
+        o_inv_ref = utilFunc.euc_reflection(o_inv, b_inv)
+        o_ref = utilFunc.isometric_transform(r, o_inv_ref)
+        proj = utilFunc._halve(o_ref)
+        if not return_coord:
+            return utilFunc.hyp_dist_o(proj)
+        else:
+            return proj
+
+    @staticmethod
+    def hyp_dist_o(x):
+        """
+        Computes hyperbolic distance between x and the origin.
+        """
+        x_norm = x.norm(dim=-1, p=2, keepdim=True)
+        return 2 * torch.arctanh(x_norm)
