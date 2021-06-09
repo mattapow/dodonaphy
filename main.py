@@ -40,7 +40,8 @@ def main():
     dna.write_to_path(dest, "nexus")
 
     # Run Dodonaphy variational inference
-    vi.run_tips(dim, S, partials[:], weights, dists, path_write, epochs=10000, k_samples=10, n_draws=200, **prior)
+    vi.run_tips(dim, S, partials[:], weights, dists, path_write,
+                epochs=1000, k_samples=10, n_draws=200, boosts=2, **prior)
 
     # Run Dodoanphy MCMC
     mcmc.run(dim, partials[:], weights, dists, path_write, epochs=10000, step_scale=0.01, save_period=50, **prior)

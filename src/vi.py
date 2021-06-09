@@ -15,7 +15,7 @@ import matplotlib.cm
 
 class DodonaphyVI(BaseModel):
 
-    def __init__(self, partials, weights, dim, **prior):
+    def __init__(self, partials, weights, dim, boosts=1, **prior):
         super().__init__(partials, weights, dim, **prior)
 
         # Store mu on poincare ball in R^dim.
@@ -24,34 +24,44 @@ class DodonaphyVI(BaseModel):
         eps = np.finfo(np.double).eps
         leaf_sigma = np.log(np.abs(np.random.randn(self.S, self.D)) + eps)
         int_sigma = np.log(np.abs(np.random.randn(self.S - 2, self.D)) + eps)
+        self.boosts = boosts
+
+        leaf_sigma = self.init_boosters(leaf_sigma, boosts)
+        int_sigma = self.init_boosters(int_sigma, boosts)
+
         self.VariationalParams = {
-            "leaf_mu": torch.randn((self.S, self.D), requires_grad=True, dtype=torch.float64),
+            "leaf_mu": torch.randn((boosts, self.S, self.D), requires_grad=True, dtype=torch.float64),
             "leaf_sigma": torch.tensor(leaf_sigma, requires_grad=True, dtype=torch.float64),
-            "int_mu": torch.randn((self.S - 2, self.D), requires_grad=True, dtype=torch.float64),
-            "int_sigma": torch.tensor(int_sigma, requires_grad=True, dtype=torch.float64)
+            "int_mu": torch.randn((boosts, self.S - 2, self.D), requires_grad=True, dtype=torch.float64),
+            "int_sigma": torch.tensor(int_sigma, requires_grad=True, dtype=torch.float64),
+            "leaf_weights": torch.full((boosts, 1), 1. / boosts).requires_grad_(True),
+            "int_weights": torch.full((boosts, 1), 1. / boosts).requires_grad_(True)
         }
 
-    def sample_loc(self, q_leaf, q_int, get_z=False):
+    def sample_loc(self, q_leaves, q_ints):
         # Sample z in tangent space of hyperboloid at origin T_0 H^n
-        z_leaf = q_leaf.rsample((1,)).squeeze()
-        z_int = q_int.rsample((1,)).squeeze()
+        z_leaves = [q_leaves[k].rsample((1,)).squeeze() for k in range(self.boosts)]
+        z_ints = [q_ints[k].rsample((1,)).squeeze() for k in range(self.boosts)]
 
-        # From (Euclidean) tangent space at origin to Poincare ball
-        mu_leaf = q_leaf.loc
-        mu_int = q_int.loc
+        logQ = torch.zeros(1)
+        for k in range(self.boosts):
+            logQ = logQ + self.VariationalParams['leaf_weights'][k] * q_leaves[k].log_prob(z_leaves[k])
+            logQ = logQ + self.VariationalParams['int_weights'][k] * q_ints[k].log_prob(z_ints[k])
 
-        # Tangent space at origin to Poincare
-        z_leaf_poin = t02p(z_leaf, mu_leaf, self.D).reshape(self.S, self.D)
-        z_int_poin = t02p(z_int, mu_int, self.D).reshape(self.S-2, self.D)
+        z_leaf = sum(z_leaves)
+        z_int = sum(z_ints)
 
-        # transform z to r, dir
-        leaf_r, leaf_dir = utilFunc.cart_to_dir(z_leaf_poin)
-        int_r, int_dir = utilFunc.cart_to_dir(z_int_poin)
+        return z_leaf, z_int, logQ
 
-        if get_z:
-            return leaf_r, leaf_dir, int_r, int_dir, z_leaf, mu_leaf, z_int, mu_int
-        else:
-            return leaf_r, leaf_dir, int_r, int_dir
+    @staticmethod
+    def init_boosters(x, boosts):
+        # Repeat starting distributions for boosting
+        shape = list(x.shape)
+        shape.insert(0, boosts)
+        x_boosted = np.zeros(shape)
+        for k in range(boosts):
+            x_boosted[k] = x / boosts
+        return x_boosted
 
     def draw_sample(self, nSample=100, **kwargs):
         """Draw samples from the variational posterior distribution
@@ -65,15 +75,18 @@ class DodonaphyVI(BaseModel):
             tuple[list list list]: peel, blens, location, lp. Otherwise.
         """
         with torch.no_grad():
-            # q_thetas in tangent space at origin in T_0 H^dim.
-            mu = self.VariationalParams["leaf_mu"].reshape(self.S * self.D)
-            cov = self.VariationalParams["leaf_sigma"].exp().reshape(self.S * self.D) * torch.eye(self.S * self.D)
-            q_leaf = MultivariateNormal(mu, cov)
+            # q_thetas in tangent space at origin in T_0 H^dim. Each point i, has a multivariate normal in dim=D
+            q_leaves = []
+            q_ints = []
+            for k in range(self.boosts):
+                mu = self.VariationalParams["leaf_mu"][k].reshape(self.S * self.D)
+                cov = self.VariationalParams["leaf_sigma"][k].exp().reshape(self.S * self.D)*torch.eye(self.S * self.D)
+                q_leaves.append(MultivariateNormal(mu, cov))
 
-            mu = self.VariationalParams["int_mu"].reshape((self.S - 2) * self.D)
-            cov = self.VariationalParams["int_sigma"].exp().reshape((self.S - 2) * self.D)\
-                * torch.eye((self.S - 2) * self.D)
-            q_int = MultivariateNormal(mu, cov)
+                mu = self.VariationalParams["int_mu"][k].reshape((self.S - 2) * self.D)
+                cov = self.VariationalParams["int_sigma"][k].exp().reshape((self.S - 2) * self.D)\
+                    * torch.eye((self.S - 2) * self.D)
+                q_ints.append(MultivariateNormal(mu, cov))
 
             # make peel, blens and X for each of these samples
             peel = []
@@ -81,7 +94,12 @@ class DodonaphyVI(BaseModel):
             location = []
             lp = []
             for _ in range(nSample):
-                leaf_r, leaf_dir, int_r, int_dir = self.sample_loc(q_leaf, q_int, get_z=False)
+                # Sample in tangent space
+                z_leaf, z_int, logQ = self.sample_loc(q_leaves, q_ints)
+
+                # From (Euclidean) tangent space at origin to Poincare ball
+                leaf_r, leaf_dir = self.project_t02p(z_leaf, q_leaves, get_jacob=False)
+                int_r, int_dir = self.project_t02p(z_int, q_ints, get_jacob=False)
 
                 # prepare return (peel, branch lengths, locations, and log posteriori)
                 pl = utilFunc.make_peel(leaf_r, leaf_dir, int_r, int_dir)
@@ -98,7 +116,7 @@ class DodonaphyVI(BaseModel):
             else:
                 return peel, blens, location
 
-    def calculate_elbo(self, q_leaf, q_int):
+    def calculate_elbo(self, q_leaves, q_ints):
         """Calculate the elbo of a sample from the variational distributions q
 
         Args:
@@ -110,30 +128,22 @@ class DodonaphyVI(BaseModel):
         Returns:
             float: The evidence lower bound of a sample from q
         """
-        leaf_r, leaf_dir, int_r, int_dir, z_leaf, mu_leaf, z_int, mu_int = self.sample_loc(q_leaf, q_int, get_z=True)
+        # Normalise weights
+        with torch.no_grad():
+            self.VariationalParams['leaf_weights'] = self.VariationalParams['leaf_weights'] / torch.sum(
+                self.VariationalParams['leaf_weights'])
+            self.VariationalParams['int_weights'] = self.VariationalParams['int_weights'] / torch.sum(
+                self.VariationalParams['int_weights'])
 
-        # Get Jacobians
-        log_abs_det_jacobian = torch.zeros(1)
-        D = torch.tensor(self.D, dtype=float)
+        # Sample in tangent space
+        z_leaf, z_int, logQ = self.sample_loc(q_leaves, q_ints)
 
-        # Leaves
-        # Jacobian of t02p going from Tangent T_0 to Poincare ball
-        J_leaf = torch.autograd.functional.jacobian(t02p, (z_leaf, mu_leaf, D))
-        J_leaf = J_leaf[0].reshape((self.S * self.D, self.S * self.D))
-        log_abs_det_jacobian = log_abs_det_jacobian + torch.log(torch.abs(torch.det(J_leaf)))
-        # Jacobian of going to polar
-        log_abs_det_jacobian = log_abs_det_jacobian + torch.log(1/leaf_r).sum(0)
+        # From (Euclidean) tangent space at origin to Poincare ball
+        leaf_r, leaf_dir, leaf_jacobian = self.project_t02p(z_leaf, q_leaves)
+        int_r, int_dir, int_jacobian = self.project_t02p(z_int, q_ints)
 
-        # Internal nodes
-        J_int = torch.autograd.functional.jacobian(t02p, (z_int, mu_int, D))
-        J_int = J_int[0].reshape(((self.S - 2) * self.D, (self.S - 2) * self.D))
-        log_abs_det_jacobian = log_abs_det_jacobian + torch.log(torch.abs(torch.det(J_int)))
-        log_abs_det_jacobian = log_abs_det_jacobian + torch.log(1 / int_r).sum(0)
-
-        # logQ
-        logQ = 0
-        logQ = logQ + q_leaf.log_prob(z_leaf)
-        logQ = logQ + q_int.log_prob(z_int)
+        # Log Jacobians
+        log_abs_det_jacobian = leaf_jacobian + int_jacobian
 
         # logPrior
         logPrior = torch.tensor(self.compute_prior(
@@ -143,7 +153,35 @@ class DodonaphyVI(BaseModel):
 
         return logP + logPrior - logQ + log_abs_det_jacobian
 
-    def learn(self, param_init=None, epochs=1000, k_samples=3, path_write='./out'):
+    def project_t02p(self, z, q, get_jacob=True):
+        # Project sample z (from distribution q) from tangent plane to poincare disc
+        # Return: leaf_r, leaf_dir, log_abs_det_jacobian
+        n_points = int(len(z)/self.D)
+        mu = torch.zeros_like(z)
+        for k in range(self.boosts):
+            mu = mu + self.VariationalParams['leaf_weights'][k] * q[k].loc
+        z_poin = t02p(z, mu, self.D).reshape(n_points, self.D)
+
+        leaf_r, leaf_dir = utilFunc.cart_to_dir(z_poin)
+
+        if not get_jacob:
+            return leaf_r, leaf_dir
+        else:
+            # Get Jacobians
+            log_abs_det_jacobian = torch.zeros(1)
+            D = torch.tensor(self.D, dtype=float)
+
+            # Leaves
+            # Jacobian of t02p going from Tangent T_0 to Poincare ball
+            J = torch.autograd.functional.jacobian(t02p, (z, mu, D))
+            J = J[0].reshape((n_points * self.D, n_points * self.D))
+            log_abs_det_jacobian = log_abs_det_jacobian + torch.log(torch.abs(torch.det(J)))
+            # Jacobian of going to polar
+            log_abs_det_jacobian = log_abs_det_jacobian + torch.log(1/leaf_r).sum(0)
+
+            return leaf_r, leaf_dir, log_abs_det_jacobian
+
+    def learn(self, param_init=None, epochs=1000, k_samples=3, path_write='./out', boosts=1):
         """Learn the variational parameters using Adam optimiser
         Args:
             param_init (dict, optional): Initial parameters. Defaults to None.
@@ -153,23 +191,28 @@ class DodonaphyVI(BaseModel):
         print("Using %i tree samples at each epoch." % k_samples)
         print("Running for %i epochs.\n" % epochs)
 
-        if not path_write == "":
+        self.boosts = boosts
+
+        if path_write is not None:
             fn = path_write + '/' + 'vi.info'
             with open(fn, 'w') as file:
                 file.write('%-12s: %i\n' % ("# epochs", epochs))
                 file.write('%-12s: %i\n' % ("k_samples", k_samples))
                 file.write('%-12s: %i\n' % ("Dimensions", self.D))
                 file.write('%-12s: %i\n' % ("# Taxa", self.S))
-                file.write('%-12s: %i\n' % ("Unique sites", self.L))
+                file.write('%-12s: %i\n' % ("Patterns", self.L))
+                file.write('%-12s: %i\n' % ("Boosts", self.boosts))
                 for key, value in self.prior.items():
                     file.write('%-12s: %f\n' % (key, value))
 
         if param_init is not None:
-            # set initial params as a Dict
             self.VariationalParams["leaf_mu"] = param_init["leaf_mu"]
             self.VariationalParams["leaf_sigma"] = param_init["leaf_sigma"]
             self.VariationalParams["int_mu"] = param_init["int_mu"]
             self.VariationalParams["int_sigma"] = param_init["int_sigma"]
+
+            self.VariationalParams["leaf_weights"] = torch.full((boosts, 1), 1/boosts).requires_grad_(True)
+            self.VariationalParams["int_weights"] = torch.full((boosts, 1), 1/boosts).requires_grad_(True)
 
         lr_lambda = lambda epoch: 1.0 / np.sqrt(epoch + 1)
         optimizer = torch.optim.Adam(list(self.VariationalParams.values()), lr=0.01)
@@ -214,14 +257,17 @@ class DodonaphyVI(BaseModel):
         """
 
         # q_thetas in tangent space at origin in T_0 H^dim. Each point i, has a multivariate normal in dim=D
-        mu = self.VariationalParams["leaf_mu"].reshape(self.S * self.D)
-        cov = self.VariationalParams["leaf_sigma"].exp().reshape(self.S * self.D) * torch.eye(self.S * self.D)
-        q_leaf = MultivariateNormal(mu, cov)
+        q_leaf = []
+        q_int = []
+        for k in range(self.boosts):
+            mu = self.VariationalParams["leaf_mu"][k].reshape(self.S * self.D)
+            cov = self.VariationalParams["leaf_sigma"][k].exp().reshape(self.S * self.D) * torch.eye(self.S * self.D)
+            q_leaf.append(MultivariateNormal(mu, cov))
 
-        mu = self.VariationalParams["int_mu"].reshape((self.S - 2) * self.D)
-        cov = self.VariationalParams["int_sigma"].exp().reshape((self.S - 2) * self.D)\
-            * torch.eye((self.S - 2) * self.D)
-        q_int = MultivariateNormal(mu, cov)
+            mu = self.VariationalParams["int_mu"][k].reshape((self.S - 2) * self.D)
+            cov = self.VariationalParams["int_sigma"][k].exp().reshape((self.S - 2) * self.D)\
+                * torch.eye((self.S - 2) * self.D)
+            q_int.append(MultivariateNormal(mu, cov))
 
         elbos = []
         for _ in range(size):
@@ -229,7 +275,8 @@ class DodonaphyVI(BaseModel):
         return torch.mean(torch.stack(elbos))
 
     @staticmethod
-    def run_tips(dim, S, partials, weights, dists, path_write, epochs=1000, k_samples=3, n_draws=100, **prior):
+    def run_tips(dim, S, partials, weights, dists, path_write,
+                 epochs=1000, k_samples=3, n_draws=100, boosts=1, **prior):
         """Initialise and run Dodonaphy's variational inference
 
         Initialise the emebedding with tips distances given to hydra.
@@ -243,7 +290,7 @@ class DodonaphyVI(BaseModel):
         print('Embedding Stress (tips only) = {:.4}'.format(emm_tips["stress"].item()))
 
         # Initialise model
-        mymod = DodonaphyVI(partials, weights, dim, **prior)
+        mymod = DodonaphyVI(partials, weights, dim, boosts, **prior)
 
         # Choose internal node locations from best random initialisation
         int_r, int_dir = mymod.initialise_ints(emm_tips, n_scale=10, n_trials=100, max_scale=5)
@@ -259,31 +306,37 @@ class DodonaphyVI(BaseModel):
         eps = np.finfo(np.double).eps
         leaf_sigma = np.log(np.abs(np.array(leaf_loc_t0)) * cv + eps)
         int_sigma = np.log(np.abs(np.array(int_loc_t0)) * cv + eps)
+
+        leaf_loc_t0_b = DodonaphyVI.init_boosters(leaf_loc_t0, boosts)
+        leaf_sigma_b = DodonaphyVI.init_boosters(leaf_sigma, boosts)
+        int_loc_t0_b = DodonaphyVI.init_boosters(int_loc_t0, boosts)
+        int_sigma_b = DodonaphyVI.init_boosters(int_sigma, boosts)
+
         param_init = {
-            "leaf_mu": torch.tensor(leaf_loc_t0, requires_grad=True, dtype=torch.float64),
-            "leaf_sigma": torch.tensor(leaf_sigma, requires_grad=True, dtype=torch.float64),
-            "int_mu": torch.tensor(int_loc_t0, requires_grad=True, dtype=torch.float64),
-            "int_sigma": torch.tensor(int_sigma, requires_grad=True, dtype=torch.float64)
+            "leaf_mu": torch.tensor(leaf_loc_t0_b, requires_grad=True, dtype=torch.float64),
+            "leaf_sigma": torch.tensor(leaf_sigma_b, requires_grad=True, dtype=torch.float64),
+            "int_mu": torch.tensor(int_loc_t0_b, requires_grad=True, dtype=torch.float64),
+            "int_sigma": torch.tensor(int_sigma_b, requires_grad=True, dtype=torch.float64)
         }
 
         # learn
-        mymod.learn(param_init=param_init, epochs=epochs, k_samples=k_samples, path_write='./out')
+        mymod.learn(param_init=param_init, epochs=epochs, k_samples=k_samples, path_write='./out', boosts=boosts)
 
         # draw samples
         peels, blens, X, lp = mymod.draw_sample(n_draws, lp=True)
 
         # Plot embedding if dim==2
         if dim == 2:
+            plt.clf()
             _, ax = plt.subplots(1, 1)
             ax.set(xlim=[-1, 1])
             ax.set(ylim=[-1, 1])
             cmap = matplotlib.cm.get_cmap('Spectral')
             n_plots = min(n_draws, 10)
             for i in range(n_plots-1):
-                utilFunc.plot_tree(ax, peels[i], X[i].detach().numpy(), color=cmap(i / n_draws), labels=False)
-            utilFunc.plot_tree(ax, peels[i+1], X[i+1].detach().numpy(), color=cmap((i+1) / n_draws), labels=True)
+                utilFunc.plot_tree(ax, peels[i], X[i].detach().numpy(), color=cmap(i / n_plots), labels=False)
+            utilFunc.plot_tree(ax, peels[i+1], X[i+1].detach().numpy(), color=cmap((i+1) / n_plots), labels=True)
             ax.set_title("Final Embedding Sample")
-            plt.clf()
             plt.savefig("./out/vi_embeddings.png")
 
         utilFunc.save_tree_head(path_write, "vi", S)
