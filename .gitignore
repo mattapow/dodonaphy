@@ -12,8 +12,14 @@ __pycache__/
 
 *.DS_Store
 
-out/*
-
 .idea/*
 
-tex*
+data/*
+results/*
+
+ext/trees-bootstrap
+
+*.gz
+*.aux
+doc/tex_notes/main.log
+doc/tex_notes*

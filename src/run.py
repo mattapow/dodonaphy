@@ -1,4 +1,3 @@
-from src.phylo import compress_alignment
 import dendropy
 from dendropy.simulate import treesim
 from dendropy.model.discrete import simulate_discrete_chars
@@ -8,12 +7,13 @@ import numpy as np
 
 from src.vi import DodonaphyVI as vi
 from src.mcmc import DodonaphyMCMC as mcmc
+from src.phylo import compress_alignment
 
 
 def main():
 
     dim = 2  # number of dimensions for embedding
-    S = 6  # number of sequences to simulate
+    S = 12  # number of sequences to simulate
     L = 1000  # length of sequences to simulate
 
     # simulate a tree
@@ -33,18 +33,36 @@ def main():
     dists = dists + dists.transpose()
     # TODO: should distances be genetic distance or true tree patristic distance?
 
+    # VI parameters
+    epochs = 10000
+    k_samples = 10
+    n_draws = 10
+    boosts = 3
+    init_trials = 100
+    init_grids = 10
+
+    # Make experiment folder
+    path_write = "./data/Taxa%dDim%dBoosts%d" % (S, dim, boosts)
+    os.makedirs(path_write, exist_ok=False)
+
     # save dna to nexus
-    path_write = "./out"
-    os.mkdir(path_write)  # os.makedirs(path_write, exist_ok=True)
-    dest = path_write + "/dna.nex"
-    dna.write_to_path(dest, "nexus")
+    dna.write_to_path(path_write + "/dna.nex", "nexus")
 
     # Run Dodonaphy variational inference
-    vi.run_tips(dim, S, partials[:], weights, dists, path_write,
-                epochs=1000, k_samples=10, n_draws=200, boosts=2, **prior)
+    path_write_vi = os.path.abspath(os.path.join(path_write, "vi"))
+    os.mkdir(path_write_vi)
+    vi.run(dim, S, partials[:], weights, dists, path_write_vi,
+           epochs=epochs, k_samples=k_samples, n_draws=n_draws, boosts=boosts,
+           init_grids=init_grids, init_trials=init_trials, **prior)
 
     # Run Dodoanphy MCMC
-    mcmc.run(dim, partials[:], weights, dists, path_write, epochs=10000, step_scale=0.01, save_period=50, **prior)
+    path_write_mcmc = os.path.abspath(os.path.join(path_write, "mcmc"))
+    os.mkdir(path_write_mcmc)
+    mcmc.run(dim, partials[:], weights, dists, path_write_mcmc, epochs=2, step_scale=0.01, save_period=1, **prior)
+
+    # Make folder for BEAST
+    path_write_beast = os.path.abspath(os.path.join(path_write, "beast"))
+    os.mkdir(path_write_beast)
 
 
 if __name__ == "__main__":

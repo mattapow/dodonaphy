@@ -1,5 +1,10 @@
 # dodonaphy
 
+Use of hyperbolic embeddings for approximating phylogenetic posteriors
+
+This code is under active research & development and not intended for production use for phylogenetic inference.
+
+
 ## Installing
 Install the dodonaphy package using pip:
 ```

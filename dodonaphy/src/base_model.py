@@ -24,9 +24,9 @@ class BaseModel(object):
         for i in range(self.S - 1):
             self.partials.append(torch.zeros((1, 4, self.L), dtype=torch.float64, requires_grad=False))
 
-    def initialise_ints(self, emm_tips, n_scale=10, n_trials=10, max_scale=5):
+    def initialise_ints(self, emm_tips, n_grids=10, n_trials=10, max_scale=5):
         # try out some inner node positions and pick the best
-        print("Randomly initialising internal node positions from {} samples: ".format(n_scale*n_trials), end='')
+        print("Randomly initialising internal node positions from {} samples: ".format(n_grids*n_trials), end='')
 
         S = len(emm_tips['r'])
         scale = torch.as_tensor(.5 * emm_tips['r'].min())
@@ -38,8 +38,8 @@ class BaseModel(object):
         _int_dir = dir/abs.reshape(S-2, 1)
 
         max_scale = max_scale * emm_tips['r'].min()
-        for i in range(n_scale):
-            _scale = torch.as_tensor((i+1)/(n_scale+1) * max_scale)
+        for i in range(n_grids):
+            _scale = torch.as_tensor((i+1)/(n_grids+1) * max_scale)
             for _ in range(n_trials):
                 _lnP = self.compute_LL(
                     torch.from_numpy(emm_tips['r']), torch.from_numpy(emm_tips['directional']),

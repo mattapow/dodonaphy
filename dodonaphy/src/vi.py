@@ -10,7 +10,6 @@ from .utils import utilFunc
 from .base_model import BaseModel
 from src.hyperboloid import p2t0
 import matplotlib.pyplot as plt
-import matplotlib.cm
 
 
 class DodonaphyVI(BaseModel):
@@ -275,8 +274,9 @@ class DodonaphyVI(BaseModel):
         return torch.mean(torch.stack(elbos))
 
     @staticmethod
-    def run_tips(dim, S, partials, weights, dists, path_write,
-                 epochs=1000, k_samples=3, n_draws=100, boosts=1, **prior):
+    def run(dim, S, partials, weights, dists, path_write,
+            epochs=1000, k_samples=3, n_draws=100, boosts=1,
+            init_grids=10, init_trials=100, **prior):
         """Initialise and run Dodonaphy's variational inference
 
         Initialise the emebedding with tips distances given to hydra.
@@ -293,7 +293,7 @@ class DodonaphyVI(BaseModel):
         mymod = DodonaphyVI(partials, weights, dim, boosts, **prior)
 
         # Choose internal node locations from best random initialisation
-        int_r, int_dir = mymod.initialise_ints(emm_tips, n_scale=10, n_trials=100, max_scale=5)
+        int_r, int_dir = mymod.initialise_ints(emm_tips, n_grids=init_grids, n_trials=init_trials, max_scale=5)
 
         # convert to tangent space
         leaf_loc_poin = utilFunc.dir_to_cart(torch.from_numpy(emm_tips["r"]), torch.from_numpy(emm_tips["directional"]))
@@ -320,24 +320,10 @@ class DodonaphyVI(BaseModel):
         }
 
         # learn
-        mymod.learn(param_init=param_init, epochs=epochs, k_samples=k_samples, path_write='./out', boosts=boosts)
+        mymod.learn(param_init=param_init, epochs=epochs, k_samples=k_samples, path_write=path_write, boosts=boosts)
 
         # draw samples
         peels, blens, X, lp = mymod.draw_sample(n_draws, lp=True)
-
-        # Plot embedding if dim==2
-        if dim == 2:
-            plt.clf()
-            _, ax = plt.subplots(1, 1)
-            ax.set(xlim=[-1, 1])
-            ax.set(ylim=[-1, 1])
-            cmap = matplotlib.cm.get_cmap('Spectral')
-            n_plots = min(n_draws, 10)
-            for i in range(n_plots-1):
-                utilFunc.plot_tree(ax, peels[i], X[i].detach().numpy(), color=cmap(i / n_plots), labels=False)
-            utilFunc.plot_tree(ax, peels[i+1], X[i+1].detach().numpy(), color=cmap((i+1) / n_plots), labels=True)
-            ax.set_title("Final Embedding Sample")
-            plt.savefig("./out/vi_embeddings.png")
 
         utilFunc.save_tree_head(path_write, "vi", S)
         for i in range(n_draws):

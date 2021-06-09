@@ -28,7 +28,7 @@ def test_draws_different():
     mymod = vi(partials, weights, dim)
 
     # learn
-    mymod.learn(epochs=0, path_write="")
+    mymod.learn(epochs=0, path_write=None)
 
     # draw
     nsamples = 3
@@ -40,6 +40,9 @@ def test_draws_different():
     assert not torch.equal(lp__[0], lp__[1])
     assert not torch.equal(lp__[0], lp__[2])
     assert not torch.equal(lp__[1], lp__[2])
+
+
+test_draws_different()
 
 
 def test_calculate_likelihood():

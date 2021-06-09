@@ -30,7 +30,7 @@ class DodonaphyMCMC(BaseModel):
             for key, value in self.prior.items():
                 file.write('%-12s: %f\n' % (key, value))
 
-        utilFunc.save_tree_head(path_write, "dodo_mcmc", self.S)
+        utilFunc.save_tree_head(path_write, "mcmc", self.S)
 
         for _ in range(burnin):
             self.evolove()
@@ -52,7 +52,7 @@ class DodonaphyMCMC(BaseModel):
                     print('epoch: %-12i Acceptance Rate: %5.3f' % (i, accepted/i))
                 else:
                     self.lnP = self.compute_LL(leaf_r, leaf_dir, int_r, int_dir)
-                utilFunc.save_tree(path_write, 'dodo_mcmc', self.peel, self.blens, i*self.bcount, self.lnP)
+                utilFunc.save_tree(path_write, 'mcmc', self.peel, self.blens, i*self.bcount, self.lnP)
                 fn = path_write + '/mcmc_locations.csv'
                 with open(fn, 'a') as file:
                     file.write(
@@ -111,7 +111,9 @@ class DodonaphyMCMC(BaseModel):
         return torch.minimum(torch.ones(1), prior_ratio * like_ratio * hastings_ratio), prop_like
 
     @staticmethod
-    def run(dim, partials, weights, dists, path_write, epochs=1000, step_scale=0.01, save_period=1, **prior):
+    def run(dim, partials, weights, dists, path_write,
+            epochs=1000, step_scale=0.01, save_period=1,
+            n_grids=10, n_trials=100, **prior):
         print('\nRunning Dodonaphy MCMC')
 
         # embed tips with distances using Hydra
@@ -123,7 +125,7 @@ class DodonaphyMCMC(BaseModel):
 
         # Choose internal node locations from best random initialisation
         # TODO: use non-static method. When to initialise self.loc??
-        int_r, int_dir = mymod.initialise_ints(emm, n_scale=10, n_trials=100, max_scale=5)
+        int_r, int_dir = mymod.initialise_ints(emm, n_grids=n_grids, n_trials=n_trials, max_scale=5)
         emm["r"] = np.concatenate((emm["r"], int_r))
         emm["directional"] = np.concatenate((emm["directional"], int_dir))
 
