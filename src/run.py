@@ -42,7 +42,7 @@ def main():
     init_grids = 10
 
     # Make experiment folder
-    path_write = "./data/Taxa%dDim%dBoosts%d" % (S, dim, boosts)
+    path_write = "../data/Taxa%dDim%dBoosts%d" % (S, dim, boosts)
     os.makedirs(path_write, exist_ok=False)
 
     # save dna to nexus
@@ -58,7 +58,7 @@ def main():
     # Run Dodoanphy MCMC
     path_write_mcmc = os.path.abspath(os.path.join(path_write, "mcmc"))
     os.mkdir(path_write_mcmc)
-    mcmc.run(dim, partials[:], weights, dists, path_write_mcmc, epochs=2, step_scale=0.01, save_period=1, **prior)
+    mcmc.run(dim, partials[:], weights, dists, path_write_mcmc, epochs=1000, step_scale=0.01, save_period=1, **prior)
 
     # Make folder for BEAST
     path_write_beast = os.path.abspath(os.path.join(path_write, "beast"))
