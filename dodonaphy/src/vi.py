@@ -5,6 +5,7 @@ import torch
 from torch.distributions.multivariate_normal import MultivariateNormal
 from torch.distributions.transforms import SigmoidTransform
 
+
 from .hyperboloid import t02p
 from .phylo import calculate_treelikelihood, JC69_p_t
 from .utils import utilFunc
@@ -201,7 +202,7 @@ class DodonaphyVI(BaseModel):
 
             # Leaves
             # Jacobian of t02p going from Tangent T_0 to Poincare ball
-            J = torch.autograd.functional.jacobian(t02p, (z, mu, D))
+            J = torch.autograd.functional.jacobian(t02p, (z, mu, D), vectorize=True)
             J = J[0].reshape((n_points * self.D, n_points * self.D))
             log_abs_det_jacobian = log_abs_det_jacobian + torch.log(torch.abs(torch.det(J)))
 
@@ -221,6 +222,7 @@ class DodonaphyVI(BaseModel):
         self.method = method
         if self.method == "logit":
             assert boosts == 1
+        # TODO: allow logit method to have boosts
 
         if path_write is not None:
             fn = path_write + '/' + 'vi.info'
@@ -260,7 +262,7 @@ class DodonaphyVI(BaseModel):
             print('epoch %-12i ELBO: %10.3f' % (epoch+1, elbo_hist[-1]))
             hist_dat.append(elbo_hist[-1])
 
-        if epochs > 0 and not path_write == "":
+        if epochs > 0 and path_write is not None:
             plt.figure()
             plt.plot(range(epochs), elbo_hist, 'r', label='elbo')
             plt.title('Elbo values')
@@ -273,7 +275,12 @@ class DodonaphyVI(BaseModel):
             plt.hist(hist_dat)
             plt.savefig(path_write + "/elbo_hist.png")
 
-        print('Final ELBO: {}'.format(self.elbo_normal(100).item()))
+        final_elbo = self.elbo_normal(100).item()
+        print('Final ELBO: {}'.format(final_elbo))
+        if path_write is not None:
+            fn = path_write + '/' + 'vi.info'
+            with open(fn, 'a') as file:
+                file.write('%-12s: %i\n' % ("Final ELBO", final_elbo))
 
     def elbo_normal(self, size=1):
         """[summary]
