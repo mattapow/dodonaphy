@@ -13,7 +13,7 @@ from src.phylo import compress_alignment
 def main():
 
     dim = 2  # number of dimensions for embedding
-    S = 12  # number of sequences to simulate
+    S = 6  # number of sequences to simulate
     L = 1000  # length of sequences to simulate
 
     # simulate a tree
@@ -34,15 +34,20 @@ def main():
     # TODO: should distances be genetic distance or true tree patristic distance?
 
     # VI parameters
-    epochs = 10000
-    k_samples = 10
-    n_draws = 10
-    boosts = 3
-    init_trials = 100
-    init_grids = 10
+    epochs = 1000      # number of epochs
+    k_samples = 5       # tree samples per elbo calculation
+    n_draws = 1000      # number of trees drawn from final distribution
+    boosts = 1          # number of mixtures
+    init_trials = 100   # number of initial embeddings to select from per grid
+    init_grids = 10     # # number grid scales for selecting inital embedding
+    method = 'logit'    # vi method: 'wrap' or 'logit'
+
+    # MCMC parameters
+    step_scale = 0.01
+    save_period = int(epochs/n_draws)
 
     # Make experiment folder
-    path_write = "../data/Taxa%dDim%dBoosts%d" % (S, dim, boosts)
+    path_write = "../data/Taxa%dDim%dBoosts%d/%s" % (S, dim, boosts, method)
     os.makedirs(path_write, exist_ok=False)
 
     # save dna to nexus
@@ -53,12 +58,13 @@ def main():
     os.mkdir(path_write_vi)
     vi.run(dim, S, partials[:], weights, dists, path_write_vi,
            epochs=epochs, k_samples=k_samples, n_draws=n_draws, boosts=boosts,
-           init_grids=init_grids, init_trials=init_trials, **prior)
+           init_grids=init_grids, init_trials=init_trials, method=method, **prior)
 
     # Run Dodoanphy MCMC
     path_write_mcmc = os.path.abspath(os.path.join(path_write, "mcmc"))
     os.mkdir(path_write_mcmc)
-    mcmc.run(dim, partials[:], weights, dists, path_write_mcmc, epochs=1000, step_scale=0.01, save_period=1, **prior)
+    mcmc.run(dim, partials[:], weights, dists, path_write_mcmc,
+             epochs=epochs, step_scale=step_scale, save_period=save_period, **prior)
 
     # Make folder for BEAST
     path_write_beast = os.path.abspath(os.path.join(path_write, "beast"))

@@ -3,6 +3,7 @@ from typing import List, Any
 import numpy as np
 import torch
 from torch.distributions.multivariate_normal import MultivariateNormal
+from torch.distributions.transforms import SigmoidTransform
 
 from .hyperboloid import t02p
 from .phylo import calculate_treelikelihood, JC69_p_t
@@ -96,9 +97,21 @@ class DodonaphyVI(BaseModel):
                 # Sample in tangent space
                 z_leaf, z_int, logQ = self.sample_loc(q_leaves, q_ints)
 
-                # From (Euclidean) tangent space at origin to Poincare ball
-                leaf_r, leaf_dir = self.project_t02p(z_leaf, q_leaves, get_jacob=False)
-                int_r, int_dir = self.project_t02p(z_int, q_ints, get_jacob=False)
+                if self.method == "wrap":
+                    # From (Euclidean) tangent space at origin to Poincare ball
+                    leaf_poin = self.project_t02p(z_leaf, q_leaves, get_jacob=False)
+                    int_poin = self.project_t02p(z_int, q_ints, get_jacob=False)
+
+                elif self.method == "logit":
+                    sigmoid_transformation = SigmoidTransform()
+
+                    # transformation of z from R^n to unit ball P^n
+                    leaf_poin = sigmoid_transformation(z_leaf) * 2 - 1
+                    int_poin = sigmoid_transformation(z_int) * 2 - 1
+
+                # Change coordinates
+                leaf_r, leaf_dir = utilFunc.cart_to_dir(leaf_poin.reshape((self.S, self.D)))
+                int_r, int_dir = utilFunc.cart_to_dir(int_poin.reshape((self.S - 2, self.D)))
 
                 # prepare return (peel, branch lengths, locations, and log posteriori)
                 pl = utilFunc.make_peel(leaf_r, leaf_dir, int_r, int_dir)
@@ -137,12 +150,30 @@ class DodonaphyVI(BaseModel):
         # Sample in tangent space
         z_leaf, z_int, logQ = self.sample_loc(q_leaves, q_ints)
 
-        # From (Euclidean) tangent space at origin to Poincare ball
-        leaf_r, leaf_dir, leaf_jacobian = self.project_t02p(z_leaf, q_leaves)
-        int_r, int_dir, int_jacobian = self.project_t02p(z_int, q_ints)
+        if self.method == "wrap":
+            # From (Euclidean) tangent space at origin to Poincare ball
+            leaf_poin, leaf_jacobian = self.project_t02p(z_leaf, q_leaves)
+            int_poin, int_jacobian = self.project_t02p(z_int, q_ints)
 
-        # Log Jacobians
-        log_abs_det_jacobian = leaf_jacobian + int_jacobian
+            # Log Jacobians
+            log_abs_det_jacobian = leaf_jacobian + int_jacobian
+        elif self.method == "logit":
+            sigmoid_transformation = SigmoidTransform()
+
+            # transformation of z from R^n to unit ball P^n
+            leaf_poin = sigmoid_transformation(z_leaf) * 2 - 1
+            int_poin = sigmoid_transformation(z_int) * 2 - 1
+
+            # take transformations into account
+            log_abs_det_jacobian = sigmoid_transformation.log_abs_det_jacobian(leaf_poin, z_leaf).sum() \
+                + sigmoid_transformation.log_abs_det_jacobian(int_poin, z_int).sum()
+
+        # Change coordinates
+        leaf_r, leaf_dir = utilFunc.cart_to_dir(leaf_poin.reshape((self.S, self.D)))
+        int_r, int_dir = utilFunc.cart_to_dir(int_poin.reshape((self.S - 2, self.D)))
+
+        # Add Jacobian of changing coordinates
+        log_abs_det_jacobian = log_abs_det_jacobian + torch.log(1/leaf_r).sum(0) + torch.log(1/int_r).sum(0)
 
         # logPrior
         logPrior = torch.tensor(self.compute_prior(
@@ -161,10 +192,8 @@ class DodonaphyVI(BaseModel):
             mu = mu + self.VariationalParams['leaf_weights'][k] * q[k].loc
         z_poin = t02p(z, mu, self.D).reshape(n_points, self.D)
 
-        leaf_r, leaf_dir = utilFunc.cart_to_dir(z_poin)
-
         if not get_jacob:
-            return leaf_r, leaf_dir
+            return z_poin
         else:
             # Get Jacobians
             log_abs_det_jacobian = torch.zeros(1)
@@ -175,12 +204,10 @@ class DodonaphyVI(BaseModel):
             J = torch.autograd.functional.jacobian(t02p, (z, mu, D))
             J = J[0].reshape((n_points * self.D, n_points * self.D))
             log_abs_det_jacobian = log_abs_det_jacobian + torch.log(torch.abs(torch.det(J)))
-            # Jacobian of going to polar
-            log_abs_det_jacobian = log_abs_det_jacobian + torch.log(1/leaf_r).sum(0)
 
-            return leaf_r, leaf_dir, log_abs_det_jacobian
+            return z_poin, log_abs_det_jacobian
 
-    def learn(self, param_init=None, epochs=1000, k_samples=3, path_write='./out', boosts=1):
+    def learn(self, param_init=None, epochs=1000, k_samples=3, path_write='./out', boosts=1, method='wrap'):
         """Learn the variational parameters using Adam optimiser
         Args:
             param_init (dict, optional): Initial parameters. Defaults to None.
@@ -191,6 +218,9 @@ class DodonaphyVI(BaseModel):
         print("Running for %i epochs.\n" % epochs)
 
         self.boosts = boosts
+        self.method = method
+        if self.method == "logit":
+            assert boosts == 1
 
         if path_write is not None:
             fn = path_write + '/' + 'vi.info'
@@ -276,7 +306,7 @@ class DodonaphyVI(BaseModel):
     @staticmethod
     def run(dim, S, partials, weights, dists, path_write,
             epochs=1000, k_samples=3, n_draws=100, boosts=1,
-            init_grids=10, init_trials=100, **prior):
+            init_grids=10, init_trials=100, method='wrap', **prior):
         """Initialise and run Dodonaphy's variational inference
 
         Initialise the emebedding with tips distances given to hydra.
@@ -320,7 +350,13 @@ class DodonaphyVI(BaseModel):
         }
 
         # learn
-        mymod.learn(param_init=param_init, epochs=epochs, k_samples=k_samples, path_write=path_write, boosts=boosts)
+        mymod.learn(
+            param_init=param_init,
+            epochs=epochs,
+            k_samples=k_samples,
+            path_write=path_write,
+            boosts=boosts,
+            method=method)
 
         # draw samples
         peels, blens, X, lp = mymod.draw_sample(n_draws, lp=True)
