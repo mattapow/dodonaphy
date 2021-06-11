@@ -51,7 +51,7 @@ class DodonaphyMCMC(BaseModel):
                 if i > 0:
                     print('epoch: %-12i Acceptance Rate: %5.3f' % (i, accepted/i))
                 else:
-                    self.lnP = self.compute_LL(leaf_r, leaf_dir, int_r, int_dir)
+                    self.lnP = self.compute_LL(self.peel, self.blens)
                 utilFunc.save_tree(path_write, 'mcmc', self.peel, self.blens, i*self.bcount, self.lnP)
                 fn = path_write + '/mcmc_locations.csv'
                 with open(fn, 'a') as file:
@@ -90,14 +90,15 @@ class DodonaphyMCMC(BaseModel):
     def accept_ratio(self, loc_proposal):
 
         # current likelihood + prior
-        leaf_r, int_r, leaf_dir, int_dir = utilFunc.cart_to_dir_tree(self.loc)
-        current_like = self.compute_LL(leaf_r, leaf_dir, int_r, int_dir)
-        current_prior = self.compute_prior(leaf_r, leaf_dir, int_r, int_dir, **self.prior)
+        current_like = self.compute_LL(self.peel, self.blen)
+        current_prior = self.compute_prior(self.peel, self.blen, **self.prior)
 
         # proposal likelihood + prior
         leaf_r, int_r, leaf_dir, int_dir = utilFunc.cart_to_dir_tree(loc_proposal)
-        prop_like = self.compute_LL(leaf_r, leaf_dir, int_r, int_dir)
-        prop_prior = self.compute_prior(leaf_r, leaf_dir, int_r, int_dir, **self.prior)
+        peel = utilFunc.make_peel(leaf_r, int_r, leaf_dir, int_dir)
+        blen = self.compute_branch_lengths(self.S, self.D, peel, leaf_r, int_r, leaf_dir, int_dir)
+        prop_like = self.compute_LL(peel, blen)
+        prop_prior = self.compute_prior(peel, blen, **self.prior)
 
         # likelihood ratio
         like_ratio = torch.exp(prop_like - current_like)

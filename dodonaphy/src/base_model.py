@@ -41,9 +41,14 @@ class BaseModel(object):
         for i in range(n_grids):
             _scale = torch.as_tensor((i+1)/(n_grids+1) * max_scale)
             for _ in range(n_trials):
-                _lnP = self.compute_LL(
+                peel = utilFunc.make_peel(
                     torch.from_numpy(emm_tips['r']), torch.from_numpy(emm_tips['directional']),
                     torch.from_numpy(_int_r), torch.from_numpy(_int_dir))
+                blen = self.compute_branch_lengths(
+                    self.S, self.D, peel,
+                    torch.from_numpy(emm_tips['r']), torch.from_numpy(emm_tips['directional']),
+                    torch.from_numpy(_int_r), torch.from_numpy(_int_dir))
+                _lnP = self.compute_LL(peel, blen)
 
                 if _lnP > lnP:
                     int_r = _int_r
@@ -102,7 +107,7 @@ class BaseModel(object):
 
         return blens
 
-    def compute_LL(self, leaf_r, leaf_dir, int_r, int_dir):
+    def compute_LL(self, peel, blen):
         """[summary]
 
         Args:
@@ -111,18 +116,11 @@ class BaseModel(object):
             int_r ([type]): [description]
             int_dir ([type]): [description]
         """
-
-        with torch.no_grad():
-            peel = utilFunc.make_peel(leaf_r, leaf_dir, int_r, int_dir)
-
-        # branch lengths
-        blens = self.compute_branch_lengths(self.S, self.D, peel, leaf_r, leaf_dir, int_r, int_dir)
-
-        mats = JC69_p_t(blens)
+        mats = JC69_p_t(blen)
         return calculate_treelikelihood(self.partials, self.weights, peel, mats,
                                         torch.full([4], 0.25, dtype=torch.float64))
 
-    def compute_prior(self, leaf_r, leaf_dir, int_r, int_dir, **prior):
+    def compute_prior(self, peel, blen, **prior):
         """Calculates the log-likelihood of a tree under a birth death model.
 
         Args:
@@ -141,8 +139,6 @@ class BaseModel(object):
         death_rate = prior.get('death_rate', .5)
 
         tipnames = ['T' + str(x+1) for x in range(self.S)]
-        peel = utilFunc.make_peel(leaf_r, leaf_dir, int_r, int_dir)
-        blen = self.compute_branch_lengths(self.S, self.D, peel, leaf_r, leaf_dir, int_r, int_dir)
         newick = utilFunc.tree_to_newick(tipnames, peel, blen)
         tree = Tree.get(data=newick, schema='newick')
         return birth_death_likelihood(

@@ -176,11 +176,16 @@ class DodonaphyVI(BaseModel):
         # Add Jacobian of changing coordinates
         log_abs_det_jacobian = log_abs_det_jacobian + torch.log(1/leaf_r).sum(0) + torch.log(1/int_r).sum(0)
 
-        # logPrior
-        logPrior = torch.tensor(self.compute_prior(
-            leaf_r, leaf_dir, int_r, int_dir, **self.prior), requires_grad=False)
+        # reuse make_peel for prior and likelihood
+        with torch.no_grad():
+            peel = utilFunc.make_peel(leaf_r, leaf_dir, int_r, int_dir)
+            blen = self.compute_branch_lengths(self.S, self.D, peel, leaf_r, leaf_dir, int_r, int_dir)
 
-        logP = self.compute_LL(leaf_r, leaf_dir, int_r, int_dir)
+        # logPrior
+        logPrior = torch.tensor(self.compute_prior(peel, blen, **self.prior), requires_grad=False)
+
+        # Likelihood
+        logP = self.compute_LL(peel, blen)
 
         return logP + logPrior - logQ + log_abs_det_jacobian
 
