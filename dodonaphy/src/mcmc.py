@@ -90,13 +90,13 @@ class DodonaphyMCMC(BaseModel):
     def accept_ratio(self, loc_proposal):
 
         # current likelihood + prior
-        current_like = self.compute_LL(self.peel, self.blen)
-        current_prior = self.compute_prior(self.peel, self.blen, **self.prior)
+        current_like = self.compute_LL(self.peel, self.blens)
+        current_prior = self.compute_prior(self.peel, self.blens, **self.prior)
 
         # proposal likelihood + prior
         leaf_r, int_r, leaf_dir, int_dir = utilFunc.cart_to_dir_tree(loc_proposal)
-        peel = utilFunc.make_peel(leaf_r, int_r, leaf_dir, int_dir)
-        blen = self.compute_branch_lengths(self.S, self.D, peel, leaf_r, int_r, leaf_dir, int_dir)
+        peel = utilFunc.make_peel(leaf_r, leaf_dir, int_r, int_dir)
+        blen = self.compute_branch_lengths(self.S, self.D, peel, leaf_r, leaf_dir, int_r, int_dir)
         prop_like = self.compute_LL(peel, blen)
         prop_prior = self.compute_prior(peel, blen, **self.prior)
 
