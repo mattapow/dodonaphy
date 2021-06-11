@@ -19,7 +19,6 @@ results/*
 
 ext/trees-bootstrap
 
-doc/*
 *.gz
 *.aux
 doc/notes.log
