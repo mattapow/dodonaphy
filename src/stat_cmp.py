@@ -12,45 +12,53 @@ def stat_cmp():
     Prints the consensus tree and the Maximum Clade Credibility Tree
     """
 
-    dir = "./out"
+    dir = "./data/Taxa6Dim2Boosts1"
+
     fn1 = dir + "/dodo_mcmc.trees"
     fn2 = dir + "/beast.trees"
 
     # TODO: burnin
 
-    dodo_trees = dendropy.TreeList.get(path=fn1, schema="nexus")
-    bst_trees = dendropy.TreeList.get(path=fn2, schema="nexus")
+    # bst_trees = dendropy.TreeList.get(path=fn1, schema="nexus")
+    # mcmc_trees = dendropy.TreeList.get(path=fn2, schema="nexus")
+    # wrap_trees = dendropy.TreeList.get(path=fn2, schema="nexus")
+    # logit_trees = dendropy.TreeList.get(path=fn2, schema="nexus")
 
-    dodo_splits = dodo_trees.split_distribution()
-    bst_splits = bst_trees.split_distribution()
+    # bst_splits = bst_trees.split_distribution()
+    # mcmc_splits = mcmc_trees.split_distribution()
+    # wrap_splits = wrap_trees.split_distribution()
+    # logit_splits = logit_trees.split_distribution()
 
     # print consensus trees
-    print("Dodonaphy Consensus Tree:")
-    dodo_splits.consensus_tree().print_plot()
-    print("BEAST Consensus Tree:")
-    bst_splits.consensus_tree().print_plot()
+    # print("Dodonaphy Consensus Tree:")
+    # dodo_splits.consensus_tree().print_plot()
+    # print("BEAST Consensus Tree:")
+    # bst_splits.consensus_tree().print_plot()
 
-    # print maxmim clade credibility tree
-    print("Dodonaphy Maximim Clade Credibility Set:")
-    dodo_trees.maximum_product_of_split_support_tree().print_plot()
-    print("BEAST Maximim Clade Credibility Set:")
-    bst_trees.maximum_product_of_split_support_tree().print_plot()
+    # # print maxmim clade credibility tree
+    # print("Dodonaphy Maximim Clade Credibility Set:")
+    # dodo_trees.maximum_product_of_split_support_tree().print_plot()
+    # print("BEAST Maximim Clade Credibility Set:")
+    # bst_trees.maximum_product_of_split_support_tree().print_plot()
 
     # plot from outputs of TreeStat
-    fn1 = dir + "/dodo_mcmc_stat.txt"
-    fn2 = dir + "/vi_stat.txt"
-    fn3 = dir + "/beast_stat.txt"
+    fn1 = dir + "/beast/treeStats.txt"
+    fn2 = dir + "/mcmc/treeStats.txt"
+    fn3 = dir + "/vi_wrap/treeStats.txt"
+    fn4 = dir + "/vi_logit/treeStats.txt"
 
     df1 = pd.read_csv(fn1, delimiter='\t', header=0, index_col='state')
     df2 = pd.read_csv(fn2, delimiter='\t', header=0, index_col='state')
     df3 = pd.read_csv(fn3, delimiter='\t', header=0, index_col='state')
+    df4 = pd.read_csv(fn4, delimiter='\t', header=0, index_col='state')
 
     for name in df1.columns:
         df1[name].plot.kde()
         df2[name].plot.kde()
         df3[name].plot.kde()
+        df4[name].plot.kde()
         plt.xlabel(name)
-        plt.legend(["Dodonaphy MCMC", "Dodonaphy VI", "Beast"])
+        plt.legend(["Beast", "MCMC", "VI (wrap)", "VI (logit)"])
         plt.show()
 
 
