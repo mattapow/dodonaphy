@@ -1,6 +1,7 @@
 import torch
 from .phylo import calculate_treelikelihood, JC69_p_t
 from .utils import utilFunc
+import Cutils
 from dendropy import Tree as Tree
 from dendropy.model.birthdeath import birth_death_likelihood as birth_death_likelihood
 import numpy as np
@@ -95,7 +96,7 @@ class BaseModel(object):
                     r1 = int_r[peel[b][i]-S-1]
                     directional1 = int_dir[peel[b][i]-S-1, ]
 
-                hd = utilFunc.hyperbolic_distance(
+                hd = Cutils.hyperbolic_distance(
                     r1, r2, directional1, directional2, curvature)
 
                 # apply the inverse transform from Matsumoto et al 2020

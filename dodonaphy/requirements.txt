@@ -6,3 +6,4 @@ dodonaphy~=0.0.1
 matplotlib~=3.3.4
 setuptools~=52.0.0
 ete3~=3.1.2
+cython

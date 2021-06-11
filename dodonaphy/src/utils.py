@@ -8,6 +8,7 @@ from collections import defaultdict
 from matplotlib.lines import Line2D
 from matplotlib.patches import Circle
 from .hyperboloid import poincare_to_hyper, lorentz_product
+import Cutils
 
 
 class u_edge:
@@ -346,7 +347,7 @@ class utilFunc:
         """
         leaf_node_count = leaf_r.shape[0]
         node_count = leaf_r.shape[0] + int_r.shape[0]
-        edge_list = utilFunc.get_pdm(leaf_r, leaf_dir, int_r, int_dir, curvature=torch.ones(1))
+        edge_list = Cutils.get_pdm(leaf_r, leaf_dir, int_r, int_dir, curvature=torch.ones(1))
 
         # construct a minimum spanning tree among the internal nodes
         queue = []  # queue here is a min-heap

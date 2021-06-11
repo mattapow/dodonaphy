@@ -23,3 +23,7 @@ ext/trees-bootstrap
 *.aux
 doc/tex_notes/main.log
 doc/tex_notes*
+
+*.so
+*.o
+dodonaphy/src/cython/Cutils.c
