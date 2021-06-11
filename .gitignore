@@ -19,10 +19,11 @@ results/*
 
 ext/trees-bootstrap
 
+doc/*
 *.gz
 *.aux
-doc/tex_notes/main.log
-doc/tex_notes*
+doc/notes.log
+
 
 *.so
 *.o
