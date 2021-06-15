@@ -213,7 +213,7 @@ class utilFunc:
         for i in range(n):
             for j in range(n):
                 if i != j:
-                    dist[i][j] = utilFunc.hyperbolic_distance(
+                    dist[i][j] = Cutils.hyperbolic_distance(
                         r[i], r[j],
                         directional[i, ], directional[j, ],
                         curvature)
