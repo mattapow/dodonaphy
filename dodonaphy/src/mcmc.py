@@ -55,7 +55,7 @@ class DodonaphyMCMC(BaseModel):
                 if i > 0:
                     print('epoch: %-12i Acceptance Rate: %5.3f' % (i, accepted/i))
                 utilFunc.save_tree(path_write, 'mcmc', self.peel, self.blens, i*self.bcount, self.lnP)
-                fn = path_write + '/mcmc_locations.csv'
+                fn = path_write + '/locations.csv'
                 with open(fn, 'a') as file:
                     file.write(
                         np.array2string(loc_vec.data.numpy())

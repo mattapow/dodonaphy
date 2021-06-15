@@ -376,3 +376,12 @@ class DodonaphyVI(BaseModel):
         utilFunc.save_tree_head(path_write, "vi", S)
         for i in range(n_draws):
             utilFunc.save_tree(path_write, "vi", peels[i], blens[i], i, lp[i].item())
+
+        # Save sampled locations
+        fn = path_write + "/locations.csv"
+        with open(fn, 'w') as f:
+            for i in range(len(X)):
+                for j in range(len(X[i])):
+                    for d in range(len(X[i][j])):
+                        f.write('%f\t' % X[i][j, d].numpy())
+                f.write('\n')
