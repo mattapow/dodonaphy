@@ -657,9 +657,9 @@ class utilFunc:
         if labels:
             n_points = X.shape[0] - 1
             for p in range(n_points):
-                msg = str(p)
+                msg = str(p+1)
                 if p == 0:
-                    msg = msg + " (" + str(n_points) + ")"
+                    msg = msg + " (" + str(n_points+1) + ")"
                 ax.annotate(msg,
                             xy=(float(X[p, 0]) + .04, float(X[p, 1])),
                             xycoords='data')
