@@ -196,7 +196,7 @@ class DodonaphyVI(BaseModel):
         mu = torch.zeros_like(z)
         for k in range(self.boosts):
             mu = mu + self.VariationalParams['leaf_weights'][k] * q[k].loc
-        z_poin = t02p(z, mu, self.D).reshape(n_points, self.D)
+        z_poin = t02p(z, self.D, mu).reshape(n_points, self.D)
 
         if not get_jacob:
             return z_poin
@@ -207,7 +207,7 @@ class DodonaphyVI(BaseModel):
 
             # Leaves
             # Jacobian of t02p going from Tangent T_0 to Poincare ball
-            J = torch.autograd.functional.jacobian(t02p, (z, mu, D), vectorize=True)
+            J = torch.autograd.functional.jacobian(t02p, (z, D, mu), vectorize=True)
             J = J[0].reshape((n_points * self.D, n_points * self.D))
             log_abs_det_jacobian = log_abs_det_jacobian + torch.log(torch.abs(torch.det(J)))
 

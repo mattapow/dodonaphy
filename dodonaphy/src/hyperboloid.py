@@ -160,7 +160,7 @@ def p2t0(loc):
         return loc_hyp[:, 1:]
 
 
-def t02p(x, mu, dim):
+def t02p(x, dim, mu=None):
     """Transform a vector x in Euclidean space to the Poincare disk.
 
     Take a vector in the tangent space of a hyperboloid at the origin, project it
@@ -177,7 +177,7 @@ def t02p(x, mu, dim):
         into a vector:
             x_1, y_1, x_2, y_2, ...
     mu (Tensor or ndarray): Mean of distribution in tangent space at origin. Must
-        be same size as x.
+        be same size as x. Default at origin.
 
     Returns
     -------
@@ -193,6 +193,9 @@ def t02p(x, mu, dim):
 
     if type(mu).__module__ == np.__name__:
         mu = torch.from_numpy(mu)
+
+    if mu is None:
+        mu = torch.zeros_like(x)
 
     x_poin = torch.zeros((n_loc, dim))
     mu_hyp = up_to_hyper(mu.reshape(n_loc, dim))
