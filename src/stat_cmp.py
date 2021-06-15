@@ -1,7 +1,7 @@
 import pandas as pd
 import matplotlib.pyplot as plt
 # NB: pandas requires scipy
-import dendropy
+# import dendropy
 
 
 def stat_cmp():
@@ -12,7 +12,7 @@ def stat_cmp():
     Prints the consensus tree and the Maximum Clade Credibility Tree
     """
 
-    dir = "./data/Taxa6Dim2Boosts1"
+    dir = "./data/T6D2"
 
     fn1 = dir + "/dodo_mcmc.trees"
     fn2 = dir + "/beast.trees"
@@ -46,19 +46,22 @@ def stat_cmp():
     fn2 = dir + "/mcmc/treeStats.txt"
     fn3 = dir + "/vi_wrap/treeStats.txt"
     fn4 = dir + "/vi_logit/treeStats.txt"
+    fn5 = dir + "/vi_wrap_B3/treeStats.txt"
 
     df1 = pd.read_csv(fn1, delimiter='\t', header=0, index_col='state')
     df2 = pd.read_csv(fn2, delimiter='\t', header=0, index_col='state')
     df3 = pd.read_csv(fn3, delimiter='\t', header=0, index_col='state')
     df4 = pd.read_csv(fn4, delimiter='\t', header=0, index_col='state')
+    df5 = pd.read_csv(fn5, delimiter='\t', header=0, index_col='state')
 
     for name in df1.columns:
         df1[name].plot.kde()
         df2[name].plot.kde()
         df3[name].plot.kde()
         df4[name].plot.kde()
+        df5[name].plot.kde()
         plt.xlabel(name)
-        plt.legend(["Beast", "MCMC", "VI (wrap)", "VI (logit)"])
+        plt.legend(["Beast", "MCMC", "VI (wrap)", "VI (logit)", "VI (wrap + 3 Boosts"])
         plt.show()
 
 
