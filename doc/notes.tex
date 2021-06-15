@@ -51,10 +51,11 @@ Many cost functions for embeddings are based on the distances between every pair
 
 \begin{figure}[htbp]
 \begin{center}
-\includegraphics[width=.5\linewidth]{fig/tree_height}%
-\includegraphics[width=.5\linewidth]{fig/tree_length}
-\caption{Comparison of tree statistics between Beast and Dodonaphy.}
-\label{fig:mcmc_cmp}
+\includegraphics[width=.333\linewidth]{fig/cmp_height}%
+\includegraphics[width=.333\linewidth]{fig/cmp_length}%
+\includegraphics[width=.333\linewidth]{fig/cmp_splits}
+\caption{Comparison of tree statistics between Beast and Dodonaphy. Analysis of the splits reveals that BEAST always recovered the simulated tree, whilst our MCMC got 2 splits correct but incorrectly split $16|2345$ instead of $36|245$.}
+\label{fig:stat_cmp}
 \end{center}
 \end{figure}
 
@@ -70,23 +71,24 @@ The posterior surface of each node in $\mathbb{H}^{n}$ is unlikely to be continu
 \item How close is the elbo to known methods?
 \end{itemize}
 
-As a toy example, a posterior was generated for a six taxa set using Dodonaphy's MCMC and its VI before being compared to a BEAST MCMC. The data were simulated using a birth (rate$2$) death (rate $.5$) model. The final log likelihood from BEAST was -2584 (similar to it's log posterior of -2581). Running Dodonaphy MCMC gave a -2857, which is within roughly 10\%. Figure~\ref{fig/mcmc_locations} shows a kernel density estimate for each node location. Figure~\ref{fig/mcmc_locations}b shows only the last 251 samples, revealing that nodes can settle into different local optimums. For example the left-most red node, moves downwards. A node's posterior surface could drift over time. Is this a problem for MCMC? Well, it should not affect the tree samples, however the posterior surface is not necessarily static over the entire simulation. So figure~\ref{fig/mcmc_locations} doesn't really reflect a static embedding of the posterior likelihood.
+As a toy example, a posterior was generated for a six taxa set using Dodonaphy's MCMC and its VI before being compared to a BEAST MCMC. The data were simulated using a birth (rate$2$) death (rate $.5$) model. The final log likelihood from BEAST was -6280 (similar to it's log posterior of -6271). Running Dodonaphy MCMC gave -6280, which is a close match. Figure~\ref{fig:locations} shows a kernel density estimate for each node location at various stages. Comparing figures~\ref{fig:mcmc_locations}a and b reveals that the posterior surface of nodes can drift over the simulation. Is this a problem for MCMC? Well, it should not affect the tree samples, however the posterior surface is not necessarily static over the entire simulation. So figure~\ref{fig:locations} doesn't really reflect a static embedding of the posterior likelihood.
 
 \begin{figure}[htbp]
 \begin{center}
-\includegraphics[width=.5\linewidth]{fig/mcmc_locations.png}%
-\includegraphics[width=.5\linewidth]{fig/mcmc_locations_last250.png}
-\caption{Density estimates of the node locations from Dodonaphy's MCMC projected into $\mathbb{R}^{2}$. From 1001 sampled trees the first (a) 100 and (b) 750 were discarded as burnin.}
-\label{default}
+\includegraphics[width=.5\linewidth]{fig/locations_500.png}%
+\includegraphics[width=.5\linewidth]{fig/locations_900.png}
+\caption{Density estimates of the node locations from Dodonaphy's MCMC projected into $\mathbb{R}^{2}$. (a) Tree 500-600 and (b) 900-1000 in the sampled MCMC chain.}
+\label{fig:locations}
 \end{center}
 \end{figure}
 
 \begin{figure}[htbp]
 \begin{center}
-\includegraphics[width=.5\linewidth]{fig/elbo_trace_logit.png}%
-\includegraphics[width=.5\linewidth]{fig/elbo_trace_wrap.png}
-\caption{ELBO trace from VI on six taxa using (a) the logit method and (b) the wrapping method of embedding distributions from $\mathbb{R}^{n}$ into $\mathbb{P}^{n}$. Simulation used $10^{4}$ epochs, $n=2$ dimensions and $k=5$ samples to evaluate the elbo. Final ELBOs were (a) $-3172$ and (b) $-3168$.}
-\label{default}
+\includegraphics[width=.333\linewidth]{fig/elbo_trace_logit.png}%
+\includegraphics[width=.333\linewidth]{fig/elbo_trace_wrap.png}%
+\includegraphics[width=.333\linewidth]{fig/elbo_trace_wrap_B3.png}
+\caption{ELBO trace from VI on six taxa using (a) the logit method, (b) the wrapping method and (c) the wrapping method using a mixture of three Gaussians. Simulation used $10^{4}$ epochs, $n=2$ dimensions and $k=10$ samples to evaluate the elbo. Final ELBOs were (a) $-9539$, (b) $-9690$ and (c) -8264.}
+\label{fig:elbo}
 \end{center}
 \end{figure}
 
