@@ -46,12 +46,14 @@ class DodonaphyMCMC(BaseModel):
             self.blens = self.compute_branch_lengths(self.S, self.D, self.peel, leaf_r, leaf_dir, int_r, int_dir)
             loc_poin = torch.cat((loc_poin, torch.unsqueeze(loc_poin[0, :], axis=0)))
 
+            # current likelihood + prior
+            self.lnP = self.compute_LL(self.peel, self.blens)
+            self.lnPrior = self.compute_prior(self.peel, self.blens, **self.prior)
+
             # save
             if i % self.save_period == 0:
                 if i > 0:
                     print('epoch: %-12i Acceptance Rate: %5.3f' % (i, accepted/i))
-                else:
-                    self.lnP = self.compute_LL(self.peel, self.blens)
                 utilFunc.save_tree(path_write, 'mcmc', self.peel, self.blens, i*self.bcount, self.lnP)
                 fn = path_write + '/mcmc_locations.csv'
                 with open(fn, 'a') as file:
@@ -89,22 +91,20 @@ class DodonaphyMCMC(BaseModel):
 
     def accept_ratio(self, loc_proposal):
 
-        # current likelihood + prior
-        current_like = self.compute_LL(self.peel, self.blens)
-        current_prior = self.compute_prior(self.peel, self.blens, **self.prior)
-
         # proposal likelihood + prior
-        leaf_r, int_r, leaf_dir, int_dir = utilFunc.cart_to_dir_tree(loc_proposal)
+        loc_proposal_vec = loc_proposal.reshape(self.bcount * self.D)
+        loc_proposal_poin = t02p(loc_proposal_vec, self.D).reshape(self.bcount, self.D)
+        leaf_r, int_r, leaf_dir, int_dir = utilFunc.cart_to_dir_tree(loc_proposal_poin)
         peel = utilFunc.make_peel(leaf_r, leaf_dir, int_r, int_dir)
         blen = self.compute_branch_lengths(self.S, self.D, peel, leaf_r, leaf_dir, int_r, int_dir)
         prop_like = self.compute_LL(peel, blen)
         prop_prior = self.compute_prior(peel, blen, **self.prior)
 
         # likelihood ratio
-        like_ratio = torch.exp(prop_like - current_like)
+        like_ratio = torch.exp(prop_like - self.lnP)
 
         # prior ratio
-        prior_ratio = prop_prior / current_prior
+        prior_ratio = torch.exp(prop_prior - self.lnPrior)
 
         # Proposals are symmetric Guassians
         hastings_ratio = 1
