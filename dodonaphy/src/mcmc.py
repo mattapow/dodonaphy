@@ -43,7 +43,7 @@ class DodonaphyMCMC(BaseModel):
             loc_poin = t02p(loc_vec, self.D).reshape(self.bcount, self.D)
             leaf_r, int_r, leaf_dir, int_dir = utilFunc.cart_to_dir_tree(loc_poin)
             self.peel = utilFunc.make_peel(leaf_r, leaf_dir, int_r, int_dir)
-            self.blens = self.compute_branch_lengths(self.S, self.D, self.peel, leaf_r, leaf_dir, int_r, int_dir)
+            self.blens = self.compute_branch_lengths(self.S, self.peel, leaf_r, leaf_dir, int_r, int_dir)
             loc_poin = torch.cat((loc_poin, torch.unsqueeze(loc_poin[0, :], axis=0)))
 
             # current likelihood + prior
@@ -51,7 +51,7 @@ class DodonaphyMCMC(BaseModel):
             self.lnPrior = self.compute_prior(self.peel, self.blens, **self.prior)
 
             # save
-            if i % self.save_period == 0:
+            if self.save_period > 0 and i % self.save_period == 0:
                 if i > 0:
                     print('epoch: %-12i Acceptance Rate: %5.3f' % (i, accepted/i))
                 utilFunc.save_tree(path_write, 'mcmc', self.peel, self.blens, i*self.bcount, self.lnP)
@@ -96,7 +96,7 @@ class DodonaphyMCMC(BaseModel):
         loc_proposal_poin = t02p(loc_proposal_vec, self.D).reshape(self.bcount, self.D)
         leaf_r, int_r, leaf_dir, int_dir = utilFunc.cart_to_dir_tree(loc_proposal_poin)
         peel = utilFunc.make_peel(leaf_r, leaf_dir, int_r, int_dir)
-        blen = self.compute_branch_lengths(self.S, self.D, peel, leaf_r, leaf_dir, int_r, int_dir)
+        blen = self.compute_branch_lengths(self.S, peel, leaf_r, leaf_dir, int_r, int_dir)
         prop_like = self.compute_LL(peel, blen)
         prop_prior = self.compute_prior(peel, blen, **self.prior)
 

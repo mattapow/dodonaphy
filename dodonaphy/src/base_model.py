@@ -66,7 +66,7 @@ class BaseModel(object):
 
         return int_r, int_dir
 
-    def compute_branch_lengths(self, S, D, peel, leaf_r, leaf_dir, int_r, int_dir, curvature=torch.ones(1)):
+    def compute_branch_lengths(self, S, peel, leaf_r, leaf_dir, int_r, int_dir, curvature=torch.ones(1)):
         """Computes the hyperbolic distance of two points given in radial/directional coordinates in the Poincare ball
 
         Args:
@@ -142,8 +142,9 @@ class BaseModel(object):
         tipnames = ['T' + str(x+1) for x in range(self.S)]
         newick = utilFunc.tree_to_newick(tipnames, peel, blen)
         tree = Tree.get(data=newick, schema='newick')
-        return birth_death_likelihood(
+        LL = birth_death_likelihood(
             tree=tree,
             ultrametricity_precision=False,
             birth_rate=birth_rate,
             death_rate=death_rate)
+        return torch.tensor(LL)

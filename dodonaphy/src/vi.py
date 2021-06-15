@@ -117,7 +117,7 @@ class DodonaphyVI(BaseModel):
                 # prepare return (peel, branch lengths, locations, and log posteriori)
                 pl = utilFunc.make_peel(leaf_r, leaf_dir, int_r, int_dir)
                 peel.append(pl)
-                bl = self.compute_branch_lengths(self.S, self.D, pl, leaf_r, leaf_dir, int_r, int_dir)
+                bl = self.compute_branch_lengths(self.S, pl, leaf_r, leaf_dir, int_r, int_dir)
                 blens.append(bl)
                 location.append(utilFunc.dir_to_cart_tree(leaf_r, int_r, leaf_dir, int_dir, self.D))
                 if kwargs.get('lp'):
@@ -179,10 +179,10 @@ class DodonaphyVI(BaseModel):
         # reuse make_peel for prior and likelihood
         with torch.no_grad():
             peel = utilFunc.make_peel(leaf_r, leaf_dir, int_r, int_dir)
-            blen = self.compute_branch_lengths(self.S, self.D, peel, leaf_r, leaf_dir, int_r, int_dir)
+            blen = self.compute_branch_lengths(self.S, peel, leaf_r, leaf_dir, int_r, int_dir)
 
         # logPrior
-        logPrior = torch.tensor(self.compute_prior(peel, blen, **self.prior), requires_grad=False)
+        logPrior = self.compute_prior(peel, blen, **self.prior)
 
         # Likelihood
         logP = self.compute_LL(peel, blen)
