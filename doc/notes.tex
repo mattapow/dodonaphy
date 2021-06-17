@@ -16,10 +16,10 @@
 \maketitle
 \section{Introduction}
 Hyperbolic spaces allow quality embeddings of nested data structures, such as trees.
-Recent efforts to embed phylogenetic trees using distance-based methods demonstrate promising results.
-Bayesian phylogenetics is often computationally restricted in its exploration of the posterior distribution over tree because the number of trees to enumerate is super-exponential.
-Here, using hyperbolic tree embeddings, we explore the posterior distribution of trees in a continuous manner.
-First we demonstrate how an MCMC works with tree embeddings.
+Recent efforts to embed phylogenetic trees using distance-based optimisation demonstrate promising results for embedding single trees.
+However, expressing uncertainty in phylogenetics involves a probability distribution over a super-exponential number of trees.
+Here, using low dimensional hyperbolic tree embeddings, we explore the Bayesian posterior distribution of trees in a continuous manner.
+First, we empirically demonstrate that a posterior surface can be well approximated with tree embeddings using an MCMC in the embedding space.
 We also evaluate the potential of variational inference in the embedding space.
 
 \section{Hyperbolic Space}
