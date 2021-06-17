@@ -1,7 +1,8 @@
 from pathlib import Path
 
-from setuptools import setup, find_packages
+from setuptools import setup, find_packages, Extension
 from Cython.Build import cythonize
+import numpy as np
 
 setup(
     name='dodonaphy',
@@ -12,8 +13,9 @@ setup(
     author='Mathieu Fourment',
     author_email='mathieu.fourment@uts.edu.au',
     description='Hyperbolic embedding of phylogenies in pytorch',
-    ext_modules=cythonize('src/cython/Cutils.pyx'),
     install_requires=[
         line.strip() for line in Path('requirements.txt').read_text('utf-8').splitlines()
-    ]
+    ],
+    ext_modules=cythonize([Extension('Cutils', ['src/cython/Cutils.pyx'], include_dirs=[np.get_include()])])
+
 )

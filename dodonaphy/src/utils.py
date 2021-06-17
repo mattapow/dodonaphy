@@ -205,15 +205,12 @@ class utilFunc:
 
         # convert from numpy to torch
         dist = torch.zeros((n, n))
-        r = torch.from_numpy(r)
-        directional = torch.from_numpy(directional)
-        curvature = torch.tensor(curvature, dtype=torch.double)
         D = torch.tensor(D)
 
         for i in range(n):
             for j in range(n):
                 if i != j:
-                    dist[i][j] = Cutils.hyperbolic_distance(
+                    dist[i][j] = Cutils.hyperbolic_distance_np(
                         r[i], r[j],
                         directional[i, ], directional[j, ],
                         curvature)

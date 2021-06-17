@@ -62,9 +62,14 @@ def test_make_peel_first_leaf_connection():
     # make a tree
     peel = utilFunc.make_peel(leaf_r, leaf_dir, int_r, int_dir)
 
-    assert np.allclose(peel, np.array([[3, 2, 5],
-                                      [1, 5, 4],
-                                      [0, 4, 6]]))
+    correct1 = np.allclose(peel, np.array([[3, 2, 5],
+                                           [1, 5, 4],
+                                           [0, 4, 6]]))
+    correct2 = np.allclose(peel, np.array([[2, 3, 5],
+                                           [1, 5, 4],
+                                           [0, 4, 6]]))
+
+    assert correct1 or correct2
 
 
 def test_hyperbolic_distance():

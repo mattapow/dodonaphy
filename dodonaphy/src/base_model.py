@@ -66,7 +66,7 @@ class BaseModel(object):
 
         return int_r, int_dir
 
-    def compute_branch_lengths(self, S, peel, leaf_r, leaf_dir, int_r, int_dir, curvature=torch.ones(1)):
+    def compute_branch_lengths(self, S, peel, leaf_r, leaf_dir, int_r, int_dir, curvature=1):
         """Computes the hyperbolic distance of two points given in radial/directional coordinates in the Poincare ball
 
         Args:
@@ -81,26 +81,31 @@ class BaseModel(object):
         Returns:
             [type]: [description]
         """
+        DTYPE = np.double
+        leaf_r_np = leaf_r.detach().numpy().astype(DTYPE)
+        leaf_dir_np = leaf_dir.detach().numpy().astype(DTYPE)
+        int_r_np = int_r.detach().numpy().astype(DTYPE)
+        int_dir_np = int_dir.detach().numpy().astype(DTYPE)
         blens = torch.empty(self.bcount, dtype=torch.float64)
         for b in range(S-1):
-            directional2 = int_dir[peel[b][2]-S-1, ]
-            r2 = int_r[peel[b][2]-S-1]
+            directional2 = int_dir_np[peel[b][2]-S-1, ]
+            r2 = int_r_np[peel[b][2]-S-1]
 
             for i in range(2):
                 if peel[b][i] < S:
                     # leaf to internal
-                    r1 = leaf_r[peel[b][i]]
-                    directional1 = leaf_dir[peel[b][i], :]
+                    r1 = leaf_r_np[peel[b][i]]
+                    directional1 = leaf_dir_np[peel[b][i], :]
                 else:
                     # internal to internal
-                    r1 = int_r[peel[b][i]-S-1]
-                    directional1 = int_dir[peel[b][i]-S-1, ]
+                    r1 = int_r_np[peel[b][i]-S-1]
+                    directional1 = int_dir_np[peel[b][i]-S-1, ]
 
-                hd = Cutils.hyperbolic_distance(
+                hd = Cutils.hyperbolic_distance_np(
                     r1, r2, directional1, directional2, curvature)
 
                 # apply the inverse transform from Matsumoto et al 2020
-                hd = torch.log(torch.cosh(hd))
+                hd = torch.log(torch.cosh(torch.tensor(hd)))
 
                 # add a tiny amount to avoid zero-length branches
                 eps = torch.finfo(torch.double).eps
