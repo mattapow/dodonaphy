@@ -26,30 +26,30 @@ class BaseModel(object):
         for i in range(self.S - 1):
             self.partials.append(torch.zeros((1, 4, self.L), dtype=torch.float64, requires_grad=False))
 
-    def initialise_ints(self, emm_tips, n_grids=10, n_trials=10, max_scale=5):
+    def initialise_ints(self, emm_tips, n_grids=10, n_trials=10, max_scale=2):
         # try out some inner node positions and pick the best
+        # working in the Poincare ball P^d
         print("Randomly initialising internal node positions from {} samples: ".format(n_grids*n_trials), end='')
 
+        leaf_r = torch.from_numpy(emm_tips['r'])
+        leaf_dir = torch.from_numpy(emm_tips['directional'])
         S = len(emm_tips['r'])
-        scale = torch.as_tensor(.5 * emm_tips['r'].min())
+        scale = .5 * emm_tips['r'].min()
         lnP = -math.inf
-
         dir = np.random.normal(0, 1, (S-2, self.D))
         abs = np.sum(dir**2, axis=1)**0.5
         _int_r = np.random.exponential(scale=scale, size=(S-2))
+        # _int_r = scale * np.random.beta(a=2, b=5, size=(S-2))
+        # _int_r = np.random.uniform(low=0, high=scale, size=(S-2))
         _int_dir = dir/abs.reshape(S-2, 1)
-
         max_scale = max_scale * emm_tips['r'].min()
+
         for i in range(n_grids):
-            _scale = torch.as_tensor((i+1)/(n_grids+1) * max_scale)
+            _scale = i/n_grids * max_scale
             for _ in range(n_trials):
-                peel = utilFunc.make_peel(
-                    torch.from_numpy(emm_tips['r']), torch.from_numpy(emm_tips['directional']),
-                    torch.from_numpy(_int_r), torch.from_numpy(_int_dir))
+                peel = utilFunc.make_peel_mst(leaf_r, leaf_dir, torch.from_numpy(_int_r), torch.from_numpy(_int_dir))
                 blen = self.compute_branch_lengths(
-                    self.S, self.D, peel,
-                    torch.from_numpy(emm_tips['r']), torch.from_numpy(emm_tips['directional']),
-                    torch.from_numpy(_int_r), torch.from_numpy(_int_dir))
+                    self.S, peel, leaf_r, leaf_dir, torch.from_numpy(_int_r), torch.from_numpy(_int_dir))
                 _lnP = self.compute_LL(peel, blen)
 
                 if _lnP > lnP:
@@ -61,13 +61,19 @@ class BaseModel(object):
                 dir = np.random.normal(0, 1, (S-2, self.D))
                 abs = np.sum(dir**2, axis=1)**0.5
                 _int_r = np.random.exponential(scale=_scale, size=(S-2))
+                _int_r[_int_r > emm_tips['r'].min()] = emm_tips['r'].max()
+                # _int_r = _scale * np.random.beta(a=2, b=5, size=(S-2))
+                # _int_r = np.random.uniform(low=0, high=_scale, size=(S-2))
                 _int_dir = dir/abs.reshape(S-2, 1)
 
         print("done.\nBest internal node positions selected.")
+        if scale > .9 * max_scale:
+            print("Using scale=%f, from max of %f. Consider a higher maximum."
+                  % (scale/emm_tips['r'].min(), max_scale/emm_tips['r'].min()))
 
         return int_r, int_dir
 
-    def compute_branch_lengths(self, S, peel, leaf_r, leaf_dir, int_r, int_dir, curvature=1):
+    def compute_branch_lengths(self, S, peel, leaf_r, leaf_dir, int_r, int_dir, curvature=torch.ones(1)):
         """Computes the hyperbolic distance of two points given in radial/directional coordinates in the Poincare ball
 
         Args:
