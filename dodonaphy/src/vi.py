@@ -44,13 +44,10 @@ class DodonaphyVI(BaseModel):
                 "leaf_mu": torch.randn((boosts, self.S, self.D), requires_grad=True, dtype=torch.float64),
                 "leaf_sigma": torch.tensor(leaf_sigma, requires_grad=True, dtype=torch.float64),
                 "leaf_weights": torch.full((boosts, 1), 1. / boosts).requires_grad_(True),
-                "int_mu": torch.randn((boosts, self.S-2, self.D),
-                                                           requires_grad=True, dtype=torch.float64),
+                "int_mu": torch.randn((boosts, self.S-2, self.D), requires_grad=True, dtype=torch.float64),
                 "int_sigma": torch.tensor(int_sigma, requires_grad=True, dtype=torch.float64),
                 "int_weights": torch.full((boosts, 1), 1. / boosts).requires_grad_(True)
             }
-            
-            
 
     def sample_loc(self, q):
         # Sample distribution q in tangent space of hyperboloid at origin T_0 H^n
