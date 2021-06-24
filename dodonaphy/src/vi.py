@@ -281,14 +281,19 @@ class DodonaphyVI(BaseModel):
 
         elbo_hist = []
         hist_dat: List[Any] = []
-        for epoch in range(epochs):
-            loss = - self.elbo_normal(k_samples)
-            elbo_hist.append(- loss.item())
-            optimizer.zero_grad()
-            loss.backward()
-            optimizer.step()
-            scheduler.step()
 
+        def closure():
+            if torch.is_grad_enabled():
+                optimizer.zero_grad()
+            loss = - self.elbo_normal(k_samples)
+            if loss.requires_grad:
+                loss.backward()
+            elbo_hist.append(- loss.item())
+            return loss
+
+        for epoch in range(epochs):
+            optimizer.step(closure)
+            scheduler.step()
             print('epoch %-12i ELBO: %10.3f' % (epoch+1, elbo_hist[-1]))
             hist_dat.append(elbo_hist[-1])
 
@@ -304,6 +309,11 @@ class DodonaphyVI(BaseModel):
             plt.clf()
             plt.hist(hist_dat)
             plt.savefig(path_write + "/elbo_hist.png")
+
+            fn = os.path.join(path_write, 'elbo.txt')
+            with open(fn, 'w') as f:
+                for i in range(epochs):
+                    f.write("%f\n" % elbo_hist[i])
 
         final_elbo = self.elbo_normal(100).item()
         print('Final ELBO: {}'.format(final_elbo))
