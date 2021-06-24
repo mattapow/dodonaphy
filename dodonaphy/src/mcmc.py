@@ -89,13 +89,31 @@ class DodonaphyMCMC(BaseModel):
 
         return accept
 
-    def accept_ratio(self, loc_proposal):
+    def accept_ratio(self, loc_proposal, method):
+        """ Acceptance critereon for Metropolis-Hastings
 
+        Args:
+            loc_proposal ([type]): [description]
+            method ([type]): [description]
+
+        Returns:
+            tuple: (r, prop_like)
+            The acceptance ratio r and the likelihood of the proposal.
+        """
         # proposal likelihood + prior
-        loc_proposal_vec = loc_proposal.reshape(self.bcount * self.D)
-        loc_proposal_poin = t02p(loc_proposal_vec, self.D).reshape(self.bcount, self.D)
-        leaf_r, int_r, leaf_dir, int_dir = utilFunc.cart_to_dir_tree(loc_proposal_poin)
-        peel = utilFunc.make_peel(leaf_r, leaf_dir, int_r, int_dir)
+        if method == 'geodesics':
+            loc_proposal_vec = loc_proposal.reshape(self.S * self.D)
+            loc_proposal_poin = t02p(loc_proposal_vec, self.D).reshape(self.S, self.D)
+            leaf_r, int_r, leaf_dir, int_dir = utilFunc.cart_to_dir_tree(loc_proposal_poin)
+            peel, int_proposal_poin = utilFunc.make_peel_geodesics(loc_proposal_poin)
+            int_r, int_dir = utilFunc.cart_to_dir(int_proposal_poin)
+            leaf_r, leaf_dir = utilFunc.cart_to_dir(loc_proposal_poin)
+        elif method == 'mst':
+            loc_proposal_vec = loc_proposal.reshape(self.bcount * self.D)
+            loc_proposal_poin = t02p(loc_proposal_vec, self.D).reshape(self.bcount, self.D)
+            leaf_r, int_r, leaf_dir, int_dir = utilFunc.cart_to_dir_tree(loc_proposal_poin)
+            leaf_r, int_r, leaf_dir, int_dir = utilFunc.cart_to_dir_tree(loc_proposal_poin)
+            peel = utilFunc.make_peel_mst(leaf_r, leaf_dir, int_r, int_dir)
         blen = self.compute_branch_lengths(self.S, peel, leaf_r, leaf_dir, int_r, int_dir)
         prop_like = self.compute_LL(peel, blen)
         prop_prior = self.compute_prior(peel, blen, **self.prior)
@@ -109,12 +127,12 @@ class DodonaphyMCMC(BaseModel):
         # Proposals are symmetric Guassians
         hastings_ratio = 1
 
-        return torch.minimum(torch.ones(1), prior_ratio * like_ratio * hastings_ratio), prop_like
+        return torch.minimum(torch.ones(1), (prior_ratio * like_ratio)**self.temp * hastings_ratio), prop_like
 
     @staticmethod
     def run(dim, partials, weights, dists, path_write,
             epochs=1000, step_scale=0.01, save_period=1,
-            n_grids=10, n_trials=100, **prior):
+            n_grids=10, n_trials=100, nChains=1, connect_method='mst', **prior):
         print('\nRunning Dodonaphy MCMC')
 
         # embed tips with distances using Hydra
@@ -122,7 +140,7 @@ class DodonaphyMCMC(BaseModel):
         print('Embedding Stress (tips only) = {:.4}'.format(emm["stress"].item()))
 
         # Initialise model
-        mymod = DodonaphyMCMC(partials, weights, dim, **prior)
+        mymod = DodonaphyMCMC(partials, weights, dim, step_scale=step_scale, nChains=nChains, **prior)
 
         # Choose internal node locations from best random initialisation
         # TODO: use non-static method. When to initialise self.loc??

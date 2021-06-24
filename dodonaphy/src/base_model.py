@@ -12,14 +12,15 @@ class BaseModel(object):
     """Base Model for Inference
     """
 
-    def __init__(self, partials, weights, dim, **prior):
-        self.partials = partials
+    def __init__(self, partials, weights, dim, connect_method='mst', **prior):
+        self.partials = partials.copy()
         self.weights = weights
-        self.S = len(partials)
-        self.L = partials[0].shape[1]
+        self.S = len(self.partials)
+        self.L = self.partials[0].shape[1]
         self.D = dim
         self.bcount = 2 * self.S - 2
         self.prior = prior
+        self.connect_method = connect_method
 
         # make space for internal partials
         for i in range(self.S - 1):

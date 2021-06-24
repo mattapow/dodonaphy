@@ -268,16 +268,6 @@ class utilFunc:
         return directional
 
     @staticmethod
-    def make_peel(leaf_r, leaf_dir, int_r, int_dir, curvature=torch.ones(1), method='mst'):
-        if method == 'mst':
-            return utilFunc.make_peel_mst(leaf_r, leaf_dir, int_r, int_dir, curvature)
-        elif method == 'geodesics':
-            leaf_locs = utilFunc.dir_to_cart(leaf_r, leaf_dir)
-            return utilFunc.make_peel_geodesics(leaf_locs)
-        else:
-            raise KeyError("Invalid method key. Use 'mst' or 'geodesics'.")
-
-    @staticmethod
     def get_pdm(leaf_r, leaf_dir, int_r, int_dir, curvature=torch.ones(1)):
         leaf_node_count = leaf_r.shape[0]
         node_count = leaf_r.shape[0] + int_r.shape[0]
@@ -613,7 +603,7 @@ class utilFunc:
         return leaf_r, int_r, leaf_dir, int_dir
 
     @staticmethod
-    def plot_tree(ax, peel, X, color=(0, 0, 0), labels=True):
+    def plot_tree(ax, peel, X, color=(0, 0, 0), labels=True, root=0):
         """ Plot a tree in the Poincare disk
 
         Parameters
@@ -654,11 +644,9 @@ class utilFunc:
         if labels:
             n_points = X.shape[0] - 1
             for p in range(n_points):
-                msg = str(p+1)
-                if p == 0:
-                    msg = msg + " (" + str(n_points+1) + ")"
+                msg = str(p)
                 ax.annotate(msg,
-                            xy=(float(X[p, 0]) + .04, float(X[p, 1])),
+                            xy=(float(X[p, 0]) + .02, float(X[p, 1])),
                             xycoords='data')
 
     @staticmethod
@@ -755,38 +743,38 @@ class utilFunc:
         fn = dir + '/' + filename + '.trees'
         with open(fn, 'a+') as file:
             file.write("tree STATE_" + str(iteration))
-            # TODO: output likelihoods
             file.write(" [&lnP={}] = [&R] ".format(LL))
             file.write(tree + '\n')
 
     @staticmethod
     def make_peel_geodesics(leaf_locs):
-        # /**
-        #  * use geodesic arcs to make a binary tree from a set of leaf node points embedded
-        #  * in hyperbolic space.
-        #  * Output: int_locs, peel
-        #  */
+        """Generate a tree using Chami's geodesics method
+
+        Args:
+            leaf_locs (array): Location in of the tips in the Poincare disk
+
+        Returns:
+            tuple: (peel, int_locs)
+        """
         dims = leaf_locs.shape[1]
         leaf_node_count = leaf_locs.shape[0]
         int_node_count = leaf_locs.shape[0] - 2
         node_count = leaf_locs.shape[0] * 2 - 2
+
         leaf_r, leaf_dir = utilFunc.cart_to_dir(leaf_locs)
-        leaf_r = torch.cat((leaf_r, leaf_r[0].unsqueeze(dim=0)))
-        leaf_dir = torch.cat((leaf_dir, leaf_dir[-1, :].unsqueeze(dim=0)), dim=0)
-        int_locs = torch.zeros(int_node_count+1, dims)
-        int_locs[-1, :] = leaf_locs[0, :]
         edge_list = utilFunc.get_pdm_tips(leaf_r, leaf_dir, curvature=torch.ones(1))
+
+        int_locs = torch.zeros(int_node_count+1, dims)
         peel = np.zeros((int_node_count+1, 3), dtype=np.int16)
+        visited = node_count * [False]
 
         # queue = [edges for neighbours in edge_list for edges in neighbours]
         queue = []
+        heappush(queue, min(min(edge_list)))
         heapify(queue)
-        heappush(queue, min(edge_list[0]))
-        visited = node_count * [False]
-        print('int_node_count: %d\n' % int_node_count)
+
         int_i = 0
-        while int_i < int_node_count:
-            print('int_i = %d' % int_i)
+        while int_i < int_node_count+1:
             e = queue.pop()
             if(visited[e.from_] | visited[e.to_]):
                 continue
@@ -804,19 +792,11 @@ class utilFunc:
                 to_point = int_locs[e.to_-leaf_node_count]
 
             int_locs[int_i] = utilFunc.hyp_lca(from_point, to_point)
-            cur_peel = cur_internal - leaf_node_count
-            peel[cur_peel][0] = e.from_
-            peel[cur_peel][1] = e.to_
-            peel[cur_peel][2] = cur_internal
+            peel[int_i][0] = e.from_
+            peel[int_i][1] = e.to_
+            peel[int_i][2] = cur_internal
             visited[e.from_] = True
             visited[e.to_] = True
-
-            print(peel)
-            # print(e)
-            # print(visited)
-            # print(int_locs)
-            # print(int_i)
-            print('done')
 
             # add all pairwise distances between the new node and other active nodes
             for i in range(cur_internal):
@@ -826,16 +806,25 @@ class utilFunc:
                     dist_ij = utilFunc.hyperbolic_distance_locs(leaf_locs[i], int_locs[int_i])
                 else:
                     dist_ij = utilFunc.hyperbolic_distance_locs(int_locs[i-leaf_node_count], int_locs[int_i])
-                #  // apply the inverse transform from Matsumoto et al 2020
+                # apply the inverse transform from Matsumoto et al 2020
                 dist_ij = torch.log(torch.cosh(dist_ij))
-                # // use negative of distance so that least dist has largest value in the priority queue
+                # use negative of distance so that least dist has largest value in the priority queue
                 heappush(queue, u_edge(-dist_ij, i, cur_internal))
-            int_i += 1
 
-        # add fake root
-        int_locs[-1, :] = leaf_locs[0, :]
-        child = peel[0][2]
-        peel[-1, :] = [0, child, node_count]
+            # push the smallest tip-tip distance of the active tips
+            tip_tip = u_edge(-math.inf, -1, -1)
+            for i in range(leaf_node_count):
+                if visited[i]:
+                    continue
+                for j in range(i):
+                    if visited[j]:
+                        continue
+                    dist_ij = edge_list[i][j].distance
+                    dist_ij = torch.log(torch.cosh(dist_ij))
+                    if dist_ij > tip_tip.distance:
+                        tip_tip = u_edge(-dist_ij, i, j)
+            heappush(queue, tip_tip)
+            int_i += 1
 
         return peel, int_locs
 
