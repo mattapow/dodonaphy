@@ -62,12 +62,12 @@ def hyperboloid_dists(loc):
 
     for i in range(n_points):
         for j in range(i + 1, n_points):
-            dists[i][j] = -1-lorentz_product(loc[i].squeeze(0), loc[j].squeeze(0))
+            dists[i][j] = torch.acosh(-lorentz_product(loc[i].squeeze(0), loc[j].squeeze(0)))
     dists = dists + torch.transpose(dists, 0, 1)
 
     # Diagonals
     for i in range(n_points):
-        dists[i][i] = -1-lorentz_product(loc[i].squeeze(0))
+        dists[i][i] = torch.acosh(-lorentz_product(loc[i].squeeze(0)))
 
     return dists
 
