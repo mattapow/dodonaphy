@@ -9,12 +9,16 @@
 \usepackage[english]{babel}
 
 \newtheorem{theorem}{Theorem}
+\newcommand{\be}{\begin{equation*}}
+\newcommand{\ee}{\end{equation*}}
+\newcommand{\bee}{\begin{eqnarray*}}
+\newcommand{\eee}{\end{eqnarray*}}
 
 \title{Dodonaphy Notes}
 
 \begin{document}
 \maketitle
-\section{Introduction}
+\section{Abstract}
 Hyperbolic spaces allow quality embeddings of nested data structures, such as trees.
 Recent efforts to embed phylogenetic trees using distance-based optimisation demonstrate promising results for embedding single trees.
 However, expressing uncertainty in phylogenetics involves a probability distribution over a super-exponential number of trees.
@@ -51,14 +55,42 @@ We propose a node's new location from a Gaussian by projecting the point from th
 First project onto the hyperboloid model in $\mathbb{R}^{d+1}$ using $\phi(\bold{x}_{i})$ (see appendix), then projecting onto the tangent plane of $\bold{x}=0$ using the $d$-dimensional vector $u=(0, 1, 1, 1,...)$: $\Psi(\bold{x}_{i}) = \psi(\bold{x}_{i}) \cdot u $.
 A new point is drawn from a Gaussian located at $\Psi(\bold{x}_{i})$ with given standard deviation, before being projected back to the Poincare ball with $\Phi^{-1}$.
 
+\subsection{Continuity}
+Under a MST protocol, the total length of the tree is continuous as nodes move.
+As a node $\bold{x}_{i}$ moves continuously:
+\begin{itemize}
+\item Case (1) the tree does not change topology. The branch lengths of node $i$ change continuously and so the total length $\ell$:
+\be
+\dfrac{\partial \ell}{\partial \bold{x_{i}}} = cst.
+\ee
+\item Case (2) the tree changes topology. Suppose $x_{i}$ moves through the point $a$ and the topology changes from $\tau_{1}$ to $\tau_{2}$. The limit from the first topology $\text{lim}_{x_{i} \to a^{\tau_{1}}} \ell = \text{lim}_{x_{i} \to a^{\tau_{2}}} \ell$.
+\end{itemize}
+
+If the distance between every pair of two nodes $d(i,j)$ accurately reflects the number of mutations per site $\nu_{ij}$ between the two, then under a JC69 model, the total branch length $\ell$ uniquely determines the likelihood function $p(D|T)$.
+\[
+P(\nu_{ij}) = 
+\begin{cases}
+	\frac{1}{4} + \frac{3}{4} e^{\nu_{ij}} & i \neq j\\
+	\frac{1}{4} - \frac{1}{4} e^{\nu_{ij}} & i = j
+\end{cases}
+\]
+% TODO: show
+%The likelihood 
+%\bee
+%p(D, T) &=& [\sum_{x\in\{A,C,T,G\}} P_{sx}(d_{o_{1}}) L^{o_{1}}(x)][...]\\
+%&=& [4 P_{sA}(d_{o_{1}}) L^{o_{1}}(A)][...]
+%\eee
+The difficulty is to get the pairwise distances to match the number of mutations per site.
+% prior?
+
 \section{Variational Inference}
 In VI, the posterior surface (here a set of surfaces --- one for each embedded node $i$) is approximated by a variational distribution $q_{i}(z_{i})$, each parameterised by parameters $z_{i}$.
 When the data $D$ is fixed, minimising the KL divergence to the posterior $\text{KL}({\bf q}(\phi)||p(T\big|D))$ is equivalent to maximising the evidence lower bound (ELBO):
-\begin{equation*}
-\text{ELBO}(q) = \mathbb{E}[\log(p(z,D))] - \mathbb{E}[\log(q(z))].
-\end{equation*}
+\be
+\text{ELBO}(q) = \mathbb{E}_{q}[\log(p(z,D))] - \mathbb{E}_{q}[\log(q(z))].
+\ee
 Working with the ELBO is computationally advantageous since it does not depend on the intractable marginal distribution of the data $p(D)$, which is involves integrate over all tree topologies and all branch lengths.
-We consider two mean-field variational distributions for the node locations in $\mathbb{P}^{n}$: a logit-Normal distribution and a ``wrapped'' Normal distribution as proposed in \cite{Nagano2019Wrapped}.
+We consider two mean-field variational distributions for the node locations in $\mathbb{P}^{d}$: a logit-Normal distribution and a ``wrapped'' Normal distribution as proposed in \cite{Nagano2019Wrapped}.
 
 In both these approaches, the variational distribution $\bold{q}$ is smooth, however the posterior probability is not guaranteed to be continuous let alone differentiable as the topology changes.
 However this difficulty is partly overcome since the ELBO is not a point estimate, but is an expectation taken from $k$ samples.
@@ -66,6 +98,21 @@ Any discontinuities in $p(z,D)$ are smoothed through sampling under $q$.
 
 To optimise the elbo we use stochastic gradient ascent implemented in PyTorch.
 The autograd functionality of PyTorch automatically computes the gradient of the elbo in order to stochastically optimise with gradients.
+
+Since the ELBO is an expectation under $q$, which in this case is a vector of normal distributions $g(x)$,
+\bee
+\text{ELBO}(q) &=& \mathbb{E}_{q}[\log(p(z,D))] - \mathbb{E}_{q}[\log(q(z))]\\
+&=& \int_{\mathbb{R}^{d}}[\log(p(z,D))] d\bold{q} - \int_{\mathbb{R}^{d}}[\log(q(z))] d\bold{q}\\
+&=& \int_{\mathbb{R}^{d}}[\log(p(z,D))] \circ g(z) dz - \int_{\mathbb{R}^{d}}[\log(q(z))] \circ g(z) dz.
+\eee
+% TODO: make clear
+Since g(z) is infinitely differentiable and
+\be
+\dfrac{d}{dz_{i}} (f \circ g) = f \circ \dfrac{dg}{dz_{i}},
+\ee
+we find that the elbo is also infinitely differentiable.
+
+
 
 \section{Results}
 As a toy example, a posterior was approximated for a six taxa set using Dodonaphy's MCMC and its VI before being compared to BEAST2 --- an established MCMC software.
@@ -83,9 +130,13 @@ This could indicate that the MCMC chain is stuck in a local optima and that tech
 \begin{figure}[htbp]
 \begin{center}
 \includegraphics[width=.333\linewidth]{fig/cmp_splits}%
-\includegraphics[width=.333\linewidth]{fig/cmp_height}%
-\includegraphics[width=.333\linewidth]{fig/cmp_length}
-\caption{Comparison of tree statistics between Beast and Dodonaphy. (a) Analysis of the splits reveals that BEAST always recovered the simulated tree, whilst our MCMC got 2 splits correct but incorrectly split $16|2345$ instead of $36|1245$. Comparison of tree (b) root height and (c) total branch length using various methods.}
+\includegraphics[width=.333\linewidth]{fig/cmp_tree_length}%
+\includegraphics[width=.333\linewidth]{fig/cmp_treeness}
+\includegraphics[width=.25\linewidth]{fig/cmp_b1}%
+\includegraphics[width=.25\linewidth]{fig/cmp_b2}%
+\includegraphics[width=.25\linewidth]{fig/cmp_b3}%
+\includegraphics[width=.25\linewidth]{fig/cmp_b4}
+\caption{Comparison of tree statistics between Beast and Dodonaphy: (a) split posterior probability (b) total branch length (c) ``treeness'' (signal/signal+noise) (d-g) branch lengths (possibly not same branch??).}
 \label{fig:stat_cmp}
 \end{center}
 \end{figure}
@@ -93,21 +144,25 @@ This could indicate that the MCMC chain is stuck in a local optima and that tech
 Figure~\ref{fig:locations} shows a kernel density estimate for each node location at various stages.
 Comparing figures~\ref{fig:locations}a and b reveals that the posterior surface of nodes can drift over the simulation.
 Indeed tree reconstructions are invariant to isometries on the embedded points since they are only based on their relative distances.
-Additionally, trees are invariant to moving a tip node along the surface with constant distance to its nearest neighbour (provided the tree doesn't change topology).
+Additionally, tree reconstructions won't change as a tip node moves along the surface with constant distance to its nearest neighbour (provided the tree doesn't change topology).
 The embedded posterior surfaces generated from samples $\bold{X}_{i}$ shouldn't be considered static, but transient over the simulation.
 Nonetheless, these degrees of freedom should not affect the result of the MCMC.
 
 These densities are clearly not normally distributed.
 The feasibility of VI rests on how well a simple distribution $q$ can approximate these densities.
 Boosting to a mixture model may increase the ability for VI to represent these embeddings.
-
+	
 \subsection{VI}
 The traces in figure~\ref{fig:elbos} illustrate that the elbos has a strange start, getting worse for a few hundred epochs, but then increases steadily but probably hasn’t converged after the 1e4 epochs.
 \begin{figure}[htbp]
 \begin{center}
 \includegraphics[width=.5\linewidth]{fig/locations_500.png}%
 \includegraphics[width=.5\linewidth]{fig/locations_900.png}
-\caption{Density estimates of the node locations from Dodonaphy's MCMC projected into $\mathbb{R}^{2}$. (a) Tree 500-600 and (b) 900-1000 in the sampled MCMC chain.}
+\includegraphics[width=.5\linewidth]{fig/VI_params_init.png}%
+\includegraphics[width=.5\linewidth]{fig/VI_params.png}
+\includegraphics[width=.5\linewidth]{fig/geo_params_init.png}%
+\includegraphics[width=.5\linewidth]{fig/geo_params.png}
+\caption{Density estimates of the node locations from Dodonaphy's MCMC projected into $\mathbb{R}^{2}$. (a) Tree 500-600 and (b) 900-1000 in the sampled MCMC chain. On a different data set: (c) initial variational densities in $\mathbb{P}^{2}$ using a truncated exponential on internal node radius. The binary MST depicted, uses the mean of each node's density. (d) After learning for $10^{4}$ epochs. (e-f) Same as above but using the geodesics method.}
 \label{fig:elbos}
 \end{center}
 \end{figure}
@@ -117,10 +172,44 @@ The traces in figure~\ref{fig:elbos} illustrate that the elbos has a strange sta
 \includegraphics[width=.333\linewidth]{fig/elbo_trace_logit.png}%
 \includegraphics[width=.333\linewidth]{fig/elbo_trace_wrap.png}%
 \includegraphics[width=.333\linewidth]{fig/elbo_trace_wrap_B3.png}
-\caption{ELBO trace from VI on six taxa using (a) the logit method, (b) the wrapping method and (c) the wrapping method using a mixture of three Gaussians. Simulation used $10^{4}$ epochs, $n=2$ dimensions and $k=10$ samples to evaluate the elbo. Final ELBOs were (a) $-9539$, (b) $-9690$ and (c) -8264.}
+\includegraphics[width=.333\linewidth]{fig/elbo_trace_k10.png}%
+\includegraphics[width=.333\linewidth]{fig/elbo_trace_wrap2.png}%
+\includegraphics[width=.333\linewidth]{fig/elbo_trace_geo.png}
+\caption{ELBO trace from VI on six taxa using (a) the logit method, (b) the wrapping method and (c) the wrapping method using a mixture of three Gaussians. Simulation used $10^{4}$ epochs, $n=2$ dimensions and $k=10$ samples to evaluate the elbo. Final ELBOs were (a) $-9539$, (b) $-9690$ and (c) -8264. Second row shows analysis of second data set using (d) logistic method, (e) wrapping method (f) logistic method with geodesics.}
 \label{fig:elbo}
 \end{center}
 \end{figure}
+
+\begin{figure}[htbp]
+\begin{center}
+\includegraphics[width=.333\linewidth]{fig/elbo_trace_k1.png}%
+\includegraphics[width=.333\linewidth]{fig/elbo_trace_k10.png}%
+\includegraphics[width=.333\linewidth]{fig/elbo_trace_k100.png}
+\caption{Effect of number of ELBO samples $k=\{1, 10, 100\}$.}
+\label{fig:k_samples}
+\end{center}
+\end{figure}
+
+\begin{figure}[htbp]
+\begin{center}
+\includegraphics[width=.333\linewidth]{fig/elbo_trace_lr1.png}%
+\includegraphics[width=.333\linewidth]{fig/elbo_trace_lr01.png}%
+\includegraphics[width=.333\linewidth]{fig/elbo_trace_lr0001.png}
+\caption{Effect of learning rate $\{1, 10^{-1}, 10^{-4}\}$.}
+\label{fig:lr}
+\end{center}
+\end{figure}
+
+\begin{figure}[htbp]
+\begin{center}
+\includegraphics[width=.333\linewidth]{fig/elbo_trace_SGD.png}%
+\includegraphics[width=.333\linewidth]{fig/elbo_trace_d3.png}%
+\includegraphics[width=.333\linewidth]{fig/elbo_trace_b3.png}
+\caption{Trying (a) SGD instead of Adam. (b) 3-dimensions. (c) Boosting with a mixture of 3 Gaussians.}
+\label{fig:lr}
+\end{center}
+\end{figure}
+
 
 \section{Thoughts}
 \subsection{MCMC}
@@ -148,6 +237,8 @@ Could we adopt an approach like Wilson and Chami, where only the distributions o
 Only then do we infer a tree.
 The advantage of this is that the cost function is differentiable and more in line with what other people in the ML community do.
 However, this isn't actually modelling the Bayesian Posterior, just a proxy for it.
+
+Tips are labelled, internal nodes are not.
 
 \section{Appendix}
 \subsection{Numerical stability in Hyperbolic space}
