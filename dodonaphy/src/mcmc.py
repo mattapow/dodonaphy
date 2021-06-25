@@ -13,6 +13,10 @@ class Chain(BaseModel):
         self.loc = loc  # location in the tangent space. Leaves then ints
         self.step_scale = step_scale
         self.temp = temp
+        if loc is not None:
+            self.n_points = len(self.loc)
+        self.accepted = 0
+        self.iterations = 0
 
     def set_probability(self, method):
         # set peel + blens + poincare locations
@@ -38,7 +42,7 @@ class Chain(BaseModel):
     def evolve(self, method):
         accepted = 0
 
-        for i in range(len(self.loc)):
+        for i in range(self.n_points):
             loc_proposal = self.loc.detach().clone()
             loc_proposal[i, :] = loc_proposal[i, :] + normal.Normal(0, self.step_scale).sample((1, self.D))
             r, like_proposal = self.accept_ratio(loc_proposal, method)
@@ -53,6 +57,8 @@ class Chain(BaseModel):
                 self.loc = loc_proposal
                 self.lnP = like_proposal
                 accepted += 1
+                self.accepted += 1
+        self.iterations += self.n_points
 
         return accept
 
@@ -96,6 +102,15 @@ class Chain(BaseModel):
 
         return torch.minimum(torch.ones(1), (prior_ratio * like_ratio)**self.temp * hastings_ratio), prop_like
 
+    def tune_step(self):
+        # Tune the acceptance rate. Simple Euler method.
+        target_acceptance = .234
+        lr = 0.1
+        eps = np.finfo(np.double).eps
+        acceptance = self.accepted / self.iterations
+        dy = acceptance - target_acceptance
+        self.step_scale = max(self.step_scale + lr * dy, eps)
+
 
 class DodonaphyMCMC():
 
@@ -133,7 +148,6 @@ class DodonaphyMCMC():
         for _ in range(burnin):
             self.evolove()
 
-        accepted = 0
         swaps = 0
 
         for i in range(epochs+1):
@@ -146,7 +160,8 @@ class DodonaphyMCMC():
                 doSave = c == 0 and self.save_period > 0 and i % self.save_period == 0
                 if doSave:
                     if i > 0:
-                        print('epoch: %-12i Acceptance Rate: %5.3f' % (i, accepted/(i*self.nChains)))
+                        acceptance = self.chain[c].accepted / self.chain[c].iterations
+                        print('epoch: %-12i Chain %d acceptance Rate: %5.3f' % (i, c, acceptance))
                     utilFunc.save_tree(path_write, 'mcmc', self.chain[c].peel, self.chain[c].blens,
                                        i*self.chain[c].bcount, self.chain[c].lnP)
                     fn = path_write + '/locations.csv'
@@ -157,7 +172,8 @@ class DodonaphyMCMC():
 
                 # step
                 if i < epochs:
-                    accepted += self.chain[c].evolve(method)
+                    self.chain[c].evolve(method)
+                    self.chain[c].tune_step()
 
             # swap 2 chains
             if self.nChains > 1:
@@ -165,7 +181,8 @@ class DodonaphyMCMC():
 
         fn = path_write + '/' + 'mcmc.info'
         with open(fn, 'a') as file:
-            file.write('%-12s: %f\n' % ("Acceptance", accepted/epochs))
+            final_accept = np.average([self.chain[c].accepted / self.chain[c].iterations for c in range(self.nChains)])
+            file.write('%-12s: %f\n' % ("Acceptance", final_accept))
             file.write('%-12s: %f\n' % ("Swaps", swaps))
 
     def swap(self):
@@ -196,6 +213,7 @@ class DodonaphyMCMC():
             # store in tangent plane R^dim
             loc_poin = utilFunc.dir_to_cart(torch.from_numpy(r), torch.from_numpy(directional))
             self.chain[i].loc = p2t0(loc_poin)
+            self.chain[i].n_points = len(self.chain[i].loc)
 
     @staticmethod
     def run(dim, partials, weights, dists, path_write,
