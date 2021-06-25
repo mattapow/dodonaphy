@@ -6,11 +6,10 @@ import torch
 from torch.distributions.multivariate_normal import MultivariateNormal
 from torch.distributions.transforms import SigmoidTransform
 
-from .hyperboloid import t02p
+from .hyperboloid import t02p, p2t0
 from .phylo import calculate_treelikelihood, JC69_p_t
-from .utils import utilFunc
+from . import utils, tree, hydra, peeler
 from .base_model import BaseModel
-from src.hyperboloid import p2t0
 import matplotlib.pyplot as plt
 
 
@@ -123,20 +122,20 @@ class DodonaphyVI(BaseModel):
                         int_poin = sigmoid_transformation(z_int) * 2 - 1
 
                 # Change coordinates
-                leaf_r, leaf_dir = utilFunc.cart_to_dir(leaf_poin.reshape((self.S, self.D)))
+                leaf_r, leaf_dir = utils.cart_to_dir(leaf_poin.reshape((self.S, self.D)))
                 if self.connect_method == 'mst':
-                    int_r, int_dir = utilFunc.cart_to_dir(int_poin.reshape((self.S - 2, self.D)))
+                    int_r, int_dir = utils.cart_to_dir(int_poin.reshape((self.S - 2, self.D)))
 
                 # prepare return (peel, branch lengths, locations, and log posteriori)
                 if self.connect_method == 'mst':
-                    pl = utilFunc.make_peel_mst(leaf_r, leaf_dir, int_r, int_dir)
+                    pl = peeler.make_peel_mst(leaf_r, leaf_dir, int_r, int_dir)
                 elif self.connect_method == 'geodesics':
-                    pl, int_poin = utilFunc.make_peel_geodesics(leaf_poin.reshape((self.S, self.D)))
-                    int_r, int_dir = utilFunc.cart_to_dir(int_poin.reshape((self.S - 1, self.D)))
+                    pl, int_poin = peeler.make_peel_geodesics(leaf_poin.reshape((self.S, self.D)))
+                    int_r, int_dir = utils.cart_to_dir(int_poin.reshape((self.S - 1, self.D)))
                 peel.append(pl)
                 bl = self.compute_branch_lengths(self.S, pl, leaf_r, leaf_dir, int_r, int_dir)
                 blens.append(bl)
-                location.append(utilFunc.dir_to_cart_tree(leaf_r, int_r, leaf_dir, int_dir, self.D))
+                location.append(utils.dir_to_cart_tree(leaf_r, int_r, leaf_dir, int_dir, self.D))
                 if kwargs.get('lp'):
                     lp.append(calculate_treelikelihood(
                         self.partials, self.weights, pl, JC69_p_t(bl), torch.full([4], 0.25, dtype=torch.float64)))
@@ -191,15 +190,15 @@ class DodonaphyVI(BaseModel):
                 log_abs_det_jacobian += sigmoid_transformation.log_abs_det_jacobian(int_poin, z_int).sum()
 
         # Change leaf coordinates
-        leaf_r, leaf_dir = utilFunc.cart_to_dir(leaf_poin.reshape((self.S, self.D)))
+        leaf_r, leaf_dir = utils.cart_to_dir(leaf_poin.reshape((self.S, self.D)))
 
         # make_peel for prior and likelihood
         if self.connect_method == 'mst':
-            int_r, int_dir = utilFunc.cart_to_dir(int_poin.reshape((self.S - 2, self.D)))
-            peel = utilFunc.make_peel_mst(leaf_r, leaf_dir, int_r, int_dir)
+            int_r, int_dir = utils.cart_to_dir(int_poin.reshape((self.S - 2, self.D)))
+            peel = peeler.make_peel_mst(leaf_r, leaf_dir, int_r, int_dir)
         elif self.connect_method == 'geodesics':
-            peel, int_poin = utilFunc.make_peel_geodesics(leaf_poin.reshape((self.S, self.D)))
-            int_r, int_dir = utilFunc.cart_to_dir(int_poin.reshape((self.S - 1, self.D)))
+            peel, int_poin = peeler.make_peel_geodesics(leaf_poin.reshape((self.S, self.D)))
+            int_r, int_dir = utils.cart_to_dir(int_poin.reshape((self.S - 1, self.D)))
         blen = self.compute_branch_lengths(self.S, peel, leaf_r, leaf_dir, int_r, int_dir)
 
         # logPrior
@@ -270,7 +269,7 @@ class DodonaphyVI(BaseModel):
 
             # Save varitaional parameters
             fn = os.path.join(path_write, "VI_params_init.csv")
-            self.save_VI(fn)
+            self.save(fn)
 
         lr_lambda = lambda epoch: 1.0 / np.sqrt(epoch + 1)
         optimizer = torch.optim.Adam(list(self.VariationalParams.values()), lr=lr)
@@ -363,7 +362,7 @@ class DodonaphyVI(BaseModel):
         print('Using %s embedding with %s connections' % (method, connect_method))
 
         # embed tips with hydra
-        emm_tips = utilFunc.hydra(D=dists, dim=dim, equi_adj=0., stress=True)
+        emm_tips = hydra.hydra(D=dists, dim=dim, equi_adj=0., stress=True)
         print('Embedding Stress (tips only) = {:.4}'.format(emm_tips["stress"].item()))
 
         # Initialise model
@@ -374,9 +373,9 @@ class DodonaphyVI(BaseModel):
             int_r, int_dir = mymod.initialise_ints(emm_tips, n_grids=init_grids, n_trials=init_trials)
 
         # convert to tangent space
-        leaf_loc_poin = utilFunc.dir_to_cart(torch.from_numpy(emm_tips["r"]), torch.from_numpy(emm_tips["directional"]))
+        leaf_loc_poin = utils.dir_to_cart(torch.from_numpy(emm_tips["r"]), torch.from_numpy(emm_tips["directional"]))
         if connect_method == 'mst':
-            int_loc_poin = torch.from_numpy(utilFunc.dir_to_cart(int_r, int_dir))
+            int_loc_poin = torch.from_numpy(utils.dir_to_cart(int_r, int_dir))
 
         if method == 'wrap':
             leaf_loc_t0 = p2t0(leaf_loc_poin).detach().numpy()
@@ -426,15 +425,15 @@ class DodonaphyVI(BaseModel):
         # draw samples
         peels, blens, X, lp = mymod.draw_sample(n_draws, lp=True)
 
-        utilFunc.save_tree_head(path_write, "vi", S)
+        tree.save_tree_head(path_write, "vi", S)
         for i in range(n_draws):
-            utilFunc.save_tree(path_write, "vi", peels[i], blens[i], i, lp[i].item())
+            tree.save_tree(path_write, "vi", peels[i], blens[i], i, lp[i].item())
 
         # Save varitaional parameters
         fn = os.path.join(path_write, "VI_params.csv")
-        mymod.save_VI(fn)
+        mymod.save(fn)
 
-    def save_VI(self, fn):
+    def save(self, fn):
         with open(fn, 'w') as f:
             for b in range(self.boosts):
                 for i in range(self.S):
@@ -470,7 +469,7 @@ class DodonaphyVI(BaseModel):
                 f.write('\n')
 
 
-def read_VI(path_read, connect_method='mst'):
+def read(path_read, connect_method='mst'):
     with open(path_read, 'r') as f:
         lines = [line.rstrip('\n') for line in f]
 

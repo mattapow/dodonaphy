@@ -1,6 +1,7 @@
 import torch
 from .phylo import calculate_treelikelihood, JC69_p_t
-from .utils import utilFunc
+from . import utils
+from . import tree as treeFunc
 import Cutils
 from dendropy import Tree as Tree
 from dendropy.model.birthdeath import birth_death_likelihood as birth_death_likelihood
@@ -47,7 +48,7 @@ class BaseModel(object):
         for i in range(n_grids):
             _scale = i/n_grids * max_scale
             for _ in range(n_trials):
-                peel = utilFunc.make_peel_mst(leaf_r, leaf_dir, torch.from_numpy(_int_r), torch.from_numpy(_int_dir))
+                peel = utils.make_peel_mst(leaf_r, leaf_dir, torch.from_numpy(_int_r), torch.from_numpy(_int_dir))
                 blen = self.compute_branch_lengths(
                     self.S, peel, leaf_r, leaf_dir, torch.from_numpy(_int_r), torch.from_numpy(_int_dir))
                 _lnP = self.compute_LL(peel, blen)
@@ -152,7 +153,7 @@ class BaseModel(object):
         death_rate = prior.get('death_rate', .5)
 
         tipnames = ['T' + str(x+1) for x in range(self.S)]
-        newick = utilFunc.tree_to_newick(tipnames, peel, blen)
+        newick = treeFunc.tree_to_newick(tipnames, peel, blen)
         tree = Tree.get(data=newick, schema='newick')
         LL = birth_death_likelihood(
             tree=tree,

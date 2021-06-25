@@ -3,7 +3,7 @@ from dendropy.simulate import treesim
 from dendropy.model.discrete import simulate_discrete_chars
 from src.vi import DodonaphyVI as vi
 from src.phylo import compress_alignment, JC69_p_t, calculate_treelikelihood
-from src.utils import utilFunc
+from src import tree as treeFunc
 import torch
 from dendropy.interop import raxml
 
@@ -58,7 +58,7 @@ def test_calculate_likelihood():
     # Compute RAxML tree
     rx = raxml.RaxmlRunner()
     tree = rx.estimate_tree(char_matrix=dna, raxml_args=["--no-bfgs"])
-    peel, blens = utilFunc.dendrophy_to_pb(tree)
+    peel, blens = treeFunc.dendrophy_to_pb(tree)
     mats = JC69_p_t(blens)
 
     # compute partials and weights
