@@ -6,7 +6,7 @@ import random
 import os
 import numpy as np
 
-from src.vi import DodonaphyVI as vi
+from src.vi_tips import VITips
 from src.mcmc import DodonaphyMCMC as mcmc
 from src.phylo import compress_alignment
 
@@ -21,7 +21,6 @@ def main():
     n_draws = 1000      # number of trees drawn from final distribution
     init_trials = 1000   # number of initial embeddings to select from per grid
     init_grids = 100     # # number grid scales for selecting inital embedding
-    connect_method = 'mst'  # 'geodesics' or 'mst'
 
     # VI parameters
     k_samples = 10       # tree samples per elbo calculation
@@ -33,6 +32,7 @@ def main():
     step_scale = .05
     save_period = max(int(epochs/n_draws), 1)
     nChains = 1
+    connect_method = 'mst'  # 'geodesics' or 'mst'
 
     runVi = False
     runMcmc = True
@@ -93,10 +93,10 @@ def main():
         # Run Dodonaphy variational inference
         path_write_vi = os.path.abspath(os.path.join(path_write, ("%s_mst" % (method))))
         os.mkdir(path_write_vi)
-        vi.run(dim, S, partials[:], weights, dists, path_write_vi,
-               epochs=epochs, k_samples=k_samples, n_draws=n_draws, boosts=boosts,
-               init_grids=init_grids, init_trials=init_trials, method=method, lr=lr,
-               connect_method=connect_method, **prior)
+        VITips.run(dim, S, partials[:], weights, dists, path_write_vi,
+                   epochs=epochs, k_samples=k_samples, n_draws=n_draws, boosts=boosts,
+                   init_grids=init_grids, init_trials=init_trials, method=method, lr=lr,
+                   **prior)
 
     # Make folder for BEAST
     # path_write_beast = os.path.abspath(os.path.join(path_write, "beast"))
