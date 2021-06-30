@@ -2,6 +2,7 @@ import os
 from typing import List, Any
 
 import numpy as np
+import math
 import torch
 from torch.distributions.multivariate_normal import MultivariateNormal
 from torch.distributions.transforms import SigmoidTransform
@@ -220,8 +221,9 @@ class VITips(BaseModel):
             self.VariationalParams["leaf_weights"] = torch.full((self.boosts, 1), 1/self.boosts).requires_grad_(True)
 
         # Save varitaional parameters
-        fn = os.path.join(path_write, "VI_params_init.csv")
-        self.save(fn)
+        if path_write is not None:
+            fn = os.path.join(path_write, "VI_params_init.csv")
+            self.save(fn)
 
         lr_lambda = lambda epoch: 1.0 / np.sqrt(epoch + 1)
         optimizer = torch.optim.Adam(list(self.VariationalParams.values()), lr=lr)
@@ -240,7 +242,6 @@ class VITips(BaseModel):
             return loss
 
         for epoch in range(epochs):
-            print(self.VariationalParams['leaf_sigma'])
             optimizer.step(closure)
             scheduler.step()
             print('epoch %-12i ELBO: %10.3f' % (epoch+1, elbo_hist[-1]))
@@ -293,6 +294,38 @@ class VITips(BaseModel):
             elbos.append(self.calculate_elbo(q_leaf))
         return torch.mean(torch.stack(elbos))
 
+    def best_jitter(self, r, dir, dim):
+        # jitter tips to find best likelihood
+        n_try = 1000
+        print('Jittering leaves %d times to find best initial values.' % n_try)
+        n_points = len(r)
+        dir_try = dir
+        best_r = r
+        best_dir = dir
+        best_LL = -math.inf
+        for _ in range(n_try):
+            # sample
+            r_try = MultivariateNormal(r, 1e-2*torch.eye(n_points).double()).sample((1,)).squeeze()
+            for point in range(n_points):
+                dir_try[point, :] = MultivariateNormal(dir[point], 1e-2 * torch.eye(dim).double()).sample((1,))
+
+                # ensure directional is unit vector
+                norms = torch.sum(torch.pow(dir_try, 2), axis=1).unsqueeze(dim=1)
+                dir_try = dir_try / norms
+
+            # Compute likelihood
+            leaf_locs = utils.dir_to_cart(r, dir)
+            peel, int_locs = peeler.make_peel_incentre(leaf_locs)
+            int_r, int_dir = utils.cart_to_dir(int_locs)
+            blen = self.compute_branch_lengths(self.S, peel, r_try, dir_try, int_r, int_dir)
+            LL = self.compute_LL(peel, blen)
+            if LL > best_LL:
+                best_r = r_try
+                best_dir = dir_try
+                best_LL = LL
+
+        return best_r, best_dir
+
     @staticmethod
     def run(dim, S, partials, weights, dists, path_write,
             epochs=1000, k_samples=3, n_draws=100, boosts=1,
@@ -309,12 +342,16 @@ class VITips(BaseModel):
         # embed tips with hydra
         emm_tips = hydra.hydra(D=dists, dim=dim, equi_adj=0., stress=True)
         print('Embedding Stress (tips only) = {:.4}'.format(emm_tips["stress"].item()))
+        r, directional = torch.from_numpy(emm_tips["r"]), torch.from_numpy(emm_tips["directional"])
 
         # Initialise model
         mymod = VITips(partials, weights, dim, boosts, method=method, **prior)
 
+        # jitter tips to find best likelihood
+        r, directional = mymod.best_jitter(r, directional, dim)
+
         # convert to tangent space
-        leaf_loc_poin = utils.dir_to_cart(torch.from_numpy(emm_tips["r"]), torch.from_numpy(emm_tips["directional"]))
+        leaf_loc_poin = utils.dir_to_cart(r, directional)
 
         if method == 'wrap':
             leaf_loc_t0 = p2t0(leaf_loc_poin).detach().numpy()
@@ -323,7 +360,7 @@ class VITips(BaseModel):
             leaf_loc_t0 = np.log(leaf_loc_poin/(1-leaf_loc_poin))
 
         # set variational parameters with small coefficient of variation on norms
-        cv = 1e-2
+        cv = 1e-3
         eps = np.finfo(np.double).eps
         norms = torch.sum(torch.pow(leaf_loc_t0, 2), axis=1).reshape(S, 1).repeat(1, 2)
         leaf_sigma = np.log(norms * cv + eps)
