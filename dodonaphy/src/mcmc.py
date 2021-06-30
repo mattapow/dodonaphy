@@ -24,7 +24,7 @@ class Chain(BaseModel):
         if method == 'geodesics':
             self.loc_vec = self.loc.reshape(self.S * self.D)
             loc_poin = t02p(self.loc_vec, self.D).reshape(self.S, self.D)
-            self.peel, int_locs = peeler.make_peel_geodesics(loc_poin)
+            self.peel, int_locs = peeler.make_peel_incentre(loc_poin)
             int_r, int_dir = utils.cart_to_dir(int_locs)
             leaf_r, leaf_dir = utils.cart_to_dir(loc_poin)
         elif method == 'mst':
@@ -79,7 +79,7 @@ class Chain(BaseModel):
             loc_proposal_vec = loc_proposal.reshape(self.S * self.D)
             loc_proposal_poin = t02p(loc_proposal_vec, self.D).reshape(self.S, self.D)
             leaf_r, int_r, leaf_dir, int_dir = utils.cart_to_dir_tree(loc_proposal_poin)
-            peel, int_proposal_poin = peeler.make_peel_geodesics(loc_proposal_poin)
+            peel, int_proposal_poin = peeler.make_peel_incentre(loc_proposal_poin)
             int_r, int_dir = utils.cart_to_dir(int_proposal_poin)
             leaf_r, leaf_dir = utils.cart_to_dir(loc_proposal_poin)
         elif method == 'mst':

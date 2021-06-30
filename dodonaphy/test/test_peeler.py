@@ -67,7 +67,7 @@ def test_make_peel_first_leaf_connection():
     assert correct1 or correct2
 
 
-def test_make_peel_geodesic():
+def test_make_peel_incentre():
     leaf_locs = torch.tensor([
         [0.06644704, 0.18495312, -0.03839615],
         [-0.12724270, -0.02395994, 0.20075329]])
@@ -83,11 +83,11 @@ def test_make_peel_geodesic():
 def test_make_peel_geodesic_dogbone():
 
     leaf_r = torch.tensor([.5, .5, .5, .5])
-    leaf_theta = torch.tensor([np.pi/8, -np.pi/8, np.pi*6/8, -np.pi*6/8])
+    leaf_theta = torch.tensor([np.pi/10, -np.pi/10, np.pi*6/8, -np.pi*6/8])
     leaf_dir = utils.angle_to_directional(leaf_theta)
     leaf_locs = utils.dir_to_cart(leaf_r, leaf_dir)
 
-    peel, int_locs = peeler.make_peel_geodesics(leaf_locs)
+    peel, int_locs = peeler.make_peel_incentre(leaf_locs)
 
     # import matplotlib.pyplot as plt
     # ax = plt.subplot(1, 1, 1)
@@ -95,7 +95,7 @@ def test_make_peel_geodesic_dogbone():
     # tree.plot_tree(ax, peel, X)
     # plt.show()
 
-    expected_peel = np.array([[0, 1, 4],
+    expected_peel = np.array([[1, 0, 4],
                              [3, 2, 5],
                              [4, 5, 6]])
 
@@ -111,13 +111,7 @@ def test_make_peel_geodesic_example0():
         (-0.07060744, -0.12278600, -0.17569585),
         (0.11386343, -0.03121063, -0.18112418)])
 
-    peel, int_locs = peeler.make_peel_geodesics(leaf_locs)
-
-    # import matplotlib.pyplot as plt
-    # ax = plt.subplot(1, 1, 1)
-    # X = np.concatenate((leaf_locs, int_locs))
-    # tree.plot_tree(ax, peel, X)
-    # plt.show()
+    peel, int_locs = peeler.make_peel_incentre(leaf_locs)
 
 
 def test_make_peel_geodesic_example1():
@@ -131,7 +125,7 @@ def test_make_peel_geodesic_example1():
                              [5.9408e-02, 3.0677e-04],
                              [-4.0814e-02, -3.1838e-01]])
 
-    peel, int_locs = peeler.make_peel_geodesics(leaf_locs)
+    peel, int_locs = peeler.make_peel_incentre(leaf_locs)
 
     # import matplotlib.pyplot as plt
     # ax = plt.subplot(1, 1, 1)
@@ -146,14 +140,17 @@ def test_make_peel_geodesic_example1():
 
 
 def test_make_peel_geodesic_example2():
-    leaf_locs = torch.tensor([[-2.09999997e-02, -1.25410252e-01],
+    leaf_locs = torch.tensor([[2.09999997e-02, -2.09410252e-01],
                               [1.01784302e-01, 3.18292447e-02],
                               [-9.41199092e-02, 7.48080376e-02],
-                              [-1.65000000e-05, -1.25415666e-01],
-                              [-5.39999999e-05, -1.25410744e-01],
+                              [-1.85000000e-02, -1.25415666e-01],
+                              [-3.39999999e-02, -1.52410744e-01],
                               [-1.40397397e-02, 1.47278753e-01]])
 
-    peel, int_locs = peeler.make_peel_geodesics(leaf_locs)
+    # norm = torch.norm(leaf_locs, dim=1).unsqueeze(1)
+    # leaf_locs = .3 * leaf_locs / norm
+
+    peel, int_locs = peeler.make_peel_incentre(leaf_locs)
 
     # import matplotlib.pyplot as plt
     # ax = plt.subplot(1, 1, 1)

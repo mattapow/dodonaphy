@@ -102,7 +102,7 @@ class VITips(BaseModel):
                 leaf_r, leaf_dir = utils.cart_to_dir(leaf_poin.reshape((self.S, self.D)))
 
                 # prepare return (peel, branch lengths, locations, and log posteriori)
-                pl, int_poin = peeler.make_peel_geodesics(leaf_poin.reshape((self.S, self.D)))
+                pl, int_poin = peeler.make_peel_incentre(leaf_poin.reshape((self.S, self.D)))
                 int_r, int_dir = utils.cart_to_dir(int_poin.reshape((self.S - 1, self.D)))
                 peel.append(pl)
                 bl = self.compute_branch_lengths(self.S, pl, leaf_r, leaf_dir, int_r, int_dir)
@@ -153,7 +153,7 @@ class VITips(BaseModel):
         leaf_r, leaf_dir = utils.cart_to_dir(leaf_poin.reshape((self.S, self.D)))
 
         # make_peel for prior and likelihood
-        peel, int_poin = peeler.make_peel_geodesics(leaf_poin.reshape((self.S, self.D)))
+        peel, int_poin = peeler.make_peel_incentre(leaf_poin.reshape((self.S, self.D)))
         int_r, int_dir = utils.cart_to_dir(int_poin.reshape((self.S - 1, self.D)))
         blen = self.compute_branch_lengths(self.S, peel, leaf_r, leaf_dir, int_r, int_dir)
 
@@ -304,7 +304,7 @@ class VITips(BaseModel):
 
         """
         print('\nRunning Dodonaphy Variational Inference.')
-        print('Using %s embedding with Geodesic-based connections from tips.' % (method))
+        print('Using %s embedding with incentre-based connections from tips.' % (method))
 
         # embed tips with hydra
         emm_tips = hydra.hydra(D=dists, dim=dim, equi_adj=0., stress=True)

@@ -1,4 +1,3 @@
-import math
 from heapq import heapify, heappush, heappop
 from collections import deque
 from . import tree, utils, poincare
@@ -9,8 +8,8 @@ import numpy as np
 from collections import defaultdict
 
 
-def make_peel_geodesics(leaf_locs):
-    """Generate a tree using Chami's geodesics method
+def make_peel_incentre(leaf_locs):
+    """Generate a tree recursively using the incentre of the closest two points.
 
     Args:
         leaf_locs (array): Location in of the tips in the Poincare disk
@@ -26,18 +25,22 @@ def make_peel_geodesics(leaf_locs):
     leaf_r, leaf_dir = utils.cart_to_dir(leaf_locs)
     edge_list = utils.get_pdm_tips(leaf_r, leaf_dir)
 
-    int_locs = torch.zeros(int_node_count+1, dims)
+    int_locs = torch.zeros(int_node_count+1, dims, dtype=torch.double)
+    leaf_locs = leaf_locs.double()
     peel = np.zeros((int_node_count+1, 3), dtype=np.int16)
     visited = node_count * [False]
 
     # queue = [edges for neighbours in edge_list for edges in neighbours]
     queue = []
-    heappush(queue, min(min(edge_list)))
     heapify(queue)
+    for i in range(len(edge_list)):
+        for j in range(i):
+            heappush(queue, edge_list[i][j])
 
     int_i = 0
     while int_i < int_node_count+1:
-        e = queue.pop()
+        # queue.sort()
+        e = heappop(queue)
         if(visited[e.from_] | visited[e.to_]):
             continue
 
@@ -53,7 +56,8 @@ def make_peel_geodesics(leaf_locs):
         else:
             to_point = int_locs[e.to_-leaf_node_count]
 
-        int_locs[int_i] = poincare.hyp_lca(from_point, to_point)
+        # int_locs[int_i] = poincare.hyp_lca(from_point, to_point)
+        int_locs[int_i] = poincare.incentre(from_point, to_point)
         peel[int_i][0] = e.from_
         peel[int_i][1] = e.to_
         peel[int_i][2] = cur_internal
@@ -70,22 +74,7 @@ def make_peel_geodesics(leaf_locs):
                 dist_ij = utils.hyperbolic_distance_locs(int_locs[i-leaf_node_count], int_locs[int_i])
             # apply the inverse transform from Matsumoto et al 2020
             dist_ij = torch.log(torch.cosh(dist_ij))
-            # use negative of distance so that least dist has largest value in the priority queue
-            heappush(queue, u_edge(-dist_ij, i, cur_internal))
-
-        # push the smallest tip-tip distance of the active tips
-        tip_tip = u_edge(-math.inf, -1, -1)
-        for i in range(leaf_node_count):
-            if visited[i]:
-                continue
-            for j in range(i):
-                if visited[j]:
-                    continue
-                dist_ij = utils.hyperbolic_distance_locs(leaf_locs[i], leaf_locs[j])
-                dist_ij = torch.log(torch.cosh(dist_ij))
-                if dist_ij > tip_tip.distance:
-                    tip_tip = u_edge(-dist_ij, i, j)
-        heappush(queue, tip_tip)
+            heappush(queue, u_edge(dist_ij, i, cur_internal))
         int_i += 1
 
     return peel, int_locs
