@@ -133,7 +133,18 @@ class DodonaphyMCMC():
         tree.save_tree_head(path_write, "mcmc", self.chain[0].S)
 
         for _ in range(burnin):
-            self.evolove()
+            for c in range(self.nChains):
+
+                # Set prior and likelihood
+                self.chain[c].set_probability(method)
+
+                # step
+                self.chain[c].evolve(method)
+                self.chain[c].tune_step()
+
+            # swap 2 chains
+            if self.nChains > 1:
+                _ = self.swap()
 
         swaps = 0
         for i in range(epochs+1):
@@ -179,10 +190,12 @@ class DodonaphyMCMC():
     def save_iteration(self, path_write, iteration):
         if iteration > 0:
             acceptance = self.chain[0].accepted / self.chain[0].iterations
-            print('epoch: %-12i Acceptance Rate: %5.3f (' % (iteration, acceptance), end="")
-            for c in range(self.nChains-1):
-                print(' %5.3f' % (self.chain[c+1].accepted / self.chain[c+1].iterations), end="")
-            print(")")
+            print('epoch: %-12i Acceptance Rate: %5.3f' % (iteration, acceptance), end="")
+            if self.nChains > 1:
+                print(" Hot chains: (", end="")
+                for c in range(self.nChains-1):
+                    print(' %5.3f' % (self.chain[c+1].accepted / self.chain[c+1].iterations), end="")
+                print(")")
         tree.save_tree(path_write, 'mcmc', self.chain[0].peel, self.chain[0].blens,
                        iteration*self.chain[0].bcount, self.chain[0].lnP)
         fn = path_write + '/locations.csv'
@@ -200,7 +213,10 @@ class DodonaphyMCMC():
         alpha = torch.minimum(torch.ones(1), prob1 * prob2)
 
         if alpha > uniform.Uniform(torch.zeros(1), torch.ones(1)).rsample():
-            self.chain[swappers[0]], self.chain[swappers[1]] = self.chain[swappers[1]], self.chain[swappers[1]]
+            temp = self.chain[swappers[0]]
+            self.chain[swappers[0]] = self.chain[swappers[1]]
+            self.chain[swappers[1]] = temp
+            del temp
             return 1
         return 0
 
