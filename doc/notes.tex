@@ -129,7 +129,7 @@ This could indicate that the MCMC chain is stuck in a local optima and that tech
 
 \begin{figure}[htbp]
 \begin{center}
-\includegraphics[width=.333\linewidth]{fig/cmp_splits}%
+\includegraphics[width=.333\linewidth]{fig/compare-SF}%
 \includegraphics[width=.333\linewidth]{fig/cmp_tree_length}%
 \includegraphics[width=.333\linewidth]{fig/cmp_treeness}
 \includegraphics[width=.25\linewidth]{fig/cmp_b1}%
@@ -156,26 +156,24 @@ Boosting to a mixture model may increase the ability for VI to represent these e
 The traces in figure~\ref{fig:elbos} illustrate that the elbos has a strange start, getting worse for a few hundred epochs, but then increases steadily but probably hasn’t converged after the 1e4 epochs.
 \begin{figure}[htbp]
 \begin{center}
-\includegraphics[width=.5\linewidth]{fig/locations_500.png}%
-\includegraphics[width=.5\linewidth]{fig/locations_900.png}
-\includegraphics[width=.5\linewidth]{fig/VI_params_init.png}%
-\includegraphics[width=.5\linewidth]{fig/VI_params.png}
-\includegraphics[width=.5\linewidth]{fig/geo_params_init.png}%
-\includegraphics[width=.5\linewidth]{fig/geo_params.png}
-\caption{Density estimates of the node locations from Dodonaphy's MCMC projected into $\mathbb{R}^{2}$. (a) Tree 500-600 and (b) 900-1000 in the sampled MCMC chain. On a different data set: (c) initial variational densities in $\mathbb{P}^{2}$ using a truncated exponential on internal node radius. The binary MST depicted, uses the mean of each node's density. (d) After learning for $10^{4}$ epochs. (e-f) Same as above but using the geodesics method.}
+\includegraphics[width=.333\linewidth]{fig/mcmc_mst_locations.png}%
+\includegraphics[width=.333\linewidth]{fig/mcmc_geo_locations.png}%
+\includegraphics[width=.333\linewidth]{fig/mcmc_tri_locations.png}
+\includegraphics[width=.5\linewidth]{fig/geo_params.png}%
+\includegraphics[width=.5\linewidth]{fig/tri_locations.png}
+\caption{Density estimates of the node locations from Dodonaphy's MCMC projected into $\mathbb{R}^{2}$. MCMC: using (a) mst, (b) geodesics, (c) incentres . After learning for $10^{3}$ epochs variational densities in $\mathbb{P}^{2}$ using (d) geodesics, (e) incentres.
+}
 \label{fig:elbos}
 \end{center}
 \end{figure}
 
 \begin{figure}[htbp]
 \begin{center}
-\includegraphics[width=.333\linewidth]{fig/elbo_trace_logit.png}%
-\includegraphics[width=.333\linewidth]{fig/elbo_trace_wrap.png}%
-\includegraphics[width=.333\linewidth]{fig/elbo_trace_wrap_B3.png}
-\includegraphics[width=.333\linewidth]{fig/elbo_trace_k10.png}%
-\includegraphics[width=.333\linewidth]{fig/elbo_trace_wrap2.png}%
-\includegraphics[width=.333\linewidth]{fig/elbo_trace_geo.png}
-\caption{ELBO trace from VI on six taxa using (a) the logit method, (b) the wrapping method and (c) the wrapping method using a mixture of three Gaussians. Simulation used $10^{4}$ epochs, $n=2$ dimensions and $k=10$ samples to evaluate the elbo. Final ELBOs were (a) $-9539$, (b) $-9690$ and (c) -8264. Second row shows analysis of second data set using (d) logistic method, (e) wrapping method (f) logistic method with geodesics.}
+\includegraphics[width=.25\linewidth]{fig/elbo_trace_k10.png}%
+\includegraphics[width=.25\linewidth]{fig/elbo_trace_wrap2.png}%
+\includegraphics[width=.25\linewidth]{fig/elbo_trace_geo.png}%
+\includegraphics[width=.25\linewidth]{fig/elbo_trace_tri.png}
+\caption{ELBO trace from VI on six taxa using (a) MST + sigmoid transform, (b) MST + wrapping method, (c) geodesics + wrapping, (d) incentres + wrapping.}
 \label{fig:elbo}
 \end{center}
 \end{figure}
@@ -185,7 +183,8 @@ The traces in figure~\ref{fig:elbos} illustrate that the elbos has a strange sta
 \includegraphics[width=.333\linewidth]{fig/elbo_trace_k1.png}%
 \includegraphics[width=.333\linewidth]{fig/elbo_trace_k10.png}%
 \includegraphics[width=.333\linewidth]{fig/elbo_trace_k100.png}
-\caption{Effect of number of ELBO samples $k=\{1, 10, 100\}$.}
+\caption{Effect of number of ELBO samples $k=\{1, 10, 100\}$.
+All using a logit embedding.}
 \label{fig:k_samples}
 \end{center}
 \end{figure}
