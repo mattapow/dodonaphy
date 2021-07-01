@@ -22,26 +22,27 @@ def main():
     init_trials = 1000   # number of initial embeddings to select from per grid
     init_grids = 100     # # number grid scales for selecting inital embedding
 
-    # VI parameters
-    k_samples = 10       # tree samples per elbo calculation
-    boosts = 1           # number of mixtures
-    method = 'logit'    # vi method: 'wrap' or 'logit'
-    lr = 1e-3
-
-    # MCMC parameters
-    step_scale = .05
-    save_period = max(int(epochs/n_draws), 1)
-    nChains = 1
-    connect_method = 'mst'  # 'geodesics' or 'mst'
-
-    runVi = False
-    runMcmc = True
-
     # Experiment folder
-    path_write = "./data/T%dD%d" % (S, dim)
+    path_write = "../data/T%d_2" % (S)
     treePath = "%s/simtree.nex" % path_write
     treeInfoPath = "%s/simtree.info" % path_write
     dnaPath = "%s/dna.nex" % path_write
+
+    # VI parameters
+    k_samples = 10       # tree samples per elbo calculation
+    lr = 1e-3
+    method = 'logit'
+    path_write_vi = os.path.abspath(os.path.join(path_write, ("%s_tri" % (method))))
+    runVi = False
+
+    # MCMC parameters
+    step_scale = .1
+    save_period = max(int(epochs/n_draws), 1)
+    nChains = 1
+    connect_method = 'mst'  # 'incentre' or 'mst'
+    burnin = 10
+    path_write_mcmc = os.path.abspath(os.path.join(path_write, "mcmc_%s_test" % connect_method))
+    runMcmc = True
 
     try:
         # Try loading in the simTree and dna
@@ -82,20 +83,19 @@ def main():
 
     if runMcmc:
         # Run Dodoanphy MCMC
-        path_write_mcmc = os.path.abspath(os.path.join(path_write, "mcmc"))
         os.mkdir(path_write_mcmc)
         mcmc.run(dim, partials[:], weights, dists, path_write_mcmc,
                  epochs=epochs, step_scale=step_scale, save_period=save_period,
                  init_grids=init_grids, init_trials=init_trials, nChains=nChains,
-                 connect_method=connect_method, **prior)
+                 burnin=burnin, connect_method=connect_method, **prior)
 
     if runVi:
         # Run Dodonaphy variational inference
-        path_write_vi = os.path.abspath(os.path.join(path_write, ("%s_mst" % (method))))
         os.mkdir(path_write_vi)
+        # path_write_vi = None
         VITips.run(dim, S, partials[:], weights, dists, path_write_vi,
-                   epochs=epochs, k_samples=k_samples, n_draws=n_draws, boosts=boosts,
-                   init_grids=init_grids, init_trials=init_trials, method=method, lr=lr,
+                   epochs=epochs, k_samples=k_samples, n_draws=n_draws,
+                   init_grids=init_grids, init_trials=init_trials, lr=lr,
                    **prior)
 
     # Make folder for BEAST

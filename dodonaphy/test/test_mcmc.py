@@ -19,7 +19,7 @@ def test_mcmc_incentre():
     step_scale = .1
     nChains = 1
     connect_method = 'incentre'  # 'incentre', 'geodesics' or 'mst'
-    burnin = 0
+    burnin = 2
     epochs = 1
 
     # simulate a tree

@@ -67,6 +67,24 @@ def test_make_peel_first_leaf_connection():
     assert correct1 or correct2
 
 
+def test_make_peel_example1():
+    leaf_locs = torch.tensor([[5.5330e-02, 4.0385e-02],
+                             [6.0270e-02, 4.4329e-02],
+                             [-1.1253e-01, -1.5676e-01],
+                             [1.0916e-01, -7.2296e-02],
+                             [5.9408e-02, 4.0677e-02],
+                             [-4.0814e-02, -3.1838e-01]])
+
+    int_locs = torch.tensor([[0.0352, 0.0405],
+                             [0.0437, 0.0144],
+                             [0.0375, -0.070],
+                             [-0.0633, -0.1595]], dtype=torch.float64)
+
+    leaf_r, leaf_dir = utils.cart_to_dir(leaf_locs)
+    int_r, int_dir = utils.cart_to_dir(int_locs)
+    _ = peeler.make_peel_mst(leaf_r, leaf_dir, int_r, int_dir)
+
+
 def test_make_peel_incentre():
     leaf_locs = torch.tensor([
         [0.06644704, 0.18495312, -0.03839615],
