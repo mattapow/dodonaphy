@@ -1,6 +1,6 @@
 import torch
 from .phylo import calculate_treelikelihood, JC69_p_t
-from . import utils
+from . import peeler
 from . import tree as treeFunc
 import Cutils
 from dendropy import Tree as Tree
@@ -13,7 +13,7 @@ class BaseModel(object):
     """Base Model for Inference
     """
 
-    def __init__(self, partials, weights, dim, connect_method='mst', **prior):
+    def __init__(self, partials, weights, dim, **prior):
         self.partials = partials.copy()
         self.weights = weights
         self.S = len(self.partials)
@@ -21,7 +21,6 @@ class BaseModel(object):
         self.D = dim
         self.bcount = 2 * self.S - 2
         self.prior = prior
-        self.connect_method = connect_method
 
         # make space for internal partials
         for i in range(self.S - 1):
@@ -48,7 +47,7 @@ class BaseModel(object):
         for i in range(n_grids):
             _scale = i/n_grids * max_scale
             for _ in range(n_trials):
-                peel = utils.make_peel_mst(leaf_r, leaf_dir, torch.from_numpy(_int_r), torch.from_numpy(_int_dir))
+                peel = peeler.make_peel_mst(leaf_r, leaf_dir, torch.from_numpy(_int_r), torch.from_numpy(_int_dir))
                 blen = self.compute_branch_lengths(
                     self.S, peel, leaf_r, leaf_dir, torch.from_numpy(_int_r), torch.from_numpy(_int_dir))
                 _lnP = self.compute_LL(peel, blen)

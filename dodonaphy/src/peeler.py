@@ -9,6 +9,14 @@ from collections import defaultdict
 
 
 def make_peel_incentre(leaf_locs):
+    return make_peel_tips(leaf_locs, method='incentre')
+
+
+def make_peel_geodesic(leaf_locs):
+    return make_peel_tips(leaf_locs, method='geodesic')
+
+
+def make_peel_tips(leaf_locs, method='incentre'):
     """Generate a tree recursively using the incentre of the closest two points.
 
     Args:
@@ -56,8 +64,10 @@ def make_peel_incentre(leaf_locs):
         else:
             to_point = int_locs[e.to_-leaf_node_count]
 
-        # int_locs[int_i] = poincare.hyp_lca(from_point, to_point)
-        int_locs[int_i] = poincare.incentre(from_point, to_point)
+        if method == 'geodesic':
+            int_locs[int_i] = poincare.hyp_lca(from_point, to_point)
+        elif method == 'incentre':
+            int_locs[int_i] = poincare.incentre(from_point, to_point)
         peel[int_i][0] = e.from_
         peel[int_i][1] = e.to_
         peel[int_i][2] = cur_internal

@@ -1,5 +1,6 @@
 # Some functions from https://github.com/HazyResearch/HypHC
 import torch
+from src import hyperboloid
 
 
 def isometric_transform(a, x):
@@ -57,9 +58,11 @@ def incentre(a, b, return_coord=True):
     """
     Copmute incentre of the triangle formed by o, a and b
     """
+    # TODO: use hyperbolic centre. Possibly in https://arxiv.org/pdf/1410.6735.pdf
     w_a = hyp_dist_o(b)
     w_b = hyp_dist_o(a)
-    w_c = hyp_dist_o(a-b)
+    ab = torch.stack((a, b))
+    w_c = hyperboloid.hyperboloid_dists(hyperboloid.poincare_to_hyper(ab))[0][1]
     proj = (w_a * a + w_b * b) / (w_a + w_b + w_c)
 
     if not return_coord:
