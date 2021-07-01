@@ -18,6 +18,8 @@ class Chain(BaseModel):
         self.accepted = 0
         self.iterations = 0
         self.target_acceptance = target_acceptance
+        self.converged = [False] * 10
+        self.moreTune = True
 
     def set_probability(self, method):
         # set peel + blens + poincare locations
@@ -103,13 +105,19 @@ class Chain(BaseModel):
 
         return torch.minimum(torch.ones(1), (prior_ratio * like_ratio)**self.temp * hastings_ratio), prop_like
 
-    def tune_step(self):
+    def tune_step(self, tol=0.01):
         # Tune the acceptance rate. Simple Euler method.
         lr = 0.1
         eps = np.finfo(np.double).eps
         acceptance = self.accepted / self.iterations
         dy = acceptance - self.target_acceptance
         self.step_scale = max(self.step_scale + lr * dy, eps)
+
+        # check convegence
+        self.converged.pop()
+        self.converged.insert(0, np.abs(dy) < tol)
+        if all(self.converged):
+            self.moreTune = False
 
 
 class DodonaphyMCMC():
@@ -142,6 +150,10 @@ class DodonaphyMCMC():
                 self.chain[c].evolve(method)
                 self.chain[c].tune_step()
 
+                # tune step
+                if self.chain[c].moreTune:
+                    self.chain[c].tune_step()
+
             # swap 2 chains
             if self.nChains > 1:
                 _ = self.swap()
@@ -154,8 +166,11 @@ class DodonaphyMCMC():
                 self.chain[c].set_probability(method)
 
                 # step
-                self.chain[c].evolve(method)
-                self.chain[c].tune_step()
+                self.chain[c].evolve(self.connect_method)
+
+                # tune step
+                if self.chain[c].moreTune:
+                    self.chain[c].tune_step()
 
             # swap 2 chains
             if self.nChains > 1:
