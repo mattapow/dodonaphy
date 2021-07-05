@@ -58,7 +58,7 @@ class Chain(BaseModel):
         for i in range(self.n_points):
             loc_proposal = self.loc.detach().clone()
             loc_proposal[i, :] = loc_proposal[i, :] + normal.Normal(0, self.step_scale).sample((1, self.D))
-            r, like_proposal = self.accept_ratio(loc_proposal, connect_method, embed_method)
+            r, like_proposal, prior_ratio = self.accept_ratio(loc_proposal, connect_method, embed_method)
 
             accept = False
             if r >= 1:
@@ -69,6 +69,7 @@ class Chain(BaseModel):
             if accept:
                 self.loc = loc_proposal
                 self.lnP = like_proposal
+                self.lnPrior = prior_ratio
                 accepted += 1
                 self.accepted += 1
         self.iterations += self.n_points
@@ -125,7 +126,8 @@ class Chain(BaseModel):
         # Proposals are symmetric Guassians
         hastings_ratio = 1
 
-        return torch.minimum(torch.ones(1), (prior_ratio * like_ratio)**self.temp * hastings_ratio), prop_like
+        return (torch.minimum(torch.ones(1), (prior_ratio * like_ratio)**self.temp * hastings_ratio),
+                prop_like, prop_prior)
 
     def tune_step(self, tol=0.01):
         """Tune the acceptance rate. Simple Euler method.
@@ -266,18 +268,35 @@ class DodonaphyMCMC():
                 .replace('\n', '').replace('[', '').replace(']', '') + "\n")
 
     def swap(self):
-        # randomly swap 2 chains according to MCMCMC
-        swappers = torch.multinomial(torch.ones(self.nChains), 2, replacement=False)
+        """
+        randomly swap 2 chains according to MCMCMC
+        """
 
-        prob1 = (self.chain[swappers[0]].lnP / self.chain[swappers[1]].lnP)**self.chain[swappers[1]].temp
-        prob2 = (self.chain[swappers[1]].lnP / self.chain[swappers[0]].lnP)**self.chain[swappers[0]].temp
+        # Pick two adjacent chains
+        i = torch.multinomial(torch.ones(self.nChains-1), 1, replacement=False)
+        j = i + 1
+
+        post_i = torch.exp(self.chain[i].lnP) * torch.exp(self.chain[i].lnPrior)
+        post_j = torch.exp(self.chain[j].lnP) * torch.exp(self.chain[j].lnPrior)
+
+        prob1 = (post_i / post_j)**self.chain[j].temp
+        prob2 = (post_j / post_i)**self.chain[i].temp
         alpha = torch.minimum(torch.ones(1), prob1 * prob2)
 
         if alpha > uniform.Uniform(torch.zeros(1), torch.ones(1)).rsample():
-            temp_ = self.chain[swappers[0]]
-            self.chain[swappers[0]] = self.chain[swappers[1]]
-            self.chain[swappers[1]] = temp_
-            del temp_
+            loc_i = self.chain[i].loc
+            loc_vec_i = self.chain[i].loc_vec
+            lnP_i = self.chain[i].lnP
+            lnPrior_i = self.chain[i].lnPrior
+            self.chain[i].loc = self.chain[j].loc
+            self.chain[i].loc_vec = self.chain[j].loc_vec
+            self.chain[i].lnP = self.chain[j].lnP
+            self.chain[i].lnPrior = self.chain[j].lnPrior
+            self.chain[j].loc = loc_i
+            self.chain[j].loc_vec = loc_vec_i
+            self.chain[j].lnP = lnP_i
+            self.chain[j].lnPrior = lnPrior_i
+
             return 1
         return 0
 
@@ -316,7 +335,7 @@ class DodonaphyMCMC():
             connect_method=connect_method, embed_method=embed_method, **prior)
 
         # Choose internal node locations from best random initialisation
-        mymod.initialise_chains(emm_tips, n_grids=n_grids, n_trials=n_trials, max_scale=5)
+        mymod.initialise_chains(emm_tips, n_grids=n_grids, n_trials=n_trials, max_scale=1)
 
         # Learn
         mymod.learn(epochs, burnin=burnin, path_write=path_write, save_period=save_period)
