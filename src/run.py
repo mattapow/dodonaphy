@@ -6,7 +6,7 @@ import random
 import os
 import numpy as np
 
-from src.vi_tips import VITips
+from src.vi import DodonaphyVI
 from src.mcmc import DodonaphyMCMC as mcmc
 from src.phylo import compress_alignment
 
@@ -21,6 +21,8 @@ def main():
     n_draws = 1000      # number of trees drawn from final distribution
     init_trials = 1000   # number of initial embeddings to select from per grid
     init_grids = 100     # # number grid scales for selecting inital embedding
+    max_scale = 1
+    connect_method = 'mst'  # 'incentre', 'mst' or 'geodesics'
 
     # Experiment folder
     path_write = "../data/T%d_2" % (S)
@@ -31,18 +33,19 @@ def main():
     # VI parameters
     k_samples = 10       # tree samples per elbo calculation
     lr = 1e-3
-    method = 'logit'
-    path_write_vi = os.path.abspath(os.path.join(path_write, ("%s_tri" % (method))))
-    runVi = False
+    embed_method = 'logit'  # TODO: wrapping method doesn't learn
+    # path_write_vi = None
+    path_write_vi = os.path.abspath(
+        os.path.join(path_write, ("%s_%s_lr%i_k%i" % (embed_method, connect_method, -int(np.log10(lr)), k_samples))))
+    runVi = True
 
     # MCMC parameters
-    step_scale = .1
+    step_scale = .001
     save_period = max(int(epochs/n_draws), 1)
     nChains = 1
-    connect_method = 'mst'  # 'incentre' or 'mst'
-    burnin = 10
-    path_write_mcmc = os.path.abspath(os.path.join(path_write, "mcmc_%s_test" % connect_method))
-    runMcmc = True
+    burnin = 0
+    path_write_mcmc = os.path.abspath(os.path.join(path_write, "mcmc_%s_step000001_1" % connect_method))
+    runMcmc = False
 
     try:
         # Try loading in the simTree and dna
@@ -91,12 +94,14 @@ def main():
 
     if runVi:
         # Run Dodonaphy variational inference
-        os.mkdir(path_write_vi)
+        if path_write_vi is not None:
+            os.mkdir(path_write_vi)
         # path_write_vi = None
-        VITips.run(dim, S, partials[:], weights, dists, path_write_vi,
-                   epochs=epochs, k_samples=k_samples, n_draws=n_draws,
-                   init_grids=init_grids, init_trials=init_trials, lr=lr,
-                   **prior)
+        DodonaphyVI.run(dim, S, partials[:], weights, dists, path_write_vi,
+                        epochs=epochs, k_samples=k_samples, n_draws=n_draws,
+                        init_grids=init_grids, init_trials=init_trials,
+                        max_scale=max_scale, lr=lr, embed_method=embed_method,
+                        connect_method=connect_method, **prior)
 
     # Make folder for BEAST
     # path_write_beast = os.path.abspath(os.path.join(path_write, "beast"))

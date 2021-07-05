@@ -107,6 +107,8 @@ def plot_tree(ax, peel, X, color=(0, 0, 0), labels=True, root=0):
 
 
 def save_tree(dir, filename, peel, blens, iteration, LL):
+    if dir is None:
+        return
     S = len(peel)+1
     tipnames = ['T' + str(x+1) for x in range(S)]
     tree = tree_to_newick(tipnames, peel, blens)
@@ -148,6 +150,8 @@ def tree_to_newick(tipnames, peel_row, blen_row):
 
 
 def save_tree_head(path_write, filename, S):
+    if path_write is None:
+        return
     fn = path_write + '/' + filename + '.trees'
     with open(fn, 'w') as file:
         file.write("#NEXUS\n\n")

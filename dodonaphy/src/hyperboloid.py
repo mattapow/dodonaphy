@@ -185,7 +185,7 @@ def t02p(x, dim, mu=None):
 
     """
     dim = int(dim)
-    n_loc = int(len(x)/dim)
+    n_loc = int(x.numel()/dim)
     x = x.reshape(n_loc, dim)
 
     if type(x).__module__ == np.__name__:
