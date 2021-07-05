@@ -12,7 +12,7 @@ def stat_cmp():
     Prints the consensus tree and the Maximum Clade Credibility Tree
     """
 
-    dir = "./data/T6D2"
+    dir = "./data/T6_2"
 
     fn1 = dir + "/dodo_mcmc.trees"
     fn2 = dir + "/beast.trees"
@@ -43,25 +43,26 @@ def stat_cmp():
 
     # plot from outputs of TreeStat
     fn1 = dir + "/beast/treeStats.txt"
-    fn2 = dir + "/mcmc/treeStats.txt"
-    fn3 = dir + "/vi_wrap/treeStats.txt"
-    fn4 = dir + "/vi_logit/treeStats.txt"
-    fn5 = dir + "/vi_wrap_B3/treeStats.txt"
+    fn2 = dir + "/mcmc_mst_hot5_jitter_1/treeStats.txt"
+    fn3 = dir + "/mcmc_incentre_hot5_1/treeStats.txt"
+    fn4 = dir + "/mcmc_geodesics_hot5_jitter_1/treeStats.txt"
+    # fn5 = dir + "/logit_k10/treeStats.txt"
 
     df1 = pd.read_csv(fn1, delimiter='\t', header=0, index_col='state')
     df2 = pd.read_csv(fn2, delimiter='\t', header=0, index_col='state')
     df3 = pd.read_csv(fn3, delimiter='\t', header=0, index_col='state')
     df4 = pd.read_csv(fn4, delimiter='\t', header=0, index_col='state')
-    df5 = pd.read_csv(fn5, delimiter='\t', header=0, index_col='state')
+    # df5 = pd.read_csv(fn5, delimiter='\t', header=0, index_col='state')
 
+    print(df1.columns)
     for name in df1.columns:
         df1[name].plot.kde()
         df2[name].plot.kde()
         df3[name].plot.kde()
         df4[name].plot.kde()
-        df5[name].plot.kde()
+        # df5[name].plot.kde()
         plt.xlabel(name)
-        plt.legend(["Beast", "MCMC", "VI (wrap)", "VI (logit)", "VI (wrap + 3 Boosts"])
+        plt.legend(["Beast", "mcmc_mst_hot5_jitter_1", "mcmc_incentre_hot5_1", "mcmc_geodesics_hot5_jitter_1"])
         plt.show()
 
 
