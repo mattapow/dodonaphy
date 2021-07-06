@@ -163,7 +163,11 @@ cpdef lorentz_product(x, y=None):
     """
     if y is None:
         y = x
-    return -x[0] * y[0] + np.dot(x[1:], y[1:])
+    if type(x).__module__ == 'torch':
+        return -x[0] * y[0] + torch.dot(x[1:], y[1:])
+    elif type(x).__module__ == 'numpy':
+        return -x[0] * y[0] + np.dot(x[1:], y[1:])
+    raise TypeError('x must be numpy or torch')
     
 cdef poincare_to_hyper_np(np.ndarray[np.double_t, ndim=1] location):
     """
@@ -203,18 +207,18 @@ cpdef poincare_to_hyper(location):
     """
     cdef double eps = 0.0000000000000003
     cdef int dim
-    # if location.ndim == 1:
-    #     dim = location.shape[0]
-    #     out = torch.zeros(dim + 1, dtype=torch.double)
-    #     a = location[:].pow(2).sum(dim=0)
-    #     out[0] = (1 + a) / (1 - a)
-    #     out[1:] = 2 * location[:] / (1 - a + eps)
-    # elif location.ndim == 2:
-    dim = location.shape[1]
-    a = location.pow(2).sum(dim=-1)
-    out0 = torch.div((1 + a), (1 - a))
-    out1 = 2 * location / (1 - a.unsqueeze(dim=1) + eps)
-    out = torch.cat((out0.unsqueeze(dim=1), out1), dim=1)
+    if location.ndim == 1:
+        dim = location.shape[0]
+        out = torch.zeros(dim + 1, dtype=torch.double)
+        a = location[:].pow(2).sum(dim=0)
+        out[0] = (1 + a) / (1 - a)
+        out[1:] = 2 * location[:] / (1 - a + eps)
+    elif location.ndim == 2:
+        dim = location.shape[1]
+        a = location.pow(2).sum(dim=-1)
+        out0 = torch.div((1 + a), (1 - a))
+        out1 = 2 * location / (1 - a.unsqueeze(dim=1) + eps)
+        out = torch.cat((out0.unsqueeze(dim=1), out1), dim=1)
     return out
 
 cdef dir_to_cart(r, directional):
