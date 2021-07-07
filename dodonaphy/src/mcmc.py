@@ -40,8 +40,8 @@ class Chain(BaseModel):
             self.loc_vec = self.loc.reshape(self.bcount * self.D)
             if embed_method == 'wrap':
                 loc_poin = t02p(self.loc_vec, self.D).reshape(self.bcount, self.D)
-            elif embed_method == 'sigmoid':
-                loc_poin = self.loc / (1 + torch.pow(torch.sum(self.loc**2, axis=1, keepdim=True), .5).repeat(1, 2))
+            elif embed_method == 'simple':
+                loc_poin = utils.real2ball(self.loc, self.D)
             leaf_r, int_r, leaf_dir, int_dir = utils.cart_to_dir_tree(loc_poin)
             self.peel = peeler.make_peel_mst(leaf_r, leaf_dir, int_r, int_dir)
 
@@ -107,9 +107,8 @@ class Chain(BaseModel):
             if embed_method == 'wrap':
                 loc_proposal_vec = loc_proposal.reshape(self.bcount * self.D)
                 loc_proposal_poin = t02p(loc_proposal_vec, self.D).reshape(self.bcount, self.D)
-            elif embed_method == 'sigmoid':
-                loc_proposal_poin = loc_proposal / (1 + torch.pow(
-                    torch.sum(self.loc**2, axis=1, keepdim=True), .5).repeat(1, 2))
+            elif embed_method == 'simple':
+                loc_proposal_poin = utils.real2ball(loc_proposal, self.D)
             leaf_r, int_r, leaf_dir, int_dir = utils.cart_to_dir_tree(loc_proposal_poin)
             leaf_r, int_r, leaf_dir, int_dir = utils.cart_to_dir_tree(loc_proposal_poin)
             peel = peeler.make_peel_mst(leaf_r, leaf_dir, int_r, int_dir)
@@ -160,7 +159,7 @@ class DodonaphyMCMC():
         self.chain = []
         assert connect_method in ("incentre", "geodesics", "mst")
         self.connect_method = connect_method
-        assert embed_method in ("wrap", "", "sigmoid")
+        assert embed_method in ("wrap", "", "simple")
         self.embed_method = embed_method
         dTemp = 0.1
         for i in range(nChains):
@@ -314,7 +313,10 @@ class DodonaphyMCMC():
 
             # store in tangent plane R^dim
             loc_poin = utils.dir_to_cart(torch.from_numpy(r), torch.from_numpy(directional))
-            self.chain[i].loc = p2t0(loc_poin)
+            if self.embed_method == 'wrap':
+                self.chain[i].loc = p2t0(loc_poin)
+            elif self.embed_method == 'simple':
+                self.chain[i].loc = utils.ball2real(loc_poin)
             self.chain[i].n_points = len(self.chain[i].loc)
 
     @staticmethod

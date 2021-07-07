@@ -6,7 +6,7 @@ from src.phylo import compress_alignment
 import torch
 
 
-def test_draws_different_vi_logit_mst():
+def test_draws_different_vi_simple_mst():
     """
     Each draw from the sample should be different in likelihood.
 
@@ -23,7 +23,7 @@ def test_draws_different_vi_logit_mst():
 
     # Initialise model
     partials, weights = compress_alignment(dna)
-    mymod = DodonaphyVI(partials, weights, dim, embed_method='logit', connect_method='mst')
+    mymod = DodonaphyVI(partials, weights, dim, embed_method='simple', connect_method='mst')
 
     # learn
     mymod.learn(epochs=1, path_write=None)
@@ -108,7 +108,7 @@ def test_draws_different_vi_wrap_incentre():
     assert not torch.equal(lp__[1], lp__[2])
 
 
-def test_draws_different_vi_logit_geodesics():
+def test_draws_different_vi_wrap_geodesics():
     """
     Each draw from the sample should be different in likelihood.
 

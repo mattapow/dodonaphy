@@ -6,9 +6,9 @@ import random
 import os
 import numpy as np
 
-from src.vi import DodonaphyVI
-from src.mcmc import DodonaphyMCMC as mcmc
-from src.phylo import compress_alignment
+from dodonaphy.src.vi import DodonaphyVI
+from dodonaphy.src.mcmc import DodonaphyMCMC as mcmc
+from dodonaphy.src.phylo import compress_alignment
 
 
 def main():
@@ -19,10 +19,12 @@ def main():
     prior = {"birth_rate": 2., "death_rate": .5}
     epochs = 10000      # number of epochs
     n_draws = 1000      # number of trees drawn from final distribution
-    init_trials = 1000   # number of initial embeddings to select from per grid
+    init_trials = 100   # number of initial embeddings to select from per grid
     init_grids = 100     # # number grid scales for selecting inital embedding
     max_scale = 1
-    connect_method = 'mst'  # 'incentre', 'mst' or 'geodesics'
+    connect_method = 'incentre'  # 'incentre', 'mst' or 'geodesics'
+    embed_method = 'wrap'    # 'simple' or 'wrap'
+    # TODO: wrapping method doesn't learn in vi
 
     # Experiment folder
     path_write = "../data/T%d_2" % (S)
@@ -33,10 +35,9 @@ def main():
     # VI parameters
     k_samples = 10       # tree samples per elbo calculation
     lr = 1e-3
-    embed_method = 'logit'  # TODO: wrapping method doesn't learn
     # path_write_vi = None
     path_write_vi = os.path.abspath(
-        os.path.join(path_write, ("%s_%s_lr%i_k%i" % (embed_method, connect_method, -int(np.log10(lr)), k_samples))))
+        os.path.join(path_write, ("vi_%s_%s_lr%i_k%i" % (embed_method, connect_method, -int(np.log10(lr)), k_samples))))
     runVi = True
 
     # MCMC parameters
@@ -44,7 +45,10 @@ def main():
     save_period = max(int(epochs/n_draws), 1)
     nChains = 1
     burnin = 0
-    path_write_mcmc = os.path.abspath(os.path.join(path_write, "mcmc_%s_step000001_1" % connect_method))
+    one_by_one = False
+    # path_write_mcmc = None
+    path_write_mcmc = os.path.abspath(os.path.join(
+        path_write, "mcmc_%s_%s_c%i" % (embed_method, connect_method, nChains)))
     runMcmc = False
 
     try:
@@ -86,11 +90,12 @@ def main():
 
     if runMcmc:
         # Run Dodoanphy MCMC
-        os.mkdir(path_write_mcmc)
+        if path_write_mcmc is not None:
+            os.mkdir(path_write_mcmc)
         mcmc.run(dim, partials[:], weights, dists, path_write_mcmc,
                  epochs=epochs, step_scale=step_scale, save_period=save_period,
                  init_grids=init_grids, init_trials=init_trials, nChains=nChains,
-                 burnin=burnin, connect_method=connect_method, **prior)
+                 burnin=burnin, connect_method=connect_method, embed_method=embed_method, **prior)
 
     if runVi:
         # Run Dodonaphy variational inference

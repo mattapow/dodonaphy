@@ -253,3 +253,61 @@ def get_plca(locs):
             edge_list[j].append(u_edge(dist_ij, j, i))
 
     return edge_list
+
+
+def ball2real(loc_ball):
+    """A map from the unit ball B^n to real R^n.
+    Inverse of real2ball.
+
+    Args:
+        loc_ball (tensor): [description]
+
+    Returns:
+        tensor: [description]
+    """
+    norm_loc_ball = torch.pow(torch.sum(loc_ball**2, axis=1, keepdim=True), .5).repeat(1, 2)
+    loc_real = loc_ball / (1 - norm_loc_ball)
+    return loc_real
+
+
+def real2ball(loc_real, dim):
+    """A map from the reals R^n to unit ball B^n.
+    Inverse of ball2real.
+
+    Args:
+        loc_real (tensor): Point in R^n with size [1, dim]
+        dim (float): embedding dimension
+
+    Returns:
+        tensor: [description]
+    """
+    norm_loc_real = torch.pow(torch.sum(loc_real**2, axis=-1, keepdim=True), .5).repeat(1, dim)
+    loc_ball = loc_real / (1 + norm_loc_real)
+    return loc_ball
+
+
+def real2ball_LADJ(y):
+    """Copmute log of absolute value of determinate of jacobian of real2ball on point y
+
+    Args:
+        y ([type]): Point in R^n
+
+    Returns:
+        tensor: Jacobain matrix
+    """
+    # TODO: repeat for each point in a 2D array of (n_points x dim). 
+
+    n = len(y)
+    J = torch.zeros(n, n)
+    norm = torch.pow(torch.sum(y**2, axis=-1, keepdim=True), .5)
+
+    for i in range(n):
+        for j in range(i+1):
+            if i == j:
+                J[i, j] = 1 + norm - y[i] * y[i] * norm
+            else:
+                J[i, j] = - y[i] * y[j] * norm
+                J[j, i] = - y[j] * y[i] * norm
+
+    J = torch.div(J, torch.pow((1 + norm), 2))
+    return torch.log(torch.abs(torch.det(J)))

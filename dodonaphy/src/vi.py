@@ -4,7 +4,6 @@ from typing import List, Any
 import numpy as np
 import torch
 from torch.distributions.multivariate_normal import MultivariateNormal
-from torch.distributions.transforms import SigmoidTransform
 
 from .hyperboloid import t02p, p2t0
 from .phylo import calculate_treelikelihood, JC69_p_t
@@ -12,9 +11,10 @@ from . import utils, tree, hydra, peeler
 from .base_model import BaseModel
 import matplotlib.pyplot as plt
 
+from src import hyperboloid
+
 
 class DodonaphyVI(BaseModel):
-
     def __init__(self, partials, weights, dim, embed_method='wrap', connect_method='mst', **prior):
         super().__init__(partials, weights, dim, connect_method=connect_method, **prior)
         print('Initialising variational model.\n')
@@ -25,7 +25,7 @@ class DodonaphyVI(BaseModel):
         eps = np.finfo(np.double).eps
         leaf_sigma = np.log(np.abs(np.random.randn(self.S, self.D)) + eps)
         int_sigma = np.log(np.abs(np.random.randn(self.S - 2, self.D)) + eps)
-        assert embed_method in ('wrap', 'logit')
+        assert embed_method in ('wrap', 'simple')
         self.embed_method = embed_method
         assert connect_method in ('mst', 'geodesics', 'incentre')
         self.connect_method = connect_method
@@ -82,15 +82,14 @@ class DodonaphyVI(BaseModel):
                 leaf_poin = self.project_t02p(z_leaf, self.VariationalParams["leaf_mu"], get_jacob=False)
                 if self.connect_method == 'mst':
                     int_poin = self.project_t02p(z_int, self.VariationalParams["int_mu"], get_jacob=False)
-            elif self.embed_method == "logit":
-                sigmoid_transformation = SigmoidTransform()
+            elif self.embed_method == "simple":
 
                 # transformation of z from R^n to unit ball P^n
                 z_leaf = z_leaf.reshape(self.S, self.D)
-                leaf_poin = sigmoid_transformation(z_leaf) * 2 - 1
+                leaf_poin = utils.real2ball(z_leaf, self.D)
                 if self.connect_method == 'mst':
                     z_int = z_int.reshape(self.S - 2, self.D)
-                    int_poin = sigmoid_transformation(z_int) * 2 - 1
+                    int_poin = utils.real2ball(z_int, self.D)
 
             # Change coordinates
             leaf_r, leaf_dir = utils.cart_to_dir(leaf_poin.reshape((self.S, self.D)))
@@ -145,23 +144,19 @@ class DodonaphyVI(BaseModel):
             if self.connect_method == 'mst':
                 int_poin, _ = self.project_t02p(z_int, self.VariationalParams["int_mu"])
 
-        elif self.embed_method == "logit":
-            sigmoid_transformation = SigmoidTransform()
-
+        elif self.embed_method == "simple":
             # transformation of z from R^n to half unit ball P^n
             z_leaf = z_leaf.reshape(self.S, self.D)
-            leaf_poin = sigmoid_transformation(z_leaf)
-            # take transformations into account (*2 for going from half ball to unit ball)
-            log_abs_det_jacobian = 2 * sigmoid_transformation.log_abs_det_jacobian(z_leaf, leaf_poin).sum()
+            leaf_poin = utils.real2ball(z_leaf, self.D)
+            # take transformations into account
+            log_abs_det_jacobian = torch.zeros(1)
+            for i in range(self.S):
+                log_abs_det_jacobian = log_abs_det_jacobian + utils.real2ball_LADJ(z_leaf[i, :])
             if self.connect_method == 'mst':
                 z_int = z_int.reshape(self.S - 2, self.D)
-                int_poin = sigmoid_transformation(z_int)
-                log_abs_det_jacobian = log_abs_det_jacobian + 2 * sigmoid_transformation.log_abs_det_jacobian(
-                    z_int, int_poin).sum()
-
-                # From half ball to unit ball
-                int_poin = int_poin * 2 - 1
-            leaf_poin = leaf_poin * 2 - 1
+                int_poin = utils.real2ball(z_int, self.D)
+                for i in range(self.S - 2):
+                    log_abs_det_jacobian = log_abs_det_jacobian + utils.real2ball_LADJ(z_int[i, :])
 
         # Change leaf coordinates
         leaf_r, leaf_dir = utils.cart_to_dir(leaf_poin.reshape((self.S, self.D)))
@@ -341,10 +336,10 @@ class DodonaphyVI(BaseModel):
             int_loc_poin = torch.from_numpy(utils.dir_to_cart(int_r, int_dir))
 
         if embed_method == 'wrap':
-            leaf_loc_t0 = p2t0(leaf_loc_poin).detach().numpy()
+            leaf_loc_t0 = p2t0(leaf_loc_poin)
             if connect_method == 'mst':
-                int_loc_t0 = p2t0(int_loc_poin).detach().numpy()
-        elif embed_method == 'logit':
+                int_loc_t0 = p2t0(int_loc_poin)
+        elif embed_method == 'simple':
             leaf_loc_poin = (leaf_loc_poin + 1)/2
             leaf_loc_t0 = np.log(leaf_loc_poin/(1-leaf_loc_poin))
             if connect_method == 'mst':
@@ -352,11 +347,16 @@ class DodonaphyVI(BaseModel):
                 int_loc_t0 = np.log(int_loc_poin/(1-int_loc_poin))
 
         # set variational parameters with small coefficient of variation
-        cv = 1. / 50
+        cv = 1. / 100
         eps = np.finfo(np.double).eps
-        leaf_sigma = np.log(np.abs(np.array(leaf_loc_t0)) * cv + eps)
+        # leaf_sigma = np.log(np.abs(np.array(leaf_loc_t0)) * cv + eps)
         if connect_method == 'mst':
             int_sigma = np.log(np.abs(np.array(int_loc_t0)) * cv + eps)
+
+        # set leaf variational sigma using closest neighbour
+        dists[dists == 0] = np.inf
+        closest = dists.min(axis=0)
+        leaf_sigma = np.log(np.abs(np.stack((closest, closest), axis=1)) * cv + eps)
 
         if connect_method == 'mst':
             param_init = {
