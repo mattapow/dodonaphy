@@ -106,7 +106,7 @@ def main():
                         epochs=epochs, k_samples=k_samples, n_draws=n_draws,
                         init_grids=init_grids, init_trials=init_trials,
                         max_scale=max_scale, lr=lr, embed_method=embed_method,
-                        connect_method=connect_method, **prior)
+                        connect_method=connect_method, one_by_one=one_by_one, **prior)
 
     # Make folder for BEAST
     # path_write_beast = os.path.abspath(os.path.join(path_write, "beast"))

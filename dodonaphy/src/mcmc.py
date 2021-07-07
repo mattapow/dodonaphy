@@ -1,3 +1,4 @@
+from torch.distributions.multivariate_normal import MultivariateNormal
 from . import utils, tree, hydra, peeler
 from .hyperboloid import t02p, p2t0
 from .base_model import BaseModel
@@ -20,7 +21,6 @@ class Chain(BaseModel):
         self.target_acceptance = target_acceptance
         self.converged = [False] * 100
         self.moreTune = True
-        self.embed_mthd = 'wrap'
 
     def set_probability(self, connect_method, embed_method):
         # set peel + blens + poincare locations
@@ -52,12 +52,18 @@ class Chain(BaseModel):
         self.lnP = self.compute_LL(self.peel, self.blens)
         self.lnPrior = self.compute_prior(self.peel, self.blens, **self.prior)
 
-    def evolve(self, connect_method, embed_method):
-        accepted = 0
+    def evolve(self, connect_method, embed_method, one_by_one=True):
+        n_accepted = 0
 
-        for i in range(self.n_points):
-            loc_proposal = self.loc.detach().clone()
-            loc_proposal[i, :] = loc_proposal[i, :] + normal.Normal(0, self.step_scale).sample((1, self.D))
+        if not one_by_one:
+            # change all nodes at the same time
+            shape = self.loc.shape
+            loc_proposal = self.loc.detach().clone().reshape(self.loc.numel())
+            n = loc_proposal.numel()
+            loc_proposal = loc_proposal + MultivariateNormal(
+                torch.zeros_like(loc_proposal, dtype=torch.double),
+                torch.eye(n, dtype=torch.double) * self.step_scale).sample()
+            loc_proposal = loc_proposal.reshape(shape)
             r, like_proposal, prior_ratio = self.accept_ratio(loc_proposal, connect_method, embed_method)
 
             accept = False
@@ -70,11 +76,33 @@ class Chain(BaseModel):
                 self.loc = loc_proposal
                 self.lnP = like_proposal
                 self.lnPrior = prior_ratio
-                accepted += 1
+                n_accepted += 1
                 self.accepted += 1
-        self.iterations += self.n_points
+            self.iterations += 1
 
-        return accept
+        else:
+            # change each node location one-by-one
+            for i in range(self.n_points):
+                loc_proposal = self.loc.detach().clone()
+                loc_proposal = self.loc.detach().clone()
+                loc_proposal[i, :] = loc_proposal[i, :] + normal.Normal(0, self.step_scale).sample((1, self.D))
+                r, like_proposal, prior_ratio = self.accept_ratio(loc_proposal, connect_method, embed_method)
+
+                accept_prop = False
+                if r >= 1:
+                    accept_prop = True
+                elif uniform.Uniform(torch.zeros(1), torch.ones(1)).sample() < r:
+                    accept_prop = True
+
+                if accept_prop:
+                    self.loc = loc_proposal
+                    self.lnP = like_proposal
+                    self.lnPrior = prior_ratio
+                    n_accepted += 1
+                    self.accepted += 1
+            self.iterations += self.n_points
+
+        return n_accepted
 
     def accept_ratio(self, loc_proposal, connect_method, embed_method):
         """Acceptance critereon for Metropolis-Hastings
@@ -134,7 +162,8 @@ class Chain(BaseModel):
         Args:
             tol (float, optional): Tolerance. Defaults to 0.01.
         """
-        if not self.moreTune:
+        # TODO: consider each node has it's own step size?
+        if not self.moreTune or self.iterations == 0:
             return
 
         lr = 0.1
@@ -166,7 +195,7 @@ class DodonaphyMCMC():
             temp = 1./(1+dTemp*i)
             self.chain.append(Chain(partials, weights, dim, loc, step_scale, temp, **prior))
 
-    def learn(self, epochs, burnin=0, path_write='./out', save_period=1):
+    def learn(self, epochs, burnin=0, path_write='./out', save_period=1, one_by_one=True):
         print("Using 1 cold chain and %d hot chains." % int(self.nChains-1))
         self.save_period = save_period
 
@@ -188,7 +217,7 @@ class DodonaphyMCMC():
                     self.chain[c].set_probability(self.connect_method, self.embed_method)
 
                     # step
-                    self.chain[c].evolve(self.connect_method, self.embed_method)
+                    self.chain[c].evolve(self.connect_method, self.embed_method, one_by_one=one_by_one)
                     self.chain[c].tune_step()
 
                     # tune step
@@ -208,7 +237,7 @@ class DodonaphyMCMC():
                 self.chain[c].set_probability(self.connect_method, self.embed_method)
 
                 # step
-                self.chain[c].evolve(self.connect_method, self.embed_method)
+                self.chain[c].evolve(self.connect_method, self.embed_method, one_by_one=one_by_one)
 
                 # tune step
                 if self.chain[c].moreTune:
@@ -323,7 +352,7 @@ class DodonaphyMCMC():
     def run(dim, partials, weights, dists, path_write=None,
             epochs=1000, step_scale=0.01, save_period=1, burnin=0,
             n_grids=10, n_trials=100, nChains=1, connect_method='incentre',
-            embed_method='wrap', **prior):
+            embed_method='wrap', one_by_one=True, **prior):
         print('\nRunning Dodonaphy MCMC')
         assert connect_method in ['incentre', 'mst', 'geodesics']
 
@@ -340,4 +369,4 @@ class DodonaphyMCMC():
         mymod.initialise_chains(emm_tips, n_grids=n_grids, n_trials=n_trials, max_scale=1)
 
         # Learn
-        mymod.learn(epochs, burnin=burnin, path_write=path_write, save_period=save_period)
+        mymod.learn(epochs, burnin=burnin, path_write=path_write, save_period=save_period, one_by_one=one_by_one)
