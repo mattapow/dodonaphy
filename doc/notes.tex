@@ -123,34 +123,67 @@ Then the internal nodes were randomly placed in $\mathbb{P}^{d}$ with uniform di
 Internal node locations were sampled $10^{4}$ times and the initialisation with the highest tree likelihood was selected.
 
 \subsection{MCMC}
-The final log likelihood from BEAST was -6280 (similar to it's log posterior of -6271). In comparison, Dodonaphy MCMC gave -6280, which is a close match.
-However, figure~\ref{fig:stat_cmp}a illustrates that samples from Dodonaphy's MCMC always gave one incorrect split.
-This could indicate that the MCMC chain is stuck in a local optima and that techniques like using Metropolis-coupled MCMC to escape this optima should be employed.
 
+\subsubsection{Choosing a method}
+The ``simple'' embedding method is $g: \mathbb{R}^{n} \to \mathbb{P}^{n}$:
+\be
+g(\bold{x}) = \dfrac{\bold{x}}{1+||\bold{x}||_{2}}
+\ee
+with gradient
+\be
+\dfrac{\partial g(\bold{x}_{i})}{\partial \bold{x}_{j}} = 
+\begin{cases}
+\dfrac{1+||\bold{x}||-\bold{x}_{i}^{2}||\bold{x}||}{(1+||\bold{x}||)^{2}} &\text{if } i=j\\
+\dfrac{-\bold{x}_{i}\bold{x}_{j}||\bold{x}||}{(1+||\bold{x}||)^{2}} &\text{if } i\neq j\\
+\end{cases}
+\ee
 \begin{figure}[htbp]
 \begin{center}
-\includegraphics[width=.333\linewidth]{fig/compare-SF}%
-\includegraphics[width=.333\linewidth]{fig/cmp_tree_length}%
-\includegraphics[width=.333\linewidth]{fig/cmp_treeness}
-\includegraphics[width=.25\linewidth]{fig/cmp_b1}%
-\includegraphics[width=.25\linewidth]{fig/cmp_b2}%
-\includegraphics[width=.25\linewidth]{fig/cmp_b3}%
-\includegraphics[width=.25\linewidth]{fig/cmp_b4}
-\caption{Comparison of tree statistics between Beast and Dodonaphy: (a) split posterior probability (b) total branch length (c) ``treeness'' (signal/signal+noise) (d-g) branch lengths (possibly not same branch??).}
-\label{fig:stat_cmp}
+\includegraphics[width=.33\linewidth]{fig/trace_connect_method}%
+\includegraphics[width=.33\linewidth]{fig/splits_connect_method}
+\includegraphics[width=.33\linewidth]{fig/trace_embed_method}
 \end{center}
 \end{figure}
 
-Figure~\ref{fig:locations} shows a kernel density estimate for each node location at various stages.
-Comparing figures~\ref{fig:locations}a and b reveals that the posterior surface of nodes can drift over the simulation.
-Indeed tree reconstructions are invariant to isometries on the embedded points since they are only based on their relative distances.
-Additionally, tree reconstructions won't change as a tip node moves along the surface with constant distance to its nearest neighbour (provided the tree doesn't change topology).
-The embedded posterior surfaces generated from samples $\bold{X}_{i}$ shouldn't be considered static, but transient over the simulation.
-Nonetheless, these degrees of freedom should not affect the result of the MCMC.
+\subsubsection{Single node posterior}
+\begin{figure}[htbp]
+\begin{center}
+\includegraphics[width=.33\linewidth]{fig/node6_posterior}%
+\includegraphics[width=.33\linewidth]{fig/node8_posterior}%
+\includegraphics[width=.33\linewidth]{fig/node9_posterior}
+\end{center}
+\end{figure}
 
-These densities are clearly not normally distributed.
-The feasibility of VI rests on how well a simple distribution $q$ can approximate these densities.
-Boosting to a mixture model may increase the ability for VI to represent these embeddings.
+
+
+%The final log likelihood from BEAST was -6280 (similar to it's log posterior of -6271). In comparison, Dodonaphy MCMC gave -6280, which is a close match.
+%However, figure~\ref{fig:stat_cmp}a illustrates that samples from Dodonaphy's MCMC always gave one incorrect split.
+%This could indicate that the MCMC chain is stuck in a local optima and that techniques like using Metropolis-coupled MCMC to escape this optima should be employed.
+%
+%\begin{figure}[htbp]
+%\begin{center}
+%\includegraphics[width=.333\linewidth]{fig/compare-SF}%
+%\includegraphics[width=.333\linewidth]{fig/cmp_tree_length}%
+%\includegraphics[width=.333\linewidth]{fig/cmp_treeness}
+%\includegraphics[width=.25\linewidth]{fig/cmp_b1}%
+%\includegraphics[width=.25\linewidth]{fig/cmp_b2}%
+%\includegraphics[width=.25\linewidth]{fig/cmp_b3}%
+%\includegraphics[width=.25\linewidth]{fig/cmp_b4}
+%\caption{Comparison of tree statistics between Beast and Dodonaphy: (a) split posterior probability (b) total branch length (c) ``treeness'' (signal/signal+noise) (d-g) branch lengths (possibly not same branch??).}
+%\label{fig:stat_cmp}
+%\end{center}
+%\end{figure}
+%
+%Figure~\ref{fig:locations} shows a kernel density estimate for each node location at various stages.
+%Comparing figures~\ref{fig:locations}a and b reveals that the posterior surface of nodes can drift over the simulation.
+%Indeed tree reconstructions are invariant to isometries on the embedded points since they are only based on their relative distances.
+%Additionally, tree reconstructions won't change as a tip node moves along the surface with constant distance to its nearest neighbour (provided the tree doesn't change topology).
+%The embedded posterior surfaces generated from samples $\bold{X}_{i}$ shouldn't be considered static, but transient over the simulation.
+%Nonetheless, these degrees of freedom should not affect the result of the MCMC.
+%
+%These densities are clearly not normally distributed.
+%The feasibility of VI rests on how well a simple distribution $q$ can approximate these densities.
+%Boosting to a mixture model may increase the ability for VI to represent these embeddings.
 	
 \subsection{VI}
 The traces in figure~\ref{fig:elbos} illustrate that the elbos has a strange start, getting worse for a few hundred epochs, but then increases steadily but probably hasn’t converged after the 1e4 epochs.
@@ -159,9 +192,11 @@ The traces in figure~\ref{fig:elbos} illustrate that the elbos has a strange sta
 \includegraphics[width=.333\linewidth]{fig/mcmc_mst_locations.png}%
 \includegraphics[width=.333\linewidth]{fig/mcmc_geo_locations.png}%
 \includegraphics[width=.333\linewidth]{fig/mcmc_tri_locations.png}
-\includegraphics[width=.5\linewidth]{fig/geo_params.png}%
-\includegraphics[width=.5\linewidth]{fig/tri_locations.png}
-\caption{Density estimates of the node locations from Dodonaphy's MCMC projected into $\mathbb{R}^{2}$. MCMC: using (a) mst, (b) geodesics, (c) incentres . After learning for $10^{3}$ epochs variational densities in $\mathbb{P}^{2}$ using (d) geodesics, (e) incentres.
+\includegraphics[width=.333\linewidth]{fig/vi_simple_mst_locations.png}%
+\includegraphics[width=.333\linewidth]{fig/vi_simple_geodesics_locations.png}%
+\includegraphics[width=.333\linewidth]{fig/vi_simple_incentre_locations.png}
+\caption{Density estimates of the node locations from Dodonaphy's MCMC projected into $\mathbb{R}^{2}$. MCMC: using (a) mst, (b) geodesics, (c) incentres . 
+Variational densities after learning for $10^{3}$ epochs in $\mathbb{P}^{2}$ using (d) mst, (e) geodesics, (f) incentres.
 }
 \label{fig:elbos}
 \end{center}
@@ -169,63 +204,78 @@ The traces in figure~\ref{fig:elbos} illustrate that the elbos has a strange sta
 
 \begin{figure}[htbp]
 \begin{center}
-\includegraphics[width=.25\linewidth]{fig/elbo_trace_k10.png}%
-\includegraphics[width=.25\linewidth]{fig/elbo_trace_wrap2.png}%
-\includegraphics[width=.25\linewidth]{fig/elbo_trace_geo.png}%
-\includegraphics[width=.25\linewidth]{fig/elbo_trace_tri.png}
-\caption{ELBO trace from VI on six taxa using (a) MST + sigmoid transform, (b) MST + wrapping method, (c) geodesics + wrapping, (d) incentres + wrapping.}
-\label{fig:elbo}
+\includegraphics[width=.333\linewidth]{fig/elbo_trace_mst.png}%
+\includegraphics[width=.333\linewidth]{fig/elbo_trace_geodesics.png}%
+\includegraphics[width=.333\linewidth]{fig/elbo_trace_incentre.png}
+\caption{ELBO trace from VI on six taxa using the ``simple'' embedding with (a) MST, (b) geodesics, (d) incentres. All with $k=10$ ELBO samples and a learning rate of $10^{-3}$.}
+\label{fig:elbo_method}
 \end{center}
 \end{figure}
 
 \begin{figure}[htbp]
-\begin{center}
-\includegraphics[width=.333\linewidth]{fig/elbo_trace_k1.png}%
-\includegraphics[width=.333\linewidth]{fig/elbo_trace_k10.png}%
-\includegraphics[width=.333\linewidth]{fig/elbo_trace_k100.png}
-\caption{Effect of number of ELBO samples $k=\{1, 10, 100\}$.
-All using a logit embedding.}
+\includegraphics[width=.2\linewidth]{fig/elbo_trace_mst_lr3_k1.png}%
+\includegraphics[width=.2\linewidth]{fig/elbo_trace_mst_lr3_k5.png}%
+\includegraphics[width=.2\linewidth]{fig/elbo_trace_mst_lr3_k10.png}%
+\includegraphics[width=.2\linewidth]{fig/elbo_trace_mst_lr3_k20.png}%
+\includegraphics[width=.2\linewidth]{fig/elbo_trace_mst_lr3_k50.png}
+\includegraphics[width=.2\linewidth]{fig/elbo_trace_mst_lr4_k1.png}%
+\includegraphics[width=.2\linewidth]{fig/elbo_trace_mst_lr4_k5.png}%
+\includegraphics[width=.2\linewidth]{fig/elbo_trace_mst_lr4_k10.png}%
+\includegraphics[width=.2\linewidth]{fig/elbo_trace_mst_lr4_k20.png}
+\caption{Effect of number of ELBO samples $k=\{1, 5, 10, 20, 50\}$.
+Top row with learning rate $10^{-3}$ and bottom row $10^{4}$.
+All using a ``simple'' embedding.}
 \label{fig:k_samples}
-\end{center}
 \end{figure}
 
 \begin{figure}[htbp]
 \begin{center}
-\includegraphics[width=.333\linewidth]{fig/elbo_trace_lr1.png}%
-\includegraphics[width=.333\linewidth]{fig/elbo_trace_lr01.png}%
-\includegraphics[width=.333\linewidth]{fig/elbo_trace_lr0001.png}
-\caption{Effect of learning rate $\{1, 10^{-1}, 10^{-4}\}$.}
+\includegraphics[width=.333\linewidth]{fig/elbo_trace_mst_lr2.png}%
+\includegraphics[width=.333\linewidth]{fig/elbo_trace_mst_lr3.png}%
+\includegraphics[width=.333\linewidth]{fig/elbo_trace_mst_lr4.png}
+\caption{Effect of learning rate $\{10^{-2}, 10^{-3}, 10^{-4}\}$ with fixed $k=10$ under MST using ``simple'' embedding.}
 \label{fig:lr}
 \end{center}
 \end{figure}
 
 \begin{figure}[htbp]
 \begin{center}
-\includegraphics[width=.333\linewidth]{fig/elbo_trace_SGD.png}%
-\includegraphics[width=.333\linewidth]{fig/elbo_trace_d3.png}%
-\includegraphics[width=.333\linewidth]{fig/elbo_trace_b3.png}
-\caption{Trying (a) SGD instead of Adam. (b) 3-dimensions. (c) Boosting with a mixture of 3 Gaussians.}
+\includegraphics[width=.333\linewidth]{fig/elbo_trace_mst_lr2.png}%
+\includegraphics[width=.333\linewidth]{fig/elbo_trace_mst_lr3.png}%
+\includegraphics[width=.333\linewidth]{fig/elbo_trace_mst_lr4.png}
+\caption{Effect of learning rate $\{10^{-2}, 10^{-3}, 10^{-4}\}$ with fixed $k=10$ under MST using ``simple'' embedding.}
 \label{fig:lr}
 \end{center}
 \end{figure}
+
 
 
 \section{Thoughts}
+\subsection{Embedding}
+\begin{itemize}
+\item Want a MST with given tips and degree constrains.
+Given tips see https://cs. stackexchange.com/questions/40131/spanning-tree-with-chosen-leaves?rq=1.
+But degree constrained is harder. This algorithm looks at only constraining the root https://cs.stackexchange.com/questions/22775/minimal-spanning-tree-with-degree- constraint.
+\end{itemize}
+
 \subsection{MCMC}
 \begin{itemize}
-\item Try other (Chami) method of connecting?
-\item What type of tree rearrangements commonly occur?
-\item Is likelihood under JC69 continuous when topology changes?
-\item If the nodes move without changing the topology, is the posterior probability smooth?
-\item Hot chain/ MCMCMC?
+\item What type of tree rearrangements occur when topology changes?
+\item Posterior surfance is smooth if topology doesn't change.
+\item Remove isometric component of new vector. Want rotations and translations component 
 \end{itemize}
 
 \subsection{VI}
 \begin{itemize}
+\item Pytorch's optimisers don't converge for non-convex problems.
+\item Can we regularise positions a bit using distance-based on all node (e.g. log-a-like) without affecting the posterior.
+\end{itemize}
+
+\subsection{Later}
+\begin{itemize}
 \item What if we learn the curvature?
-\item Effect of $k_{samples}$, boosts, learning rate?
+\item Try on more taxa 20, 100, 200 using hpc
 \item How easy is it to add taxa? Might only need pair-wise distance to a subset of other taxa.
-\item We could use the original parameterisation with the radius in $r \sim P(N(\mu, \sigma))$ a logit-normal distribution and the directional similarly in a $n$-dimensional logit-normal.
 \end{itemize}
 
 \subsection{Full rank}
