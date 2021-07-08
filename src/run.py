@@ -19,10 +19,10 @@ def main():
     prior = {"birth_rate": 2., "death_rate": .5}
     epochs = 10000      # number of epochs
     n_draws = 1000      # number of trees drawn from final distribution
-    init_trials = 100   # number of initial embeddings to select from per grid
-    init_grids = 100     # # number grid scales for selecting inital embedding
+    n_trials = 100      # number of initial embeddings to select from per grid
+    n_grids = 100       # number grid scales for selecting inital embedding
     max_scale = 1
-    connect_method = 'incentre'  # 'incentre', 'mst' or 'geodesics'
+    connect_method = 'mst'  # 'incentre', 'mst' or 'geodesics'
     embed_method = 'wrap'    # 'simple' or 'wrap'
     # TODO: wrapping method doesn't learn in vi
 
@@ -45,7 +45,6 @@ def main():
     save_period = max(int(epochs/n_draws), 1)
     nChains = 1
     burnin = 0
-    one_by_one = False
     # path_write_mcmc = None
     path_write_mcmc = os.path.abspath(os.path.join(
         path_write, "mcmc_%s_%s_c%i" % (embed_method, connect_method, nChains)))
@@ -94,7 +93,7 @@ def main():
             os.mkdir(path_write_mcmc)
         mcmc.run(dim, partials[:], weights, dists, path_write_mcmc,
                  epochs=epochs, step_scale=step_scale, save_period=save_period,
-                 init_grids=init_grids, init_trials=init_trials, nChains=nChains,
+                 n_grids=n_grids, n_trials=n_trials, max_scale=max_scale, nChains=nChains,
                  burnin=burnin, connect_method=connect_method, embed_method=embed_method, **prior)
 
     if runVi:
@@ -104,9 +103,9 @@ def main():
         # path_write_vi = None
         DodonaphyVI.run(dim, S, partials[:], weights, dists, path_write_vi,
                         epochs=epochs, k_samples=k_samples, n_draws=n_draws,
-                        init_grids=init_grids, init_trials=init_trials,
+                        n_grids=n_grids, n_trials=n_trials,
                         max_scale=max_scale, lr=lr, embed_method=embed_method,
-                        connect_method=connect_method, one_by_one=one_by_one, **prior)
+                        connect_method=connect_method, **prior)
 
     # Make folder for BEAST
     # path_write_beast = os.path.abspath(os.path.join(path_write, "beast"))

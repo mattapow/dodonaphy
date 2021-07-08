@@ -55,52 +55,30 @@ class Chain(BaseModel):
     def evolve(self, connect_method, embed_method, one_by_one=True):
         n_accepted = 0
 
-        if not one_by_one:
-            # change all nodes at the same time
-            shape = self.loc.shape
-            loc_proposal = self.loc.detach().clone().reshape(self.loc.numel())
-            n = loc_proposal.numel()
-            loc_proposal = loc_proposal + MultivariateNormal(
-                torch.zeros_like(loc_proposal, dtype=torch.double),
-                torch.eye(n, dtype=torch.double) * self.step_scale).sample()
-            loc_proposal = loc_proposal.reshape(shape)
-            r, like_proposal, prior_ratio = self.accept_ratio(loc_proposal, connect_method, embed_method)
+        # change all nodes at the same time
+        shape = self.loc.shape
+        loc_proposal = self.loc.detach().clone().reshape(self.loc.numel())
+        n = loc_proposal.numel()
+        loc_proposal = loc_proposal + MultivariateNormal(
+            torch.zeros_like(loc_proposal, dtype=torch.double),
+            torch.eye(n, dtype=torch.double) * self.step_scale).sample()
+        loc_proposal = loc_proposal.reshape(shape)
 
-            accept = False
-            if r >= 1:
-                accept = True
-            elif uniform.Uniform(torch.zeros(1), torch.ones(1)).sample() < r:
-                accept = True
+        # normalise to sphere
+        norm = torch.pow(torch.sum(loc_proposal**2, axis=-1, keepdim=True), .5).repeat(1, self.D)
+        loc_proposal = loc_proposal / norm * self.radius
 
-            if accept:
-                self.loc = loc_proposal
-                self.lnP = like_proposal
-                self.lnPrior = prior_ratio
-                n_accepted += 1
-                self.accepted += 1
-            self.iterations += 1
+        r, like_proposal, prior_ratio = self.accept_ratio(loc_proposal, connect_method, embed_method)
 
-        else:
-            # change each node location one-by-one
-            for i in range(self.n_points):
-                loc_proposal = self.loc.detach().clone()
-                loc_proposal = self.loc.detach().clone()
-                loc_proposal[i, :] = loc_proposal[i, :] + normal.Normal(0, self.step_scale).sample((1, self.D))
-                r, like_proposal, prior_ratio = self.accept_ratio(loc_proposal, connect_method, embed_method)
+        accept = False
+        if r >= 1:
+            accept = True
+        elif uniform.Uniform(torch.zeros(1), torch.ones(1)).sample() < r:
+            accept = True
 
-                accept_prop = False
-                if r >= 1:
-                    accept_prop = True
-                elif uniform.Uniform(torch.zeros(1), torch.ones(1)).sample() < r:
-                    accept_prop = True
-
-                if accept_prop:
-                    self.loc = loc_proposal
-                    self.lnP = like_proposal
-                    self.lnPrior = prior_ratio
-                    n_accepted += 1
-                    self.accepted += 1
-            self.iterations += self.n_points
+        if accept:
+            self.loc = loc_proposal
+            self.lnP = like_proposal
 
         return n_accepted
 
@@ -195,7 +173,7 @@ class DodonaphyMCMC():
             temp = 1./(1+dTemp*i)
             self.chain.append(Chain(partials, weights, dim, loc, step_scale, temp, **prior))
 
-    def learn(self, epochs, burnin=0, path_write='./out', save_period=1, one_by_one=True):
+    def learn(self, epochs, burnin=0, path_write='./out', save_period=1):
         print("Using 1 cold chain and %d hot chains." % int(self.nChains-1))
         self.save_period = save_period
 
@@ -352,7 +330,7 @@ class DodonaphyMCMC():
     def run(dim, partials, weights, dists, path_write=None,
             epochs=1000, step_scale=0.01, save_period=1, burnin=0,
             n_grids=10, n_trials=100, nChains=1, connect_method='incentre',
-            embed_method='wrap', one_by_one=True, **prior):
+            embed_method='wrap', **prior):
         print('\nRunning Dodonaphy MCMC')
         assert connect_method in ['incentre', 'mst', 'geodesics']
 
@@ -369,4 +347,4 @@ class DodonaphyMCMC():
         mymod.initialise_chains(emm_tips, n_grids=n_grids, n_trials=n_trials, max_scale=1)
 
         # Learn
-        mymod.learn(epochs, burnin=burnin, path_write=path_write, save_period=save_period, one_by_one=one_by_one)
+        mymod.learn(epochs, burnin=burnin, path_write=path_write, save_period=save_period)
