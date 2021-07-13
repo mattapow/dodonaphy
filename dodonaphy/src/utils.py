@@ -255,59 +255,114 @@ def get_plca(locs):
     return edge_list
 
 
-def ball2real(loc_ball):
+def ball2real(loc_ball, radius=1):
     """A map from the unit ball B^n to real R^n.
     Inverse of real2ball.
 
     Args:
         loc_ball (tensor): [description]
+        radius (tensor): [description]
 
     Returns:
         tensor: [description]
     """
-    norm_loc_ball = torch.pow(torch.sum(loc_ball**2, axis=1, keepdim=True), .5).repeat(1, 2)
-    loc_real = loc_ball / (1 - norm_loc_ball)
+    norm_loc_ball = torch.norm(loc_ball, dim=1, keepdim=True).repeat(1, 2)
+    loc_real = loc_ball / (radius - norm_loc_ball)
     return loc_real
 
 
-def real2ball(loc_real, dim):
+def real2ball(loc_real, radius=1):
     """A map from the reals R^n to unit ball B^n.
     Inverse of ball2real.
 
     Args:
         loc_real (tensor): Point in R^n with size [1, dim]
-        dim (float): embedding dimension
+        radius (float): Radius of ball
 
     Returns:
         tensor: [description]
     """
-    norm_loc_real = torch.pow(torch.sum(loc_real**2, axis=-1, keepdim=True), .5).repeat(1, dim)
-    loc_ball = loc_real / (1 + norm_loc_real)
+    if loc_real.ndim == 1:
+        loc_real = loc_real.unsqueeze(dim=-1)
+    dim = loc_real.shape[1]
+
+    norm_loc_real = torch.norm(loc_real, dim=-1, keepdim=True).repeat(1, dim)
+    loc_ball = torch.div(radius * loc_real, (1 + norm_loc_real))
     return loc_ball
 
 
-def real2ball_LADJ(y):
+def real2ball_LADJ(y, radius=1):
     """Copmute log of absolute value of determinate of jacobian of real2ball on point y
 
     Args:
-        y ([type]): Point in R^n
+        y (tensor): Point in R^n
 
     Returns:
         tensor: Jacobain matrix
     """
-    # TODO: repeat for each point in a 2D array of (n_points x dim). 
+    if y.ndim == 1:
+        y = y.unsqueeze(dim=-1)
 
-    n = len(y)
-    J = torch.zeros(n, n)
-    norm = torch.pow(torch.sum(y**2, axis=-1, keepdim=True), .5)
+    n, D = y.shape
+    J = torch.zeros(D, D)
+    log_abs_det_J = torch.zeros(1)
 
-    for i in range(n):
-        for j in range(i+1):
-            if i == j:
-                J[i, j] = 1 + norm - y[i] * y[i] * norm
-            else:
-                J[i, j] = - y[i] * y[j] * norm
-                J[j, i] = - y[j] * y[i] * norm
+    for k in range(n):
+        norm = torch.norm(y[k, :], dim=-1, keepdim=True)
+        for i in range(D):
+            for j in range(i+1):
+                if i == j:
+                    J[i, j] = 1 + norm - y[k, i] * y[k, i] * norm
+                else:
+                    J[i, j] = - y[k, i] * y[k, j] * norm
+                    J[j, i] = - y[k, j] * y[k, i] * norm
+        J = radius * torch.div(J, torch.pow((1 + norm), 2))
+        log_abs_det_J = log_abs_det_J + torch.log(torch.abs(torch.det(J)))
+    return log_abs_det_J
 
-    J = torch.div(J, torch.pow((1 + norm), 2))
-    return torch.log(torch.abs(torch.det(J)))
+
+def normalise(y):
+    """Normalise vectors to unit sphere
+
+    Args:
+        y ([type]): [description]
+
+    Returns:
+        [type]: [description]
+    """
+    if y.ndim == 1:
+        y = y.unsqueeze(dim=-1)
+    dim = y.shape[1]
+
+    norm = torch.norm(y, dim=-1, keepdim=True).repeat(1, dim)
+    return y / norm
+
+
+def normalise_LADJ(y):
+    """Copmute log of absolute value of determinate of jacobian of normalising to a directional
+
+    Args:
+        y (tensor): Points in R^n n_points x n_dims
+
+    Returns:
+        tensor: Jacobain matrix
+    """
+    if y.ndim == 1:
+        y = y.unsqueeze(dim=-1)
+
+    n, D = y.shape
+    J = torch.zeros(D, D)
+    log_abs_det_J = torch.zeros(1)
+
+    for k in range(n):
+        norm = torch.norm(y[k, :], dim=-1, keepdim=True)
+        for i in range(D):
+            for j in range(i+1):
+                if i == j:
+                    J[i, j] = 1 - y[k, i] * y[k, i]
+                else:
+                    J[i, j] = - y[k, i] * y[k, j]
+                    J[j, i] = - y[k, j] * y[k, i]
+        J = torch.div(J, norm)
+        log_abs_det_J = log_abs_det_J + torch.log(torch.abs(torch.det(J)))
+    return log_abs_det_J

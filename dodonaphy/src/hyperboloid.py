@@ -160,7 +160,8 @@ def p2t0(loc):
         return loc_hyp[:, 1:]
 
 
-def t02p(x, dim, mu=None):
+def t02p(x, dim, mu=None, get_jacobian=False):
+    # TODO: now that we don't need pytorch.jacobian, t02p doesn't need to be given a vector
     """Transform a vector x in Euclidean space to the Poincare disk.
 
     Take a vector in the tangent space of a hyperboloid at the origin, project it
@@ -199,10 +200,18 @@ def t02p(x, dim, mu=None):
 
     x_poin = torch.zeros((n_loc, dim))
     mu_hyp = up_to_hyper(mu.reshape(n_loc, dim))
+    jacobian = torch.zeros(1)
     for i in range(n_loc):
         x_hyp = tangent_to_hyper(mu_hyp[i, :], x[i, :], dim)
         x_poin[i, :] = hyper_to_poincare(x_hyp)
-    return x_poin.reshape(n_loc*dim)
+        if get_jacobian:
+            jacobian = jacobian + tangent_to_hyper_jacobian(mu_hyp[i, :], x[i, :], dim)
+            jacobian = jacobian + hyper_to_poincare(x_hyp)
+
+    if get_jacobian:
+        return x_poin.reshape(n_loc*dim), jacobian
+    else:
+        return x_poin.reshape(n_loc*dim)
 
 
 def up_to_hyper(loc):
@@ -254,6 +263,21 @@ def tangent_to_hyper(mu, v_tilde, dim):
     return z
 
 
+def tangent_to_hyper_jacobian(mu, v_tilde, dim):
+    """Return log absolute of determinate of jacobian for tangent_to_hyper
+
+    Args:
+        mu ([type]): [description]
+        v_tilde ([type]): [description]
+        dim ([type]): [description]
+
+    Returns:
+        Scalar tensor: [description]
+    """
+    r = torch.norm(v_tilde)
+    return torch.log(torch.pow(torch.div(torch.sinh(r), r), dim-1))
+
+
 def hyper_to_poincare(location):
     """
     Take stereographic projection from H^n Hyperboloid in R^n+1 onto the
@@ -276,6 +300,16 @@ def hyper_to_poincare(location):
         out[i] = location[i + 1] / (1 + location[0])
     return out
     # return torch.as_tensor([location[i + 1] / (1 + location[0]) for i in range(dim)])
+
+
+def hyper_to_poincare_jacobian(location):
+    dim = location.shape[0] - 1
+    J = torch.zeros((dim, dim))
+    for i in range(dim):
+        J[i, 0] = - location[i+1] / (1+location[0])**2
+    for i in range(dim-1):
+        J[i, i+1] = 1 / (1 + location[0])
+    return torch.log(torch.abs(torch.det(J)))
 
 
 def poincare_to_hyper(location):
