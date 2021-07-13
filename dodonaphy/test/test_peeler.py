@@ -10,7 +10,7 @@ def test_make_peel_simple():
     # Issue coming from utils.py#L371
     S = 3
     leaf_r = .5*torch.ones(S)
-    leaf_theta = torch.tensor([np.pi/6, 0., -np.pi/6])
+    leaf_theta = torch.tensor([np.pi/6, 0., -np.pi/9])
     leaf_dir = utils.angle_to_directional(leaf_theta)
 
     # internal node with angle in between nodes 0 and 1

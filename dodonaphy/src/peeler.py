@@ -9,14 +9,14 @@ from collections import defaultdict
 
 
 def make_peel_incentre(leaf_locs):
-    return make_peel_tips(leaf_locs, method='incentre')
+    return make_peel_tips(leaf_locs, connect_method='incentre')
 
 
 def make_peel_geodesic(leaf_locs):
-    return make_peel_tips(leaf_locs, method='geodesic')
+    return make_peel_tips(leaf_locs, connect_method='geodesic')
 
 
-def make_peel_tips(leaf_locs, method='incentre'):
+def make_peel_tips(leaf_locs, connect_method='incentre'):
     """Generate a tree recursively using the incentre of the closest two points.
 
     Args:
@@ -64,10 +64,12 @@ def make_peel_tips(leaf_locs, method='incentre'):
         else:
             to_point = int_locs[e.to_-leaf_node_count]
 
-        if method == 'geodesic':
+        if connect_method == 'geodesics':
             int_locs[int_i] = poincare.hyp_lca(from_point, to_point)
-        elif method == 'incentre':
+        elif connect_method == 'incentre':
             int_locs[int_i] = poincare.incentre(from_point, to_point)
+        else:
+            raise ValueError('connect_method must be geodesics or incentre')
         peel[int_i][0] = e.from_
         peel[int_i][1] = e.to_
         peel[int_i][2] = cur_internal
@@ -107,8 +109,28 @@ def make_peel_mst(leaf_r, leaf_dir, int_r, int_dir, curvature=torch.ones(1)):
     queue = []  # queue here is a min-heap
     heapify(queue)
     visited = node_count * [False]  # visited here is a boolen list
-    heappush(queue, u_edge(0, 0, 0))  # add a start_edge
+
+    # heappush(queue, u_edge(0, 0, 0))  # add a start_edge
     # heappush(queue, edge_list[0][0])    # add any edge from the edgelist as the start_edge
+    # Use start edge as closest leaf to internal
+    start_edge = u_edge(np.inf, -1, -1)
+    int_node_count = node_count - leaf_node_count
+    for i in range(int_node_count):
+        int_i = i + leaf_node_count
+        for edge in edge_list[int_i]:
+            isLeafInt = False
+            if edge.to_ >= leaf_node_count and edge.from_ < leaf_node_count:
+                isLeafInt = True
+            if edge.to_ < leaf_node_count and edge.from_ >= leaf_node_count:
+                isLeafInt = True
+
+            if isLeafInt and edge < start_edge:
+                if edge.to_ < edge.from_:
+                    # reverse first edge so to_ is internal
+                    edge = u_edge(edge.distance, edge.to_, edge.from_)
+                start_edge = edge
+
+    heappush(queue, start_edge)
     mst_adjacencies = defaultdict(list)
     visited_count = open_slots = 0
 
@@ -136,13 +158,13 @@ def make_peel_mst(leaf_r, leaf_dir, int_r, int_dir, curvature=torch.ones(1)):
                     found_internal = True
                 if mst_adjacencies[e.from_][1] >= leaf_node_count:
                     found_internal = True
-                if not found_internal and visited_count < node_count - 1:
+                if not found_internal and visited_count < node_count - 2:
                     is_valid = False
             elif mst_adjacencies[e.from_].__len__() == 3:
                 is_valid = False
 
         # don't use the last open slot unless this is the last node
-        if open_slots == 1 and e.to_ < leaf_node_count and visited_count < node_count - 1:
+        if open_slots == 1 and e.to_ < leaf_node_count and visited_count < node_count - 2:
             is_valid = False
         if is_valid:
             if e.to_ is not e.from_:
