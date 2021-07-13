@@ -1,74 +1,62 @@
-from torch.distributions.multivariate_normal import MultivariateNormal
-from . import utils, tree, hydra, peeler
-from .hyperboloid import t02p, p2t0
+from . import utils, tree, hydra, peeler, hyperboloid
 from .base_model import BaseModel
 
-from torch.distributions import normal, uniform
+from torch.distributions.multivariate_normal import MultivariateNormal
+from torch.distributions import uniform
 import torch
 import numpy as np
+import os
 
 
 class Chain(BaseModel):
-    def __init__(self, partials, weights, dim, loc=None, step_scale=0.01, temp=1, target_acceptance=.234, **prior):
+    def __init__(self, partials, weights, dim, leaf_r=None, leaf_dir=None, int_r=None, int_dir=None, step_scale=0.01,
+                 temp=1, target_acceptance=.234, connect_method='mst', embed_method='simple', **prior):
         super().__init__(partials, weights, dim, **prior)
-        self.loc = loc  # location in the tangent space. Leaves then ints
+        self.leaf_dir = leaf_dir  # S x D
+        self.int_dir = int_dir  # S-2 x D
+        self.int_r = int_r  # S-2
+        self.leaf_r = leaf_r  # single scalar
+        if leaf_dir is not None:
+            self.S = len(leaf_dir)
+
+        assert embed_method in ('simple', 'wrap')
+        self.embed_method = embed_method
+        assert connect_method in ("incentre", "geodesics", "mst")
+        self.connect_method = connect_method
+
         self.step_scale = step_scale
         self.temp = temp
-        if loc is not None:
-            self.n_points = len(self.loc)
         self.accepted = 0
         self.iterations = 0
         self.target_acceptance = target_acceptance
-        self.converged = [False] * 100
+        self.converged = [False] * 200
         self.moreTune = True
 
-    def set_probability(self, connect_method, embed_method):
+    def set_probability(self):
         # set peel + blens + poincare locations
-        if connect_method == 'geodesics':
-            self.loc_vec = self.loc.reshape(self.S * self.D)
-            loc_poin = t02p(self.loc_vec, self.D).reshape(self.S, self.D)
-            self.peel, int_locs = peeler.make_peel_geodesic(loc_poin)
-            int_r, int_dir = utils.cart_to_dir(int_locs)
-            leaf_r, leaf_dir = utils.cart_to_dir(loc_poin)
-        elif connect_method == 'incentre':
-            self.loc_vec = self.loc.reshape(self.S * self.D)
-            loc_poin = t02p(self.loc_vec, self.D).reshape(self.S, self.D)
-            self.peel, int_locs = peeler.make_peel_incentre(loc_poin)
-            int_r, int_dir = utils.cart_to_dir(int_locs)
-            leaf_r, leaf_dir = utils.cart_to_dir(loc_poin)
-        elif connect_method == 'mst':
-            self.loc_vec = self.loc.reshape(self.bcount * self.D)
-            if embed_method == 'wrap':
-                loc_poin = t02p(self.loc_vec, self.D).reshape(self.bcount, self.D)
-            elif embed_method == 'simple':
-                loc_poin = utils.real2ball(self.loc, self.D)
-            leaf_r, int_r, leaf_dir, int_dir = utils.cart_to_dir_tree(loc_poin)
-            self.peel = peeler.make_peel_mst(leaf_r, leaf_dir, int_r, int_dir)
-
-        self.blens = self.compute_branch_lengths(self.S, self.peel, leaf_r, leaf_dir, int_r, int_dir)
-        loc_poin = torch.cat((loc_poin, torch.unsqueeze(loc_poin[0, :], axis=0)))
+        if self.connect_method in ('geodesics', 'incentre'):
+            loc_poin = self.leaf_dir * self.leaf_r
+            self.peel, int_locs = peeler.make_peel_tips(loc_poin, self.connect_method)
+            self.int_r, self.int_dir = utils.cart_to_dir(int_locs)
+            leaf_r_all, self.leaf_dir = utils.cart_to_dir(loc_poin)
+            self.leaf_r = leaf_r_all[0]
+        elif self.connect_method == 'mst':
+            self.peel = peeler.make_peel_mst(self.leaf_r.repeat(self.S), self.leaf_dir, self.int_r, self.int_dir)
 
         # current likelihood + prior
+        self.blens = self.compute_branch_lengths(
+            self.S, self.peel, self.leaf_r.repeat(self.S), self.leaf_dir, self.int_r, self.int_dir)
         self.lnP = self.compute_LL(self.peel, self.blens)
         self.lnPrior = self.compute_prior(self.peel, self.blens, **self.prior)
 
-    def evolve(self, connect_method, embed_method, one_by_one=True):
+    def evolve(self):
         n_accepted = 0
 
-        # change all nodes at the same time
-        shape = self.loc.shape
-        loc_proposal = self.loc.detach().clone().reshape(self.loc.numel())
-        n = loc_proposal.numel()
-        loc_proposal = loc_proposal + MultivariateNormal(
-            torch.zeros_like(loc_proposal, dtype=torch.double),
-            torch.eye(n, dtype=torch.double) * self.step_scale).sample()
-        loc_proposal = loc_proposal.reshape(shape)
+        # propose new embedding
+        proposal = self.propose()
 
-        # normalise to sphere
-        norm = torch.pow(torch.sum(loc_proposal**2, axis=-1, keepdim=True), .5).repeat(1, self.D)
-        loc_proposal = loc_proposal / norm * self.radius
-
-        r, like_proposal, prior_ratio = self.accept_ratio(loc_proposal, connect_method, embed_method)
+        # Decide whether to accept proposal
+        r, like_proposal, prior_proposal = self.accept_ratio(proposal)
 
         accept = False
         if r >= 1:
@@ -77,62 +65,158 @@ class Chain(BaseModel):
             accept = True
 
         if accept:
-            self.loc = loc_proposal
+            self.leaf_r = proposal['leaf_r']
+            self.leaf_dir = proposal['leaf_dir']
+            self.int_r = proposal['int_r']
+            self.int_dir = proposal['int_dir']
             self.lnP = like_proposal
+            self.lnPrior = prior_proposal
+            n_accepted += 1
+            self.accepted += 1
+        self.iterations += 1
 
         return n_accepted
 
-    def accept_ratio(self, loc_proposal, connect_method, embed_method):
+    def propose(self):
+        # TODO: propose unit directionals on sphere
+        n_leaf_vars = self.S * self.D
+        if self.embed_method == 'simple':
+            # transform leaves to R^n
+            leaf_loc_t0 = utils.ball2real(self.leaf_r * self.leaf_dir).detach().clone().reshape(n_leaf_vars)
+
+            # propose new leaf nodes from normal in R^n
+            leaf_loc_t0 = leaf_loc_t0 + MultivariateNormal(
+                torch.zeros(n_leaf_vars, dtype=torch.double),
+                torch.eye(n_leaf_vars, dtype=torch.double) * self.step_scale).sample()
+            leaf_loc_t0 = leaf_loc_t0.reshape(self.S, self.D)
+
+            # normalise leaves to sphere with radius leaf_r_prop = mean of leaf radii
+            leaf_r_t0 = torch.mean(torch.norm(leaf_loc_t0, dim=-1, keepdim=True))
+            log_abs_det_jacobian = utils.normalise_LADJ(leaf_loc_t0) + torch.log(leaf_r_t0)
+            leaf_loc_t0 = utils.normalise(leaf_loc_t0) * leaf_r_t0
+
+            leaf_loc_prop = utils.real2ball(leaf_loc_t0)
+            log_abs_det_jacobian = log_abs_det_jacobian + utils.real2ball_LADJ(leaf_loc_t0)
+
+        elif self.embed_method == 'wrap':
+            # transform leaves to R^n
+            leaf_loc_t0 = hyperboloid.p2t0(self.leaf_r * self.leaf_dir)
+            leaf_loc_t0 = leaf_loc_t0.detach().clone().reshape(n_leaf_vars)
+
+            # propose new leaf nodes from normal in R^n and convert to poincare ball
+            sample = MultivariateNormal(
+                torch.zeros(n_leaf_vars, dtype=torch.double),
+                torch.eye(n_leaf_vars, dtype=torch.double) * self.step_scale).sample()
+            leaf_loc_prop, log_abs_det_jacobian = hyperboloid.t02p(sample, self.D, leaf_loc_t0, get_jacobian=True)
+            leaf_loc_prop = leaf_loc_prop.reshape(self.S, self.D)
+        # get r and directional
+        leaf_r_prop = torch.mean(torch.norm(leaf_loc_prop, dim=-1))
+        leaf_dir_prop = leaf_loc_prop / torch.norm(leaf_loc_prop, dim=-1, keepdim=True)
+
+        # internal nodes for mst
+        if self.connect_method == 'mst':
+            n_int_vars = (self.S - 2) * self.D
+            int_loc = self.int_r.reshape(self.S-2, 1).repeat(1, self.D) * self.int_dir
+            if self.embed_method == 'simple':
+                # transform ints to R^n
+                int_loc_t0 = utils.ball2real(int_loc).detach().clone().reshape(n_int_vars)
+
+                # propose new int nodes from normal in R^n
+                int_loc_t0 = int_loc_t0 + MultivariateNormal(
+                    torch.zeros(n_int_vars, dtype=torch.double),
+                    torch.eye(n_int_vars, dtype=torch.double) * self.step_scale).sample()
+                int_loc_t0 = int_loc_t0.reshape(self.S - 2, self.D)
+
+                # convert ints to poincare ball
+                int_loc_prop = utils.real2ball(int_loc_t0)
+                log_abs_det_jacobian = log_abs_det_jacobian + utils.real2ball_LADJ(int_loc_t0)
+
+            elif self.embed_method == 'wrap':
+                # transform ints to R^n
+                int_loc_t0 = hyperboloid.p2t0(int_loc).detach().clone().reshape(n_int_vars)
+
+                # propose new int nodes from normal in R^n
+                sample = MultivariateNormal(
+                    torch.zeros(n_int_vars, dtype=torch.double),
+                    torch.eye(n_int_vars, dtype=torch.double) * self.step_scale).sample()
+                int_loc_prop, int_jacobian = hyperboloid.t02p(sample, self.D, int_loc_t0, get_jacobian=True)
+                int_loc_prop = int_loc_prop.reshape(self.S-2, self.D)
+                log_abs_det_jacobian = log_abs_det_jacobian + int_jacobian
+
+            # get r and directional
+            int_r_prop = torch.norm(int_loc_prop, dim=-1)
+            int_dir_prop = int_loc_prop / torch.norm(int_loc_prop, dim=-1, keepdim=True)
+
+            # restrict int_r to less than leaf_r
+            # int_r_prop_big = int_r_prop[int_r_prop > leaf_r_prop]
+            # log_abs_det_jacobian = log_abs_det_jacobian + leaf_r_prop / int_r_prop_big
+            # int_r_prop[int_r_prop > leaf_r_prop] = leaf_r_prop
+
+        if self.connect_method in ('geodesics', 'incentre'):
+            proposal = {
+                'leaf_r': leaf_r_prop,
+                'leaf_dir': leaf_dir_prop,
+                'jacobian': log_abs_det_jacobian
+            }
+        elif self.connect_method == 'mst':
+            proposal = {
+                'leaf_r': leaf_r_prop,
+                'leaf_dir': leaf_dir_prop,
+                'int_r': int_r_prop,
+                'int_dir': int_dir_prop,
+                'jacobian': log_abs_det_jacobian
+            }
+        return proposal
+
+    def accept_ratio(self, p):
         """Acceptance critereon for Metropolis-Hastings
 
         Args:
-            loc_proposal ([type]): Proposal location in R^n
-            connect_method ([type]): Connection method for make_peel.
-            embed_method ([type]): Embedding method: R^n to P^n
+            p ([type]): Proposal dictionary
 
         Returns:
             tuple: (r, prop_like)
             The acceptance ratio r and the likelihood of the proposal.
         """
         # proposal likelihood + prior
-        if connect_method == 'geodesics':
-            loc_proposal_vec = loc_proposal.reshape(self.S * self.D)
-            loc_proposal_poin = t02p(loc_proposal_vec, self.D).reshape(self.S, self.D)
-            leaf_r, int_r, leaf_dir, int_dir = utils.cart_to_dir_tree(loc_proposal_poin)
-            peel, int_proposal_poin = peeler.make_peel_geodesic(loc_proposal_poin)
-            int_r, int_dir = utils.cart_to_dir(int_proposal_poin)
-            leaf_r, leaf_dir = utils.cart_to_dir(loc_proposal_poin)
-        elif connect_method == 'incentre':
-            loc_proposal_vec = loc_proposal.reshape(self.S * self.D)
-            loc_proposal_poin = t02p(loc_proposal_vec, self.D).reshape(self.S, self.D)
-            leaf_r, int_r, leaf_dir, int_dir = utils.cart_to_dir_tree(loc_proposal_poin)
-            peel, int_proposal_poin = peeler.make_peel_incentre(loc_proposal_poin)
-            int_r, int_dir = utils.cart_to_dir(int_proposal_poin)
-            leaf_r, leaf_dir = utils.cart_to_dir(loc_proposal_poin)
-        elif connect_method == 'mst':
-            if embed_method == 'wrap':
-                loc_proposal_vec = loc_proposal.reshape(self.bcount * self.D)
-                loc_proposal_poin = t02p(loc_proposal_vec, self.D).reshape(self.bcount, self.D)
-            elif embed_method == 'simple':
-                loc_proposal_poin = utils.real2ball(loc_proposal, self.D)
-            leaf_r, int_r, leaf_dir, int_dir = utils.cart_to_dir_tree(loc_proposal_poin)
-            leaf_r, int_r, leaf_dir, int_dir = utils.cart_to_dir_tree(loc_proposal_poin)
-            peel = peeler.make_peel_mst(leaf_r, leaf_dir, int_r, int_dir)
-        blen = self.compute_branch_lengths(self.S, peel, leaf_r, leaf_dir, int_r, int_dir)
+        leaf_r_prop = p['leaf_r'].repeat(self.S, 1)
+        if self.connect_method in ('geodesics', 'incentre'):
+            peel, int_locs = peeler.make_peel_tips(leaf_r_prop * p['leaf_dir'], connect_method=self.connect_method)
+            p['int_r'], p['int_dir'] = utils.cart_to_dir(int_locs)
+        elif self.connect_method == 'mst':
+            peel = peeler.make_peel_mst(p['leaf_r'].repeat(self.S), p['leaf_dir'], p['int_r'], p['int_dir'])
+        blen = self.compute_branch_lengths(
+            self.S, peel, p['leaf_r'].repeat(self.S), p['leaf_dir'], p['int_r'], p['int_dir'])
         prop_like = self.compute_LL(peel, blen)
         prop_prior = self.compute_prior(peel, blen, **self.prior)
 
+        # import matplotlib.pyplot as plt
+        # leaf_X = leaf_r_prop.reshape(self.S, 1) * p['leaf_dir']
+        # ax = plt.gca()
+        # plt.cla()
+        # if self.connect_method == 'mst':
+        #     int_X = p['int_r'].reshape(self.S-2, 1) * p['int_dir']
+        #     X = torch.cat((leaf_X, int_X, leaf_X[0, :].reshape(1, self.D)))
+        # else:
+        #     int_X = p['int_r'].reshape(self.S-1, 1) * p['int_dir']
+        #     X = torch.cat((leaf_X, int_X))
+        # tree.plot_tree(ax, peel, X, radius=leaf_r_prop[0])
+        # plt.pause(0.05)
+
         # likelihood ratio
-        like_ratio = torch.exp(prop_like - self.lnP)
+        like_ratio = prop_like - self.lnP
 
         # prior ratio
-        prior_ratio = torch.exp(prop_prior - self.lnPrior)
+        prior_ratio = prop_prior - self.lnPrior
 
         # Proposals are symmetric Guassians
         hastings_ratio = 1
 
-        return (torch.minimum(torch.ones(1), (prior_ratio * like_ratio)**self.temp * hastings_ratio),
-                prop_like, prop_prior)
+        # acceptance ratio
+        r = torch.minimum(torch.ones(1),
+                          torch.exp((prior_ratio + like_ratio)*self.temp + hastings_ratio))
+
+        return (r, prop_like, prop_prior)
 
     def tune_step(self, tol=0.01):
         """Tune the acceptance rate. Simple Euler method.
@@ -144,8 +228,8 @@ class Chain(BaseModel):
         if not self.moreTune or self.iterations == 0:
             return
 
-        lr = 0.1
-        eps = np.finfo(np.double).eps
+        lr = 0.001
+        eps = 0.00000001
         acceptance = self.accepted / self.iterations
         dy = acceptance - self.target_acceptance
         self.step_scale = max(self.step_scale + lr * dy, eps)
@@ -160,18 +244,16 @@ class Chain(BaseModel):
 
 class DodonaphyMCMC():
 
-    def __init__(self, partials, weights, dim, loc=None, step_scale=0.01, nChains=1,
-                 connect_method='incentre', embed_method='wrap', **prior):
+    def __init__(self, partials, weights, dim, connect_method='mst', embed_method='simple',
+                 step_scale=0.01, nChains=1, **prior):
         self.nChains = nChains
         self.chain = []
-        assert connect_method in ("incentre", "geodesics", "mst")
-        self.connect_method = connect_method
-        assert embed_method in ("wrap", "", "simple")
-        self.embed_method = embed_method
         dTemp = 0.1
         for i in range(nChains):
             temp = 1./(1+dTemp*i)
-            self.chain.append(Chain(partials, weights, dim, loc, step_scale, temp, **prior))
+            self.chain.append(
+                Chain(partials, weights, dim, step_scale=step_scale, temp=temp, embed_method=embed_method,
+                      connect_method=connect_method, **prior))
 
     def learn(self, epochs, burnin=0, path_write='./out', save_period=1):
         print("Using 1 cold chain and %d hot chains." % int(self.nChains-1))
@@ -192,12 +274,10 @@ class DodonaphyMCMC():
                 for c in range(self.nChains):
 
                     # Set prior and likelihood
-                    self.chain[c].set_probability(self.connect_method, self.embed_method)
-
+                    self.chain[c].set_probability()
                     # step
-                    self.chain[c].evolve(self.connect_method, self.embed_method, one_by_one=one_by_one)
+                    self.chain[c].evolve()
                     self.chain[c].tune_step()
-
                     # tune step
                     if self.chain[c].moreTune:
                         self.chain[c].tune_step()
@@ -212,23 +292,36 @@ class DodonaphyMCMC():
         for i in range(epochs):
             for c in range(self.nChains):
                 # Set prior and likelihood
-                self.chain[c].set_probability(self.connect_method, self.embed_method)
+                self.chain[c].set_probability()
 
                 # step
-                self.chain[c].evolve(self.connect_method, self.embed_method, one_by_one=one_by_one)
+                self.chain[c].evolve()
 
                 # tune step
                 if self.chain[c].moreTune:
                     self.chain[c].tune_step()
 
+            # save
+            doSave = self.save_period > 0 and i % self.save_period == 0
+            if doSave:
+                if path_write is not None:
+                    self.save_iteration(path_write, i)
+
+                if i > 0:
+                    print('epoch: %-12i Acceptance Rate: %5.3f' %
+                          (i, self.chain[0].accepted / self.chain[0].iterations), end="", flush=True)
+
+                    if self.nChains > 1:
+                        print(" (", end="")
+                        for c in range(self.nChains-1):
+                            print(' %5.3f' % (self.chain[c+1].accepted / self.chain[c+1].iterations), end="")
+                        print(")")
+                    else:
+                        print("")
+
             # swap 2 chains
             if self.nChains > 1:
                 swaps += self.swap()
-
-            # save
-            doSave = path_write is not None and self.save_period > 0 and i % self.save_period == 0
-            if doSave:
-                self.save_iteration(path_write, i)
 
         if path_write is not None:
             fn = path_write + '/' + 'mcmc.info'
@@ -247,95 +340,105 @@ class DodonaphyMCMC():
             f.write('%-12s: %i\n' % ("# Taxa", self.chain[0].S))
             f.write('%-12s: %i\n' % ("Unique sites", self.chain[0].L))
             f.write('%-12s: %i\n' % ("Chains", self.nChains))
-            f.write('%-12s: %s\n' % ("Connect Mthd", self.connect_method))
             for i in range(self.nChains):
                 f.write('%-12s: %f\n' % ("Chain temp", self.chain[i].temp))
                 f.write('%-12s: %f\n' % ("Step Scale", self.chain[i].step_scale))
+                f.write('%-12s: %s\n' % ("Connect Mthd", self.chain[i].connect_method))
+                f.write('%-12s: %s\n' % ("Embed Mthd", self.chain[i].embed_method))
             for key, value in self.chain[0].prior.items():
                 f.write('%-12s: %f\n' % (key, value))
 
     def save_iteration(self, path_write, iteration):
-        if iteration > 0:
-            acceptance = self.chain[0].accepted / self.chain[0].iterations
-            print('epoch: %-12i Acceptance Rate: %5.3f' % (iteration, acceptance), end="", flush=True)
-            if self.nChains > 1:
-                print(" (", end="")
-                for c in range(self.nChains-1):
-                    print(' %5.3f' % (self.chain[c+1].accepted / self.chain[c+1].iterations), end="")
-                print(")")
-            else:
-                print("")
         tree.save_tree(path_write, 'mcmc', self.chain[0].peel, self.chain[0].blens,
-                       iteration*self.chain[0].bcount, self.chain[0].lnP)
+                       iteration*self.chain[0].bcount, float(self.chain[0].lnP))
         fn = path_write + '/locations.csv'
+        if not os.path.isfile(fn):
+            with open(fn, 'a') as file:
+                file.write("leaf_r, ")
+                for i in range(len(self.chain[0].leaf_dir)):
+                    for j in range(self.chain[0].D):
+                        file.write("leaf_%d_dir_%d, " % (i, j))
+                for i in range(len(self.chain[0].int_r)):
+                    file.write('int_%d_r, ' % (i))
+                for i in range(len(self.chain[0].int_dir)):
+                    for j in range(self.chain[0].D):
+                        file.write('int_%d_dir_%d' % (i, j))
+                        if not (j == self.chain[0].D - 1 and i == len(self.chain[0].int_dir)):
+                            file.write(', ')
+                file.write("\n")
+
         with open(fn, 'a') as file:
-            file.write(
-                np.array2string(self.chain[0].loc_vec.data.numpy())
-                .replace('\n', '').replace('[', '').replace(']', '') + "\n")
+            file.write(np.array2string(self.chain[0].leaf_r.data.numpy(), separator=', ')
+                       .replace('\n', '').replace('[', '').replace(']', ''))
+            file.write(', ')
+            file.write(np.array2string(self.chain[0].leaf_dir.data.numpy(), separator=', ')
+                       .replace('\n', '').replace('[', '').replace(']', ''))
+
+            if self.chain[0].connect_method == 'mst':
+                file.write(', ')
+                file.write(np.array2string(self.chain[0].int_r.data.numpy(), separator=', ')
+                           .replace('\n', '').replace('[', '').replace(']', ''))
+                file.write(',')
+                file.write(np.array2string(self.chain[0].int_dir.data.numpy(), separator=', ')
+                           .replace('\n', '').replace('[', '').replace(']', ''))
+            file.write("\n")
 
     def swap(self):
         """
-        randomly swap 2 chains according to MCMCMC
+        randomly swap states in 2 chains according to MCMCMC
         """
 
         # Pick two adjacent chains
         i = torch.multinomial(torch.ones(self.nChains-1), 1, replacement=False)
         j = i + 1
 
-        post_i = torch.exp(self.chain[i].lnP) * torch.exp(self.chain[i].lnPrior)
-        post_j = torch.exp(self.chain[j].lnP) * torch.exp(self.chain[j].lnPrior)
+        # get log posterior (unnormalised)
+        lnPost_i = self.chain[i].lnP + self.chain[i].lnPrior
+        lnPost_j = self.chain[j].lnP + self.chain[j].lnPrior
 
-        prob1 = (post_i / post_j)**self.chain[j].temp
-        prob2 = (post_j / post_i)**self.chain[i].temp
-        alpha = torch.minimum(torch.ones(1), prob1 * prob2)
+        # probability of exhanging these two chains
+        prob1 = (lnPost_i - lnPost_j) * self.chain[j].temp
+        prob2 = (lnPost_j - lnPost_i) * self.chain[i].temp
+        r = torch.minimum(torch.ones(1), torch.exp(prob1 + prob2))
 
-        if alpha > uniform.Uniform(torch.zeros(1), torch.ones(1)).rsample():
-            loc_i = self.chain[i].loc
-            loc_vec_i = self.chain[i].loc_vec
-            lnP_i = self.chain[i].lnP
-            lnPrior_i = self.chain[i].lnPrior
-            self.chain[i].loc = self.chain[j].loc
-            self.chain[i].loc_vec = self.chain[j].loc_vec
-            self.chain[i].lnP = self.chain[j].lnP
-            self.chain[i].lnPrior = self.chain[j].lnPrior
-            self.chain[j].loc = loc_i
-            self.chain[j].loc_vec = loc_vec_i
-            self.chain[j].lnP = lnP_i
-            self.chain[j].lnPrior = lnPrior_i
-
+        # swap with probability r
+        if r > uniform.Uniform(torch.zeros(1), torch.ones(1)).rsample():
+            # swap the locations and current probability
+            self.chain[i].leaf_r, self.chain[j].leaf_r = self.chain[j].leaf_r, self.chain[i].leaf_r
+            self.chain[i].leaf_dir, self.chain[j].leaf_dir = self.chain[j].leaf_dir, self.chain[i].leaf_dir
+            self.chain[i].int_r, self.chain[j].int_r = self.chain[j].int_r, self.chain[i].int_r
+            self.chain[i].int_dir, self.chain[j].int_dir = self.chain[j].int_dir, self.chain[i].int_dir
+            self.chain[i].lnP, self.chain[j].lnP = self.chain[j].lnP, self.chain[i].lnP
+            self.chain[i].lnPrior, self.chain[j].lnPrior = self.chain[j].lnPrior, self.chain[i].lnPrior
             return 1
         return 0
 
     def initialise_chains(self, emm, n_grids=10, n_trials=10, max_scale=2):
         # initialise each chain
         for i in range(self.nChains):
-            if self.connect_method == 'mst':
+            # put leaves on a sphere
+            self.chain[i].leaf_r = torch.tensor(np.mean(emm["r"], dtype=np.double))
+            self.chain[i].leaf_dir = torch.from_numpy(emm["directional"].astype(np.double))
+            self.chain[i].n_points = len(self.chain[i].leaf_dir)
+            self.chain[i].int_r = None
+            self.chain[i].int_dir = None
+
+            if self.chain[i].connect_method == 'mst':
                 int_r, int_dir = self.chain[i].initialise_ints(
                     emm, n_grids=n_grids, n_trials=n_trials, max_scale=max_scale)
-                r = np.concatenate((emm["r"], int_r))
-                directional = np.concatenate((emm["directional"], int_dir))
-            elif self.connect_method == 'geodesics' or self.connect_method == 'incentre':
-                r = emm["r"]
-                directional = emm["directional"]
-
-            # store in tangent plane R^dim
-            loc_poin = utils.dir_to_cart(torch.from_numpy(r), torch.from_numpy(directional))
-            if self.embed_method == 'wrap':
-                self.chain[i].loc = p2t0(loc_poin)
-            elif self.embed_method == 'simple':
-                self.chain[i].loc = utils.ball2real(loc_poin)
-            self.chain[i].n_points = len(self.chain[i].loc)
+                self.chain[i].int_r = torch.from_numpy(int_r.astype(np.double))
+                self.chain[i].int_dir = torch.from_numpy(int_dir.astype(np.double))
 
     @staticmethod
     def run(dim, partials, weights, dists, path_write=None,
             epochs=1000, step_scale=0.01, save_period=1, burnin=0,
-            n_grids=10, n_trials=100, nChains=1, connect_method='incentre',
-            embed_method='wrap', **prior):
+            n_grids=10, n_trials=100, max_scale=1, nChains=1,
+            connect_method='incentre', embed_method='wrap', **prior):
         print('\nRunning Dodonaphy MCMC')
         assert connect_method in ['incentre', 'mst', 'geodesics']
 
         # embed tips with distances using Hydra
-        emm_tips = hydra.hydra(dists, dim=dim, equi_adj=0.5, stress=True)
+        emm_tips = hydra.hydra(dists, dim=dim, stress=True, **{'isotropic_adj': True})
         print('Embedding Stress (tips only) = {:.4}'.format(emm_tips["stress"].item()))
 
         # Initialise model
@@ -344,7 +447,7 @@ class DodonaphyMCMC():
             connect_method=connect_method, embed_method=embed_method, **prior)
 
         # Choose internal node locations from best random initialisation
-        mymod.initialise_chains(emm_tips, n_grids=n_grids, n_trials=n_trials, max_scale=1)
+        mymod.initialise_chains(emm_tips, n_grids=n_grids, n_trials=n_trials, max_scale=max_scale)
 
         # Learn
         mymod.learn(epochs, burnin=burnin, path_write=path_write, save_period=save_period)
