@@ -1,12 +1,13 @@
 import matplotlib.pyplot as plt
 import re
 from numpy import genfromtxt
-# TODO: can we save posterior from MCMC and compare to BEAST's posterior
 
-# experiments = ["mcmc_mst_hot5", "mcmc_tri", "mcmc_mst", "mcmc_geo", "mcmc_mst_sigmoid"]
-experiments = ["mcmc_wrap_mst_c5", "mcmc_simple_mst_c5"]
+experiments = ["simple_geodesics_c5",
+               "simple_mst_c5",
+               "wrap_mst_c5"]
+# experiments = ["simple_mst_c1", "simple_mst_c2", "simple_mst_c5"]
 dir = "./data/T6_2"
-paths = ("%s/%s/mcmc.trees" % (dir, e) for e in experiments)
+paths = ("%s/mcmc/%s/mcmc.trees" % (dir, e) for e in experiments)
 
 for path in paths:
     lnP = []
@@ -23,12 +24,11 @@ for path in paths:
             lnP_, _, _ = after.partition(']')
             lnP.append(float(lnP_))
 
-    plt.plot(iter, lnP, linewidth=.8)
+    plt.plot(iter, lnP, linewidth=1)
 
 path = dir + "/beast/mcmc.log"
 log = genfromtxt(path, comments="#", skip_header=1)
-
-plt.plot(log[:100, 0], log[:100, 2], color='k')
+plt.plot(log[:1000, 0]/10, log[:1000, 2], color='k')
 experiments.append("Beast")
 
 plt.xlabel("Iteration")
