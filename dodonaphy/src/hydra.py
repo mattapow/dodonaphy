@@ -74,17 +74,17 @@ def hydra(D, dim=2, curvature=1, alpha=1.1, equi_adj=0.5, **kwargs):
 
     if dim == 2:
         # set default values in dimension 2
-        if "isotropic_adj" in kwargs:
-            kwargs.isotropic_adj = True
+        if "isotropic_adj" not in kwargs:
+            kwargs['isotropic_adj'] = True
         if "polar" in kwargs:
-            kwargs.polar = True
+            kwargs['polar'] = True
     else:
         # set default values in dimension > 2
         if "isotropic_adj" in kwargs:
-            kwargs.isotropic_adj = False
+            kwargs['isotropic_adj'] = False
         if "polar" in kwargs:
             warnings.warn("Polar coordinates only valid in dimension two")
-            kwargs.polar = False
+            kwargs['polar'] = False
         if equi_adj != 0.0:
             warnings.warn(
                 "Equiangular adjustment only possible in dimension two.")
