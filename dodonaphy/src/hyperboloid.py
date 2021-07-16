@@ -160,8 +160,7 @@ def p2t0(loc):
         return loc_hyp[:, 1:]
 
 
-def t02p(x, dim, mu=None, get_jacobian=False):
-    # TODO: now that we don't need pytorch.jacobian, t02p doesn't need to be given a vector
+def t02p(x, mu=None, get_jacobian=False):
     """Transform a vector x in Euclidean space to the Poincare disk.
 
     Take a vector in the tangent space of a hyperboloid at the origin, project it
@@ -170,13 +169,10 @@ def t02p(x, dim, mu=None, get_jacobian=False):
 
     Parameters
     ----------
-    x (Tensor or ndarray): Position of sample in tangent space at origin. Must be
-        1 dimensional. Use reshape to convert input matrix:
+    x (Tensor or ndarray): Position of sample in tangent space at origin. n_points x n_dimensions
             x_1, y_1;
             x_2, y_2;
             ...
-        into a vector:
-            x_1, y_1, x_2, y_2, ...
     mu (Tensor or ndarray): Mean of distribution in tangent space at origin. Must
         be same size as x. Default at origin.
 
@@ -185,9 +181,7 @@ def t02p(x, dim, mu=None, get_jacobian=False):
     Transformed vector x, from tangent plane to Poincare ball
 
     """
-    dim = int(dim)
-    n_loc = int(x.numel()/dim)
-    x = x.reshape(n_loc, dim)
+    n_loc, dim = x.shape
 
     if type(x).__module__ == np.__name__:
         x = torch.from_numpy(x)
@@ -198,20 +192,20 @@ def t02p(x, dim, mu=None, get_jacobian=False):
     if mu is None:
         mu = torch.zeros_like(x)
 
-    x_poin = torch.zeros((n_loc, dim))
-    mu_hyp = up_to_hyper(mu.reshape(n_loc, dim))
+    x_poin = torch.zeros_like(x)
+    mu_hyp = up_to_hyper(mu)
     jacobian = torch.zeros(1)
     for i in range(n_loc):
         x_hyp = tangent_to_hyper(mu_hyp[i, :], x[i, :], dim)
         x_poin[i, :] = hyper_to_poincare(x_hyp)
         if get_jacobian:
             jacobian = jacobian + tangent_to_hyper_jacobian(mu_hyp[i, :], x[i, :], dim)
-            jacobian = jacobian + hyper_to_poincare(x_hyp)
+            jacobian = jacobian + hyper_to_poincare_jacobian(x_hyp)
 
     if get_jacobian:
-        return x_poin.reshape(n_loc*dim), jacobian
+        return x_poin, jacobian
     else:
-        return x_poin.reshape(n_loc*dim)
+        return x_poin
 
 
 def up_to_hyper(loc):
@@ -303,13 +297,20 @@ def hyper_to_poincare(location):
 
 
 def hyper_to_poincare_jacobian(location):
-    dim = location.shape[0] - 1
-    J = torch.zeros((dim, dim))
-    for i in range(dim):
-        J[i, 0] = - location[i+1] / (1+location[0])**2
-    for i in range(dim-1):
-        J[i, i+1] = 1 / (1 + location[0])
-    return torch.log(torch.abs(torch.det(J)))
+    dim = location.shape[0]
+
+    # precomputed determinant
+    a = (1 + location[0])
+    norm = torch.norm(location[1:])
+    det = torch.div(torch.pow(a, 2) + norm, torch.pow(a, 2*(dim+1)))
+
+    # compute Jacobian matrix then get determinant
+    # J = torch.zeros((dim-1, dim))
+    # for i in range(dim-1):
+    #     J[i, 0] = - location[i+1] / (1+location[0])**2
+    #     J[i, i+1] = 1 / (1 + location[0])
+    # det = torch.det(torch.pow(torch.matmul(J.T, J), .5))
+    return torch.log(torch.abs(det))
 
 
 def poincare_to_hyper(location):

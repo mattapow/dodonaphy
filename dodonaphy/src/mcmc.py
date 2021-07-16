@@ -82,16 +82,15 @@ class Chain(BaseModel):
         n_leaf_vars = self.S * self.D
         if self.embed_method == 'simple':
             # transform leaves to R^n
-            leaf_loc_t0 = utils.ball2real(self.leaf_r * self.leaf_dir).detach().clone().reshape(n_leaf_vars)
+            leaf_loc_t0 = utils.ball2real(self.leaf_r * self.leaf_dir).clone()
 
             # propose new leaf nodes from normal in R^n
             leaf_loc_t0 = leaf_loc_t0 + MultivariateNormal(
                 torch.zeros(n_leaf_vars, dtype=torch.double),
-                torch.eye(n_leaf_vars, dtype=torch.double) * self.step_scale).sample()
-            leaf_loc_t0 = leaf_loc_t0.reshape(self.S, self.D)
+                torch.eye(n_leaf_vars, dtype=torch.double) * self.step_scale).sample().reshape(self.S, self.D)
 
-            # normalise leaves to sphere with radius leaf_r_prop = mean of leaf radii
-            leaf_r_t0 = torch.mean(torch.norm(leaf_loc_t0, dim=-1, keepdim=True))
+            # normalise leaves to sphere with radius leaf_r_prop = first leaf radii
+            leaf_r_t0 = torch.norm(leaf_loc_t0[0, :])
             log_abs_det_jacobian = utils.normalise_LADJ(leaf_loc_t0) + torch.log(leaf_r_t0)
             leaf_loc_t0 = utils.normalise(leaf_loc_t0) * leaf_r_t0
 
@@ -101,16 +100,15 @@ class Chain(BaseModel):
         elif self.embed_method == 'wrap':
             # transform leaves to R^n
             leaf_loc_t0 = hyperboloid.p2t0(self.leaf_r * self.leaf_dir)
-            leaf_loc_t0 = leaf_loc_t0.detach().clone().reshape(n_leaf_vars)
+            leaf_loc_t0 = leaf_loc_t0.clone()
 
             # propose new leaf nodes from normal in R^n and convert to poincare ball
             sample = MultivariateNormal(
                 torch.zeros(n_leaf_vars, dtype=torch.double),
-                torch.eye(n_leaf_vars, dtype=torch.double) * self.step_scale).sample()
-            leaf_loc_prop, log_abs_det_jacobian = hyperboloid.t02p(sample, self.D, leaf_loc_t0, get_jacobian=True)
-            leaf_loc_prop = leaf_loc_prop.reshape(self.S, self.D)
+                torch.eye(n_leaf_vars, dtype=torch.double) * self.step_scale).sample().reshape(self.S, self.D)
+            leaf_loc_prop, log_abs_det_jacobian = hyperboloid.t02p(sample, leaf_loc_t0, get_jacobian=True)
         # get r and directional
-        leaf_r_prop = torch.mean(torch.norm(leaf_loc_prop, dim=-1))
+        leaf_r_prop = torch.norm(leaf_loc_prop[0, :])
         leaf_dir_prop = leaf_loc_prop / torch.norm(leaf_loc_prop, dim=-1, keepdim=True)
 
         # internal nodes for mst
@@ -119,13 +117,12 @@ class Chain(BaseModel):
             int_loc = self.int_r.reshape(self.S-2, 1).repeat(1, self.D) * self.int_dir
             if self.embed_method == 'simple':
                 # transform ints to R^n
-                int_loc_t0 = utils.ball2real(int_loc).detach().clone().reshape(n_int_vars)
+                int_loc_t0 = utils.ball2real(int_loc).clone()
 
                 # propose new int nodes from normal in R^n
                 int_loc_t0 = int_loc_t0 + MultivariateNormal(
                     torch.zeros(n_int_vars, dtype=torch.double),
-                    torch.eye(n_int_vars, dtype=torch.double) * self.step_scale).sample()
-                int_loc_t0 = int_loc_t0.reshape(self.S - 2, self.D)
+                    torch.eye(n_int_vars, dtype=torch.double) * self.step_scale).sample().reshape(self.S - 2, self.D)
 
                 # convert ints to poincare ball
                 int_loc_prop = utils.real2ball(int_loc_t0)
@@ -133,14 +130,13 @@ class Chain(BaseModel):
 
             elif self.embed_method == 'wrap':
                 # transform ints to R^n
-                int_loc_t0 = hyperboloid.p2t0(int_loc).detach().clone().reshape(n_int_vars)
+                int_loc_t0 = hyperboloid.p2t0(int_loc).clone()
 
                 # propose new int nodes from normal in R^n
                 sample = MultivariateNormal(
                     torch.zeros(n_int_vars, dtype=torch.double),
-                    torch.eye(n_int_vars, dtype=torch.double) * self.step_scale).sample()
-                int_loc_prop, int_jacobian = hyperboloid.t02p(sample, self.D, int_loc_t0, get_jacobian=True)
-                int_loc_prop = int_loc_prop.reshape(self.S-2, self.D)
+                    torch.eye(n_int_vars, dtype=torch.double) * self.step_scale).sample().reshape(self.S-2, self.D)
+                int_loc_prop, int_jacobian = hyperboloid.t02p(sample, int_loc_t0, get_jacobian=True)
                 log_abs_det_jacobian = log_abs_det_jacobian + int_jacobian
 
             # get r and directional

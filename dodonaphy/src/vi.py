@@ -70,48 +70,50 @@ class DodonaphyVI(BaseModel):
         blens = []
         location = []
         lp = []
-        for _ in range(nSample):
-            # Sample in tangent space
-            z_leaf, _ = self.sample_loc(self.VariationalParams["leaf_mu"],
-                                        self.VariationalParams["leaf_sigma"].exp())
-            if self.connect_method == 'mst':
-                z_int, _ = self.sample_loc(self.VariationalParams["int_mu"], self.VariationalParams["int_sigma"].exp())
+        with torch.no_grad():
+            for _ in range(nSample):
+                # Sample in tangent space
+                z_leaf, _ = self.sample_loc(self.VariationalParams["leaf_mu"],
+                                            self.VariationalParams["leaf_sigma"].exp())
+                if self.connect_method == 'mst':
+                    z_int, _ = self.sample_loc(self.VariationalParams["int_mu"],
+                                               self.VariationalParams["int_sigma"].exp())
 
-            if self.embed_method == "wrap":
+                # normalise leaves to single radius
+                leaf_r = torch.norm(z_leaf[0, :], keepdim=True).repeat(self.S, self.D)
+                z_leaf = torch.div(z_leaf, leaf_r)
+
                 # From (Euclidean) tangent space at origin to Poincare ball
-                leaf_poin = self.project_t02p(z_leaf, self.VariationalParams["leaf_mu"], get_jacob=False)
+                if self.embed_method == "wrap":
+                    leaf_poin = hyperboloid.t02p(z_leaf, self.VariationalParams["leaf_mu"], get_jacobian=False)
+                    if self.connect_method == 'mst':
+                        int_poin = hyperboloid.t02p(z_int, self.VariationalParams["int_mu"], get_jacobian=False)
+                elif self.embed_method == "simple":
+                    z_leaf = z_leaf.reshape(self.S, self.D)
+                    leaf_poin = utils.real2ball(z_leaf, self.D)
+                    if self.connect_method == 'mst':
+                        z_int = z_int.reshape(self.S - 2, self.D)
+                        int_poin = utils.real2ball(z_int, self.D)
+
+                # Change coordinates
+                leaf_r, leaf_dir = utils.cart_to_dir(leaf_poin.reshape((self.S, self.D)))
                 if self.connect_method == 'mst':
-                    int_poin = self.project_t02p(z_int, self.VariationalParams["int_mu"], get_jacob=False)
-            elif self.embed_method == "simple":
+                    int_r, int_dir = utils.cart_to_dir(int_poin.reshape((self.S - 2, self.D)))
 
-                # transformation of z from R^n to unit ball P^n
-                z_leaf = z_leaf.reshape(self.S, self.D)
-                leaf_poin = utils.real2ball(z_leaf, self.D)
+                # prepare return (peel, branch lengths, locations, and log posteriori)
                 if self.connect_method == 'mst':
-                    z_int = z_int.reshape(self.S - 2, self.D)
-                    int_poin = utils.real2ball(z_int, self.D)
-
-            # Change coordinates
-            leaf_r, leaf_dir = utils.cart_to_dir(leaf_poin.reshape((self.S, self.D)))
-            if self.connect_method == 'mst':
-                int_r, int_dir = utils.cart_to_dir(int_poin.reshape((self.S - 2, self.D)))
-
-            # prepare return (peel, branch lengths, locations, and log posteriori)
-            if self.connect_method == 'mst':
-                pl = peeler.make_peel_mst(leaf_r, leaf_dir, int_r, int_dir)
-            elif self.connect_method == 'geodesics':
-                pl, int_poin = peeler.make_peel_geodesic(leaf_poin.reshape((self.S, self.D)))
-                int_r, int_dir = utils.cart_to_dir(int_poin.reshape((self.S - 1, self.D)))
-            elif self.connect_method == 'incentre':
-                pl, int_poin = peeler.make_peel_incentre(leaf_poin.reshape((self.S, self.D)))
-                int_r, int_dir = utils.cart_to_dir(int_poin.reshape((self.S - 1, self.D)))
-            peel.append(pl)
-            bl = self.compute_branch_lengths(self.S, pl, leaf_r, leaf_dir, int_r, int_dir)
-            blens.append(bl)
-            location.append(utils.dir_to_cart_tree(leaf_r, int_r, leaf_dir, int_dir, self.D))
-            if kwargs.get('lp'):
-                lp.append(calculate_treelikelihood(
-                    self.partials, self.weights, pl, JC69_p_t(bl), torch.full([4], 0.25, dtype=torch.float64)))
+                    pl = peeler.make_peel_mst(leaf_r, leaf_dir, int_r, int_dir)
+                elif self.connect_method in ('geodesics', 'incentre'):
+                    pl, int_poin = peeler.make_peel_tips(
+                        leaf_poin.reshape((self.S, self.D)), connect_method=self.connect_method)
+                    int_r, int_dir = utils.cart_to_dir(int_poin.reshape((self.S - 1, self.D)))
+                peel.append(pl)
+                bl = self.compute_branch_lengths(self.S, pl, leaf_r, leaf_dir, int_r, int_dir)
+                blens.append(bl)
+                location.append(utils.dir_to_cart_tree(leaf_r, int_r, leaf_dir, int_dir, self.D))
+                if kwargs.get('lp'):
+                    lp.append(calculate_treelikelihood(
+                        self.partials, self.weights, pl, JC69_p_t(bl), torch.full([4], 0.25, dtype=torch.float64)))
 
         if kwargs.get('lp'):
             return peel, blens, location, lp
@@ -133,30 +135,33 @@ class DodonaphyVI(BaseModel):
 
         # Sample in tangent space
         z_leaf, logQ = self.sample_loc(self.VariationalParams["leaf_mu"], self.VariationalParams["leaf_sigma"].exp())
+
+        # normalise leaves to single radius
+        leaf_r = torch.norm(z_leaf[0, :], keepdim=True).repeat(self.S, self.D)
+        z_leaf = torch.div(z_leaf, leaf_r)
+
         if self.connect_method == 'mst':
             z_int, logQ_int = self.sample_loc(
                 self.VariationalParams["int_mu"], self.VariationalParams["int_sigma"].exp())
             logQ = logQ + logQ_int
 
+        # From (Euclidean) tangent space at origin to Poincare ball
         if self.embed_method == "wrap":
-            # From (Euclidean) tangent space at origin to Poincare ball
-            leaf_poin, log_abs_det_jacobian = self.project_t02p(z_leaf, self.VariationalParams["leaf_mu"])
+            leaf_poin, log_abs_det_jacobian = t02p(z_leaf, self.VariationalParams["leaf_mu"], get_jacobian=True)
             if self.connect_method == 'mst':
-                int_poin, _ = self.project_t02p(z_int, self.VariationalParams["int_mu"])
-
+                int_poin, jacobian = t02p(z_int, self.VariationalParams["int_mu"], get_jacobian=True)
+                log_abs_det_jacobian = log_abs_det_jacobian + jacobian
         elif self.embed_method == "simple":
             # transformation of z from R^n to half unit ball P^n
             z_leaf = z_leaf.reshape(self.S, self.D)
             leaf_poin = utils.real2ball(z_leaf, self.D)
+
             # take transformations into account
-            log_abs_det_jacobian = torch.zeros(1)
-            for i in range(self.S):
-                log_abs_det_jacobian = log_abs_det_jacobian + utils.real2ball_LADJ(z_leaf[i, :])
+            log_abs_det_jacobian = utils.real2ball_LADJ(z_leaf)
             if self.connect_method == 'mst':
                 z_int = z_int.reshape(self.S - 2, self.D)
                 int_poin = utils.real2ball(z_int, self.D)
-                for i in range(self.S - 2):
-                    log_abs_det_jacobian = log_abs_det_jacobian + utils.real2ball_LADJ(z_int[i, :])
+                log_abs_det_jacobian = log_abs_det_jacobian + utils.real2ball_LADJ(z_int)
 
         # Change leaf coordinates
         leaf_r, leaf_dir = utils.cart_to_dir(leaf_poin.reshape((self.S, self.D)))
@@ -165,11 +170,9 @@ class DodonaphyVI(BaseModel):
         if self.connect_method == 'mst':
             int_r, int_dir = utils.cart_to_dir(int_poin.reshape((self.S - 2, self.D)))
             peel = peeler.make_peel_mst(leaf_r, leaf_dir, int_r, int_dir)
-        elif self.connect_method == 'geodesics':
-            peel, int_poin = peeler.make_peel_geodesic(leaf_poin.reshape((self.S, self.D)))
-            int_r, int_dir = utils.cart_to_dir(int_poin.reshape((self.S - 1, self.D)))
-        elif self.connect_method == 'incentre':
-            peel, int_poin = peeler.make_peel_incentre(leaf_poin.reshape((self.S, self.D)))
+        elif self.connect_method in ('geodesics', 'incentre'):
+            peel, int_poin = peeler.make_peel_tips(
+                leaf_poin.reshape((self.S, self.D)), connect_method=self.connect_method)
             int_r, int_dir = utils.cart_to_dir(int_poin.reshape((self.S - 1, self.D)))
         blen = self.compute_branch_lengths(self.S, peel, leaf_r, leaf_dir, int_r, int_dir)
 
@@ -181,16 +184,7 @@ class DodonaphyVI(BaseModel):
 
         return logP + logPrior - logQ + log_abs_det_jacobian
 
-    def project_t02p(self, z, mu, get_jacob=True):
-        # Project sample z (from distribution q) from tangent plane to poincare disc
-        # Return: leaf_r, leaf_dir, log_abs_det_jacobian
-        if z.ndim == 2:
-            z = z.reshape(z.numel())
-        if mu.ndim == 2:
-            mu = mu.reshape(mu.numel())
 
-        n_points = int(len(z)/self.D)
-        z_poin = t02p(z, self.D, mu).reshape(n_points, self.D)
 
         if not get_jacob:
             return z_poin
@@ -306,7 +300,7 @@ class DodonaphyVI(BaseModel):
     @staticmethod
     def run(dim, S, partials, weights, dists, path_write,
             epochs=1000, k_samples=3, n_draws=100,
-            init_grids=10, init_trials=100, max_scale=1,
+            n_grids=10, n_trials=100, max_scale=1,
             embed_method='wrap', lr=1e-3, connect_method='mst',
             **prior):
         """Initialise and run Dodonaphy's variational inference
@@ -328,7 +322,7 @@ class DodonaphyVI(BaseModel):
         # Choose internal node locations from best random initialisation
         if connect_method == 'mst':
             int_r, int_dir = mymod.initialise_ints(
-                emm_tips, n_grids=init_grids, n_trials=init_trials, max_scale=max_scale)
+                emm_tips, n_grids=n_grids, n_trials=n_trials, max_scale=max_scale)
 
         # convert to tangent space
         leaf_loc_poin = utils.dir_to_cart(torch.from_numpy(emm_tips["r"]), torch.from_numpy(emm_tips["directional"]))

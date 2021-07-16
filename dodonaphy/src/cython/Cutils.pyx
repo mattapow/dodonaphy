@@ -188,7 +188,7 @@ cdef poincare_to_hyper_np(np.ndarray[np.double_t, ndim=1] location):
     cdef np.ndarray[np.double_t, ndim=1] out = np.zeros(dim + 1)
     cdef np.ndarray[np.double_t, ndim=1] a = np.power(location[:], 2)
     cdef double b = a.sum(axis=0)
-    out[0] = (1 + b) / (1 - b)
+    out[0] = (1 + b) / (1 - b + eps)
     out[1:] = 2 * location[:] / (1 - b + eps)
     return out
 
