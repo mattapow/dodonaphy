@@ -295,29 +295,23 @@ def real2ball_LADJ(y, radius=1):
     """Copmute log of absolute value of determinate of jacobian of real2ball on point y
 
     Args:
-        y (tensor): Point in R^n
+        y (tensor): Points in R^n n_points x n_dimensions
 
     Returns:
-        tensor: Jacobain matrix
+        scalar tensor: log absolute determinate of Jacobian
     """
     if y.ndim == 1:
         y = y.unsqueeze(dim=-1)
 
     n, D = y.shape
-    J = torch.zeros(D, D)
     log_abs_det_J = torch.zeros(1)
 
+    norm = torch.norm(y, dim=-1, keepdim=True)
+
     for k in range(n):
-        norm = torch.norm(y[k, :], dim=-1, keepdim=True)
-        for i in range(D):
-            for j in range(i+1):
-                if i == j:
-                    J[i, j] = 1 + norm - y[k, i] * y[k, i] * norm
-                else:
-                    J[i, j] = - y[k, i] * y[k, j] * norm
-                    J[j, i] = - y[k, j] * y[k, i] * norm
-        J = radius * torch.div(J, torch.pow((1 + norm), 2))
-        log_abs_det_J = log_abs_det_J + torch.log(torch.abs(torch.det(J)))
+        J = (torch.eye(D, D) - torch.outer(y[k], y[k]) / (norm[k] * (norm[k] + 1))) / (1+norm[k])
+        log_abs_det_J = log_abs_det_J + torch.log(torch.abs(radius * torch.det(J)))
+
     return log_abs_det_J
 
 
@@ -349,20 +343,13 @@ def normalise_LADJ(y):
     """
     if y.ndim == 1:
         y = y.unsqueeze(dim=-1)
-
     n, D = y.shape
-    J = torch.zeros(D, D)
-    log_abs_det_J = torch.zeros(1)
 
+    # norm for each point
+    norm = torch.norm(y, dim=-1, keepdim=True)
+
+    log_abs_det_J = torch.zeros(1)
     for k in range(n):
-        norm = torch.norm(y[k, :], dim=-1, keepdim=True)
-        for i in range(D):
-            for j in range(i+1):
-                if i == j:
-                    J[i, j] = 1 - y[k, i] * y[k, i]
-                else:
-                    J[i, j] = - y[k, i] * y[k, j]
-                    J[j, i] = - y[k, j] * y[k, i]
-        J = torch.div(J, norm)
+        J = torch.div(torch.eye(D, D) - torch.div(torch.outer(y[k], y[k]), torch.pow(norm[k], 2)), norm[k])
         log_abs_det_J = log_abs_det_J + torch.log(torch.abs(torch.det(J)))
     return log_abs_det_J
