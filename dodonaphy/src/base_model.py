@@ -39,9 +39,9 @@ class BaseModel(object):
         lnP = -math.inf
         dir = np.random.normal(0, 1, (S-2, self.D))
         abs = np.sum(dir**2, axis=1)**0.5
-        _int_r = np.random.exponential(scale=scale, size=(S-2))
+        # _int_r = np.random.exponential(scale=scale, size=(S-2))
         # _int_r = scale * np.random.beta(a=2, b=5, size=(S-2))
-        # _int_r = np.random.uniform(low=0, high=scale, size=(S-2))
+        _int_r = np.random.uniform(low=0, high=scale, size=(S-2))
         _int_dir = dir/abs.reshape(S-2, 1)
         max_scale = max_scale * emm_tips['r'].min()
 
@@ -61,10 +61,10 @@ class BaseModel(object):
 
                 dir = np.random.normal(0, 1, (S-2, self.D))
                 abs = np.sum(dir**2, axis=1)**0.5
-                _int_r = np.random.exponential(scale=_scale, size=(S-2))
+                # _int_r = np.random.exponential(scale=_scale, size=(S-2))
                 _int_r[_int_r > emm_tips['r'].min()] = emm_tips['r'].max()
                 # _int_r = _scale * np.random.beta(a=2, b=5, size=(S-2))
-                # _int_r = np.random.uniform(low=0, high=_scale, size=(S-2))
+                _int_r = np.random.uniform(low=0, high=_scale, size=(S-2))
                 _int_dir = dir/abs.reshape(S-2, 1)
 
         print("done.\nBest internal node positions selected.")
@@ -139,6 +139,32 @@ class BaseModel(object):
         mats = JC69_p_t(blen)
         return calculate_treelikelihood(self.partials, self.weights, peel, mats,
                                         torch.full([4], 0.25, dtype=torch.float64))
+
+    def compute_log_a_like(self, leaf_r, leaf_dir, curvature=1.):
+        """Compute the log-a-like function of the embedding.
+
+        The log-probability of all the pairwise taxa.
+        """
+        # get pair-wise disatance
+        pdm = torch.from_numpy(Cutils.get_pdm(leaf_r, leaf_dir, curvature=curvature, asNumpy=True))
+
+        eps = torch.finfo(torch.double).eps
+        P = torch.zeros((4, 4, self.L))
+
+        # For each node
+        for i in range(self.S):
+            # compute the probability matrix to each other node
+            mats = JC69_p_t(pdm[i])
+            for j in range(i - 1):
+                P = P + torch.log(torch.clamp(torch.matmul(mats[j], self.partials[i]), min=eps))
+                # P = P + torch.log(torch.clamp(torch.matmul(mats[j] / pdm[i, j], self.partials[i]), min=eps))
+
+        # normalise for 1/distance weighting
+        # idx = torch.triu_indices(self.S, self.S, offset=1)
+        # P = P + torch.sum(torch.log(pdm[idx[0], idx[1]]))
+
+        # normalise for number of sites
+        return torch.sum(P * self.weights) / sum(self.weights)
 
     def compute_prior(self, peel, blen, **prior):
         """Calculates the log-likelihood of a tree under a birth death model.

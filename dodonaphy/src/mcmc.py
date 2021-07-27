@@ -320,8 +320,10 @@ class DodonaphyMCMC():
                     self.save_iteration(path_write, i)
 
                 if i > 0:
-                    print('epoch: %-12i Acceptance Rate: %5.3f' %
-                          (i, self.chain[0].accepted / self.chain[0].iterations), end="", flush=True)
+                    lnP = self.chain[0].compute_LL(self.chain[0].peel, self.chain[0].blens)
+                    print('epoch: %-12i LnL: %10.1f (Actual lnL: %8.1f) Acceptance Rate: %5.3f' %
+                          (i, self.chain[0].lnP, lnP, self.chain[0].accepted / self.chain[0].iterations),
+                          end="", flush=True)
 
                     if self.nChains > 1:
                         print(" (", end="")
@@ -361,8 +363,9 @@ class DodonaphyMCMC():
                 f.write('%-12s: %f\n' % (key, value))
 
     def save_iteration(self, path_write, iteration):
+        lnP = self.chain[0].compute_LL(self.chain[0].peel, self.chain[0].blens)
         tree.save_tree(path_write, 'mcmc', self.chain[0].peel, self.chain[0].blens,
-                       iteration*self.chain[0].bcount, float(self.chain[0].lnP))
+                       iteration*self.chain[0].bcount, float(lnP))
         fn = path_write + '/locations.csv'
         if not os.path.isfile(fn):
             with open(fn, 'a') as file:

@@ -17,7 +17,7 @@ cdef class Cu_edge:
     def __lt__(self, other):
         return self.distance < other.distance
 
-cpdef get_pdm(leaf_r, leaf_dir, int_r, int_dir, curvature=1.):
+cpdef get_pdm(leaf_r, leaf_dir, int_r=None, int_dir=None, curvature=1., asNumpy=False):
     """Pair-wise hyperbolic distance matrix
 
     Args:
@@ -26,6 +26,7 @@ cpdef get_pdm(leaf_r, leaf_dir, int_r, int_dir, curvature=1.):
         int_r (1D tensor):
         inr_dir (1D tensor):
         curvature (double): curvature
+        asNumpy:
 
     Returns:
         ndarray: distance between point 1 and point 2
@@ -33,43 +34,71 @@ cpdef get_pdm(leaf_r, leaf_dir, int_r, int_dir, curvature=1.):
     DTYPE=np.double
     cdef np.ndarray[np.double_t, ndim=1] leaf_r_np = leaf_r.detach().numpy().astype(DTYPE)
     cdef np.ndarray[np.double_t, ndim=2] leaf_dir_np = leaf_dir.detach().numpy().astype(DTYPE)
+    cdef int leaf_node_count = leaf_r.shape[0]
+    cdef int int_node_count = 0
+    if int_r is None:
+        int_r = torch.tensor((0)).unsqueeze(dim=-1)
+        int_dir = torch.tensor((0, 0)).unsqueeze(dim=-1)
+    else:
+        int_node_count = int_r.shape[0]
     cdef np.ndarray[np.double_t, ndim=1] int_r_np = int_r.detach().numpy().astype(DTYPE)
     cdef np.ndarray[np.double_t, ndim=2] int_dir_np = int_dir.detach().numpy().astype(DTYPE)
-    cdef int leaf_node_count = leaf_r.shape[0]
-    cdef int node_count = leaf_r.shape[0] + int_r.shape[0]
-    edge_list = dict()
-    for i in range(node_count):
-        edge_list[i] = list()
+    
+    cdef int node_count = leaf_node_count + int_node_count
+    
+    # return array if pairwise distance if asNumpy
+    cdef np.ndarray[np.double_t, ndim=2] pdm = np.zeros((node_count*asNumpy, node_count*asNumpy))
+
+    # return dict of lists
+    if not asNumpy:
+        edge_list = dict()
+        for i in range(node_count):
+            edge_list[i] = list()
 
     cdef double dist_ij = 0
     cdef int i_node
     for i in range(node_count):
-        for j in range(max(i + 1, leaf_node_count), node_count):
+        for j in range(i + 1, node_count):
 
-            if (i < leaf_node_count):
+            if i < leaf_node_count and j >= leaf_node_count and int_r is not None:
                 # leaf to internal
+                j_node = j - leaf_node_count
                 dist_ij = hyperbolic_distance_np(
                     leaf_r_np[i],
-                    int_r_np[j - leaf_node_count],
+                    int_r_np[j_node],
                     leaf_dir_np[i],
-                    int_dir_np[j - leaf_node_count],
+                    int_dir_np[j_node],
+                    curvature)
+            elif i < leaf_node_count and j < leaf_node_count:
+                # leaf to leaf
+                dist_ij = hyperbolic_distance_np(
+                    leaf_r_np[i],
+                    leaf_r_np[j],
+                    leaf_dir_np[i],
+                    leaf_dir_np[j],
                     curvature)
             else:
                 # internal to internal
                 i_node = i - leaf_node_count
+                j_node = j - leaf_node_count
                 dist_ij = hyperbolic_distance_np(
                     int_r_np[i_node],
-                    int_r_np[j - leaf_node_count],
+                    int_r_np[j_node],
                     int_dir_np[i_node],
-                    int_dir_np[j - leaf_node_count],
+                    int_dir_np[j_node],
                     curvature)
 
             # apply the inverse transform from Matsumoto et al 2020
             dist_ij = np.log(np.cosh(dist_ij))
 
-            edge_list[i].append(Cu_edge(dist_ij, i, j))
-            edge_list[j].append(Cu_edge(dist_ij, j, i))
+            if asNumpy:
+                pdm[i, j] = pdm[j, i] = dist_ij
+            else:
+                edge_list[i].append(Cu_edge(dist_ij, i, j))
+                edge_list[j].append(Cu_edge(dist_ij, j, i))
 
+    if asNumpy:
+        return pdm
     return edge_list
 
 cpdef hyperbolic_distance_np(double r1, double r2, np.ndarray[np.double_t, ndim=1] directional1,

@@ -1,6 +1,6 @@
 # Some functions from https://github.com/HazyResearch/HypHC
 import torch
-from src import hyperboloid
+from . import hyperboloid
 
 
 def isometric_transform(a, x):
