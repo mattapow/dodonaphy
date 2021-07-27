@@ -21,7 +21,7 @@ class Chain(BaseModel):
 
         assert embed_method in ('simple', 'wrap')
         self.embed_method = embed_method
-        assert connect_method in ("incentre", "geodesics", "mst")
+        assert connect_method in ("incentre", "geodesics", "mst", "nj")
         self.connect_method = connect_method
 
         self.step_scale = step_scale
@@ -33,30 +33,38 @@ class Chain(BaseModel):
         self.moreTune = True
 
     def set_probability(self):
-        # set peel + blens + poincare locations
+        # initialise likelihood and prior values of embedding
+
+        # set peel + poincare locations
         if self.connect_method in ('geodesics', 'incentre'):
             loc_poin = self.leaf_dir * self.leaf_r
             self.peel, int_locs = peeler.make_peel_tips(loc_poin, self.connect_method)
             self.int_r, self.int_dir = utils.cart_to_dir(int_locs)
             leaf_r_all, self.leaf_dir = utils.cart_to_dir(loc_poin)
             self.leaf_r = leaf_r_all[0]
+        elif self.connect_method == 'nj':
+            self.peel, self.blens = peeler.nj(self.leaf_r.repeat(self.S), self.leaf_dir)
         elif self.connect_method == 'mst':
             self.peel = peeler.make_peel_mst(self.leaf_r.repeat(self.S), self.leaf_dir, self.int_r, self.int_dir)
 
-        # current likelihood + prior
-        self.blens = self.compute_branch_lengths(
-            self.S, self.peel, self.leaf_r.repeat(self.S), self.leaf_dir, self.int_r, self.int_dir)
+        # set blens
+        if self.connect_method != 'nj':
+            self.blens = self.compute_branch_lengths(
+                self.S, self.peel, self.leaf_r.repeat(self.S), self.leaf_dir, self.int_r, self.int_dir)
+
+        # current likelihood
+        # self.lnP = self.compute_log_a_like(self.leaf_r.repeat(self.S), self.leaf_dir)
         self.lnP = self.compute_LL(self.peel, self.blens)
+
+        # current prior
         self.lnPrior = self.compute_prior(self.peel, self.blens, **self.prior)
 
     def evolve(self):
-        n_accepted = 0
-
         # propose new embedding
         proposal = self.propose()
 
         # Decide whether to accept proposal
-        r, like_proposal, prior_proposal = self.accept_ratio(proposal)
+        r = self.accept_ratio(proposal)
 
         accept = False
         if r >= 1:
@@ -67,35 +75,39 @@ class Chain(BaseModel):
         if accept:
             self.leaf_r = proposal['leaf_r']
             self.leaf_dir = proposal['leaf_dir']
-            self.int_r = proposal['int_r']
-            self.int_dir = proposal['int_dir']
-            self.lnP = like_proposal
-            self.lnPrior = prior_proposal
-            n_accepted += 1
+            self.lnP = proposal['lnP']
+            self.lnPrior = proposal['lnPrior']
+            self.peel = proposal['peel']
+            self.blens = proposal['blens']
+            if self.connect_method == 'mst':
+                self.int_r = proposal['int_r']
+                self.int_dir = proposal['int_dir']
             self.accepted += 1
         self.iterations += 1
 
-        return n_accepted
+        return accept
 
     def propose(self):
         # TODO: propose unit directionals on sphere
         n_leaf_vars = self.S * self.D
+        sample = MultivariateNormal(
+            torch.zeros(n_leaf_vars, dtype=torch.double),
+            torch.eye(n_leaf_vars, dtype=torch.double) * self.step_scale).sample().reshape(self.S, self.D)
         if self.embed_method == 'simple':
             # transform leaves to R^n
             leaf_loc_t0 = utils.ball2real(self.leaf_r * self.leaf_dir).clone()
 
             # propose new leaf nodes from normal in R^n
-            leaf_loc_t0 = leaf_loc_t0 + MultivariateNormal(
-                torch.zeros(n_leaf_vars, dtype=torch.double),
-                torch.eye(n_leaf_vars, dtype=torch.double) * self.step_scale).sample().reshape(self.S, self.D)
+            leaf_loc_t0 = leaf_loc_t0 + sample
 
             # normalise leaves to sphere with radius leaf_r_prop = first leaf radii
             leaf_r_t0 = torch.norm(leaf_loc_t0[0, :])
             log_abs_det_jacobian = utils.normalise_LADJ(leaf_loc_t0) + torch.log(leaf_r_t0)
             leaf_loc_t0 = utils.normalise(leaf_loc_t0) * leaf_r_t0
 
+            # Convert to Ball
             leaf_loc_prop = utils.real2ball(leaf_loc_t0)
-            log_abs_det_jacobian = log_abs_det_jacobian + utils.real2ball_LADJ(leaf_loc_t0)
+            log_abs_det_jacobian = utils.real2ball_LADJ(leaf_loc_t0)
 
         elif self.embed_method == 'wrap':
             # transform leaves to R^n
@@ -103,9 +115,6 @@ class Chain(BaseModel):
             leaf_loc_t0 = leaf_loc_t0.clone()
 
             # propose new leaf nodes from normal in R^n and convert to poincare ball
-            sample = MultivariateNormal(
-                torch.zeros(n_leaf_vars, dtype=torch.double),
-                torch.eye(n_leaf_vars, dtype=torch.double) * self.step_scale).sample().reshape(self.S, self.D)
             leaf_loc_prop, log_abs_det_jacobian = hyperboloid.t02p(sample, leaf_loc_t0, get_jacobian=True)
         # get r and directional
         leaf_r_prop = torch.norm(leaf_loc_prop[0, :])
@@ -114,15 +123,17 @@ class Chain(BaseModel):
         # internal nodes for mst
         if self.connect_method == 'mst':
             n_int_vars = (self.S - 2) * self.D
+            sample = MultivariateNormal(
+                torch.zeros(n_int_vars, dtype=torch.double),
+                torch.eye(n_int_vars, dtype=torch.double) * self.step_scale).sample().reshape(self.S-2, self.D)
+
             int_loc = self.int_r.reshape(self.S-2, 1).repeat(1, self.D) * self.int_dir
             if self.embed_method == 'simple':
                 # transform ints to R^n
                 int_loc_t0 = utils.ball2real(int_loc).clone()
 
                 # propose new int nodes from normal in R^n
-                int_loc_t0 = int_loc_t0 + MultivariateNormal(
-                    torch.zeros(n_int_vars, dtype=torch.double),
-                    torch.eye(n_int_vars, dtype=torch.double) * self.step_scale).sample().reshape(self.S - 2, self.D)
+                int_loc_t0 = int_loc_t0 + sample
 
                 # convert ints to poincare ball
                 int_loc_prop = utils.real2ball(int_loc_t0)
@@ -133,9 +144,6 @@ class Chain(BaseModel):
                 int_loc_t0 = hyperboloid.p2t0(int_loc).clone()
 
                 # propose new int nodes from normal in R^n
-                sample = MultivariateNormal(
-                    torch.zeros(n_int_vars, dtype=torch.double),
-                    torch.eye(n_int_vars, dtype=torch.double) * self.step_scale).sample().reshape(self.S-2, self.D)
                 int_loc_prop, int_jacobian = hyperboloid.t02p(sample, int_loc_t0, get_jacobian=True)
                 log_abs_det_jacobian = log_abs_det_jacobian + int_jacobian
 
@@ -144,14 +152,31 @@ class Chain(BaseModel):
             int_dir_prop = int_loc_prop / torch.norm(int_loc_prop, dim=-1, keepdim=True)
 
             # restrict int_r to less than leaf_r
-            # int_r_prop_big = int_r_prop[int_r_prop > leaf_r_prop]
-            # log_abs_det_jacobian = log_abs_det_jacobian + leaf_r_prop / int_r_prop_big
-            # int_r_prop[int_r_prop > leaf_r_prop] = leaf_r_prop
+            # TODO: does this change the hastings ratio?
+            int_r_prop_big = int_r_prop[int_r_prop > leaf_r_prop]
+            log_abs_det_jacobian = log_abs_det_jacobian + torch.log(leaf_r_prop / int_r_prop_big)
+            int_r_prop[int_r_prop > leaf_r_prop] = leaf_r_prop
 
+        # proposal peel and blens
+        leaf_r = leaf_r_prop.repeat(self.S)
         if self.connect_method in ('geodesics', 'incentre'):
+            peel, int_locs = peeler.make_peel_tips(leaf_r_prop * leaf_dir_prop, connect_method=self.connect_method)
+            int_r_prop, int_dir_prop = utils.cart_to_dir(int_locs)
+        elif self.connect_method == 'nj':
+            peel, blens = peeler.nj(leaf_r, leaf_dir_prop)
+        elif self.connect_method == 'mst':
+            peel = peeler.make_peel_mst(leaf_r, leaf_dir_prop, int_r_prop, int_dir_prop)
+
+        # get proposal branch lengths
+        if self.connect_method != 'nj':
+            blens = self.compute_branch_lengths(self.S, peel, leaf_r, leaf_dir_prop, int_r_prop, int_dir_prop)
+
+        if self.connect_method in ('geodesics', 'incentre', 'nj'):
             proposal = {
                 'leaf_r': leaf_r_prop,
                 'leaf_dir': leaf_dir_prop,
+                'peel': peel,
+                'blens': blens,
                 'jacobian': log_abs_det_jacobian
             }
         elif self.connect_method == 'mst':
@@ -160,6 +185,8 @@ class Chain(BaseModel):
                 'leaf_dir': leaf_dir_prop,
                 'int_r': int_r_prop,
                 'int_dir': int_dir_prop,
+                'peel': peel,
+                'blens': blens,
                 'jacobian': log_abs_det_jacobian
             }
         return proposal
@@ -174,22 +201,17 @@ class Chain(BaseModel):
             tuple: (r, prop_like)
             The acceptance ratio r and the likelihood of the proposal.
         """
-        # proposal likelihood + prior
-        leaf_r_prop = p['leaf_r'].repeat(self.S, 1)
-        if self.connect_method in ('geodesics', 'incentre'):
-            peel, int_locs = peeler.make_peel_tips(leaf_r_prop * p['leaf_dir'], connect_method=self.connect_method)
-            p['int_r'], p['int_dir'] = utils.cart_to_dir(int_locs)
-        elif self.connect_method == 'mst':
-            peel = peeler.make_peel_mst(p['leaf_r'].repeat(self.S), p['leaf_dir'], p['int_r'], p['int_dir'])
-        blen = self.compute_branch_lengths(
-            self.S, peel, p['leaf_r'].repeat(self.S), p['leaf_dir'], p['int_r'], p['int_dir'])
-        prop_like = self.compute_LL(peel, blen)
-        prop_prior = self.compute_prior(peel, blen, **self.prior)
+
+        p['lnP'] = self.compute_LL(p['peel'], p['blens'])
+        # p['lnP'] = self.compute_log_a_like(p['leaf_r'].repeat(self.S), p['leaf_dir'])
+
+        p['lnPrior'] = self.compute_prior(p['peel'], p['blens'], **self.prior)
 
         # import matplotlib.pyplot as plt
         # leaf_X = leaf_r_prop.reshape(self.S, 1) * p['leaf_dir']
         # ax = plt.gca()
         # plt.cla()
+        # plt.scatter(leaf_X[:, 0], leaf_X[:, 1])
         # if self.connect_method == 'mst':
         #     int_X = p['int_r'].reshape(self.S-2, 1) * p['int_dir']
         #     X = torch.cat((leaf_X, int_X, leaf_X[0, :].reshape(1, self.D)))
@@ -200,10 +222,10 @@ class Chain(BaseModel):
         # plt.pause(0.05)
 
         # likelihood ratio
-        like_ratio = prop_like - self.lnP
+        like_ratio = p['lnP'] - self.lnP
 
         # prior ratio
-        prior_ratio = prop_prior - self.lnPrior
+        prior_ratio = p['lnPrior'] - self.lnPrior
 
         # Proposals are symmetric Guassians
         hastings_ratio = 1
@@ -212,7 +234,7 @@ class Chain(BaseModel):
         r = torch.minimum(torch.ones(1),
                           torch.exp((prior_ratio + like_ratio)*self.temp + hastings_ratio))
 
-        return (r, prop_like, prop_prior)
+        return r
 
     def tune_step(self, tol=0.01):
         """Tune the acceptance rate. Simple Euler method.
@@ -260,6 +282,10 @@ class DodonaphyMCMC():
             self.save_info(info_file, epochs, burnin, save_period)
             tree.save_tree_head(path_write, "mcmc", self.chain[0].S)
 
+        # Initialise prior and likelihood
+        for c in range(self.nChains):
+            self.chain[c].set_probability()
+
         if burnin > 0:
             print('Burning in for %d iterations.' % burnin)
             deceile = 1
@@ -268,15 +294,10 @@ class DodonaphyMCMC():
                     print("%d%% " % (deceile*10), end="", flush=True)
                     deceile += 1
                 for c in range(self.nChains):
-
-                    # Set prior and likelihood
-                    self.chain[c].set_probability()
                     # step
                     self.chain[c].evolve()
-                    self.chain[c].tune_step()
                     # tune step
-                    if self.chain[c].moreTune:
-                        self.chain[c].tune_step()
+                    self.chain[c].tune_step()
 
                 # swap 2 chains
                 if self.nChains > 1:
@@ -287,15 +308,10 @@ class DodonaphyMCMC():
         print("Running for %d epochs.\n" % epochs)
         for i in range(epochs):
             for c in range(self.nChains):
-                # Set prior and likelihood
-                self.chain[c].set_probability()
-
                 # step
                 self.chain[c].evolve()
-
-                # tune step
-                if self.chain[c].moreTune:
-                    self.chain[c].tune_step()
+                # tune step if not converged
+                self.chain[c].tune_step()
 
             # save
             doSave = self.save_period > 0 and i % self.save_period == 0
@@ -354,13 +370,14 @@ class DodonaphyMCMC():
                 for i in range(len(self.chain[0].leaf_dir)):
                     for j in range(self.chain[0].D):
                         file.write("leaf_%d_dir_%d, " % (i, j))
-                for i in range(len(self.chain[0].int_r)):
-                    file.write('int_%d_r, ' % (i))
-                for i in range(len(self.chain[0].int_dir)):
-                    for j in range(self.chain[0].D):
-                        file.write('int_%d_dir_%d' % (i, j))
-                        if not (j == self.chain[0].D - 1 and i == len(self.chain[0].int_dir)):
-                            file.write(', ')
+                if self.chain[0].int_r is not None:
+                    for i in range(len(self.chain[0].int_r)):
+                        file.write('int_%d_r, ' % (i))
+                    for i in range(len(self.chain[0].int_dir)):
+                        for j in range(self.chain[0].D):
+                            file.write('int_%d_dir_%d' % (i, j))
+                            if not (j == self.chain[0].D - 1 and i == len(self.chain[0].int_dir)):
+                                file.write(', ')
                 file.write("\n")
 
         with open(fn, 'a') as file:
@@ -429,9 +446,9 @@ class DodonaphyMCMC():
     def run(dim, partials, weights, dists, path_write=None,
             epochs=1000, step_scale=0.01, save_period=1, burnin=0,
             n_grids=10, n_trials=100, max_scale=1, nChains=1,
-            connect_method='incentre', embed_method='wrap', **prior):
+            connect_method='mst', embed_method='wrap', **prior):
         print('\nRunning Dodonaphy MCMC')
-        assert connect_method in ['incentre', 'mst', 'geodesics']
+        assert connect_method in ['incentre', 'mst', 'geodesics', 'nj']
 
         # embed tips with distances using Hydra
         emm_tips = hydra.hydra(dists, dim=dim, stress=True, **{'isotropic_adj': True})

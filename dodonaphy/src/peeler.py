@@ -257,3 +257,130 @@ def make_peel_mst(leaf_r, leaf_dir, int_r, int_dir, curvature=torch.ones(1)):
         mst_adjacencies, fake_root, peel, visited)
 
     return np.array(peel, dtype=np.intc)
+
+
+def nj(leaf_r, leaf_dir, curvature=torch.ones(1)):
+    """Generate Neighbour joining tree.
+
+    Args:
+        leaf_r ([type]): [description]
+        leaf_dir ([type]): [description]
+        curvature ([type], optional): [description]. Defaults to torch.ones(1).
+
+    Returns:
+        tuple: (peel, blens)
+    """
+    leaf_node_count = leaf_r.shape[0]
+    int_node_count = leaf_node_count - 2
+    node_count = leaf_node_count + int_node_count
+    eps = torch.finfo(torch.double).eps
+
+    # initialise peel and branch lengths
+    peel = np.zeros((int_node_count + 1, 3), dtype=int)
+    blens = torch.zeros(node_count, dtype=torch.float64)
+
+    # get pair-wise distances
+    pdm = Cutils.get_pdm(leaf_r, leaf_dir, curvature=curvature, asNumpy=True)
+
+    # construct Q matrix
+    Q = compute_Q(pdm)
+
+    # Add a mask to the Q matrix
+    mask = np.array(leaf_node_count * [False])
+    Qm = np.ma.masked_array(Q, mask=np.outer(mask, mask))
+
+    # for each internal node
+    for int_i in range(int_node_count + 1):
+        # find minimum of Q matrix
+        g, f = np.unravel_index(Qm.argmin(), Qm.shape)
+
+        # add this branch to peel
+        u = int_i + leaf_node_count
+        peel[int_i, :] = (f, g, u)
+
+        # get distances to new node u
+        pdm = add_pdm_node(pdm, f, g)
+
+        # add edges above f and g to blens
+        blens[f] = torch.clamp(torch.tensor(pdm[f][u]), min=eps)
+        blens[g] = torch.clamp(torch.tensor(pdm[g][u]), min=eps)
+
+        # update Q matrix
+        mask[f] = mask[g] = True
+        mask = np.hstack((mask, False))
+        Qm = update_Q(Qm, pdm, mask)
+
+    return peel, blens
+
+
+def compute_Q(pdm):
+    """Compute the Q matrix for Neighbour joining.
+
+    Args:
+        pdm (ndarray): [description]
+
+    Returns:
+        [type]: [description]
+    """
+    n = len(pdm)
+    Q = np.zeros((n, n))
+    sum_pdm = np.sum(pdm, axis=-1)
+
+    for i in range(n):
+        for j in range(i):
+            Q[i, j] = Q[j, i] = (n - 2) * pdm[i, j] - sum_pdm[i] - sum_pdm[j]
+    return Q
+
+
+def update_Q(Qm, pdm_updated, mask):
+    """ add new node to masked Q matrix
+
+    Args:
+        Q ([type]): [description]
+        pdm_updated ([type]): [description]
+        mask([type]): [description]
+
+    Returns:
+        [type]: [description]
+    """
+    n = len(Qm)
+
+    # new column Q_u for new node u
+    sum_pdm = np.sum(pdm_updated, axis=-1)
+    Q_u = (n - 2) * pdm_updated[:-1, -1] - sum_pdm[:-1] - sum_pdm[-1]
+
+    # add to Q matrix
+    Qm = np.vstack((Qm, Q_u))
+    Q_u = np.hstack((Q_u, 0)).reshape(n+1, 1)
+    Qm = np.hstack((Qm, Q_u))
+
+    # update mask
+    Qm.mask = ~np.outer(~mask, ~mask)
+    return Qm
+
+
+def add_pdm_node(pdm, f, g):
+    """Add a node to the pdm based.
+
+    Args:
+        pdm ([type]): pair-wise distance matrix
+        f ([type]): f-g are index of lowest in Q matrix
+        g ([type]): f-g are index of lowest in Q matrix
+    """
+    # distance to new node
+    n = len(pdm)
+
+    # get distance other taxa to new node
+    pdm_u = .5 * (pdm[f][:] + pdm[g][:] - pdm[f][g])
+
+    # get distance fu and fg
+    sum_pdm = np.sum(pdm, axis=-1)
+    pdm_u[f] = .5 * pdm[f][g] + (sum_pdm[f] - sum_pdm[g]) / (2 * (n - 2))
+    pdm_u[g] = pdm[f][g] - pdm_u[f]
+
+    # add new node to pdm
+    pdm = np.vstack((pdm, pdm_u))
+    pdm_u = np.hstack((pdm_u, 0)).reshape(n+1, 1)
+    pdm = np.hstack((pdm, pdm_u))
+
+    return pdm
