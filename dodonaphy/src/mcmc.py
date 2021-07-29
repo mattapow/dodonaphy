@@ -57,7 +57,8 @@ class Chain(BaseModel):
         self.lnP = self.compute_LL(self.peel, self.blens)
 
         # current prior
-        self.lnPrior = self.compute_prior(self.peel, self.blens, **self.prior)
+        # self.lnPrior = self.compute_prior_birthdeath(self.peel, self.blens, **self.prior)
+        self.lnPrior = self.compute_prior_gamma_dir(self.blens)
 
     def evolve(self):
         # propose new embedding
@@ -205,7 +206,8 @@ class Chain(BaseModel):
         p['lnP'] = self.compute_LL(p['peel'], p['blens'])
         # p['lnP'] = self.compute_log_a_like(p['leaf_r'].repeat(self.S), p['leaf_dir'])
 
-        p['lnPrior'] = self.compute_prior(p['peel'], p['blens'], **self.prior)
+        # p['lnPrior'] = self.compute_prior_birthdeath(p['peel'], p['blens'], **self.prior)
+        p['lnPrior'] = self.compute_prior_gamma_dir(p['blens'])
 
         # import matplotlib.pyplot as plt
         # leaf_X = leaf_r_prop.reshape(self.S, 1) * p['leaf_dir']

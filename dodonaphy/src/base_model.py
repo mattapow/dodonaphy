@@ -166,7 +166,8 @@ class BaseModel(object):
         # normalise for number of sites
         return torch.sum(P * self.weights) / sum(self.weights)
 
-    def compute_prior(self, peel, blen, **prior):
+    @staticmethod
+    def compute_prior_birthdeath(peel, blen, **prior):
         """Calculates the log-likelihood of a tree under a birth death model.
 
         Args:
@@ -181,10 +182,12 @@ class BaseModel(object):
 
             The log-likehood of the tree under the birth-death model.
         """
+        S = len(blen) / 2 + 1
+
         birth_rate = prior.get('birth_rate', 2.)
         death_rate = prior.get('death_rate', .5)
 
-        tipnames = ['T' + str(x+1) for x in range(self.S)]
+        tipnames = ['T' + str(x+1) for x in range(S)]
         newick = treeFunc.tree_to_newick(tipnames, peel, blen)
         tree = Tree.get(data=newick, schema='newick')
         LL = birth_death_likelihood(
@@ -193,3 +196,45 @@ class BaseModel(object):
             birth_rate=birth_rate,
             death_rate=death_rate)
         return torch.tensor(LL)
+
+    @staticmethod
+    def compute_prior_gamma_dir(blen, alpha_t=torch.ones(1), beta_t=torch.full((1,), .1), alpha=torch.ones(1),
+                                c=torch.ones(1)):
+        """Compute prior under a gamma-Dirichlet(αT , βT , α, c) prior.
+
+        Rannala et al., 2012; Zhang et al., 2012
+        Following MrBayes:
+        "The prior assigns a gamma(αT , βT ) distribution for the tree length
+        (sum of branch lengths), and a Dirichlet(α, c) prior for the proportion
+        of branch lengths to the tree length. In the Dirichlet, the parameter for
+        external branches is α and for internal branches is αc, so that the prior
+        ratio between internal and external branch is c."
+
+        Args:
+            alpha_t ([type]): [description]
+            beta_t ([type]): [description]
+            alpha ([type]): [description]
+            c ([type]): [description]
+
+        Returns:
+            tensor: The log probability of the branch lengths under the prior
+        """
+        bcount = int(len(blen))
+        S = int(bcount / 2 + 1)
+
+        # gamma on tree length
+        sum_blen = sum(blen)
+        lnPr_length = torch.distributions.gamma.Gamma(alpha_t, beta_t).log_prob(sum_blen)
+
+        # Dirichlet on proportions
+        if np.allclose(alpha, 1) and np.allclose(c, 1):
+            lnPr_prop = torch.tensor(math.lgamma(2*S-3+1)) + torch.log(sum_blen) * (-2*S+3)
+        else:
+            blen_proportions = blen / sum_blen
+            concentration = torch.zeros((bcount))
+            concentration[:S] = alpha
+            concentration[S:] = alpha * c
+            lnPr_prop = torch.distributions.dirichlet.Dirichlet(concentration).log_prob(blen_proportions)
+            lnPr_prop = lnPr_prop + torch.log(sum_blen) * (-alpha*S - alpha*c*(S-2) + 1)
+
+        return lnPr_length + lnPr_prop
