@@ -3,7 +3,9 @@
 \usepackage[parfill]{parskip}
 \usepackage{graphicx}
 \usepackage{amsmath, amsthm, amssymb}
+\usepackage[ruled,vlined]{algorithm2e}
 \usepackage{epstopdf}
+\usepackage{hyperref}
 \DeclareGraphicsRule{.tif}{png}{.png}{`convert #1 `dirname #1`/`basename #1 .tif`.png}
 \usepackage[utf8]{inputenc}
 \usepackage[english]{babel}
@@ -26,135 +28,159 @@ Here, using low dimensional hyperbolic tree embeddings, we explore the Bayesian 
 First, we empirically demonstrate that a posterior surface can be well approximated with tree embeddings using an MCMC in the embedding space.
 We also evaluate the potential of variational inference in the embedding space.
 
-\section{Hyperbolic Space}
+\section{Introduction}
+
+Quality Euclidean embeddings have previously been constructed using the square root phylogenetic distances \cite{devienne2011euclidean}.
+
+
+\section{Hyperbolic Embeddings}
 The Poincaré ball $\mathbb{P}^{d} = \{x\in \mathbb{R}^{d} \,:\, ||x||<1\}$ models hyperbolic space $\mathbb{H}^{d}$ using the metric:
 \begin{equation*}\label{eq:poin_dist}
 d(x,y) = \textnormal{arccosh}\Big(1 + 2 \frac{||x-y||_{2}^{2}}{ (1-||x||_{2}^{2}) (1-||y||_{2}^{2})}\Big),
 \end{equation*}
 where $||x||_{2}$ is the $l^{2}$-norm in $\mathbb{R}^{d}$.
 
-\section{Hyperbolic Embeddings}
 We form continuous embeddings of trees using one point in the Poincare ball $\bold{x} \in \mathbb{P}^{d}$ for each node in the tree.
 For an unrooted tree with $S$ taxa, there will be $m=2S - 2$ nodes locations $\bold{X} \in(\mathbb{P}^{d})^{m}$, where $\bold{X} = \{\bold{x}_{i}: i=1, ..., m\}$.
-Embedded nodes are connected to form the minimum spanning tree (MST) protocol that ensures internal nodes have three neighbours and tip nodes have one neighbour.
+Embedded nodes are connected to form a minimum spanning tree (MST) protocol that ensures internal nodes have three neighbours and tip nodes have one neighbour.
 Both the branch lengths and tree topology may freely change as nodes move.
 Once a tree $T(\bold{X})$ is formed, its prior probability $p(T)$ and the likelihood of a sequence aligmnent p(D\big|T) under a given model and data $D$ may be easily determined.
 
-This method is quite distinct from cost functions that are based on pair-wise distances. For example Chami's variant on Dasgupta's cost, the log-a-like used by Wilson or see refs in Chami. Here, nodes placements do not directly contribute to the cost function (tree posterior), they only impact how a tree is formed. The point of using $\mathbb{H}^{n}$ is to exploit its geometry as a way to move between ``adjacent'' trees.
+\begin{algorithm}
+\caption{Binary Spanning Tree}
+Add shortest leaf-int edge to queue\;
+\While{queue is not empty and we haven't visited all nodes}{
+e $\gets$ pop the shortest edge in queue\;
+\If{e is valid} {
+add e to the spanning tree\;
+add all edges from the node at the end of e to queue\;
+} 
+}
+\end{algorithm}
 
+This method is quite distinct from cost functions that are based on pair-wise distances. For example Chami's variant on Dasgupta's cost, the log-a-like used by Wilson or see refs in Chami. Here, nodes placements do not directly contribute to the cost function (tree posterior), they only impact how a tree is formed.
+
+\begin{theorem} \label{thm:accessible}
+Which trees are accessible by hyperbolic embeddings under a given connection protocol?
+\end{theorem}
 Not every tree may be accessible under this MST protocol and in this sense, we have a variational distribution over trees.
-For example, under a MST it would not be possible to join two very distant edges joined directly if there is an available intermediary node.
-This raises an interesting question: given a connection protocol, is there a limit to the trees that can be generated?
+Given a connection protocol, is there a limit to the trees that can be generated?
 
-\section{MCMC}
+\section{MCMC in Embedding Spaces}
 Since each set of node embeddings corresponds to a tree which has a well defined likelihood and prior probability, MCMC can proceed with the standard Metropolis-Hastings algorithm.
 The set of nodes are initialised to locations $\bold{X}_{0}$.
 For each node $\bold{x}_{i} \in \bold{X}_{0}$ a new location is proposed and accepted or rejected according to the Metropolis-Hastings algorithm, giving the next iteration $\bold{X}_{1}$.
 
-We propose a node's new location from a Gaussian by projecting the point from the Poincare ball into $\Psi: \mathbb{P}^{d} \to \mathbb{R}^{d}$.
-First project onto the hyperboloid model in $\mathbb{R}^{d+1}$ using $\phi(\bold{x}_{i})$ (see appendix), then projecting onto the tangent plane of $\bold{x}=0$ using the $d$-dimensional vector $u=(0, 1, 1, 1,...)$: $\Psi(\bold{x}_{i}) = \psi(\bold{x}_{i}) \cdot u $.
-A new point is drawn from a Gaussian located at $\Psi(\bold{x}_{i})$ with given standard deviation, before being projected back to the Poincare ball with $\Phi^{-1}$.
-
-\subsection{Continuity}
-Under a MST protocol, the total length of the tree is continuous as nodes move.
-As a node $\bold{x}_{i}$ moves continuously:
-\begin{itemize}
-\item Case (1) the tree does not change topology. The branch lengths of node $i$ change continuously and so the total length $\ell$:
+It is convenient to sample in Euclidean space using common distributions, so we use a homeomorphism between $\mathbb{P}^{d}$ and $\mathbb{R}^{d}$ to embed points.
+The embedding function is $g: \mathbb{R}^{d} \to \mathbb{P}^{d}$ is simply:
 \be
-\dfrac{\partial \ell}{\partial \bold{x_{i}}} = cst.
+g(\bold{x}) = \dfrac{\bold{x}}{1+||\bold{x}||_{2}}
 \ee
-\item Case (2) the tree changes topology. Suppose $x_{i}$ moves through the point $a$ and the topology changes from $\tau_{1}$ to $\tau_{2}$. The limit from the first topology $\text{lim}_{x_{i} \to a^{\tau_{1}}} \ell = \text{lim}_{x_{i} \to a^{\tau_{2}}} \ell$.
-\end{itemize}
-
-If the distance between every pair of two nodes $d(i,j)$ accurately reflects the number of mutations per site $\nu_{ij}$ between the two, then under a JC69 model, the total branch length $\ell$ uniquely determines the likelihood function $p(D|T)$.
-\[
-P(\nu_{ij}) = 
-\begin{cases}
-	\frac{1}{4} + \frac{3}{4} e^{\nu_{ij}} & i \neq j\\
-	\frac{1}{4} - \frac{1}{4} e^{\nu_{ij}} & i = j
-\end{cases}
-\]
-% TODO: show
-%The likelihood 
-%\bee
-%p(D, T) &=& [\sum_{x\in\{A,C,T,G\}} P_{sx}(d_{o_{1}}) L^{o_{1}}(x)][...]\\
-%&=& [4 P_{sA}(d_{o_{1}}) L^{o_{1}}(A)][...]
-%\eee
-The difficulty is to get the pairwise distances to match the number of mutations per site.
-% prior?
-
-\section{Variational Inference}
-In VI, the posterior surface (here a set of surfaces --- one for each embedded node $i$) is approximated by a variational distribution $q_{i}(z_{i})$, each parameterised by parameters $z_{i}$.
-When the data $D$ is fixed, minimising the KL divergence to the posterior $\text{KL}({\bf q}(\phi)||p(T\big|D))$ is equivalent to maximising the evidence lower bound (ELBO):
+with gradient
 \be
-\text{ELBO}(q) = \mathbb{E}_{q}[\log(p(z,D))] - \mathbb{E}_{q}[\log(q(z))].
+\frac{\partial g(\bold{x})}{\partial \bold{x}} = 
+\dfrac{1}{1+||\bold{x}||} \Big( I - \dfrac{\bold{x} \otimes \bold{x}}{(1+||\bold{x}||)||\bold{x}||} \Big).
 \ee
-Working with the ELBO is computationally advantageous since it does not depend on the intractable marginal distribution of the data $p(D)$, which is involves integrate over all tree topologies and all branch lengths.
-We consider two mean-field variational distributions for the node locations in $\mathbb{P}^{d}$: a logit-Normal distribution and a ``wrapped'' Normal distribution as proposed in \cite{Nagano2019Wrapped}.
 
-In both these approaches, the variational distribution $\bold{q}$ is smooth, however the posterior probability is not guaranteed to be continuous let alone differentiable as the topology changes.
-However this difficulty is partly overcome since the ELBO is not a point estimate, but is an expectation taken from $k$ samples.
-Any discontinuities in $p(z,D)$ are smoothed through sampling under $q$.
+Leaves are restricted to a unit sphere.
+Proposals are still multivariate normals in $\mathbb{R}^{d}$, but then the radius is  normalised to radius of the first leaf.
 
-To optimise the elbo we use stochastic gradient ascent implemented in PyTorch.
-The autograd functionality of PyTorch automatically computes the gradient of the elbo in order to stochastically optimise with gradients.
-
-Since the ELBO is an expectation under $q$, which in this case is a vector of normal distributions $g(x)$,
-\bee
-\text{ELBO}(q) &=& \mathbb{E}_{q}[\log(p(z,D))] - \mathbb{E}_{q}[\log(q(z))]\\
-&=& \int_{\mathbb{R}^{d}}[\log(p(z,D))] d\bold{q} - \int_{\mathbb{R}^{d}}[\log(q(z))] d\bold{q}\\
-&=& \int_{\mathbb{R}^{d}}[\log(p(z,D))] \circ g(z) dz - \int_{\mathbb{R}^{d}}[\log(q(z))] \circ g(z) dz.
-\eee
-% TODO: make clear
-Since g(z) is infinitely differentiable and
-\be
-\dfrac{d}{dz_{i}} (f \circ g) = f \circ \dfrac{dg}{dz_{i}},
-\ee
-we find that the elbo is also infinitely differentiable.
-
-
+We must show that the Markov Chains are ergodic, that is, as $m \to \infty$ the distribution $p(\bold{X}_{m}|\bold{X}_{0})$ converges to the posterior distribution regardless of the choice of $p(\bold{X}_{0})$.
+If the chain is not ergodic, then the choice of proposal partitions the state space into subsets which cannot be reached from each other.
+A point set $\bold{X}_{m} \in \mathbb{R}^{d}$ can be reached via our normal distribution proposal, however it remains to be seen if this embedding spans all trees.
+We must know theorem~\ref{thm:accessible}.
+% https://www.robots.ox.ac.uk/~fwood/teaching/C19_hilary_2014_2015/mcmc.pdf
 
 \section{Results}
-As a toy example, a posterior was approximated for a six taxa set using Dodonaphy's MCMC and its VI before being compared to BEAST2 --- an established MCMC software.
+As a toy example, a posterior was approximated for a six taxa set using Dodonaphy's MCMC and its VI before being compared to MrBayes.
 A tree was simulated using a birth (rate $2$) death (rate $.5$) model and a sequence alignment was generated from this tree under the JC69 model of genetic evolution.
 The pairwise patristic distances were computed between the tips on the simulated tree.
 The tips were initialised in the Poincare ball using hydra.
 Then the internal nodes were randomly placed in $\mathbb{P}^{d}$ with uniform directional and radius from a scaled Beta distribution $ r \sim s \times \text{Beta}(a=2, \beta=5)$ using scales $s \in [0, 2*\min(d(0, \bold{x}_{i})]$, where $i$ only includes the tip nodes.
 Internal node locations were sampled $10^{4}$ times and the initialisation with the highest tree likelihood was selected.
 
-\subsection{MCMC}
 
-\subsubsection{Choosing a method}
-The ``simple'' embedding method is $g: \mathbb{R}^{n} \to \mathbb{P}^{n}$:
-\be
-g(\bold{x}) = \dfrac{\bold{x}}{1+||\bold{x}||_{2}}
-\ee
-with gradient
-\be
-\dfrac{\partial g(\bold{x}_{i})}{\partial \bold{x}_{j}} = 
-\begin{cases}
-\dfrac{1+||\bold{x}||-\bold{x}_{i}^{2}||\bold{x}||}{(1+||\bold{x}||)^{2}} &\text{if } i=j\\
-\dfrac{-\bold{x}_{i}\bold{x}_{j}||\bold{x}||}{(1+||\bold{x}||)^{2}} &\text{if } i\neq j\\
-\end{cases}
-\ee
 \begin{figure}[htbp]
 \begin{center}
-\includegraphics[width=.33\linewidth]{fig/trace_connect_method}%
-\includegraphics[width=.33\linewidth]{fig/splits_connect_method}
-\includegraphics[width=.33\linewidth]{fig/trace_embed_method}
+\includegraphics[width=\linewidth]{fig/trace_connect_method}
+\includegraphics[width=.5\linewidth]{fig/visu_geodesics}%
+\includegraphics[width=.5\linewidth]{fig/visu_mst}
+\includegraphics[width=.5\linewidth]{fig/splits_connect_method}%
+\includegraphics[width=.5\linewidth]{fig/trace_embed_method}
 \end{center}
 \end{figure}
 
-\subsubsection{Single node posterior}
 \begin{figure}[htbp]
 \begin{center}
 \includegraphics[width=.33\linewidth]{fig/node6_posterior}%
 \includegraphics[width=.33\linewidth]{fig/node8_posterior}%
 \includegraphics[width=.33\linewidth]{fig/node9_posterior}
 \end{center}
+\caption{Fix all node positions but one (a) node 6, (b) node 8 and (c) node 9. Move this one node throughout the Poincaré disk and plot the tree posterior by placing the node at that point.}
 \end{figure}
 
+\eject
+\newpage
+\section{Thoughts}
+\subsection{Embedding}
+\begin{itemize}
+\item Want a MST with given tips and degree constrains:
+Given tips see \href{https://cs. stackexchange.com/questions/40131/spanning-tree-with-chosen-leaves?rq=1}{this} stackexchange question.
+But degree constrained is harder. 
+\href{https://cs.stackexchange.com/questions/22775/minimal-spanning-tree-with-degree-constraint}{This} algorithm looks at only constraining the .
 
+\begin{verbatim}
+For n-2 iterations:
+    Find the pair of edges i and j neighbouring a single internal vertex
+    	that minimises the cost C(i)+C(j)
+    Add edges i and j to the tree
+\end{verbatim}
+\item I tried without the Matsumuto adjustment and the likelihood was a bit worse.
+\end{itemize}
+
+\subsection{MCMC}
+\begin{itemize}
+\item What type of tree rearrangements occur when topology changes?
+\item Posterior surfance is smooth if topology doesn't change.
+\item Remove isometric component of new vector. Want rotations and translations component
+\item I tried using log-a-like function instead of likelihood \cite{wilson2021learning} (leaves constrained to a sphere). It gave terrible trees on a six taxa dataset - likelihood $\sim -8000$ (not $-2600$) and bad splits. I tried weighting the edges inversely with their length (shorter edges are weighted more) and the result was about the same.
+\item Try on more taxa 20, 100, 200 using hpc
+\item How easy is it to add taxa? Might only need pair-wise distance to a subset of other taxa.
+\end{itemize}
+
+\subsection{VI}
+\begin{itemize}
+\item Pytorch's optimisers don't converge for non-convex problems.
+\item Posterior ``surface'' is non-convex and not continuous...
+\item What if we learn the curvature?
+\end{itemize}
+
+\subsection{Full rank}
+Intuitively, nodes that are close together should be a bit correlated. However, it doesn't seem to improve things much. In the off-diagonals in the covariance matrix are initialised to zero, the ELBO gets much higher faster compared to if the off-diagonal terms have a non-zero covariance. That said, I haven't run simulations long enough to be sure, only $1000$ epochs with a small learning rate of $0.01$.
+
+\subsection{Distance-based}
+Could we adopt an approach like Wilson and Chami, where only the distributions of the embedded points are optimised based on their pair-wise distances.
+Only then do we infer a tree.
+The advantage of this is that the cost function is differentiable and more in line with what other people in the ML community do.
+However, this isn't actually modelling the Bayesian Posterior, just a proxy for it.
+
+
+%\newpage
+%\section{Variational Inference}
+%In VI, the posterior surface (here a set of surfaces --- one for each embedded node $i$) is approximated by a variational distribution $q_{i}(z_{i})$, each parameterised by parameters $z_{i}$.
+%When the data $D$ is fixed, minimising the KL divergence to the posterior $\text{KL}({\bf q}(\phi)||p(T\big|D))$ is equivalent to maximising the evidence lower bound (ELBO):
+%\be
+%\text{ELBO}(q) = \mathbb{E}_{q}[\log(p(z,D))] - \mathbb{E}_{q}[\log(q(z))].
+%\ee
+%Working with the ELBO is computationally advantageous since it does not depend on the intractable marginal distribution of the data $p(D)$, which is involves integrate over all tree topologies and all branch lengths.
+%We consider two mean-field variational distributions for the node locations in $\mathbb{P}^{d}$: a logit-Normal distribution and a ``wrapped'' Normal distribution as proposed in \cite{Nagano2019Wrapped}.
+%
+%In both these approaches, the variational distribution $\bold{q}$ is smooth, however the posterior probability is not guaranteed to be continuous let alone differentiable as the topology changes.
+%However this difficulty is partly overcome since the ELBO is not a point estimate, but is an expectation taken from $k$ samples.
+%Any discontinuities in $p(z,D)$ are smoothed through sampling under $q$.
+%
+%To optimise the elbo we use stochastic gradient ascent implemented in PyTorch.
+%The autograd functionality of PyTorch automatically computes the gradient of the elbo in order to stochastically optimise with gradients.
 
 %The final log likelihood from BEAST was -6280 (similar to it's log posterior of -6271). In comparison, Dodonaphy MCMC gave -6280, which is a close match.
 %However, figure~\ref{fig:stat_cmp}a illustrates that samples from Dodonaphy's MCMC always gave one incorrect split.
@@ -185,109 +211,68 @@ with gradient
 %The feasibility of VI rests on how well a simple distribution $q$ can approximate these densities.
 %Boosting to a mixture model may increase the ability for VI to represent these embeddings.
 	
-\subsection{VI}
-The traces in figure~\ref{fig:elbos} illustrate that the elbos has a strange start, getting worse for a few hundred epochs, but then increases steadily but probably hasn’t converged after the 1e4 epochs.
-\begin{figure}[htbp]
-\begin{center}
-\includegraphics[width=.333\linewidth]{fig/mcmc_mst_locations.png}%
-\includegraphics[width=.333\linewidth]{fig/mcmc_geo_locations.png}%
-\includegraphics[width=.333\linewidth]{fig/mcmc_tri_locations.png}
-\includegraphics[width=.333\linewidth]{fig/vi_simple_mst_locations.png}%
-\includegraphics[width=.333\linewidth]{fig/vi_simple_geodesics_locations.png}%
-\includegraphics[width=.333\linewidth]{fig/vi_simple_incentre_locations.png}
-\caption{Density estimates of the node locations from Dodonaphy's MCMC projected into $\mathbb{R}^{2}$. MCMC: using (a) mst, (b) geodesics, (c) incentres . 
-Variational densities after learning for $10^{3}$ epochs in $\mathbb{P}^{2}$ using (d) mst, (e) geodesics, (f) incentres.
-}
-\label{fig:elbos}
-\end{center}
-\end{figure}
-
-\begin{figure}[htbp]
-\begin{center}
-\includegraphics[width=.333\linewidth]{fig/elbo_trace_mst.png}%
-\includegraphics[width=.333\linewidth]{fig/elbo_trace_geodesics.png}%
-\includegraphics[width=.333\linewidth]{fig/elbo_trace_incentre.png}
-\caption{ELBO trace from VI on six taxa using the ``simple'' embedding with (a) MST, (b) geodesics, (d) incentres. All with $k=10$ ELBO samples and a learning rate of $10^{-3}$.}
-\label{fig:elbo_method}
-\end{center}
-\end{figure}
-
-\begin{figure}[htbp]
-\includegraphics[width=.2\linewidth]{fig/elbo_trace_mst_lr3_k1.png}%
-\includegraphics[width=.2\linewidth]{fig/elbo_trace_mst_lr3_k5.png}%
-\includegraphics[width=.2\linewidth]{fig/elbo_trace_mst_lr3_k10.png}%
-\includegraphics[width=.2\linewidth]{fig/elbo_trace_mst_lr3_k20.png}%
-\includegraphics[width=.2\linewidth]{fig/elbo_trace_mst_lr3_k50.png}
-\includegraphics[width=.2\linewidth]{fig/elbo_trace_mst_lr4_k1.png}%
-\includegraphics[width=.2\linewidth]{fig/elbo_trace_mst_lr4_k5.png}%
-\includegraphics[width=.2\linewidth]{fig/elbo_trace_mst_lr4_k10.png}%
-\includegraphics[width=.2\linewidth]{fig/elbo_trace_mst_lr4_k20.png}
-\caption{Effect of number of ELBO samples $k=\{1, 5, 10, 20, 50\}$.
-Top row with learning rate $10^{-3}$ and bottom row $10^{4}$.
-All using a ``simple'' embedding.}
-\label{fig:k_samples}
-\end{figure}
-
-\begin{figure}[htbp]
-\begin{center}
-\includegraphics[width=.333\linewidth]{fig/elbo_trace_mst_lr2.png}%
-\includegraphics[width=.333\linewidth]{fig/elbo_trace_mst_lr3.png}%
-\includegraphics[width=.333\linewidth]{fig/elbo_trace_mst_lr4.png}
-\caption{Effect of learning rate $\{10^{-2}, 10^{-3}, 10^{-4}\}$ with fixed $k=10$ under MST using ``simple'' embedding.}
-\label{fig:lr}
-\end{center}
-\end{figure}
-
-\begin{figure}[htbp]
-\begin{center}
-\includegraphics[width=.333\linewidth]{fig/elbo_trace_mst_lr2.png}%
-\includegraphics[width=.333\linewidth]{fig/elbo_trace_mst_lr3.png}%
-\includegraphics[width=.333\linewidth]{fig/elbo_trace_mst_lr4.png}
-\caption{Effect of learning rate $\{10^{-2}, 10^{-3}, 10^{-4}\}$ with fixed $k=10$ under MST using ``simple'' embedding.}
-\label{fig:lr}
-\end{center}
-\end{figure}
-
-
-
-\section{Thoughts}
-\subsection{Embedding}
-\begin{itemize}
-\item Want a MST with given tips and degree constrains.
-Given tips see https://cs. stackexchange.com/questions/40131/spanning-tree-with-chosen-leaves?rq=1.
-But degree constrained is harder. This algorithm looks at only constraining the root https://cs.stackexchange.com/questions/22775/minimal-spanning-tree-with-degree- constraint.
-\end{itemize}
-
-\subsection{MCMC}
-\begin{itemize}
-\item What type of tree rearrangements occur when topology changes?
-\item Posterior surfance is smooth if topology doesn't change.
-\item Remove isometric component of new vector. Want rotations and translations component 
-\end{itemize}
-
-\subsection{VI}
-\begin{itemize}
-\item Pytorch's optimisers don't converge for non-convex problems.
-\item Can we regularise positions a bit using distance-based on all node (e.g. log-a-like) without affecting the posterior.
-\end{itemize}
-
-\subsection{Later}
-\begin{itemize}
-\item What if we learn the curvature?
-\item Try on more taxa 20, 100, 200 using hpc
-\item How easy is it to add taxa? Might only need pair-wise distance to a subset of other taxa.
-\end{itemize}
-
-\subsection{Full rank}
-Intuitively, nodes that are close together should be a bit correlated. However, it doesn't seem to improve things much. In the off-diagonals in the covariance matrix are initialised to zero, the ELBO gets much higher faster compared to if the off-diagonal terms have a non-zero covariance. That said, I haven't run simulations long enough to be sure, only $1000$ epochs with a small learning rate of $0.01$.
-
-\subsection{Distance-based}
-Could we adopt an approach like Wilson and Chami, where only the distributions of the embedded points are optimised based on their pair-wise distances.
-Only then do we infer a tree.
-The advantage of this is that the cost function is differentiable and more in line with what other people in the ML community do.
-However, this isn't actually modelling the Bayesian Posterior, just a proxy for it.
-
-Tips are labelled, internal nodes are not.
+%\subsection{VI}
+%The traces in figure~\ref{fig:elbos} illustrate that the elbos has a strange start, getting worse for a few hundred epochs, but then increases steadily but probably hasn’t converged after the 1e4 epochs.
+%\begin{figure}[htbp]
+%\begin{center}
+%\includegraphics[width=.333\linewidth]{fig/mcmc_mst_locations.png}%
+%\includegraphics[width=.333\linewidth]{fig/mcmc_geo_locations.png}%
+%\includegraphics[width=.333\linewidth]{fig/mcmc_tri_locations.png}
+%\includegraphics[width=.333\linewidth]{fig/vi_simple_mst_locations.png}%
+%\includegraphics[width=.333\linewidth]{fig/vi_simple_geodesics_locations.png}%
+%\includegraphics[width=.333\linewidth]{fig/vi_simple_incentre_locations.png}
+%\caption{Density estimates of the node locations from Dodonaphy's MCMC projected into $\mathbb{R}^{2}$. MCMC: using (a) mst, (b) geodesics, (c) incentres . 
+%Variational densities after learning for $10^{3}$ epochs in $\mathbb{P}^{2}$ using (d) mst, (e) geodesics, (f) incentres.
+%}
+%\label{fig:elbos}
+%\end{center}
+%\end{figure}
+%
+%\begin{figure}[htbp]
+%\begin{center}
+%\includegraphics[width=.333\linewidth]{fig/elbo_trace_mst.png}%
+%\includegraphics[width=.333\linewidth]{fig/elbo_trace_geodesics.png}%
+%\includegraphics[width=.333\linewidth]{fig/elbo_trace_incentre.png}
+%\caption{ELBO trace from VI on six taxa using the ``simple'' embedding with (a) MST, (b) geodesics, (d) incentres. All with $k=10$ ELBO samples and a learning rate of $10^{-3}$.}
+%\label{fig:elbo_method}
+%\end{center}
+%\end{figure}
+%
+%\begin{figure}[htbp]
+%\includegraphics[width=.2\linewidth]{fig/elbo_trace_mst_lr3_k1.png}%
+%\includegraphics[width=.2\linewidth]{fig/elbo_trace_mst_lr3_k5.png}%
+%\includegraphics[width=.2\linewidth]{fig/elbo_trace_mst_lr3_k10.png}%
+%\includegraphics[width=.2\linewidth]{fig/elbo_trace_mst_lr3_k20.png}%
+%\includegraphics[width=.2\linewidth]{fig/elbo_trace_mst_lr3_k50.png}
+%\includegraphics[width=.2\linewidth]{fig/elbo_trace_mst_lr4_k1.png}%
+%\includegraphics[width=.2\linewidth]{fig/elbo_trace_mst_lr4_k5.png}%
+%\includegraphics[width=.2\linewidth]{fig/elbo_trace_mst_lr4_k10.png}%
+%\includegraphics[width=.2\linewidth]{fig/elbo_trace_mst_lr4_k20.png}
+%\caption{Effect of number of ELBO samples $k=\{1, 5, 10, 20, 50\}$.
+%Top row with learning rate $10^{-3}$ and bottom row $10^{4}$.
+%All using a ``simple'' embedding.}
+%\label{fig:k_samples}
+%\end{figure}
+%
+%\begin{figure}[htbp]
+%\begin{center}
+%\includegraphics[width=.333\linewidth]{fig/elbo_trace_mst_lr2.png}%
+%\includegraphics[width=.333\linewidth]{fig/elbo_trace_mst_lr3.png}%
+%\includegraphics[width=.333\linewidth]{fig/elbo_trace_mst_lr4.png}
+%\caption{Effect of learning rate $\{10^{-2}, 10^{-3}, 10^{-4}\}$ with fixed $k=10$ under MST using ``simple'' embedding.}
+%\label{fig:lr}
+%\end{center}
+%\end{figure}
+%
+%\begin{figure}[htbp]
+%\begin{center}
+%\includegraphics[width=.333\linewidth]{fig/elbo_trace_mst_lr2.png}%
+%\includegraphics[width=.333\linewidth]{fig/elbo_trace_mst_lr3.png}%
+%\includegraphics[width=.333\linewidth]{fig/elbo_trace_mst_lr4.png}
+%\caption{Effect of learning rate $\{10^{-2}, 10^{-3}, 10^{-4}\}$ with fixed $k=10$ under MST using ``simple'' embedding.}
+%\label{fig:lr}
+%\end{center}
+%\end{figure}
 
 \section{Appendix}
 \subsection{Numerical stability in Hyperbolic space}
@@ -298,15 +283,48 @@ It has metric $d_{hyp}(\bold{x}, \bold{y}) = \text{acosh}(-\langle \bold{x}, \bo
 \begin{equation*}
 	\langle \bold{x}, \bold{y} \rangle = -x_{0}y_{0} + \sum_{i>0} x_{i}y_{i}
 \end{equation*}
-The stereographic projection onto the hyperboloid $\phi:\mathbb{P}^{d} \to \mathbb{H}^{d}$ takes a point to $\psi(\bold{x}) = \big(\frac{(1+||x||_{2})}{(1-||x||_{2})}, \frac{2 \bold{x}}{(1- ||x||_{2}}\big)$.
+The stereographic projection onto the hyperboloid $\phi:\mathbb{P}^{d} \to \mathbb{H}^{d}$ takes a point to $\phi(\bold{x}) = \big(\frac{(1+||x||_{2})}{(1-||x||_{2})}, \frac{2 \bold{x}}{(1- ||x||_{2}}\big)$.
 Thus, for $\bold{x}, \bold{y} \in \mathbb{P}_{d}$ we can use $d(\bold{x}, \bold{y}) = d_{hyp}(\psi(\bold{x}), \psi(\bold{y}))$.
 
 % define \Phi inverse explicitly in
 
+\subsection{Normalising Jacobian}
+Normalising the leaf positions to radius $r$ by $n_{r}(x) = r \bold{x}/||\bold{x}||$ has Jacobian
+\be
+\frac{\partial n_{r}(\bold{x})}{\partial \bold{x}} = r \frac{\partial n_{1}(\bold{x})}{\partial \bold{x}} = 
+\dfrac{r}{||x||} \Big( I - \dfrac{x \otimes x}{||x||^{2}} \Big)
+\ee
 
 
+%\paragraph{Wrapping Method}
+%We propose a node's new location from a Gaussian by projecting the point from the Poincare ball into $\Psi: \mathbb{P}^{d} \to \mathbb{R}^{d}$.
+%First project onto the hyperboloid model in $\mathbb{R}^{d+1}$ using $\text{proj}^{-1}(\bold{x})$ (see appendix), then projecting onto the tangent plane of $\bold{x}=0$ using the $d$-dimensional vector $u=(0, 1, 1, 1,...)$: $\Psi(\bold{x}_{i}) = \text{proj}^{-1}(\bold{x}_{i}) \cdot u $.
+%A new point is drawn from a Gaussian located at $\Psi(\bold{x}_{i})$ with given standard deviation, before being projected back to the Poincare ball with $\Phi^{-1}$.
+%
+%The determinate of the Jacobian of the projection $\text{proj}_{\mu}: \text{exp}_{\mu} \circ \text{PT}{\mu_{0} \to \mu}$:
+%\be
+%\Big| \frac{\text{proj}_{\mu} (\bold{x})} {\partial \bold{x}} \Big| = \Big(\dfrac{\sinh(||x||)}{||x||}\Big)^{n-1}.
+%\ee
+%The Jacobian of stereographic projection projection back into the poincare ball $
+%% Double check this
+%\phi^{-1}$ is:
+%\bee
+%\frac{\partial \phi^{-1}(\bold{x})} {\partial \bold{x}} = \begin{cases}
+%\dfrac{1}{1+x_{0}} &\text{ if } j = i+1\\
+%\dfrac{-x_{i+1}}{(1+x_{0})^{2}} &\text{ if } j = 0\\
+%0 &\text{ otherwise}\\
+%\end{cases}
+%\eee
+%Since this projection is from $\mathbb{R}^{d+1}$ to $\mathbb{R}^{d}$, the Jacobian matrix is not square and so we  use the $d$-dimensional Jacobian $|J_{\phi^{-1}}(\bold{x})| = (\text{det} (J_{\phi^{-1}} (\bold{x}) J_{\phi^{-1}} (\bold{x})^{T}))^{1/2}$. The determinant of the Jacobian simplifies to:
+%\be
+%\Big|\frac{\partial {\phi^{-1}}(\bold{x})}{\partial \bold{x}}\Big| = \dfrac{(1+x_{0})^{2} + \sum_{i=1}^{d} x_{i}^{2}}{(1+x_{0})^{2(d+1)}}.
+%\ee
+%
+%Altogether,
 
 
-
+\nocite{*}
+\bibliographystyle{apalike}
+\bibliography{notes}
 
 \end{document}
