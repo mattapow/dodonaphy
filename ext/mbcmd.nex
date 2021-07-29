@@ -1,0 +1,8 @@
+#NEXUS
+Begin mrbayes;
+    exe ../data/T17/dna.nex;
+    prset statefreqpr=fixed(equal);
+    mcmc;
+    sump;
+    sumt;
+end;
