@@ -4,11 +4,11 @@ from matplotlib.lines import Line2D
 from matplotlib.patches import Circle
 
 
-def post_order_traversal(mst, currentNode, peel, visited):
-    """Post-order traversal of a constrained-MST
+def post_order_traversal(adjacency, currentNode, peel, visited):
+    """Post-order traversal of tree in adjacency matrix
 
     Args:
-        mst ([type]): [description]
+        adjacency ([type]): [description]
         currentNode ([type]): [description]
         peel ([type]): [description]
         visited ([type]): [description]
@@ -17,14 +17,14 @@ def post_order_traversal(mst, currentNode, peel, visited):
         [type]: [description]
     """
     visited[currentNode] = True
-    if mst[currentNode].__len__() < 2:  # leaf nodes
+    if adjacency[currentNode].__len__() < 2:  # leaf nodes
         return currentNode
     else:  # internal nodes
         childs = []
-        for child in mst[currentNode]:
+        for child in adjacency[currentNode]:
             if (not visited[child]):
                 childs.append(post_order_traversal(
-                    mst, child, peel, visited))
+                    adjacency, child, peel, visited))
                 # childs.append(child)
         childs.append(currentNode)
         peel.append(childs)
@@ -106,7 +106,7 @@ def plot_tree(ax, peel, X, color=(0, 0, 0), labels=True, root=0, radius=1):
                         xycoords='data')
 
 
-def save_tree(dir, filename, peel, blens, iteration, LL):
+def save_tree(dir, filename, peel, blens, iteration, lnL, lnPr):
     if dir is None:
         return
     S = len(peel)+1
@@ -116,7 +116,7 @@ def save_tree(dir, filename, peel, blens, iteration, LL):
     fn = dir + '/' + filename + '.trees'
     with open(fn, 'a+') as file:
         file.write("tree STATE_" + str(iteration))
-        file.write(" [&lnP={}] = [&R] ".format(LL))
+        file.write(" [&lnL=%f, &lnPr=%f] = [&R] " % (lnL, lnPr))
         file.write(tree + '\n')
 
 
@@ -161,3 +161,7 @@ def save_tree_head(path_write, filename, S):
             file.write("\t\t" + "T" + str(i+1) + "\n")
         file.write("\t\t;\nEnd;\n\n")
         file.write("Begin trees;\n")
+        file.write("\t translate\n")
+        for i in range(S-1):
+            file.write("\t\tT%d T%d,\n" % (i, i))
+        file.write("\t\tT%d T%d;\n" % (S, S))

@@ -367,7 +367,7 @@ class DodonaphyMCMC():
     def save_iteration(self, path_write, iteration):
         lnP = self.chain[0].compute_LL(self.chain[0].peel, self.chain[0].blens)
         tree.save_tree(path_write, 'mcmc', self.chain[0].peel, self.chain[0].blens,
-                       iteration*self.chain[0].bcount, float(lnP))
+                       iteration, float(lnP), float(self.chain[0].lnPrior))
         fn = path_write + '/locations.csv'
         if not os.path.isfile(fn):
             with open(fn, 'a') as file:
