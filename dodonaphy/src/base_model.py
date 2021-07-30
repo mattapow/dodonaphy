@@ -198,7 +198,7 @@ class BaseModel(object):
         return torch.tensor(LL)
 
     @staticmethod
-    def compute_prior_gamma_dir(blen, alpha_t=torch.ones(1), beta_t=torch.full((1,), .1), alpha=torch.ones(1),
+    def compute_prior_gamma_dir(blen, aT=torch.ones(1), bT=torch.full((1,), .1), a=torch.ones(1),
                                 c=torch.ones(1)):
         """Compute prior under a gamma-Dirichlet(αT , βT , α, c) prior.
 
@@ -209,32 +209,27 @@ class BaseModel(object):
         of branch lengths to the tree length. In the Dirichlet, the parameter for
         external branches is α and for internal branches is αc, so that the prior
         ratio between internal and external branch is c."
+        NB: scaling constants from Rannala et al., 2020 are omitted, as for MrBayes.
 
         Args:
-            alpha_t ([type]): [description]
-            beta_t ([type]): [description]
-            alpha ([type]): [description]
-            c ([type]): [description]
+            blen ([type]): [description]
+            aT ([type], optional): [description]. Defaults to torch.ones(1).
+            bT ([type], optional): [description]. Defaults to torch.full((1,), .1).
+            a ([type], optional): [description]. Defaults to torch.ones(1).
+            c ([type], optional): [description]. Defaults to torch.ones(1).
 
         Returns:
-            tensor: The log probability of the branch lengths under the prior
+            tensor: The log probability of the branch lengths under the prior.
         """
         bcount = int(len(blen))
         S = int(bcount / 2 + 1)
 
-        # gamma on tree length
-        sum_blen = sum(blen)
-        lnPr_length = torch.distributions.gamma.Gamma(alpha_t, beta_t).log_prob(sum_blen)
+        lnprior = torch.zeros(1)
+        treeL = sum(blen)
+        tipb = torch.log(sum(blen[:S]))
+        intb = torch.log(sum(blen[S:]))
 
-        # Dirichlet on proportions
-        if np.allclose(alpha, 1) and np.allclose(c, 1):
-            lnPr_prop = torch.tensor(math.lgamma(2*S-3+1)) + torch.log(sum_blen) * (-2*S+3)
-        else:
-            blen_proportions = blen / sum_blen
-            concentration = torch.zeros((bcount))
-            concentration[:S] = alpha
-            concentration[S:] = alpha * c
-            lnPr_prop = torch.distributions.dirichlet.Dirichlet(concentration).log_prob(blen_proportions)
-            lnPr_prop = lnPr_prop + torch.log(sum_blen) * (-alpha*S - alpha*c*(S-2) + 1)
+        lnprior = lnprior + (a-1)*tipb + (a*c-1)*intb
+        lnprior = lnprior + (aT - a*S - a*c*(S-2)) * torch.log(treeL) - bT*treeL
 
-        return lnPr_length + lnPr_prop
+        return lnprior
