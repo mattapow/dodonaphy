@@ -18,13 +18,19 @@ data/*
 results/*
 
 ext/trees-bootstrap
+ext/mb
 
 *.gz
 *.aux
 doc/notes.log
 doc/fig/*
+doc/notes.out
+doc/notes.bbl
+doc/notes.blg
 
 
 *.so
 *.o
 dodonaphy/src/cython/Cutils.c
+
+*.prof

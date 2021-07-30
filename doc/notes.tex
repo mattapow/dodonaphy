@@ -102,11 +102,15 @@ Internal node locations were sampled $10^{4}$ times and the initialisation with 
 
 \begin{figure}[htbp]
 \begin{center}
-\includegraphics[width=\linewidth]{fig/trace_connect_method}
+\includegraphics[width=\linewidth, height=.75\textheight]{fig/t6_trace}
+\end{center}
+\end{figure}
+
+\begin{figure}[htbp]
+\begin{center}
 \includegraphics[width=.5\linewidth]{fig/visu_geodesics}%
 \includegraphics[width=.5\linewidth]{fig/visu_mst}
-\includegraphics[width=.5\linewidth]{fig/splits_connect_method}%
-\includegraphics[width=.5\linewidth]{fig/trace_embed_method}
+\includegraphics[width=\linewidth]{fig/splits_connect_method}
 \end{center}
 \end{figure}
 
@@ -119,8 +123,22 @@ Internal node locations were sampled $10^{4}$ times and the initialisation with 
 \caption{Fix all node positions but one (a) node 6, (b) node 8 and (c) node 9. Move this one node throughout the Poincaré disk and plot the tree posterior by placing the node at that point.}
 \end{figure}
 
-\eject
-\newpage
+
+\clearpage
+\subsection{17 Taxa}
+\begin{figure}[htbp]
+\begin{center}
+\includegraphics[width=1\linewidth, height=.75\textheight]{fig/t17_trace}
+\end{center}
+\end{figure}
+\begin{figure}[htbp]
+\begin{center}
+\includegraphics[width=\linewidth]{fig/t17_splits}
+\end{center}
+\end{figure}
+
+
+\clearpage
 \section{Thoughts}
 \subsection{Embedding}
 \begin{itemize}
@@ -274,6 +292,7 @@ However, this isn't actually modelling the Bayesian Posterior, just a proxy for 
 %\end{center}
 %\end{figure}
 
+\clearpage
 \section{Appendix}
 \subsection{Numerical stability in Hyperbolic space}
 As either $||x||_{2}^{2}\to 1$ or $||y||_{2}^{2} \to 1$, eq.~\ref{eq:poin_dist} can become a numerically unstable way to compute distances.
