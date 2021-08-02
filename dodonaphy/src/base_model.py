@@ -230,6 +230,6 @@ class BaseModel(object):
         intb = torch.log(sum(blen[S:]))
 
         lnprior = lnprior + (a-1)*tipb + (a*c-1)*intb
-        lnprior = lnprior + (aT - a*S - a*c*(S-2)) * torch.log(treeL) - bT*treeL
+        lnprior = lnprior + (aT - a*S - a*c*(S-3)) * torch.log(treeL) - bT*treeL
 
         return lnprior
