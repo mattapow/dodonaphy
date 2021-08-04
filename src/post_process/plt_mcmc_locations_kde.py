@@ -1,4 +1,4 @@
-from numpy import genfromtxt
+from numpy import dtype, genfromtxt
 # import seaborn as sns
 import matplotlib.pyplot as plt
 import matplotlib.cm
@@ -12,17 +12,17 @@ Histogram of node locations from MCMC
 """
 
 dir = "./data/T6_2/"
-mthd = "mcmc_mst_scale1_1"
+mthd = "mcmc/simple_mst_c1"
 fp = dir + mthd + "/locations.csv"
 isGeodesics = False
 
-X = genfromtxt(fp)
+X = genfromtxt(fp, dtype=np.double)
 n_trees = X.shape[0]
 D = 2  # dimension must be 2 to plot
 S = 6
 n_points = int(X.shape[1]/D)
-burnin = 0
-sampleEnd = 50
+burnin = 980
+sampleEnd = 1000
 if sampleEnd > n_trees:
     print(n_trees)
     raise IndexError("requested more than nuber of trees.")
@@ -39,8 +39,10 @@ leaf_poin = np.zeros((S, D))
 for i in range(S):
     x = X[burnin:sampleEnd, 2*i]
     y = X[burnin:sampleEnd, 2*i+1]
-    x = 1/(1+np.exp(-x)) * 2 - 1
-    y = 1/(1+np.exp(-y)) * 2 - 1
+    for j, xj in enumerate(x):
+        x[j, :] = utils.real2ball(torch.from_numpy(xj), D)
+    for j, yj in enumerate(y):
+        y[j, :] = utils.real2ball(torch.from_numpy(yj), D)
     idx = -1
     leaf_poin[i, :] = (x[idx], y[idx])
     # sns.kdeplot(x=x, y=y, ax=ax, color=cmap(i/n_points), thresh=.1)
@@ -59,8 +61,10 @@ else:
     for i in range(S-2):
         x = X[burnin:sampleEnd, 2*i+2*S]
         y = X[burnin:sampleEnd, 2*i+2*S+1]
-        x = 1/(1+np.exp(-x)) * 2 - 1
-        y = 1/(1+np.exp(-y)) * 2 - 1
+        for j, xj in enumerate(x):
+            x[j, :] = utils.real2ball(torch.from_numpy(xj), D)
+        for j, yj in enumerate(y):
+            y[j, :] = utils.real2ball(torch.from_numpy(yj), D)
         int_poin[i, :] = (np.mean(x), np.mean(y))
         # sns.kdeplot(x=x, y=y, ax=ax, color=cmap((S+i)/n_points))
         # ax.annotate('%s' % str(i+S+1), xy=(int_poin[i, :]), xycoords='data')

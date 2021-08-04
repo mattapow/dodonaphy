@@ -1,4 +1,4 @@
-from torch.functional import meshgrid
+# from torch.functional import meshgrid
 from src.vi import DodonaphyVI
 from src.phylo import compress_alignment
 from src import peeler, utils, tree, hyperboloid
@@ -6,11 +6,11 @@ from src import peeler, utils, tree, hyperboloid
 import torch
 import numpy as np
 import dendropy
-from dendropy.simulate import treesim
-from dendropy.model.discrete import simulate_discrete_chars
+# from dendropy.simulate import treesim
+# from dendropy.model.discrete import simulate_discrete_chars
 import matplotlib.pyplot as plt
-from matplotlib import cm
-import seaborn as sns
+# from matplotlib import cm
+# import seaborn as sns
 
 
 """
@@ -34,8 +34,9 @@ partials, weights = compress_alignment(dna)
 mymod = DodonaphyVI(partials, weights, dim, embed_method='wrap', connect_method='incentre')
 
 # specify locations
-leaf_t0 = torch.tensor([-0.1804018, 0.06084276, -0.03132725, -0.01874877, -0.10155862, 0.12463426, -0.08097307,
-                        0.09621198, -0.0098637, 0.04274979, -0.1147425, 0.12270321], dtype=torch.float64).reshape((S, dim))
+leaf_t0 = torch.tensor([-0.1804018, 0.06084276, -0.03132725, -0.01874877,
+                        -0.10155862, 0.12463426, -0.08097307, 0.09621198,
+                        -0.0098637, 0.04274979, -0.1147425, 0.12270321], dtype=torch.float64).reshape((S, dim))
 int_t0 = torch.tensor([-0.00433582, 0.45464002, 0.04688382, 0.02818116, -0.03721131, 0.01916582, -0.08877883,
                       0.07997011], dtype=torch.float64).reshape((S-2, dim))
 

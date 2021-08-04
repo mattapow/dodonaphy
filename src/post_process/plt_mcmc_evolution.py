@@ -9,23 +9,24 @@ import torch
 """
 Plot the evolution of node locations from MCMC in the Poincare disk
 """
-
-dir = "./data/T6_2/mcmc/"
-mthd = "wrap_mst_c5"
-fp = dir + mthd + "/locations.csv"
+D = 2  # dimension must be 2 to plot
+S = 17
+dir = "./data/T" + str(S) + "/mcmc/"
+mthd = "simple_mst_c5"
 connect_method = 'mst'
+fp = dir + mthd + "/locations.csv"
 
 # X = pd.read_csv(fp, header=0, sep=", ")
 X = np.genfromtxt(fp, skip_header=1, delimiter=',')
 n_trees = X.shape[0]
-D = 2  # dimension must be 2 to plot
-S = 6
+print('Ensure there values')
 n_points = int(X.shape[1]/D)
-burnin = 900
-sampleEnd = 999
+burnin = 00
+sampleEnd = 1
 if sampleEnd > n_trees:
     print(n_trees)
-    raise IndexError("requested more than nuber of trees.")
+    raise IndexError("requested more than %d number of trees." % n_trees)
+print("Double check S=%d and D=%d" % (S, D))
 # if not mthd == "mcmc":
 #     burnin = 0
 #     sampleEnd = 1000

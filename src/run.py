@@ -22,33 +22,42 @@ def main():
     n_trials = 100      # number of initial embeddings to select from per grid
     n_grids = 100       # number grid scales for selecting inital embedding
     max_scale = 1
-    connect_method = 'mst'  # 'incentre', 'mst' or 'geodesics'
-    embed_method = 'wrap'    # 'simple' or 'wrap'
-    # TODO: wrapping method doesn't learn in vi
+    connect_method = 'mst'  # 'incentre', 'mst' or 'geodesics' or 'nj'
+    embed_method = 'simple'    # 'simple' or 'wrap'
+    doSave = False
+    inference = 'mcmc'
 
     # Experiment folder
-    path_write = "../data/T%d_2" % (S)
+    path_write = "../data/T%d" % (S)
     treePath = "%s/simtree.nex" % path_write
     treeInfoPath = "%s/simtree.info" % path_write
     dnaPath = "%s/dna.nex" % path_write
 
-    # VI parameters
-    k_samples = 10       # tree samples per elbo calculation
-    lr = 1e-3
-    # path_write_vi = None
-    path_write_vi = os.path.abspath(
-        os.path.join(path_write, ("vi_%s_%s_lr%i_k%i" % (embed_method, connect_method, -int(np.log10(lr)), k_samples))))
-    runVi = True
+    if inference == 'vi':
+        # VI parameters
+        k_samples = 10       # tree samples per elbo calculation
+        lr = 1e-3
+        if doSave:
+            path_write_vi = os.path.abspath(os.path.join(
+                path_write, "vi", "%s_%s_lr%i_k%i" % (embed_method, connect_method, -int(np.log10(lr)), k_samples)))
+        else:
+            path_write_vi = None
+        runVi = True
+        runMcmc = False
 
-    # MCMC parameters
-    step_scale = .001
-    save_period = max(int(epochs/n_draws), 1)
-    nChains = 1
-    burnin = 0
-    # path_write_mcmc = None
-    path_write_mcmc = os.path.abspath(os.path.join(
-        path_write, "mcmc_%s_%s_c%i" % (embed_method, connect_method, nChains)))
-    runMcmc = False
+    elif inference == 'mcmc':
+        # MCMC parameters
+        step_scale = .001
+        save_period = max(int(epochs/n_draws), 1)
+        nChains = 1
+        burnin = 0
+        if doSave:
+            path_write_mcmc = os.path.abspath(os.path.join(
+                path_write, "mcmc", "%s_%s_c%d" % (embed_method, connect_method, nChains)))
+        else:
+            path_write_mcmc = None
+        runMcmc = True
+        runVi = False
 
     try:
         # Try loading in the simTree and dna
