@@ -103,16 +103,70 @@ def make_peel_mst(leaf_r, leaf_dir, int_r, int_dir, curvature=torch.ones(1)):
     """
     leaf_node_count = leaf_r.shape[0]
     node_count = leaf_r.shape[0] + int_r.shape[0]
-    edge_list = Cutils.get_pdm(leaf_r, leaf_dir, int_r, int_dir, curvature=torch.ones(1))
+    edge_list = Cutils.get_pdm(leaf_r, leaf_dir, int_r, int_dir, curvature=curvature)
 
-    # construct a minimum spanning tree among the internal nodes
-    queue = []  # queue here is a min-heap
+    # queue here is a min-heap
+    queue = []
     heapify(queue)
+
+    # Use closest leaf to internal as start edge
+    start_edge = get_start_edge(edge_list, node_count, leaf_node_count)
+    heappush(queue, start_edge)
+
+    adjacency = defaultdict(list)
+    visited_count = open_slots = 0
     visited = node_count * [False]  # visited here is a boolen list
 
-    # heappush(queue, u_edge(0, 0, 0))  # add a start_edge
-    # heappush(queue, edge_list[0][0])    # add any edge from the edgelist as the start_edge
-    # Use start edge as closest leaf to internal
+    while queue.__len__() != 0 and visited_count < node_count:
+        e = heappop(queue)
+
+        # check if edge is valid for binary tree
+        is_valid = is_valid_edge(
+            e.to_, e.from_, adjacency, visited, leaf_node_count, node_count, open_slots, visited_count)
+
+        if is_valid:
+            adjacency[e.from_].append(e.to_)
+            adjacency[e.to_].append(e.from_)
+
+            # a new internal node has room for 2 more adjacencies
+            if e.to_ >= leaf_node_count:
+                open_slots += 2
+            if e.from_ >= leaf_node_count:
+                open_slots -= 1
+
+            visited[e.to_] = True
+            visited_count += 1
+            for new_e in edge_list[e.to_]:
+                if visited[new_e.to_]:
+                    continue
+                heappush(queue, new_e)
+
+    # transform the MST into a binary tree.
+    # find any nodes with more than three adjacencies and introduce
+    # intermediate nodes to reduce the number of adjacencies
+    # NB: this is doing nothing
+    adjacency = force_binary(adjacency)
+
+    # add a fake root above node 0: "outgroup" rooting
+    zero_parent = adjacency[0][0]
+    adjacency[node_count].append(0)
+    adjacency[node_count].append(zero_parent)
+
+    fake_root = adjacency.__len__() - 1
+    adjacency[0][0] = fake_root
+    for i in range(adjacency[zero_parent].__len__()):
+        if adjacency[zero_parent][i] == 0:
+            adjacency[zero_parent][i] = fake_root
+
+    # make peel via post-order
+    peel = []
+    visited = (node_count + 1) * [False]  # all nodes + the fake root
+    tree.post_order_traversal(adjacency, fake_root, peel, visited)
+
+    return np.array(peel, dtype=np.intc)
+
+
+def get_start_edge(edge_list, node_count, leaf_node_count):
     start_edge = u_edge(np.inf, -1, -1)
     int_node_count = node_count - leaf_node_count
     for i in range(int_node_count):
@@ -129,134 +183,111 @@ def make_peel_mst(leaf_r, leaf_dir, int_r, int_dir, curvature=torch.ones(1)):
                     # reverse first edge so to_ is internal
                     edge = u_edge(edge.distance, edge.to_, edge.from_)
                 start_edge = edge
+    return start_edge
 
-    heappush(queue, start_edge)
-    mst_adjacencies = defaultdict(list)
-    visited_count = open_slots = 0
 
-    while queue.__len__() != 0 and visited_count < node_count:
-        e = heappop(queue)
+def force_binary(adjacency):
+    """transform the MST into a binary tree.
+    find any nodes with more than three adjacencies and introduce
+    intermediate nodes to reduce the number of adjacencies
 
-        # ensure the destination node has not been visited yet
-        # internal nodes can have up to 3 adjacencies, of which at least
-        # one must be internal
-        # leaf nodes can only have a single edge in the MST
-        is_valid = True
-        if visited[e.to_]:
-            is_valid = False
+    Args:
+        adjacency ([type]): [description]
+    """
+    # prune internal nodes that don't create a bifurcation
+    leaf_node_count = int(len(adjacency)/2 + 1)
+    unused, adjacency = prune(leaf_node_count, adjacency)
 
-        if e.from_ < leaf_node_count and mst_adjacencies[e.from_].__len__() > 0:
-            is_valid = False
+    if unused.__len__() > 0:
+        for n in range(adjacency.__len__()):
+            while adjacency[n].__len__() > 3:
+                new_node = unused[-1]
+                unused.pop(unused[-1] - 1)
+                move_1 = adjacency[n][-1]
+                move_2 = adjacency[n][0]
+                adjacency[n].pop(adjacency[n][-1] - 1)
+                adjacency[n][0] = new_node
+                # link up new node
+                adjacency[new_node].append(move_1)
+                adjacency[new_node].append(move_2)
+                adjacency[new_node].append(n)
+                for move in {move_1, move_2}:
+                    for i in range(adjacency[move].__len__()):
+                        if adjacency[move][i] == n:
+                            adjacency[move][i] = new_node
+    return adjacency
 
-        if e.to_ < leaf_node_count and mst_adjacencies[e.to_].__len__() > 0:
-            is_valid = False
 
-        if e.from_ >= leaf_node_count:
-            if mst_adjacencies[e.from_].__len__() == 2:
-                found_internal = e.to_ >= leaf_node_count
-                if mst_adjacencies[e.from_][0] >= leaf_node_count:
-                    found_internal = True
-                if mst_adjacencies[e.from_][1] >= leaf_node_count:
-                    found_internal = True
-                if not found_internal and visited_count < node_count - 2:
-                    is_valid = False
-            elif mst_adjacencies[e.from_].__len__() == 3:
-                is_valid = False
-
-        # don't use the last open slot unless this is the last node
-        if open_slots == 1 and e.to_ < leaf_node_count and visited_count < node_count - 2:
-            is_valid = False
-        if is_valid:
-            if e.to_ is not e.from_:
-                mst_adjacencies[e.from_].append(e.to_)
-                mst_adjacencies[e.to_].append(e.from_)
-
-            # a new internal node has room for 2 more adjacencies
-            if e.to_ >= leaf_node_count:
-                open_slots += 2
-            if e.from_ >= leaf_node_count:
-                open_slots -= 1
-
-            visited[e.to_] = True
-            visited_count += 1
-            for new_e in edge_list[e.to_]:
-                if visited[new_e.to_]:
-                    continue
-                heappush(queue, new_e)
-
+def prune(S, adjacency):
     # prune internal nodes that don't create a bifurcation
     to_check = deque()  # performs better than list Re stack
-    for n in range(leaf_node_count, mst_adjacencies.__len__()):
-        if mst_adjacencies[n].__len__() < 3:
+    for n in range(S, adjacency.__len__()):
+        if adjacency[n].__len__() < 3:
             to_check.append(n)
 
     unused = []
     while to_check.__len__() > 0:
         n = to_check.pop()
-        # to_check.pop()
-        if mst_adjacencies[n].__len__() == 1:
-            neighbour = mst_adjacencies[n][0]
-            mst_adjacencies[n].clear()
-            for i in range(mst_adjacencies[neighbour].__len__()):
-                if mst_adjacencies[neighbour][i] == n:
-                    mst_adjacencies[neighbour].pop(
-                        mst_adjacencies[neighbour][0] + i)
+        if adjacency[n].__len__() == 1:
+            neighbour = adjacency[n][0]
+            adjacency[n].clear()
+            for i in range(adjacency[neighbour].__len__()):
+                if adjacency[neighbour][i] == n:
+                    adjacency[neighbour].pop(
+                        adjacency[neighbour][0] + i)
 
             unused.append(n)
             to_check.append(neighbour)
-        elif mst_adjacencies[n].__len__() == 2:
-            n1 = mst_adjacencies[n][0]
-            n2 = mst_adjacencies[n][1]
-            mst_adjacencies[n].clear()
-            for i in range(mst_adjacencies[n1].__len__()):
-                if mst_adjacencies[n1][i] == n:
-                    mst_adjacencies[n1][i] = n2
+        elif adjacency[n].__len__() == 2:
+            n1 = adjacency[n][0]
+            n2 = adjacency[n][1]
+            adjacency[n].clear()
+            for i in range(adjacency[n1].__len__()):
+                if adjacency[n1][i] == n:
+                    adjacency[n1][i] = n2
 
-            for i in range(mst_adjacencies[n2].__len__()):
-                if mst_adjacencies[n2][i] == n:
-                    mst_adjacencies[n2][i] = n1
+            for i in range(adjacency[n2].__len__()):
+                if adjacency[n2][i] == n:
+                    adjacency[n2][i] = n1
 
             unused.append(n)
+    return unused, adjacency
 
-    # transform the MST into a binary tree.
-    # find any nodes with more than three adjacencies and introduce
-    # intermediate nodes to reduce the number of adjacencies
-    if unused.__len__() > 0:
-        for n in range(mst_adjacencies.__len__()):
-            while mst_adjacencies[n].__len__() > 3:
-                new_node = unused[-1]
-                unused.pop(unused[-1] - 1)
-                move_1 = mst_adjacencies[n][-1]
-                move_2 = mst_adjacencies[n][0]
-                mst_adjacencies[n].pop(mst_adjacencies[n][-1] - 1)
-                mst_adjacencies[n][0] = new_node
-                # link up new node
-                mst_adjacencies[new_node].append(move_1)
-                mst_adjacencies[new_node].append(move_2)
-                mst_adjacencies[new_node].append(n)
-                for move in {move_1, move_2}:
-                    for i in range(mst_adjacencies[move].__len__()):
-                        if mst_adjacencies[move][i] == n:
-                            mst_adjacencies[move][i] = new_node
 
-    # add a fake root above node 0: "outgroup" rooting
-    zero_parent = mst_adjacencies[0][0]
-    mst_adjacencies[node_count].append(0)
-    mst_adjacencies[node_count].append(zero_parent)
-    # mst_adjacencies.append({0, zero_parent})
-    fake_root = mst_adjacencies.__len__() - 1
-    mst_adjacencies[0][0] = fake_root
-    for i in range(mst_adjacencies[zero_parent].__len__()):
-        if mst_adjacencies[zero_parent][i] == 0:
-            mst_adjacencies[zero_parent][i] = fake_root
+def is_valid_edge(to_, from_, adjacency, visited, S, node_count, open_slots, visited_count):
+    # ensure the destination node has not been visited yet
+    # internal nodes can have up to 3 adjacencies, of which at least
+    # one must be internal
+    # leaf nodes can only have a single edge in the MST
+    if to_ is from_:
+        return False
 
-    # make peel via post-order
-    peel = []
-    visited = (node_count + 1) * [False]  # all nodes + the fake root
-    tree.post_order_traversal(
-        mst_adjacencies, fake_root, peel, visited)
+    if visited[to_]:
+        return False
 
-    return np.array(peel, dtype=np.intc)
+    if from_ < S and adjacency[from_].__len__() > 0:
+        return False
+
+    if to_ < S and adjacency[to_].__len__() > 0:
+        return False
+
+    is_valid = True
+    if from_ >= S:
+        if adjacency[from_].__len__() == 2:
+            found_internal = to_ >= S
+            if adjacency[from_][0] >= S:
+                found_internal = True
+            if adjacency[from_][1] >= S:
+                found_internal = True
+            if not found_internal and visited_count < node_count - 2:
+                is_valid = False
+        elif adjacency[from_].__len__() == 3:
+            is_valid = False
+
+    # don't use the last open slot unless this is the last node
+    if open_slots == 1 and to_ < S and visited_count < node_count - 2:
+        is_valid = False
+    return is_valid
 
 
 def nj(leaf_r, leaf_dir, curvature=torch.ones(1)):
@@ -299,7 +330,7 @@ def nj(leaf_r, leaf_dir, curvature=torch.ones(1)):
         peel[int_i, :] = (f, g, u)
 
         # get distances to new node u
-        pdm = add_pdm_node(pdm, f, g)
+        pdm = add_pdm_node_nj(pdm, f, g)
 
         # add edges above f and g to blens
         blens[f] = torch.clamp(torch.tensor(pdm[f][u]), min=eps)
@@ -359,8 +390,8 @@ def update_Q(Qm, pdm_updated, mask):
     return Qm
 
 
-def add_pdm_node(pdm, f, g):
-    """Add a node to the pdm based.
+def add_pdm_node_nj(pdm, f, g):
+    """Add a node to the pdm based on neighbour joining.
 
     Args:
         pdm ([type]): pair-wise distance matrix
