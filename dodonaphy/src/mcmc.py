@@ -244,7 +244,6 @@ class Chain(BaseModel):
         Args:
             tol (float, optional): Tolerance. Defaults to 0.01.
         """
-        # TODO: consider each node has it's own step size?
         if not self.moreTune or self.iterations == 0:
             return
 

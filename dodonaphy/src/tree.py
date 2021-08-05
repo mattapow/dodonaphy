@@ -1,7 +1,7 @@
 import numpy as np
 import torch
-from matplotlib.lines import Line2D
 from matplotlib.patches import Circle
+from .poincare import geodesic_fn
 
 
 def post_order_traversal(adjacency, currentNode, peel, visited):
@@ -59,7 +59,7 @@ def dendrophy_to_pb(tree):
     return peel, blens.double()
 
 
-def plot_tree(ax, peel, X, color=(0, 0, 0), labels=True, root=0, radius=1):
+def plot_tree(ax, peel, X, color=(0, 0, 0), labels=True, radius=1):
     """ Plot a tree in the Poincare disk
 
     Parameters
@@ -85,17 +85,11 @@ def plot_tree(ax, peel, X, color=(0, 0, 0), labels=True, root=0, radius=1):
         left = peel[i, 0]
         right = peel[i, 1]
         parent = peel[i, 2]
-        # TODO: correctly curved lines, not straight lines
-        line = Line2D([X[left, 0], X[parent, 0]],
-                      [X[left, 1], X[parent, 1]],
-                      linewidth=1,
-                      color=color)
-        ax.add_line(line)
-        line = Line2D([X[right, 0], X[parent, 0]],
-                      [X[right, 1], X[parent, 1]],
-                      linewidth=1,
-                      color=color)
-        ax.add_line(line)
+
+        points = geodesic_fn(X[left], X[parent], nb_points=100)
+        ax.plot(points[:, 0], points[:, 1], linewidth=1, color=color)
+        points = geodesic_fn(X[right], X[parent], nb_points=100)
+        ax.plot(points[:, 0], points[:, 1], linewidth=1, color=color)
 
     if labels:
         n_points = X.shape[0] - 1
