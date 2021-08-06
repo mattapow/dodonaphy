@@ -166,6 +166,22 @@ class BaseModel(object):
         # normalise for number of sites
         return torch.sum(P * self.weights) / sum(self.weights)
 
+    def select_peel_mst(self, leaf_r, leaf_dir, int_r, int_dir, curvature=torch.ones(1)):
+        leaf_node_count = leaf_r.shape[0]
+        lnP = torch.zeros(leaf_node_count)
+        # Randomly select leaves if getting slow
+        for leaf in range(leaf_node_count):
+            peel = peeler.make_peel_mst(leaf_r, leaf_dir, int_r, int_dir, curvature=torch.ones(1), start_node=leaf)
+            blens = self.compute_branch_lengths(leaf_node_count, peel, leaf_r, leaf_dir, int_r, int_dir)
+            print("LL=%f, Length=%f" % (float(self.compute_LL(peel, blens)), float(sum(blens))))
+            lnP[leaf] = self.compute_LL(peel, blens)
+        print("")
+        sftmx = torch.nn.Softmax(dim=0)
+        p = np.array(sftmx(lnP))
+        leaf = np.random.choice(leaf_node_count, p=p)
+        print(p)
+        return peeler.make_peel_mst(leaf_r, leaf_dir, int_r, int_dir, curvature=torch.ones(1), start_node=leaf)
+
     @staticmethod
     def compute_prior_birthdeath(peel, blen, **prior):
         """Calculates the log-likelihood of a tree under a birth death model.

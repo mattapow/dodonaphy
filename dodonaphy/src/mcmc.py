@@ -45,7 +45,7 @@ class Chain(BaseModel):
         elif self.connect_method == 'nj':
             self.peel, self.blens = peeler.nj(self.leaf_r.repeat(self.S), self.leaf_dir)
         elif self.connect_method == 'mst':
-            self.peel = peeler.make_peel_mst(self.leaf_r.repeat(self.S), self.leaf_dir, self.int_r, self.int_dir)
+            self.peel = self.select_peel_mst(self.leaf_r.repeat(self.S), self.leaf_dir, self.int_r, self.int_dir)
 
         # set blens
         if self.connect_method != 'nj':
@@ -166,7 +166,7 @@ class Chain(BaseModel):
         elif self.connect_method == 'nj':
             peel, blens = peeler.nj(leaf_r, leaf_dir_prop)
         elif self.connect_method == 'mst':
-            peel = peeler.make_peel_mst(leaf_r, leaf_dir_prop, int_r_prop, int_dir_prop)
+            peel = self.select_peel_mst(leaf_r, leaf_dir_prop, int_r_prop, int_dir_prop)
 
         # get proposal branch lengths
         if self.connect_method != 'nj':
