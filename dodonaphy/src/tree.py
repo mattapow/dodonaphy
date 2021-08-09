@@ -17,11 +17,20 @@ def post_order_traversal(adjacency, currentNode, peel, visited):
         [type]: [description]
     """
     visited[currentNode] = True
-    if adjacency[currentNode].__len__() < 2:  # leaf nodes
+    if isinstance(adjacency, dict):
+        n_current = adjacency[currentNode].__len__()
+    elif isinstance(adjacency, np.ndarray):
+        n_current = np.sum(adjacency[currentNode])
+
+    if n_current < 2:  # leaf nodes
         return currentNode
     else:  # internal nodes
         childs = []
-        for child in adjacency[currentNode]:
+        if isinstance(adjacency, dict):
+            cur_adj = adjacency[currentNode]
+        elif isinstance(adjacency, np.ndarray):
+            cur_adj = np.where(adjacency[currentNode])[0]
+        for child in cur_adj:
             if (not visited[child]):
                 childs.append(post_order_traversal(
                     adjacency, child, peel, visited))
