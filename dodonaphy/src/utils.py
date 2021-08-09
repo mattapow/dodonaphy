@@ -266,7 +266,8 @@ def ball2real(loc_ball, radius=1):
     Returns:
         tensor: [description]
     """
-    norm_loc_ball = torch.norm(loc_ball, dim=-1, keepdim=True).repeat(1, 2)
+    dim = loc_ball.shape[1]
+    norm_loc_ball = torch.norm(loc_ball, dim=-1, keepdim=True).repeat(1, dim)
     loc_real = loc_ball / (radius - norm_loc_ball)
     return loc_real
 
