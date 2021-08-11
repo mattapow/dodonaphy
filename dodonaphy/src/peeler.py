@@ -391,12 +391,12 @@ def compute_Q(pdm):
         [type]: [description]
     """
     n = len(pdm)
-    Q = np.zeros((n, n))
-    sum_pdm = np.sum(pdm, axis=-1)
+    sum_pdm = np.sum(pdm, axis=1, keepdims=True)
+    sum_i = np.repeat(sum_pdm, n, axis=1)
+    sum_j = np.repeat(sum_pdm.T, n, axis=0)
+    Q = (n - 2) * pdm - sum_i - sum_j
+    np.fill_diagonal(Q, 0)
 
-    for i in range(n):
-        for j in range(i):
-            Q[i, j] = Q[j, i] = (n - 2) * pdm[i, j] - sum_pdm[i] - sum_pdm[j]
     return Q
 
 
@@ -418,12 +418,15 @@ def update_Q(Qm, pdm_updated, mask):
     Q_u = (n - 2) * pdm_updated[:-1, -1] - sum_pdm[:-1] - sum_pdm[-1]
 
     # add to Q matrix
-    Qm = np.vstack((Qm, Q_u))
-    Q_u = np.hstack((Q_u, 0)).reshape(n+1, 1)
-    Qm = np.hstack((Qm, Q_u))
+    Q = np.zeros((n+1, n+1))
+    Q[:-1, :-1] = Qm.data
+    Q[-1, :-1] = Q_u
+    Q[:-1, -1] = Q_u
 
     # update mask
-    Qm.mask = ~np.outer(~mask, ~mask)
+    mask = ~np.outer(~mask, ~mask)
+    Qm = np.ma.masked_array(Q, mask=mask)
+
     return Qm
 
 
@@ -447,8 +450,9 @@ def add_pdm_node_nj(pdm, f, g):
     pdm_u[g] = pdm[f][g] - pdm_u[f]
 
     # add new node to pdm
-    pdm = np.vstack((pdm, pdm_u))
-    pdm_u = np.hstack((pdm_u, 0)).reshape(n+1, 1)
-    pdm = np.hstack((pdm, pdm_u))
+    pdm_out = np.zeros((n+1, n+1))
+    pdm_out[:-1, :-1] = pdm
+    pdm_out[-1, :-1] = pdm_u
+    pdm_out[:-1, -1] = pdm_u
 
-    return pdm
+    return pdm_out
