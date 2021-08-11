@@ -92,7 +92,7 @@ def make_peel_tips(leaf_locs, connect_method='incentre'):
     return peel, int_locs
 
 
-def make_peel_mst(leaf_r, leaf_dir, int_r, int_dir, curvature=torch.ones(1)):
+def make_peel_mst(leaf_r, leaf_dir, int_r, int_dir, curvature=torch.ones(1), start_node=None):
     """Create a tree represtation (peel) from its hyperbolic embedic data
 
     Args:
@@ -109,8 +109,7 @@ def make_peel_mst(leaf_r, leaf_dir, int_r, int_dir, curvature=torch.ones(1)):
     queue = []
     heapify(queue)
 
-    # Use closest leaf to internal as start edge
-    start_edge = get_start_edge(edge_list, node_count, leaf_node_count)
+    start_edge = get_start_edge(start_node, edge_list, node_count, leaf_node_count)
     heappush(queue, start_edge)
 
     adjacency = defaultdict(list)
@@ -166,7 +165,31 @@ def make_peel_mst(leaf_r, leaf_dir, int_r, int_dir, curvature=torch.ones(1)):
     return np.array(peel, dtype=np.intc)
 
 
-def get_start_edge(edge_list, node_count, leaf_node_count):
+def get_start_edge(start_node, edge_list, node_count, leaf_node_count):
+    if start_node is None:
+        # Use closest leaf to internal as start edge
+        start_edge = get_smallest_edge(edge_list, node_count, leaf_node_count)
+    elif isinstance(start_node, int):
+        candidate_edges = []
+        heapify(candidate_edges)
+        for i in range(len(edge_list[start_node])):
+            heappush(candidate_edges, edge_list[start_node][i])
+        is_valid = False
+        while not is_valid:
+            start_edge = heappop(candidate_edges)
+            if start_edge.to_ < leaf_node_count and start_edge.from_ >= leaf_node_count:
+                is_valid = True
+            if start_edge.from_ < leaf_node_count and start_edge.to_ >= leaf_node_count:
+                is_valid = True
+            if len(candidate_edges) == 0:
+                raise RuntimeError('No candidates found')
+    return start_edge
+
+
+def get_smallest_edge(edge_list, node_count, leaf_node_count):
+    """
+    Find the shortest edge between a leaf and internal node.
+    """
     start_edge = u_edge(np.inf, -1, -1)
     int_node_count = node_count - leaf_node_count
     for i in range(int_node_count):
@@ -265,23 +288,37 @@ def is_valid_edge(to_, from_, adjacency, visited, S, node_count, open_slots, vis
     if visited[to_]:
         return False
 
-    if from_ < S and adjacency[from_].__len__() > 0:
+    if isinstance(adjacency, dict):
+        n_from = adjacency[from_].__len__()
+        n_to = adjacency[to_].__len__()
+        if n_from == 2:
+            from_edge0 = adjacency[from_][0]
+            from_edge1 = adjacency[from_][1]
+    elif isinstance(adjacency, np.ndarray):
+        n_from = np.sum(adjacency[from_])
+        n_to = np.sum(adjacency[to_])
+        if n_from == 2:
+            from_edge = np.where(adjacency[from_])[0]
+            from_edge0 = from_edge[0]
+            from_edge1 = from_edge[1]
+
+    if from_ < S and n_from > 0:
         return False
 
-    if to_ < S and adjacency[to_].__len__() > 0:
+    if to_ < S and n_to > 0:
         return False
 
     is_valid = True
     if from_ >= S:
-        if adjacency[from_].__len__() == 2:
+        if n_from == 2:
             found_internal = to_ >= S
-            if adjacency[from_][0] >= S:
+            if from_edge0 >= S:
                 found_internal = True
-            if adjacency[from_][1] >= S:
+            if from_edge1 >= S:
                 found_internal = True
             if not found_internal and visited_count < node_count - 2:
                 is_valid = False
-        elif adjacency[from_].__len__() == 3:
+        elif n_from == 3:
             is_valid = False
 
     # don't use the last open slot unless this is the last node

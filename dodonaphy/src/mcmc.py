@@ -21,7 +21,7 @@ class Chain(BaseModel):
 
         assert embed_method in ('simple', 'wrap')
         self.embed_method = embed_method
-        assert connect_method in ("incentre", "geodesics", "mst", "nj")
+        assert connect_method in ("incentre", "geodesics", "mst", "nj", "mst_choice")
         self.connect_method = connect_method
 
         self.step_scale = step_scale
@@ -45,6 +45,8 @@ class Chain(BaseModel):
         elif self.connect_method == 'nj':
             self.peel, self.blens = peeler.nj(self.leaf_r.repeat(self.S), self.leaf_dir)
         elif self.connect_method == 'mst':
+            self.peel = peeler.make_peel_mst(self.leaf_r.repeat(self.S), self.leaf_dir, self.int_r, self.int_dir)
+        elif self.connect_method == 'mst_choice':
             self.peel = self.select_peel_mst(self.leaf_r.repeat(self.S), self.leaf_dir, self.int_r, self.int_dir)
 
         # set blens
@@ -122,7 +124,7 @@ class Chain(BaseModel):
         leaf_dir_prop = leaf_loc_prop / torch.norm(leaf_loc_prop, dim=-1, keepdim=True)
 
         # internal nodes for mst
-        if self.connect_method == 'mst':
+        if self.connect_method in ('mst', 'mst_choice'):
             n_int_vars = (self.S - 2) * self.D
             sample = MultivariateNormal(
                 torch.zeros(n_int_vars, dtype=torch.double),
@@ -166,6 +168,8 @@ class Chain(BaseModel):
         elif self.connect_method == 'nj':
             peel, blens = peeler.nj(leaf_r, leaf_dir_prop)
         elif self.connect_method == 'mst':
+            peel = peeler.make_peel_mst(leaf_r, leaf_dir_prop, int_r_prop, int_dir_prop)
+        elif self.connect_method == 'mst_choice':
             peel = self.select_peel_mst(leaf_r, leaf_dir_prop, int_r_prop, int_dir_prop)
 
         # get proposal branch lengths
@@ -180,7 +184,7 @@ class Chain(BaseModel):
                 'blens': blens,
                 'jacobian': log_abs_det_jacobian
             }
-        elif self.connect_method == 'mst':
+        else:
             proposal = {
                 'leaf_r': leaf_r_prop,
                 'leaf_dir': leaf_dir_prop,
@@ -440,7 +444,7 @@ class DodonaphyMCMC():
             self.chain[i].int_r = None
             self.chain[i].int_dir = None
 
-            if self.chain[i].connect_method == 'mst':
+            if self.chain[i].connect_method in ('mst', 'mst_choice'):
                 int_r, int_dir = self.chain[i].initialise_ints(
                     emm, n_grids=n_grids, n_trials=n_trials, max_scale=max_scale)
                 self.chain[i].int_r = torch.from_numpy(int_r.astype(np.double))
@@ -452,7 +456,7 @@ class DodonaphyMCMC():
             n_grids=10, n_trials=100, max_scale=1, nChains=1,
             connect_method='mst', embed_method='wrap', **prior):
         print('\nRunning Dodonaphy MCMC')
-        assert connect_method in ['incentre', 'mst', 'geodesics', 'nj']
+        assert connect_method in ['incentre', 'mst', 'geodesics', 'nj', 'mst_choice']
 
         # embed tips with distances using Hydra
         emm_tips = hydra.hydra(dists, dim=dim, stress=True, **{'isotropic_adj': True})
