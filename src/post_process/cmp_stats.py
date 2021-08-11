@@ -13,11 +13,11 @@ def stat_cmp():
     Prints the consensus tree and the Maximum Clade Credibility Tree
     """
 
-    dir = "./data/T6"
+    dir = "./data/T17"
 
     # TODO: burnin
     # plot from outputs of TreeStat
-    experiments = ("beast", "simple_mst_c5", "simple_nj_c5", "wrap_nj_c5")
+    experiments = ("mrbayes", "simple_mst_c5_d5", "simple_nj_c5_d5", "simple_nj_c5_d10")
     fn1 = os.path.join(dir, experiments[0], "treeStats.txt")
     fn2 = os.path.join(dir, 'mcmc', experiments[1], "treeStats.txt")
     fn3 = os.path.join(dir, 'mcmc', experiments[2], "treeStats.txt")

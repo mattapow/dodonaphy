@@ -13,8 +13,8 @@ from dodonaphy.src.phylo import compress_alignment
 
 def main():
     # Simulation parameters
-    dim = 2  # number of dimensions for embedding
-    S = 6  # number of sequences to simulate
+    dim = 5  # number of dimensions for embedding
+    S = 17  # number of sequences to simulate
     L = 1000  # length of sequences to simulate
     prior = {"birth_rate": 2., "death_rate": .5}
     epochs = 10000      # number of epochs
@@ -22,9 +22,9 @@ def main():
     n_trials = 100      # number of initial embeddings to select from per grid
     n_grids = 100       # number grid scales for selecting inital embedding
     max_scale = 1
-    connect_method = 'mst'  # 'incentre', 'mst' or 'geodesics' or 'nj'
-    embed_method = 'simple'    # 'simple' or 'wrap'
-    doSave = False
+    connect_method = 'nj'      # 'incentre', 'mst', 'geodesics', 'nj', 'mst_choice'
+    embed_method = 'simple'     # 'simple' or 'wrap'
+    doSave = True
     inference = 'mcmc'
 
     # Experiment folder
@@ -49,11 +49,11 @@ def main():
         # MCMC parameters
         step_scale = .001
         save_period = max(int(epochs/n_draws), 1)
-        nChains = 1
+        nChains = 5
         burnin = 0
         if doSave:
             path_write_mcmc = os.path.abspath(os.path.join(
-                path_write, "mcmc", "%s_%s_c%d" % (embed_method, connect_method, nChains)))
+                path_write, "mcmc", "%s_%s_c%d_d%d" % (embed_method, connect_method, nChains, dim)))
         else:
             path_write_mcmc = None
         runMcmc = True

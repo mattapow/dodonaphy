@@ -21,8 +21,8 @@ X = np.genfromtxt(fp, skip_header=1, delimiter=',')
 n_trees = X.shape[0]
 print('Ensure there values')
 n_points = int(X.shape[1]/D)
-burnin = 00
-sampleEnd = 1
+burnin = 900
+sampleEnd = 1000
 if sampleEnd > n_trees:
     print(n_trees)
     raise IndexError("requested more than %d number of trees." % n_trees)
