@@ -165,6 +165,6 @@ def save_tree_head(path_write, filename, S):
         file.write("\t\t;\nEnd;\n\n")
         file.write("Begin trees;\n")
         file.write("\t translate\n")
-        for i in range(S-1):
+        for i in range(1, S):
             file.write("\t\tT%d T%d,\n" % (i, i))
         file.write("\t\tT%d T%d;\n" % (S, S))
