@@ -301,6 +301,7 @@ def real2ball_LADJ(y, radius=1):
     Returns:
         scalar tensor: log absolute determinate of Jacobian
     """
+    # TODO: move to cython
     if y.ndim == 1:
         y = y.unsqueeze(dim=-1)
 
@@ -354,3 +355,22 @@ def normalise_LADJ(y):
         J = torch.div(torch.eye(D, D) - torch.div(torch.outer(y[k], y[k]), torch.pow(norm[k], 2)), norm[k])
         log_abs_det_J = log_abs_det_J + torch.log(torch.abs(torch.det(J)))
     return log_abs_det_J
+
+
+def LogDirPrior(blen, aT, bT, a, c):
+
+    n_branch = int(len(blen))
+    n_leaf = int(n_branch / 2 + 1)
+
+    treeL = sum(blen)
+
+    blen_pos = blen.clone()
+    blen_pos[np.isclose(blen_pos, 0)] = 1
+
+    tipb = torch.sum(torch.log(blen_pos[:n_leaf]))
+    intb = torch.sum(torch.log(blen_pos[n_leaf:]))
+
+    lnPrior = (a-1)*tipb + (a*c-1)*intb
+    lnPrior = lnPrior + (aT - a*n_leaf - a*c*(n_leaf-1)) * torch.log(treeL) - bT*treeL
+
+    return lnPrior

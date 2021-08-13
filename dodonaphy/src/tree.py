@@ -55,7 +55,9 @@ def dendrophy_to_pb(tree):
     n_edges = 2 * S - 2
     blens = torch.zeros(n_edges)
     for i in range(n_edges):
-        blens[i] = tree.bipartition_edge_map[tree.bipartition_encoding[i]].length
+        length = tree.bipartition_edge_map[tree.bipartition_encoding[i]].length
+        if length is not None:
+            blens[i] = length
 
     # Get peel
     nds = [nd for nd in tree.postorder_internal_node_iter()]

@@ -213,20 +213,6 @@ class Chain(BaseModel):
         # p['lnPrior'] = self.compute_prior_birthdeath(p['peel'], p['blens'], **self.prior)
         p['lnPrior'] = self.compute_prior_gamma_dir(p['blens'])
 
-        # import matplotlib.pyplot as plt
-        # leaf_X = leaf_r_prop.reshape(self.S, 1) * p['leaf_dir']
-        # ax = plt.gca()
-        # plt.cla()
-        # plt.scatter(leaf_X[:, 0], leaf_X[:, 1])
-        # if self.connect_method == 'mst':
-        #     int_X = p['int_r'].reshape(self.S-2, 1) * p['int_dir']
-        #     X = torch.cat((leaf_X, int_X, leaf_X[0, :].reshape(1, self.D)))
-        # else:
-        #     int_X = p['int_r'].reshape(self.S-1, 1) * p['int_dir']
-        #     X = torch.cat((leaf_X, int_X))
-        # tree.plot_tree(ax, peel, X, radius=leaf_r_prop[0])
-        # plt.pause(0.05)
-
         # likelihood ratio
         like_ratio = p['lnP'] - self.lnP
 
@@ -325,9 +311,8 @@ class DodonaphyMCMC():
                     self.save_iteration(path_write, i)
 
                 if i > 0:
-                    lnP = self.chain[0].compute_LL(self.chain[0].peel, self.chain[0].blens)
-                    print('epoch: %-12i LnL: %10.1f (Actual lnL: %8.1f) Acceptance Rate: %5.3f' %
-                          (i, self.chain[0].lnP, lnP, self.chain[0].accepted / self.chain[0].iterations),
+                    print('epoch: %-12i LnL: %10.1f Acceptance Rate: %5.3f' %
+                          (i, self.chain[0].lnP, self.chain[0].accepted / self.chain[0].iterations),
                           end="", flush=True)
 
                     if self.nChains > 1:
@@ -454,7 +439,7 @@ class DodonaphyMCMC():
     def run(dim, partials, weights, dists, path_write=None,
             epochs=1000, step_scale=0.01, save_period=1, burnin=0,
             n_grids=10, n_trials=100, max_scale=1, nChains=1,
-            connect_method='mst', embed_method='wrap', **prior):
+            connect_method='mst', embed_method='simple', **prior):
         print('\nRunning Dodonaphy MCMC')
         assert connect_method in ['incentre', 'mst', 'geodesics', 'nj', 'mst_choice']
 

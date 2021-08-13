@@ -2,6 +2,7 @@ import torch
 from .phylo import calculate_treelikelihood, JC69_p_t
 from . import peeler
 from . import tree as treeFunc
+from .utils import LogDirPrior
 import Cutils
 from dendropy import Tree as Tree
 from dendropy.model.birthdeath import birth_death_likelihood as birth_death_likelihood
@@ -234,15 +235,31 @@ class BaseModel(object):
         Returns:
             tensor: The log probability of the branch lengths under the prior.
         """
-        bcount = int(len(blen))
-        S = int(bcount / 2 + 1)
+        n_branch = int(len(blen))
+        n_leaf = int(n_branch / 2 + 1)
 
-        lnprior = torch.zeros(1)
-        treeL = sum(blen)
-        tipb = torch.log(sum(blen[:S]))
-        intb = torch.log(sum(blen[S:]))
+        # Dirichlet prior
+        lnPrior = LogDirPrior(blen, aT, bT, a, c)
 
-        lnprior = lnprior + (a-1)*tipb + (a*c-1)*intb
-        lnprior = lnprior + (aT - a*S - a*c*(S-3)) * torch.log(treeL) - bT*treeL
+        # with prefactor
+        lgamma = torch.lgamma
+        lnPrior = lnPrior + (aT) * torch.log(bT) - lgamma(aT) + lgamma(a * n_leaf + a * c * (n_leaf-3)) \
+            - n_leaf * lgamma(a) - (n_leaf-3) * lgamma(a * c)
 
-        return lnprior
+        # uniform prior on topologies
+        lnPrior -= torch.sum(torch.log(torch.arange(n_leaf*2-5, 0, -2)))
+
+        # fixed equal state frequencies prior
+        sympi = "uni"
+        if sympi == "exp":
+            # fixed equal exponential SYMPI_EXP
+            symBetaExp = 2.0
+            st = 1.0
+            lnPrior = lnPrior - symBetaExp * st + math.log(symBetaExp)
+        elif sympi == "uni":
+            # fixed equal uniform SYMPI_UNI
+            lnPrior = lnPrior - math.log(20.0 - 0.0)
+
+        # no rate multiplier prior
+
+        return lnPrior
