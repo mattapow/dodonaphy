@@ -16,6 +16,7 @@ class Chain(BaseModel):
         self.int_dir = int_dir  # S-2 x D
         self.int_r = int_r  # S-2
         self.leaf_r = leaf_r  # single scalar
+        self.jacobian = torch.zeros(1)
         if leaf_dir is not None:
             self.S = len(leaf_dir)
 
@@ -82,6 +83,7 @@ class Chain(BaseModel):
             self.lnPrior = proposal['lnPrior']
             self.peel = proposal['peel']
             self.blens = proposal['blens']
+            self.jacobian = proposal['jacobian']
             if self.connect_method == 'mst':
                 self.int_r = proposal['int_r']
                 self.int_dir = proposal['int_dir']
@@ -99,18 +101,17 @@ class Chain(BaseModel):
         if self.embed_method == 'simple':
             # transform leaves to R^n
             leaf_loc_t0 = utils.ball2real(self.leaf_r * self.leaf_dir).clone()
+            log_abs_det_jacobian = -utils.real2ball_LADJ(leaf_loc_t0)
 
             # propose new leaf nodes from normal in R^n
             leaf_loc_t0 = leaf_loc_t0 + sample
 
             # normalise leaves to sphere with radius leaf_r_prop = first leaf radii
             leaf_r_t0 = torch.norm(leaf_loc_t0[0, :])
-            log_abs_det_jacobian = utils.normalise_LADJ(leaf_loc_t0) + torch.log(leaf_r_t0)
             leaf_loc_t0 = utils.normalise(leaf_loc_t0) * leaf_r_t0
 
             # Convert to Ball
             leaf_loc_prop = utils.real2ball(leaf_loc_t0)
-            log_abs_det_jacobian = utils.real2ball_LADJ(leaf_loc_t0)
 
         elif self.embed_method == 'wrap':
             # transform leaves to R^n
@@ -119,6 +120,7 @@ class Chain(BaseModel):
 
             # propose new leaf nodes from normal in R^n and convert to poincare ball
             leaf_loc_prop, log_abs_det_jacobian = hyperboloid.t02p(sample, leaf_loc_t0, get_jacobian=True)
+            log_abs_det_jacobian = -log_abs_det_jacobian
         # get r and directional
         leaf_r_prop = torch.norm(leaf_loc_prop[0, :])
         leaf_dir_prop = leaf_loc_prop / torch.norm(leaf_loc_prop, dim=-1, keepdim=True)
@@ -134,13 +136,13 @@ class Chain(BaseModel):
             if self.embed_method == 'simple':
                 # transform ints to R^n
                 int_loc_t0 = utils.ball2real(int_loc).clone()
+                log_abs_det_jacobian = log_abs_det_jacobian - utils.real2ball_LADJ(int_loc_t0)
 
                 # propose new int nodes from normal in R^n
                 int_loc_t0 = int_loc_t0 + sample
 
                 # convert ints to poincare ball
                 int_loc_prop = utils.real2ball(int_loc_t0)
-                log_abs_det_jacobian = log_abs_det_jacobian + utils.real2ball_LADJ(int_loc_t0)
 
             elif self.embed_method == 'wrap':
                 # transform ints to R^n
@@ -148,16 +150,13 @@ class Chain(BaseModel):
 
                 # propose new int nodes from normal in R^n
                 int_loc_prop, int_jacobian = hyperboloid.t02p(sample, int_loc_t0, get_jacobian=True)
-                log_abs_det_jacobian = log_abs_det_jacobian + int_jacobian
+                log_abs_det_jacobian = log_abs_det_jacobian - int_jacobian
 
             # get r and directional
             int_r_prop = torch.norm(int_loc_prop, dim=-1)
             int_dir_prop = int_loc_prop / torch.norm(int_loc_prop, dim=-1, keepdim=True)
 
             # restrict int_r to less than leaf_r
-            # TODO: does this change the hastings ratio?
-            int_r_prop_big = int_r_prop[int_r_prop > leaf_r_prop]
-            log_abs_det_jacobian = log_abs_det_jacobian + torch.log(leaf_r_prop / int_r_prop_big)
             int_r_prop[int_r_prop > leaf_r_prop] = leaf_r_prop
 
         # proposal peel and blens
@@ -219,12 +218,15 @@ class Chain(BaseModel):
         # prior ratio
         prior_ratio = p['lnPrior'] - self.lnPrior
 
+        # Jacobian ratio
+        jacob_ratio = p['jacobian'] - self.jacobian
+
         # Proposals are symmetric Guassians
         hastings_ratio = 1
 
         # acceptance ratio
         r = torch.minimum(torch.ones(1),
-                          torch.exp((prior_ratio + like_ratio)*self.temp + hastings_ratio))
+                          torch.exp((prior_ratio + like_ratio + jacob_ratio)*self.temp + hastings_ratio))
 
         return r
 

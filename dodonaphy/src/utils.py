@@ -312,7 +312,7 @@ def real2ball_LADJ(y, radius=1):
 
     for k in range(n):
         J = (torch.eye(D, D) - torch.outer(y[k], y[k]) / (norm[k] * (norm[k] + 1))) / (1+norm[k])
-        log_abs_det_J = log_abs_det_J + torch.log(torch.abs(radius * torch.det(J)))
+        log_abs_det_J = log_abs_det_J + torch.logdet(radius * J)
 
     return log_abs_det_J
 
@@ -353,7 +353,7 @@ def normalise_LADJ(y):
     log_abs_det_J = torch.zeros(1)
     for k in range(n):
         J = torch.div(torch.eye(D, D) - torch.div(torch.outer(y[k], y[k]), torch.pow(norm[k], 2)), norm[k])
-        log_abs_det_J = log_abs_det_J + torch.log(torch.abs(torch.det(J)))
+        log_abs_det_J = log_abs_det_J + torch.logdet(J)
     return log_abs_det_J
 
 
