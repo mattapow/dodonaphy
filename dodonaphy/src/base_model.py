@@ -249,17 +249,4 @@ class BaseModel(object):
         # uniform prior on topologies
         lnPrior -= torch.sum(torch.log(torch.arange(n_leaf*2-5, 0, -2)))
 
-        # fixed equal state frequencies prior
-        sympi = "uni"
-        if sympi == "exp":
-            # fixed equal exponential SYMPI_EXP
-            symBetaExp = 2.0
-            st = 1.0
-            lnPrior = lnPrior - symBetaExp * st + math.log(symBetaExp)
-        elif sympi == "uni":
-            # fixed equal uniform SYMPI_UNI
-            lnPrior = lnPrior - math.log(20.0 - 0.0)
-
-        # no rate multiplier prior
-
         return lnPrior
