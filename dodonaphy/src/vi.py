@@ -3,15 +3,12 @@ from typing import List, Any
 
 import numpy as np
 import torch
-from torch.distributions.multivariate_normal import MultivariateNormal
 
-from .hyperboloid import t02p, p2t0
+from .hyperboloid import p2t0
 from .phylo import calculate_treelikelihood, JC69_p_t
-from . import utils, tree, hydra, peeler
+from . import utils, tree, hydra
 from .base_model import BaseModel
 import matplotlib.pyplot as plt
-
-from src import hyperboloid
 
 
 class DodonaphyVI(BaseModel):
@@ -72,17 +69,6 @@ class DodonaphyVI(BaseModel):
     #         "int_dir_sigma": torch.tensor(int_dir_sigma, requires_grad=True, dtype=torch.float64),
     #     }
 
-    def sample_loc(self, mu, cov):
-        # Sample distribution q in tangent space of hyperboloid at origin T_0 H^n
-        n_vars = mu.numel()
-        unit_normal = MultivariateNormal(torch.zeros(n_vars), covariance_matrix=torch.eye(n_vars))
-
-        eps = unit_normal.rsample()
-        z = mu + cov * eps.reshape(mu.shape[0], mu.shape[1])
-        logQ = unit_normal.log_prob(eps)
-
-        return z, logQ
-
     def draw_sample(self, nSample=100, **kwargs):
         """Draw samples from the variational posterior distribution
 
@@ -101,54 +87,33 @@ class DodonaphyVI(BaseModel):
         lp = []
         with torch.no_grad():
             for _ in range(nSample):
-                # Sample in tangent space
-                z_leaf, _ = self.sample_loc(self.VariationalParams["leaf_mu"],
-                                            self.VariationalParams["leaf_sigma"].exp())
-                if self.connect_method == 'mst':
-                    z_int, _ = self.sample_loc(self.VariationalParams["int_mu"],
-                                               self.VariationalParams["int_sigma"].exp())
 
-                # normalise leaves to single radius
-                leaf_r = torch.norm(z_leaf[0, :], keepdim=True).repeat(self.S, self.D)
-                z_leaf = torch.div(z_leaf, leaf_r)
-
-                # From (Euclidean) tangent space at origin to Poincare ball
-                if self.embed_method == "wrap":
-                    leaf_poin = hyperboloid.t02p(z_leaf, self.VariationalParams["leaf_mu"], get_jacobian=False)
-                    if self.connect_method == 'mst':
-                        int_poin = hyperboloid.t02p(z_int, self.VariationalParams["int_mu"], get_jacobian=False)
-                elif self.embed_method == "simple":
-                    z_leaf = z_leaf.reshape(self.S, self.D)
-                    leaf_poin = utils.real2ball(z_leaf)
-                    if self.connect_method == 'mst':
-                        z_int = z_int.reshape(self.S - 2, self.D)
-                        int_poin = utils.real2ball(z_int)
-
-                # Change coordinates
-                leaf_r, leaf_dir = utils.cart_to_dir(leaf_poin.reshape((self.S, self.D)))
+                n_tip_params = torch.numel(self.VariationalParams["leaf_mu"])
+                leaf_loc = self.VariationalParams["leaf_mu"].reshape(n_tip_params)
+                leaf_cov = torch.eye(n_tip_params, dtype=torch.double) *\
+                    self.VariationalParams["leaf_sigma"].exp().reshape(n_tip_params)
                 if self.connect_method == 'mst':
-                    int_r, int_dir = utils.cart_to_dir(int_poin.reshape((self.S - 2, self.D)))
-
-                # prepare return (peel, branch lengths, locations, and log posteriori)
-                if self.connect_method == 'mst':
-                    pl = peeler.make_peel_mst(leaf_r, leaf_dir, int_r, int_dir)
-                    bl = self.compute_branch_lengths(self.S, pl, leaf_r, leaf_dir, int_r, int_dir)
-                elif self.connect_method in ('geodesics', 'incentre'):
-                    pl, int_poin = peeler.make_peel_tips(
-                        leaf_poin.reshape((self.S, self.D)), connect_method=self.connect_method)
-                    int_r, int_dir = utils.cart_to_dir(int_poin.reshape((self.S - 1, self.D)))
-                    bl = self.compute_branch_lengths(self.S, pl, leaf_r, leaf_dir, int_r, int_dir)
-                elif self.connect_method == 'nj':
-                    pl, bl = peeler.nj(leaf_r, leaf_dir)
-                peel.append(pl)
-                blens.append(bl)
-                if self.connect_method == 'mst':
-                    location.append(utils.dir_to_cart_tree(leaf_r, int_r, leaf_dir, int_dir, self.D))
+                    n_int_params = torch.numel(self.VariationalParams["int_mu"])
+                    int_loc = self.VariationalParams["int_mu"].reshape(n_int_params)
+                    int_cov = torch.eye(n_int_params, dtype=torch.double) *\
+                        self.VariationalParams["int_sigma"].exp().reshape(n_int_params)
+                    sample = self.sample(leaf_loc, leaf_cov, int_loc, int_cov)
                 else:
-                    location.append(utils.dir_to_cart(leaf_r, leaf_dir))
+                    sample = self.sample(leaf_loc, leaf_cov)
+
+                peel.append(sample['peel'])
+                blens.append(sample['blens'])
+                if self.connect_method == 'mst':
+                    location.append(utils.dir_to_cart_tree(
+                        sample['leaf_r'].repeat(self.S), sample['int_r'],
+                        sample['leaf_dir'], sample['int_dir'], self.D))
+                else:
+                    location.append(utils.dir_to_cart(sample['leaf_r'].repeat(self.S), sample['leaf_dir']))
                 if kwargs.get('lp'):
-                    lp.append(calculate_treelikelihood(
-                        self.partials, self.weights, pl, JC69_p_t(bl), torch.full([4], 0.25, dtype=torch.float64)))
+                    LL = calculate_treelikelihood(
+                        self.partials, self.weights, sample['peel'], JC69_p_t(sample['blens']),
+                        torch.full([4], 0.25, dtype=torch.float64))
+                    lp.append(LL)
 
         if kwargs.get('lp'):
             return peel, blens, location, lp
@@ -167,60 +132,26 @@ class DodonaphyVI(BaseModel):
         Returns:
             float: The evidence lower bound of a sample from q
         """
-
-        # Sample in tangent space
-        z_leaf, logQ = self.sample_loc(self.VariationalParams["leaf_mu"], self.VariationalParams["leaf_sigma"].exp())
-
-        # normalise leaves to single radius
-        leaf_r = torch.norm(z_leaf[0, :])
-        z_leaf = utils.normalise(z_leaf) * leaf_r
-
+        n_tip_params = torch.numel(self.VariationalParams["leaf_mu"])
+        leaf_loc = self.VariationalParams["leaf_mu"].reshape(n_tip_params)
+        leaf_cov = torch.eye(n_tip_params, dtype=torch.double) *\
+            self.VariationalParams["leaf_sigma"].exp().reshape(n_tip_params)
         if self.connect_method == 'mst':
-            z_int, logQ_int = self.sample_loc(
-                self.VariationalParams["int_mu"], self.VariationalParams["int_sigma"].exp())
-            logQ = logQ + logQ_int
-
-        # From (Euclidean) tangent space at origin to Poincare ball
-        if self.embed_method == "wrap":
-            leaf_poin, log_abs_det_jacobian = t02p(z_leaf, self.VariationalParams["leaf_mu"], get_jacobian=True)
-            if self.connect_method == 'mst':
-                int_poin, jacobian = t02p(z_int, self.VariationalParams["int_mu"], get_jacobian=True)
-                log_abs_det_jacobian = log_abs_det_jacobian + jacobian
-        elif self.embed_method == "simple":
-            # transformation of z from R^n to half unit ball P^n
-            leaf_poin = utils.real2ball(z_leaf)
-
-            # take transformations into account
-            log_abs_det_jacobian = -utils.real2ball_LADJ(z_leaf)
-            # log_abs_det_jacobian = 0
-            if self.connect_method == 'mst':
-                z_int = z_int.reshape(self.S - 2, self.D)
-                int_poin = utils.real2ball(z_int)
-                log_abs_det_jacobian = log_abs_det_jacobian - utils.real2ball_LADJ(z_int)
-
-        # Change leaf coordinates
-        leaf_r, leaf_dir = utils.cart_to_dir(leaf_poin.reshape((self.S, self.D)))
-
-        # make_peel for prior and likelihood
-        if self.connect_method == 'mst':
-            int_r, int_dir = utils.cart_to_dir(int_poin.reshape((self.S - 2, self.D)))
-            peel = peeler.make_peel_mst(leaf_r, leaf_dir, int_r, int_dir)
-            blen = self.compute_branch_lengths(self.S, peel, leaf_r, leaf_dir, int_r, int_dir)
-        elif self.connect_method in ('geodesics', 'incentre'):
-            peel, int_poin = peeler.make_peel_tips(
-                leaf_poin.reshape((self.S, self.D)), connect_method=self.connect_method)
-            int_r, int_dir = utils.cart_to_dir(int_poin.reshape((self.S - 1, self.D)))
-            blen = self.compute_branch_lengths(self.S, peel, leaf_r, leaf_dir, int_r, int_dir)
-        elif self.connect_method == 'nj':
-            peel, blen = peeler.nj(leaf_r, leaf_dir)
+            n_int_params = torch.numel(self.VariationalParams["int_mu"])
+            int_loc = self.VariationalParams["int_mu"].reshape(n_int_params)
+            int_cov = torch.eye(n_int_params, dtype=torch.double) *\
+                self.VariationalParams["int_sigma"].exp().reshape(n_int_params)
+            sample = self.sample(leaf_loc, leaf_cov, int_loc, int_cov)
+        else:
+            sample = self.sample(leaf_loc, leaf_cov)
 
         # logPrior
-        logPrior = self.compute_prior_gamma_dir(blen)
+        logPrior = self.compute_prior_gamma_dir(sample['blens'])
 
         # Likelihood
-        logP = self.compute_LL(peel, blen)
+        logP = self.compute_LL(sample['peel'], sample['blens'])
 
-        return logP + logPrior - logQ + log_abs_det_jacobian
+        return logP + logPrior - sample['logQ'] + sample['jacobian']
 
     def learn(self, param_init=None, epochs=1000, k_samples=3, path_write='./out', lr=1e-3):
         """Learn the variational parameters using Adam optimiser

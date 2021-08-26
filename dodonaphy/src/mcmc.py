@@ -1,8 +1,8 @@
-from . import utils, tree, hydra, peeler, hyperboloid
+from . import utils, tree, hydra, peeler
 from .base_model import BaseModel
+# from ..ext.power_spherical import PowerSpherical
 
-from torch.distributions.multivariate_normal import MultivariateNormal
-from torch.distributions import uniform
+from torch.distributions.uniform import Uniform
 import torch
 import numpy as np
 import os
@@ -25,7 +25,7 @@ class Chain(BaseModel):
         assert connect_method in ("incentre", "geodesics", "mst", "nj", "mst_choice")
         self.connect_method = connect_method
 
-        self.step_scale = step_scale
+        self.step_scale = torch.tensor(step_scale, requires_grad=True)
         self.temp = temp
         self.accepted = 0
         self.iterations = 0
@@ -49,6 +49,8 @@ class Chain(BaseModel):
             self.peel = peeler.make_peel_mst(self.leaf_r.repeat(self.S), self.leaf_dir, self.int_r, self.int_dir)
         elif self.connect_method == 'mst_choice':
             self.peel = self.select_peel_mst(self.leaf_r.repeat(self.S), self.leaf_dir, self.int_r, self.int_dir)
+        elif self.connect_method == 'delaunay':
+            self.peel = peeler.make_peel_delaunay(self.leaf_r.repeat(self.S), self.leaf_dir, self.int_r, self.int_dir)
 
         # set blens
         if self.connect_method != 'nj':
@@ -65,7 +67,18 @@ class Chain(BaseModel):
 
     def evolve(self):
         # propose new embedding
-        proposal = self.propose()
+        n_leaf_params = self.S * self.D
+        leaf_loc = self.leaf_r * self.leaf_dir
+        leaf_loc = leaf_loc.reshape(n_leaf_params)
+        leaf_cov = torch.eye(n_leaf_params, dtype=torch.double) * self.step_scale
+        if self.connect_method == 'mst':
+            n_int_params = (self.S - 2) * self.D
+            int_loc = self.int_dir * torch.tile(self.int_r, (2, 1)).transpose(dim0=0, dim1=1)
+            int_loc = int_loc.reshape(n_int_params)
+            int_cov = torch.eye(n_int_params, dtype=torch.double) * self.step_scale
+            proposal = self.sample(leaf_loc, leaf_cov, int_loc, int_cov)
+        else:
+            proposal = self.sample(leaf_loc, leaf_cov)
 
         # Decide whether to accept proposal
         r = self.accept_ratio(proposal)
@@ -73,7 +86,7 @@ class Chain(BaseModel):
         accept = False
         if r >= 1:
             accept = True
-        elif uniform.Uniform(torch.zeros(1), torch.ones(1)).sample() < r:
+        elif Uniform(torch.zeros(1), torch.ones(1)).sample() < r:
             accept = True
 
         if accept:
@@ -91,109 +104,6 @@ class Chain(BaseModel):
         self.iterations += 1
 
         return accept
-
-    def propose(self):
-        # TODO: propose unit directionals on sphere
-        n_leaf_vars = self.S * self.D
-        sample = MultivariateNormal(
-            torch.zeros(n_leaf_vars, dtype=torch.double),
-            torch.eye(n_leaf_vars, dtype=torch.double) * self.step_scale).sample().reshape(self.S, self.D)
-        if self.embed_method == 'simple':
-            # transform leaves to R^n
-            leaf_loc_t0 = utils.ball2real(self.leaf_r * self.leaf_dir).clone()
-            log_abs_det_jacobian = -utils.real2ball_LADJ(leaf_loc_t0)
-
-            # propose new leaf nodes from normal in R^n
-            leaf_loc_t0 = leaf_loc_t0 + sample
-
-            # normalise leaves to sphere with radius leaf_r_prop = first leaf radii
-            leaf_r_t0 = torch.norm(leaf_loc_t0[0, :])
-            leaf_loc_t0 = utils.normalise(leaf_loc_t0) * leaf_r_t0
-
-            # Convert to Ball
-            leaf_loc_prop = utils.real2ball(leaf_loc_t0)
-
-        elif self.embed_method == 'wrap':
-            # transform leaves to R^n
-            leaf_loc_t0 = hyperboloid.p2t0(self.leaf_r * self.leaf_dir)
-            leaf_loc_t0 = leaf_loc_t0.clone()
-
-            # propose new leaf nodes from normal in R^n and convert to poincare ball
-            leaf_loc_prop, log_abs_det_jacobian = hyperboloid.t02p(sample, leaf_loc_t0, get_jacobian=True)
-            log_abs_det_jacobian = -log_abs_det_jacobian
-        # get r and directional
-        leaf_r_prop = torch.norm(leaf_loc_prop[0, :])
-        leaf_dir_prop = leaf_loc_prop / torch.norm(leaf_loc_prop, dim=-1, keepdim=True)
-
-        # internal nodes for mst
-        if self.connect_method in ('mst', 'mst_choice'):
-            n_int_vars = (self.S - 2) * self.D
-            sample = MultivariateNormal(
-                torch.zeros(n_int_vars, dtype=torch.double),
-                torch.eye(n_int_vars, dtype=torch.double) * self.step_scale).sample().reshape(self.S-2, self.D)
-
-            int_loc = self.int_r.reshape(self.S-2, 1).repeat(1, self.D) * self.int_dir
-            if self.embed_method == 'simple':
-                # transform ints to R^n
-                int_loc_t0 = utils.ball2real(int_loc).clone()
-                log_abs_det_jacobian = log_abs_det_jacobian - utils.real2ball_LADJ(int_loc_t0)
-
-                # propose new int nodes from normal in R^n
-                int_loc_t0 = int_loc_t0 + sample
-
-                # convert ints to poincare ball
-                int_loc_prop = utils.real2ball(int_loc_t0)
-
-            elif self.embed_method == 'wrap':
-                # transform ints to R^n
-                int_loc_t0 = hyperboloid.p2t0(int_loc).clone()
-
-                # propose new int nodes from normal in R^n
-                int_loc_prop, int_jacobian = hyperboloid.t02p(sample, int_loc_t0, get_jacobian=True)
-                log_abs_det_jacobian = log_abs_det_jacobian - int_jacobian
-
-            # get r and directional
-            int_r_prop = torch.norm(int_loc_prop, dim=-1)
-            int_dir_prop = int_loc_prop / torch.norm(int_loc_prop, dim=-1, keepdim=True)
-
-            # restrict int_r to less than leaf_r
-            int_r_prop[int_r_prop > leaf_r_prop] = leaf_r_prop
-
-        # proposal peel and blens
-        leaf_r = leaf_r_prop.repeat(self.S)
-        if self.connect_method in ('geodesics', 'incentre'):
-            peel, int_locs = peeler.make_peel_tips(leaf_r_prop * leaf_dir_prop, connect_method=self.connect_method)
-            int_r_prop, int_dir_prop = utils.cart_to_dir(int_locs)
-        elif self.connect_method == 'nj':
-            peel, blens = peeler.nj(leaf_r, leaf_dir_prop)
-        elif self.connect_method == 'mst':
-            peel = peeler.make_peel_mst(leaf_r, leaf_dir_prop, int_r_prop, int_dir_prop)
-        elif self.connect_method == 'mst_choice':
-            peel = self.select_peel_mst(leaf_r, leaf_dir_prop, int_r_prop, int_dir_prop)
-
-        # get proposal branch lengths
-        if self.connect_method != 'nj':
-            blens = self.compute_branch_lengths(self.S, peel, leaf_r, leaf_dir_prop, int_r_prop, int_dir_prop)
-
-        if self.connect_method in ('geodesics', 'incentre', 'nj'):
-            proposal = {
-                'leaf_r': leaf_r_prop,
-                'leaf_dir': leaf_dir_prop,
-                'peel': peel,
-                'blens': blens,
-                'jacobian': log_abs_det_jacobian
-            }
-        else:
-            proposal = {
-                'leaf_r': leaf_r_prop,
-                'leaf_dir': leaf_dir_prop,
-                'int_r': int_r_prop,
-                'int_dir': int_dir_prop,
-                'peel': peel,
-                'blens': blens,
-                'jacobian': log_abs_det_jacobian
-            }
-        return proposal
 
     def accept_ratio(self, p):
         """Acceptance critereon for Metropolis-Hastings
@@ -239,11 +149,11 @@ class Chain(BaseModel):
         if not self.moreTune or self.iterations == 0:
             return
 
-        lr = 0.001
-        eps = 0.00000001
+        lr = torch.tensor(0.001)
+        eps = torch.tensor(torch.finfo(torch.double).eps)
         acceptance = self.accepted / self.iterations
         dy = acceptance - self.target_acceptance
-        self.step_scale = max(self.step_scale + lr * dy, eps)
+        self.step_scale = torch.maximum(self.step_scale + lr * dy, eps)
 
         # check convegence
         self.converged.pop()
@@ -410,7 +320,7 @@ class DodonaphyMCMC():
         r = torch.minimum(torch.ones(1), torch.exp(prob1 + prob2))
 
         # swap with probability r
-        if r > uniform.Uniform(torch.zeros(1), torch.ones(1)).rsample():
+        if r > Uniform(torch.zeros(1), torch.ones(1)).rsample():
             # swap the locations and current probability
             self.chain[i].leaf_r, self.chain[j].leaf_r = self.chain[j].leaf_r, self.chain[i].leaf_r
             self.chain[i].leaf_dir, self.chain[j].leaf_dir = self.chain[j].leaf_dir, self.chain[i].leaf_dir

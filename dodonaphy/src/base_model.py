@@ -1,9 +1,11 @@
-import torch
 from .phylo import calculate_treelikelihood, JC69_p_t
-from . import peeler
+from . import peeler, hyperboloid, utils
 from . import tree as treeFunc
 from .utils import LogDirPrior
 import Cutils
+
+import torch
+from torch.distributions.multivariate_normal import MultivariateNormal
 from dendropy import Tree as Tree
 from dendropy.model.birthdeath import birth_death_likelihood as birth_death_likelihood
 import numpy as np
@@ -179,6 +181,117 @@ class BaseModel(object):
         p = np.array(sftmx(lnP))
         leaf = np.random.choice(leaf_node_count, p=p)
         return peeler.make_peel_mst(leaf_r, leaf_dir, int_r, int_dir, curvature=torch.ones(1), start_node=leaf)
+
+    def sample(self, leaf_loc, leaf_cov, int_loc=None, int_cov=None):
+        if self.embed_method == 'simple':
+            # transform leaves to R^n
+            leaf_loc_t0 = utils.ball2real(leaf_loc)
+
+            # propose new leaf nodes from normal in R^n
+            normal_dist = MultivariateNormal(leaf_loc_t0.squeeze(), leaf_cov)
+            leaf_loc_t0 = normal_dist.rsample()
+            logQ = normal_dist.log_prob(leaf_loc_t0)
+            leaf_loc_t0 = leaf_loc_t0.reshape(self.S, self.D)
+            log_abs_det_jacobian = -utils.real2ball_LADJ(leaf_loc_t0)
+
+            # normalise leaves to sphere with radius leaf_r_prop = first leaf radii
+            leaf_r_t0 = torch.norm(leaf_loc_t0[0, :])
+            leaf_loc_t0 = utils.normalise(leaf_loc_t0) * leaf_r_t0
+
+            # Convert to Ball
+            leaf_loc_prop = utils.real2ball(leaf_loc_t0)
+
+        elif self.embed_method == 'wrap':
+            # transform leaves to R^n
+            leaf_loc_t0 = hyperboloid.p2t0(leaf_loc)
+            leaf_loc_t0 = leaf_loc_t0.clone()
+
+            # propose new leaf nodes from normal in R^n and convert to poincare ball
+            normal_dist = MultivariateNormal(torch.zeros_like(leaf_loc_t0.squeeze()), leaf_cov)
+            sample = normal_dist.rsample()
+            logQ = normal_dist.log_prob(sample)
+            leaf_loc_prop, log_abs_det_jacobian = hyperboloid.t02p(
+                sample.reshape(self.S, self.D), leaf_loc_t0.reshape(self.S, self.D), get_jacobian=True)
+            log_abs_det_jacobian = -log_abs_det_jacobian
+
+        # get r and directional
+        leaf_r_prop = torch.norm(leaf_loc_prop[0, :])
+        leaf_dir_prop = leaf_loc_prop / torch.norm(leaf_loc_prop, dim=-1, keepdim=True)
+
+        # internal nodes for mst
+        if self.connect_method in ('mst', 'mst_choice'):
+            if self.embed_method == 'simple':
+                # transform internals to R^n
+                int_loc_t0 = utils.ball2real(int_loc)
+                log_abs_det_jacobian = log_abs_det_jacobian - utils.real2ball_LADJ(int_loc_t0)
+
+                # propose new leaf nodes from normal in R^n
+                normal_dist = MultivariateNormal(int_loc_t0.squeeze(), int_cov)
+                int_loc_t0 = normal_dist.rsample()
+                logQ = logQ + normal_dist.log_prob(int_loc_t0)
+                int_loc_t0 = int_loc_t0.reshape(self.S-2, self.D)
+
+                # convert ints to poincare ball
+                int_loc_prop = utils.real2ball(int_loc_t0)
+
+            elif self.embed_method == 'wrap':
+                # transform ints to R^n
+                int_loc_t0 = hyperboloid.p2t0(int_loc).clone()
+
+                # propose new int nodes from normal in R^n
+                normal_dist = MultivariateNormal(torch.zeros_like(int_loc_t0.squeeze()), int_cov)
+                sample = normal_dist.rsample()
+                logQ = logQ + normal_dist.log_prob(sample)
+                int_loc_prop, int_jacobian = hyperboloid.t02p(
+                    sample.reshape(self.S-2, self.D), int_loc_t0.reshape(self.S-2, self.D), get_jacobian=True)
+                log_abs_det_jacobian = log_abs_det_jacobian - int_jacobian
+
+            # get r and directional
+            int_r_prop = torch.norm(int_loc_prop, dim=-1)
+            int_dir_prop = int_loc_prop / torch.norm(int_loc_prop, dim=-1, keepdim=True)
+
+            # restrict int_r to less than leaf_r
+            int_r_prop[int_r_prop > leaf_r_prop] = leaf_r_prop
+
+        # proposal peel and blens
+        leaf_r = leaf_r_prop.repeat(self.S)
+        if self.connect_method in ('geodesics', 'incentre'):
+            peel, int_locs = peeler.make_peel_tips(leaf_r_prop * leaf_dir_prop, connect_method=self.connect_method)
+            int_r_prop, int_dir_prop = utils.cart_to_dir(int_locs)
+        elif self.connect_method == 'nj':
+            peel, blens = peeler.nj(leaf_r, leaf_dir_prop)
+        elif self.connect_method == 'mst':
+            peel = peeler.make_peel_mst(leaf_r, leaf_dir_prop, int_r_prop, int_dir_prop)
+        elif self.connect_method == 'mst_choice':
+            peel = self.select_peel_mst(leaf_r, leaf_dir_prop, int_r_prop, int_dir_prop)
+        elif self.connect_method == 'delaunay':
+            peel = peeler.make_peel_delaunay(leaf_r, leaf_dir_prop, int_r_prop, int_dir_prop)
+
+        # get proposal branch lengths
+        if self.connect_method != 'nj':
+            blens = self.compute_branch_lengths(self.S, peel, leaf_r, leaf_dir_prop, int_r_prop, int_dir_prop)
+
+        if self.connect_method in ('geodesics', 'incentre', 'nj'):
+            proposal = {
+                'leaf_r': leaf_r_prop,
+                'leaf_dir': leaf_dir_prop,
+                'peel': peel,
+                'blens': blens,
+                'jacobian': log_abs_det_jacobian,
+                'logQ': logQ
+            }
+        else:
+            proposal = {
+                'leaf_r': leaf_r_prop,
+                'leaf_dir': leaf_dir_prop,
+                'int_r': int_r_prop,
+                'int_dir': int_dir_prop,
+                'peel': peel,
+                'blens': blens,
+                'jacobian': log_abs_det_jacobian,
+                'logQ': logQ
+            }
+        return proposal
 
     @staticmethod
     def compute_prior_birthdeath(peel, blen, **prior):

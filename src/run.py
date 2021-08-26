@@ -5,6 +5,7 @@ from dendropy.model.birthdeath import birth_death_likelihood
 import random
 import os
 import numpy as np
+import time
 
 from dodonaphy.src.vi import DodonaphyVI
 from dodonaphy.src.mcmc import DodonaphyMCMC as mcmc
@@ -96,6 +97,7 @@ def main():
             dists[i][i+j+1] = pdc(t1, t2)
     dists = dists + dists.transpose()
 
+    start = time.time()
     if runMcmc:
         # Run Dodoanphy MCMC
         if path_write_mcmc is not None:
@@ -109,12 +111,16 @@ def main():
         # Run Dodonaphy variational inference
         if path_write_vi is not None:
             os.mkdir(path_write_vi)
-        # path_write_vi = None
         DodonaphyVI.run(dim, S, partials[:], weights, dists, path_write_vi,
                         epochs=epochs, k_samples=k_samples, n_draws=n_draws,
                         n_grids=n_grids, n_trials=n_trials,
                         max_scale=max_scale, lr=lr, embed_method=embed_method,
                         connect_method=connect_method, **prior)
+
+    end = time.time()
+    seconds = end-start
+    m, s = divmod(seconds, 60)
+    print("Time taken for %d taxa: %dm %ds" % (S, m, s))
 
     # Make folder for BEAST
     # path_write_beast = os.path.abspath(os.path.join(path_write, "beast"))
