@@ -67,18 +67,12 @@ class Chain(BaseModel):
 
     def evolve(self):
         # propose new embedding
-        n_leaf_params = self.S * self.D
         leaf_loc = self.leaf_r * self.leaf_dir
-        leaf_loc = leaf_loc.reshape(n_leaf_params)
-        leaf_cov = torch.eye(n_leaf_params, dtype=torch.double) * self.step_scale
         if self.connect_method == 'mst':
-            n_int_params = (self.S - 2) * self.D
             int_loc = self.int_dir * torch.tile(self.int_r, (2, 1)).transpose(dim0=0, dim1=1)
-            int_loc = int_loc.reshape(n_int_params)
-            int_cov = torch.eye(n_int_params, dtype=torch.double) * self.step_scale
-            proposal = self.sample(leaf_loc, leaf_cov, int_loc, int_cov)
+            proposal = self.sample(leaf_loc, self.step_scale, int_loc, self.step_scale)
         else:
-            proposal = self.sample(leaf_loc, leaf_cov)
+            proposal = self.sample(leaf_loc, self.step_scale)
 
         # Decide whether to accept proposal
         r = self.accept_ratio(proposal)
@@ -115,13 +109,6 @@ class Chain(BaseModel):
             tuple: (r, prop_like)
             The acceptance ratio r and the likelihood of the proposal.
         """
-
-        p['lnP'] = self.compute_LL(p['peel'], p['blens'])
-        # p['lnP'] = self.compute_log_a_like(p['leaf_r'].repeat(self.S), p['leaf_dir'])
-
-        # p['lnPrior'] = self.compute_prior_birthdeath(p['peel'], p['blens'], **self.prior)
-        p['lnPrior'] = self.compute_prior_gamma_dir(p['blens'])
-
         # likelihood ratio
         like_ratio = p['lnP'] - self.lnP
 

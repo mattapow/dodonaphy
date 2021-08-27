@@ -367,7 +367,7 @@ def LogDirPrior(blen, aT, bT, a, c):
     treeL = sum(blen)
 
     blen_pos = blen.clone()
-    blen_pos[np.isclose(blen_pos, 0)] = 1
+    blen_pos[torch.isclose(blen_pos, torch.zeros(1, dtype=torch.double))] = 1
 
     tipb = torch.sum(torch.log(blen_pos[:n_leaf]))
     intb = torch.sum(torch.log(blen_pos[n_leaf:]))

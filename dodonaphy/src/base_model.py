@@ -183,20 +183,31 @@ class BaseModel(object):
         return peeler.make_peel_mst(leaf_r, leaf_dir, int_r, int_dir, curvature=torch.ones(1), start_node=leaf)
 
     def sample(self, leaf_loc, leaf_cov, int_loc=None, int_cov=None):
+        # reshape covariance if single number
+        n_leaf_vars = self.S * self.D
+        if torch.numel(leaf_cov) == 1:
+            leaf_cov = torch.eye(n_leaf_vars, dtype=torch.double) * leaf_cov
+        n_int_vars = (self.S-2) * self.D
+        if int_cov is not None and torch.numel(int_cov) == 1:
+            int_cov = torch.eye(n_int_vars, dtype=torch.double) * int_cov
+
         if self.embed_method == 'simple':
             # transform leaves to R^n
             leaf_loc_t0 = utils.ball2real(leaf_loc)
-
-            # propose new leaf nodes from normal in R^n
-            normal_dist = MultivariateNormal(leaf_loc_t0.squeeze(), leaf_cov)
-            leaf_loc_t0 = normal_dist.rsample()
-            logQ = normal_dist.log_prob(leaf_loc_t0)
-            leaf_loc_t0 = leaf_loc_t0.reshape(self.S, self.D)
             log_abs_det_jacobian = -utils.real2ball_LADJ(leaf_loc_t0)
 
-            # normalise leaves to sphere with radius leaf_r_prop = first leaf radii
-            leaf_r_t0 = torch.norm(leaf_loc_t0[0, :])
-            leaf_loc_t0 = utils.normalise(leaf_loc_t0) * leaf_r_t0
+            # flatten data to sample
+            leaf_loc_t0 = leaf_loc_t0.reshape(n_leaf_vars)
+
+            # propose new leaf nodes from normal in R^n
+            normal_dist = MultivariateNormal(leaf_loc_t0, leaf_cov)
+            sample = normal_dist.rsample()
+            logQ = normal_dist.log_prob(sample)
+            leaf_loc_t0 = sample.reshape((self.S, self.D))
+
+            # # normalise leaves to sphere with radius leaf_r_prop = first leaf radii
+            # leaf_r_t0 = torch.norm(leaf_loc_t0[0, :])
+            # leaf_loc_t0 = utils.normalise(leaf_loc_t0) * leaf_r_t0
 
             # Convert to Ball
             leaf_loc_prop = utils.real2ball(leaf_loc_t0)
@@ -207,7 +218,7 @@ class BaseModel(object):
             leaf_loc_t0 = leaf_loc_t0.clone()
 
             # propose new leaf nodes from normal in R^n and convert to poincare ball
-            normal_dist = MultivariateNormal(torch.zeros_like(leaf_loc_t0.squeeze()), leaf_cov)
+            normal_dist = MultivariateNormal(torch.zeros((self.S * self.D), dtype=torch.double), leaf_cov)
             sample = normal_dist.rsample()
             logQ = normal_dist.log_prob(sample)
             leaf_loc_prop, log_abs_det_jacobian = hyperboloid.t02p(
@@ -225,11 +236,14 @@ class BaseModel(object):
                 int_loc_t0 = utils.ball2real(int_loc)
                 log_abs_det_jacobian = log_abs_det_jacobian - utils.real2ball_LADJ(int_loc_t0)
 
-                # propose new leaf nodes from normal in R^n
+                # flatten data to sample
+                int_loc_t0 = int_loc_t0.reshape(n_int_vars)
+
+                # propose new int nodes from normal in R^n
                 normal_dist = MultivariateNormal(int_loc_t0.squeeze(), int_cov)
-                int_loc_t0 = normal_dist.rsample()
-                logQ = logQ + normal_dist.log_prob(int_loc_t0)
-                int_loc_t0 = int_loc_t0.reshape(self.S-2, self.D)
+                sample = normal_dist.rsample()
+                logQ = logQ + normal_dist.log_prob(sample)
+                int_loc_t0 = sample.reshape((self.S-2, self.D))
 
                 # convert ints to poincare ball
                 int_loc_prop = utils.real2ball(int_loc_t0)
@@ -256,8 +270,9 @@ class BaseModel(object):
         # proposal peel and blens
         leaf_r = leaf_r_prop.repeat(self.S)
         if self.connect_method in ('geodesics', 'incentre'):
-            peel, int_locs = peeler.make_peel_tips(leaf_r_prop * leaf_dir_prop, connect_method=self.connect_method)
-            int_r_prop, int_dir_prop = utils.cart_to_dir(int_locs)
+            with torch.no_grad():
+                peel, int_locs = peeler.make_peel_tips(leaf_r_prop * leaf_dir_prop, connect_method=self.connect_method)
+                int_r_prop, int_dir_prop = utils.cart_to_dir(int_locs)
         elif self.connect_method == 'nj':
             peel, blens = peeler.nj(leaf_r, leaf_dir_prop)
         elif self.connect_method == 'mst':
@@ -269,7 +284,16 @@ class BaseModel(object):
 
         # get proposal branch lengths
         if self.connect_method != 'nj':
-            blens = self.compute_branch_lengths(self.S, peel, leaf_r, leaf_dir_prop, int_r_prop, int_dir_prop)
+            blens = self.compute_branch_lengths(
+                self.S, peel, leaf_r, leaf_dir_prop, int_r_prop, int_dir_prop, useNP=False)
+
+        # get log likelihood
+        lnP = self.compute_LL(peel, blens)
+        # lnP = self.compute_log_a_like(leaf_r, leaf_dir_prop)
+
+        # get log prior
+        lnPrior = self.compute_prior_gamma_dir(blens)
+        # lnPrior = self.compute_prior_birthdeath(peel, blens, **self.prior)
 
         if self.connect_method in ('geodesics', 'incentre', 'nj'):
             proposal = {
@@ -278,7 +302,9 @@ class BaseModel(object):
                 'peel': peel,
                 'blens': blens,
                 'jacobian': log_abs_det_jacobian,
-                'logQ': logQ
+                'logQ': logQ,
+                'lnP': lnP,
+                'lnPrior': lnPrior
             }
         else:
             proposal = {
@@ -289,7 +315,9 @@ class BaseModel(object):
                 'peel': peel,
                 'blens': blens,
                 'jacobian': log_abs_det_jacobian,
-                'logQ': logQ
+                'logQ': logQ,
+                'lnP': lnP,
+                'lnPrior': lnPrior
             }
         return proposal
 
