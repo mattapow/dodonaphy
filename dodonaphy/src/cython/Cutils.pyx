@@ -1,6 +1,7 @@
 import torch as torch
 import numpy as np
 cimport numpy as np
+import scipy.spatial.distance
 
 
 cdef class Cu_edge:
@@ -20,6 +21,7 @@ cdef class Cu_edge:
 cpdef get_pdm(leaf_r, leaf_dir, int_r=None, int_dir=None, curvature=1., asNumpy=False):
     """Pair-wise hyperbolic distance matrix
 
+        Note if curvature=0, then the SQUARED Euclidean distance is computed.
     Args:
         leaf_r (tensor):
         leaf_dir (tensor):
@@ -31,6 +33,14 @@ cpdef get_pdm(leaf_r, leaf_dir, int_r=None, int_dir=None, curvature=1., asNumpy=
     Returns:
         ndarray: distance between point 1 and point 2
     """
+    if torch.isclose(curvature, torch.zeros(1)):
+        # Euclidean distance
+        assert asNumpy, "Euclidean distances returned as numpy array. Set asNumpy to True."
+        X = leaf_r[0] * leaf_dir
+        pdm_linear = scipy.spatial.distance.pdist(X.detach().numpy(), metric='euclidean')
+        # convert to matrix and square distances
+        return scipy.spatial.distance.squareform(pdm_linear**2)
+
     DTYPE=np.double
     cdef np.ndarray[np.double_t, ndim=1] leaf_r_np = leaf_r.detach().numpy().astype(DTYPE)
     cdef np.ndarray[np.double_t, ndim=2] leaf_dir_np = leaf_dir.detach().numpy().astype(DTYPE)
