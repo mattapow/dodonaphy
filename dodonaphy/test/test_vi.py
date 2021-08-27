@@ -122,10 +122,9 @@ def test_draws_different_vi_simple_geodesics():
         birth_rate=1.0, death_rate=0.5, num_extant_tips=nseqs)
     dna = simulate_discrete_chars(
         seq_len=seqlen, tree_model=simtree, seq_model=dendropy.model.discrete.Jc69())
-
     # Initialise model
     partials, weights = compress_alignment(dna)
-    mymod = DodonaphyVI(partials, weights, dim, embed_method='simple', connect_method='incentre')
+    mymod = DodonaphyVI(partials, weights, dim, embed_method='simple', connect_method='geodesics')
 
     # learn
     mymod.learn(epochs=1, path_write=None)
