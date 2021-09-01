@@ -10,8 +10,8 @@ import os
 
 class Chain(BaseModel):
     def __init__(self, partials, weights, dim, leaf_r=None, leaf_dir=None, int_r=None, int_dir=None, step_scale=0.01,
-                 temp=1, target_acceptance=.234, connect_method='mst', embed_method='simple', **prior):
-        super().__init__(partials, weights, dim, **prior)
+                 temp=1, target_acceptance=.234, connect_method='mst', embed_method='simple', curvature=-1, **prior):
+        super().__init__(partials, weights, dim, curvature=curvature, **prior)
         self.leaf_dir = leaf_dir  # S x D
         self.int_dir = int_dir  # S-2 x D
         self.int_r = int_r  # S-2
@@ -153,7 +153,7 @@ class Chain(BaseModel):
 class DodonaphyMCMC():
 
     def __init__(self, partials, weights, dim, connect_method='mst', embed_method='simple',
-                 step_scale=0.01, nChains=1, **prior):
+                 step_scale=0.01, nChains=1, curvature=-1., **prior):
         self.nChains = nChains
         self.chain = []
         dTemp = 0.1
@@ -161,7 +161,7 @@ class DodonaphyMCMC():
             temp = 1./(1+dTemp*i)
             self.chain.append(
                 Chain(partials, weights, dim, step_scale=step_scale, temp=temp, embed_method=embed_method,
-                      connect_method=connect_method, **prior))
+                      connect_method=connect_method, curvature=curvature, **prior))
 
     def learn(self, epochs, burnin=0, path_write='./out', save_period=1):
         print("Using 1 cold chain and %d hot chains." % int(self.nChains-1))
@@ -338,7 +338,7 @@ class DodonaphyMCMC():
     def run(dim, partials, weights, dists, path_write=None,
             epochs=1000, step_scale=0.01, save_period=1, burnin=0,
             n_grids=10, n_trials=100, max_scale=1, nChains=1,
-            connect_method='mst', embed_method='simple', **prior):
+            connect_method='mst', embed_method='simple', curvature=-1., **prior):
         print('\nRunning Dodonaphy MCMC')
         assert connect_method in ['incentre', 'mst', 'geodesics', 'nj', 'mst_choice']
 
@@ -349,7 +349,7 @@ class DodonaphyMCMC():
         # Initialise model
         mymod = DodonaphyMCMC(
             partials, weights, dim, step_scale=step_scale, nChains=nChains,
-            connect_method=connect_method, embed_method=embed_method, **prior)
+            connect_method=connect_method, embed_method=embed_method, curvature=curvature, **prior)
 
         # Choose internal node locations from best random initialisation
         mymod.initialise_chains(emm_tips, n_grids=n_grids, n_trials=n_trials, max_scale=max_scale)

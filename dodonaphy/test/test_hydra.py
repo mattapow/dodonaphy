@@ -11,7 +11,7 @@ def test_hydra_2d_compare_output():
     emm = hydra.hydra(D, dim)
 
     # Compare to output of hydra in r
-    assert emm['curvature'] == approx(1)
+    assert emm['curvature'] == approx(-1)
     assert emm['dim'] == approx(dim)
     assert emm['directional'] == approx(np.array([
         [0.8660254038, -0.5000000000],
@@ -33,7 +33,7 @@ def test_hydra_3d_compare_output():
 
     # Compare to output of hydra in r
     # NB: some directions reversed from r due to opposite eigenvectors
-    assert emm['curvature'] == approx(1)
+    assert emm['curvature'] == approx(-1)
     assert emm['dim'] == approx(dim)
     assert emm['r'] == approx(np.array(
         [0.6274604254, 0.2705702432, 0.6461609880, 0.6779027826, 0.2182178902])

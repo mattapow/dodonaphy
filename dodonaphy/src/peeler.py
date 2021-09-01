@@ -8,15 +8,15 @@ import numpy as np
 from collections import defaultdict
 
 
-def make_peel_incentre(leaf_locs):
-    return make_peel_tips(leaf_locs, connect_method='incentre')
+def make_peel_incentre(leaf_locs, curvature=-torch.ones(1)):
+    return make_peel_tips(leaf_locs, connect_method='incentre', curvature=curvature)
 
 
 def make_peel_geodesic(leaf_locs):
     return make_peel_tips(leaf_locs, connect_method='geodesic')
 
 
-def make_peel_tips(leaf_locs, connect_method='incentre'):
+def make_peel_tips(leaf_locs, connect_method='incentre', curvature=-torch.ones(1)):
     """Generate a tree recursively using the incentre of the closest two points.
 
     Args:
@@ -31,7 +31,7 @@ def make_peel_tips(leaf_locs, connect_method='incentre'):
     node_count = leaf_locs.shape[0] * 2 - 2
 
     leaf_r, leaf_dir = utils.cart_to_dir(leaf_locs)
-    edge_list = utils.get_pdm_tips(leaf_r, leaf_dir)
+    edge_list = utils.get_pdm_tips(leaf_r, leaf_dir, curvature=curvature)
 
     int_locs = torch.zeros(int_node_count+1, dims, dtype=torch.double)
     leaf_locs = leaf_locs.double()
@@ -92,7 +92,7 @@ def make_peel_tips(leaf_locs, connect_method='incentre'):
     return peel, int_locs
 
 
-def make_peel_mst(leaf_r, leaf_dir, int_r, int_dir, curvature=torch.ones(1), start_node=None):
+def make_peel_mst(leaf_r, leaf_dir, int_r, int_dir, curvature=-torch.ones(1), start_node=None):
     """Create a tree represtation (peel) from its hyperbolic embedic data
 
     Args:
@@ -327,7 +327,7 @@ def is_valid_edge(to_, from_, adjacency, visited, S, node_count, open_slots, vis
     return is_valid
 
 
-def nj(leaf_r, leaf_dir, curvature=torch.ones(1)):
+def nj(leaf_r, leaf_dir, curvature=-torch.ones(1)):
     """Generate Neighbour joining tree.
 
     Args:

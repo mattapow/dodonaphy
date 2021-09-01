@@ -16,7 +16,7 @@ class BaseModel(object):
     """Base Model for Inference
     """
 
-    def __init__(self, partials, weights, dim, **prior):
+    def __init__(self, partials, weights, dim, curvature=-1., **prior):
         self.partials = partials.copy()
         self.weights = weights
         self.S = len(self.partials)
@@ -24,6 +24,8 @@ class BaseModel(object):
         self.D = dim
         self.bcount = 2 * self.S - 2
         self.prior = prior
+        assert curvature <= 0
+        self.curvature = torch.tensor(curvature)
 
         # make space for internal partials
         for i in range(self.S - 1):
@@ -77,7 +79,7 @@ class BaseModel(object):
 
         return int_r, int_dir
 
-    def compute_branch_lengths(self, S, peel, leaf_r, leaf_dir, int_r, int_dir, curvature=torch.ones(1), useNP=True):
+    def compute_branch_lengths(self, S, peel, leaf_r, leaf_dir, int_r, int_dir, curvature=-torch.ones(1), useNP=True):
         """Computes the hyperbolic distance of two points given in radial/directional coordinates in the Poincare ball
 
         Args:
@@ -143,7 +145,7 @@ class BaseModel(object):
         return calculate_treelikelihood(self.partials, self.weights, peel, mats,
                                         torch.full([4], 0.25, dtype=torch.float64))
 
-    def compute_log_a_like(self, leaf_r, leaf_dir, curvature=1.):
+    def compute_log_a_like(self, leaf_r, leaf_dir, curvature=-1.):
         """Compute the log-a-like function of the embedding.
 
         The log-probability of all the pairwise taxa.
@@ -169,18 +171,18 @@ class BaseModel(object):
         # normalise for number of sites
         return torch.sum(P * self.weights) / sum(self.weights)
 
-    def select_peel_mst(self, leaf_r, leaf_dir, int_r, int_dir, curvature=torch.ones(1)):
+    def select_peel_mst(self, leaf_r, leaf_dir, int_r, int_dir, curvature=-torch.ones(1)):
         leaf_node_count = leaf_r.shape[0]
         lnP = torch.zeros(leaf_node_count)
         # TODO: Randomly select leaves if getting slow
         for leaf in range(leaf_node_count):
-            peel = peeler.make_peel_mst(leaf_r, leaf_dir, int_r, int_dir, curvature=torch.ones(1), start_node=leaf)
+            peel = peeler.make_peel_mst(leaf_r, leaf_dir, int_r, int_dir, curvature=-torch.ones(1), start_node=leaf)
             blens = self.compute_branch_lengths(leaf_node_count, peel, leaf_r, leaf_dir, int_r, int_dir)
             lnP[leaf] = self.compute_LL(peel, blens)
         sftmx = torch.nn.Softmax(dim=0)
         p = np.array(sftmx(lnP))
         leaf = np.random.choice(leaf_node_count, p=p)
-        return peeler.make_peel_mst(leaf_r, leaf_dir, int_r, int_dir, curvature=torch.ones(1), start_node=leaf)
+        return peeler.make_peel_mst(leaf_r, leaf_dir, int_r, int_dir, curvature=-torch.ones(1), start_node=leaf)
 
     def sample(self, leaf_loc, leaf_cov, int_loc=None, int_cov=None):
         # reshape covariance if single number
@@ -274,7 +276,7 @@ class BaseModel(object):
                 peel, int_locs = peeler.make_peel_tips(leaf_r_prop * leaf_dir_prop, connect_method=self.connect_method)
                 int_r_prop, int_dir_prop = utils.cart_to_dir(int_locs)
         elif self.connect_method == 'nj':
-            peel, blens = peeler.nj(leaf_r, leaf_dir_prop)
+            peel, blens = peeler.nj(leaf_r, leaf_dir_prop, self.curvature)
         elif self.connect_method == 'mst':
             peel = peeler.make_peel_mst(leaf_r, leaf_dir_prop, int_r_prop, int_dir_prop)
         elif self.connect_method == 'mst_choice':

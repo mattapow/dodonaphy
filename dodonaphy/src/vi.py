@@ -12,8 +12,8 @@ import matplotlib.pyplot as plt
 
 
 class DodonaphyVI(BaseModel):
-    def __init__(self, partials, weights, dim, embed_method='wrap', connect_method='mst', **prior):
-        super().__init__(partials, weights, dim, connect_method=connect_method, **prior)
+    def __init__(self, partials, weights, dim, embed_method='wrap', connect_method='mst', curvature=-1., **prior):
+        super().__init__(partials, weights, dim, connect_method=connect_method, curvature=curvature, **prior)
         print('Initialising variational model.\n')
 
         # Store mu on poincare ball in R^dim.

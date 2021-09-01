@@ -5,7 +5,7 @@ import warnings
 import math
 
 
-def hydra(D, dim=2, curvature=1, alpha=1.1, equi_adj=0.5, **kwargs):
+def hydra(D, dim=2, curvature=-1., alpha=1.1, equi_adj=0.5, **kwargs):
     """Strain minimised hyperbolic embedding
     Python Implementation of Martin Keller-Ressel's 2019 CRAN function
     hydra
@@ -18,7 +18,7 @@ def hydra(D, dim=2, curvature=1, alpha=1.1, equi_adj=0.5, **kwargs):
     dim : Int, optional
         Embedding dimension. The default is 2.
     curvature : Float, optional
-        Embedding curvature. The default is 1.
+        Embedding curvature. The default is -1.
     alpha : Float, optional
         Adjusts the hyperbolic curvature. Values larger than one yield a
         more distorted embedding where points are pushed to the outer
@@ -90,7 +90,7 @@ def hydra(D, dim=2, curvature=1, alpha=1.1, equi_adj=0.5, **kwargs):
                 "Equiangular adjustment only possible in dimension two.")
 
     # convert distance matrix to 'hyperbolic Gram matrix'
-    A = np.cosh(np.sqrt(curvature) * D)
+    A = np.cosh(np.sqrt(-curvature) * D)
     n = A.shape[0]
 
     # check for large/infinite values

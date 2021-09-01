@@ -20,13 +20,26 @@ def main():
     prior = {"birth_rate": 2., "death_rate": .5}
     epochs = 10000      # number of epochs
     n_draws = 1000      # number of trees drawn from final distribution
-    n_trials = 100      # number of initial embeddings to select from per grid
-    n_grids = 100       # number grid scales for selecting inital embedding
-    max_scale = 1
     connect_method = 'nj'      # 'incentre', 'mst', 'geodesics', 'nj', 'mst_choice'
     embed_method = 'simple'     # 'simple' or 'wrap'
     doSave = True
-    inference = 'mcmc'
+    inference = 'vi'
+    curvature = -1
+
+    # VI parameters
+    k_samples = 10       # tree samples per elbo calculation
+    lr = 1e-3
+
+    # MCMC parameters
+    step_scale = .001
+    save_period = max(int(epochs/n_draws), 1)
+    nChains = 5
+    burnin = 0
+
+    # MST parameters
+    n_trials = 100      # number of initial embeddings to select from per grid for mst
+    n_grids = 100       # number grid scales for selecting inital embedding for mst
+    max_scale = 1       # for mst internal node positions
 
     # Experiment folder
     path_write = "../data/T%d" % (S)
@@ -35,26 +48,19 @@ def main():
     dnaPath = "%s/dna.nex" % path_write
 
     if inference == 'vi':
-        # VI parameters
-        k_samples = 10       # tree samples per elbo calculation
-        lr = 1e-3
         if doSave:
+            lnLr = -int(np.log10(lr))
             path_write_vi = os.path.abspath(os.path.join(
-                path_write, "vi", "%s_%s_lr%i_k%i" % (embed_method, connect_method, -int(np.log10(lr)), k_samples)))
+                path_write, "vi", "%s_%s_lr%i_k%i_d%i_crv%d" % (embed_method, connect_method, lnLr, k_samples, dim, curvature)))
         else:
             path_write_vi = None
         runVi = True
         runMcmc = False
 
     elif inference == 'mcmc':
-        # MCMC parameters
-        step_scale = .001
-        save_period = max(int(epochs/n_draws), 1)
-        nChains = 5
-        burnin = 0
         if doSave:
             path_write_mcmc = os.path.abspath(os.path.join(
-                path_write, "mcmc", "%s_%s_c%d_d%d" % (embed_method, connect_method, nChains, dim)))
+                path_write, "mcmc", "%s_%s_c%d_d%d_crv%d" % (embed_method, connect_method, nChains, dim, curvature)))
         else:
             path_write_mcmc = None
         runMcmc = True
@@ -105,7 +111,8 @@ def main():
         mcmc.run(dim, partials[:], weights, dists, path_write_mcmc,
                  epochs=epochs, step_scale=step_scale, save_period=save_period,
                  n_grids=n_grids, n_trials=n_trials, max_scale=max_scale, nChains=nChains,
-                 burnin=burnin, connect_method=connect_method, embed_method=embed_method, **prior)
+                 burnin=burnin, connect_method=connect_method, embed_method=embed_method,
+                 curvature=curvature, **prior)
 
     if runVi:
         # Run Dodonaphy variational inference
@@ -115,7 +122,7 @@ def main():
                         epochs=epochs, k_samples=k_samples, n_draws=n_draws,
                         n_grids=n_grids, n_trials=n_trials,
                         max_scale=max_scale, lr=lr, embed_method=embed_method,
-                        connect_method=connect_method, **prior)
+                        connect_method=connect_method, curvature=curvature, **prior)
 
     end = time.time()
     seconds = end-start

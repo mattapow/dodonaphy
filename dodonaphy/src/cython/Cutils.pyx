@@ -18,7 +18,7 @@ cdef class Cu_edge:
     def __lt__(self, other):
         return self.distance < other.distance
 
-cpdef get_pdm(leaf_r, leaf_dir, int_r=None, int_dir=None, curvature=1., asNumpy=False):
+cpdef get_pdm(leaf_r, leaf_dir, int_r=None, int_dir=None, curvature=-torch.ones(1), asNumpy=False):
     """Pair-wise hyperbolic distance matrix
 
         Note if curvature=0, then the SQUARED Euclidean distance is computed.
@@ -33,7 +33,7 @@ cpdef get_pdm(leaf_r, leaf_dir, int_r=None, int_dir=None, curvature=1., asNumpy=
     Returns:
         ndarray: distance between point 1 and point 2
     """
-    if torch.isclose(curvature, torch.zeros(1)):
+    if torch.isclose(curvature.double(), torch.zeros(1).double()):
         # Euclidean distance
         assert asNumpy, "Euclidean distances returned as numpy array. Set asNumpy to True."
         X = leaf_r[0] * leaf_dir
@@ -112,7 +112,7 @@ cpdef get_pdm(leaf_r, leaf_dir, int_r=None, int_dir=None, curvature=1., asNumpy=
     return edge_list
 
 cpdef hyperbolic_distance_np(double r1, double r2, np.ndarray[np.double_t, ndim=1] directional1,
-                            np.ndarray[np.double_t, ndim=1] directional2,double curvature):
+                            np.ndarray[np.double_t, ndim=1] directional2, double curvature):
     """Generates hyperbolic distance between two points in poincoire ball
 
     Args:
@@ -125,15 +125,14 @@ cpdef hyperbolic_distance_np(double r1, double r2, np.ndarray[np.double_t, ndim=
     Returns:
         ndarray: distance between point 1 and point 2
     """
-    # if torch.allclose(r1, r2) and torch.allclose(directional1, directional2):
-    #     return torch.zeros(1)
+    assert curvature < 0
 
     # Use lorentz distance for numerical stability
     cdef double eps = 0.0000000000000003
     cdef np.ndarray[np.double_t, ndim=1] z1 = poincare_to_hyper_np(dir_to_cart(r1, directional1))
     cdef np.ndarray[np.double_t, ndim=1] z2 = poincare_to_hyper_np(dir_to_cart(r2, directional2))
     cdef double inner = np.maximum(-lorentz_product_np(z1, z2), 1+eps)
-    return 1. / np.sqrt(curvature) * np.arccosh(inner)
+    return 1. / np.sqrt(-curvature) * np.arccosh(inner)
     
 
 cpdef hyperbolic_distance(r1, r2, directional1, directional2, curvature):
@@ -151,13 +150,17 @@ cpdef hyperbolic_distance(r1, r2, directional1, directional2, curvature):
     """
     # if torch.allclose(r1, r2) and torch.allclose(directional1, directional2):
     #     return torch.zeros(1)
+    if torch.isclose(curvature, torch.zeros(1)):
+        x1 = dir_to_cart(r1, directional1)
+        x2 = dir_to_cart(r2, directional2)
+        return torch.sum(x2**2-x1**2)**.5
 
     # Use lorentz distance for numerical stability
     cdef double eps = 0.0000000000000003
     z1 = poincare_to_hyper(dir_to_cart(r1, directional1))
     z2 = poincare_to_hyper(dir_to_cart(r2, directional2))
     inner = torch.clamp(-lorentz_product(z1, z2), min=1+eps)
-    return 1. / torch.sqrt(curvature) * torch.arccosh(inner)
+    return 1. / torch.sqrt(-curvature) * torch.arccosh(inner)
 
 
 cdef lorentz_product_np(np.ndarray[np.double_t, ndim=1] x, np.ndarray[np.double_t, ndim=1] y):

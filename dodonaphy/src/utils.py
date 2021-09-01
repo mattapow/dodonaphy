@@ -29,7 +29,7 @@ def angle_to_directional(theta):
     return directional
 
 
-def get_pdm(leaf_r, leaf_dir, int_r, int_dir, curvature=torch.ones(1)):
+def get_pdm(leaf_r, leaf_dir, int_r, int_dir, curvature=-torch.ones(1)):
     leaf_node_count = leaf_r.shape[0]
     node_count = leaf_r.shape[0] + int_r.shape[0]
     edge_list = defaultdict(list)
@@ -65,7 +65,7 @@ def get_pdm(leaf_r, leaf_dir, int_r, int_dir, curvature=torch.ones(1)):
     return edge_list
 
 
-def get_pdm_tips(leaf_r, leaf_dir, curvature=torch.ones(1)):
+def get_pdm_tips(leaf_r, leaf_dir, curvature=-torch.ones(1)):
     leaf_node_count = leaf_r.shape[0]
     edge_list = [[] for _ in range(leaf_node_count)]
 
@@ -205,15 +205,20 @@ def hyperbolic_distance(r1, r2, directional1, directional2, curvature):
     # if torch.allclose(r1, r2) and torch.allclose(directional1, directional2):
     #     return torch.zeros(1)
 
+    x1 = dir_to_cart(r1, directional1)
+    x2 = dir_to_cart(r2, directional2)
+    if torch.isclose(curvature, torch.zeros(1)):
+        return torch.sum(x2**2-x1**2)**.5
+
     # Use lorentz distance for numerical stability
-    z1 = poincare_to_hyper(dir_to_cart(r1, directional1)).squeeze()
-    z2 = poincare_to_hyper(dir_to_cart(r2, directional2)).squeeze()
+    z1 = poincare_to_hyper(x1).squeeze()
+    z2 = poincare_to_hyper(x2).squeeze()
     eps = torch.finfo(torch.float64).eps
     inner = torch.clamp(-lorentz_product(z1, z2), min=1+eps)
-    return 1. / torch.sqrt(curvature) * torch.acosh(inner)
+    return 1. / torch.sqrt(-curvature) * torch.acosh(inner)
 
 
-def hyperbolic_distance_locs(z1, z2, curvature=torch.ones(1)):
+def hyperbolic_distance_locs(z1, z2, curvature=-torch.ones(1)):
     """Generates hyperbolic distance between two points in poincoire ball
 
     Args:
@@ -224,13 +229,15 @@ def hyperbolic_distance_locs(z1, z2, curvature=torch.ones(1)):
     Returns:
         tensor: distance between point 1 and point 2
     """
+    if torch.isclose(curvature, torch.zeros(1)):
+        return torch.sum(z2**2-z1**2)**.5
 
     # Use lorentz distance for numerical stability
     z1 = poincare_to_hyper(z1).squeeze()
     z2 = poincare_to_hyper(z2).squeeze()
     eps = torch.finfo(torch.float64).eps
     inner = torch.clamp(-lorentz_product(z1, z2), min=1+eps)
-    return 1. / torch.sqrt(curvature) * torch.acosh(inner)
+    return 1. / torch.sqrt(-curvature) * torch.acosh(inner)
 
 
 def get_plca(locs):
