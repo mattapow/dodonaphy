@@ -57,32 +57,70 @@ To sample a tree, we draw one point from each distribution and form the neighbou
 We then optimise these distributions by maximising the ELBO.
 
 
-
-\section{Hyperbolic Embeddings}
-The Poincaré ball $\mathbb{P}^{d} = \{x\in \mathbb{R}^{d} \,:\, ||x||<1\}$ models hyperbolic space $\mathbb{H}^{d}$ using the metric:
+\section{Trees in Hyperbolic Space}
+\subsection{Hyperbolic Space}
+The most common model of Hyperbolic space is the Poincaré ball $\mathbb{P}^{d} = \{x\in \mathbb{R}^{d} \,:\, ||x||<1\}$ contain points in a unit ball equipped with the metric
 \begin{equation*}\label{eq:poin_dist}
-d(x,y) = \textnormal{arccosh}\Big(1 + 2 \frac{||x-y||_{2}^{2}}{ (1-||x||_{2}^{2}) (1-||y||_{2}^{2})}\Big),
+    d(x,y) = \textnormal{arccosh}\Big(1 + 2 \frac{||x-y||_{2}^{2}}{ (1-||x||_{2}^{2}) (1-||y||_{2}^{2})}\Big),
 \end{equation*}
 where $||x||_{2}$ is the $l^{2}$-norm in $\mathbb{R}^{d}$.
+However, as either $||x||_{2}^{2}\to 1$ or $||y||_{2}^{2} \to 1$, eq.~\ref{eq:poin_dist} can become a numerically unstable way to compute distances~\cite{sala2018representation}.
+Fortunately, the poincare ball is a stereographic projection of the hyperboloid model, so an equivalent metric comes from projecting of $x$ and $y$ into the hyperboloid model of $\mathbb{H}^{d}$ and using its metric.
+The stereographic projection $\phi:\mathbb{P}^{d} \to \mathbb{H}^{d}$ takes a point to
+\begin{equation}
+    \phi(\bold{x}) = \Big(\frac{(1+||x||_{2})}{(1-||x||_{2})}, \frac{2 \bold{x}}{(1- ||x||_{2}}\Big).    
+\end{equation}
 
-We form continuous embeddings of trees using one point in the Poincare ball $\bold{x} \in \mathbb{P}^{d}$ for each node in the tree.
-For an unrooted tree with $S$ taxa, there will be $m=2S - 2$ nodes locations $\bold{X} \in(\mathbb{P}^{d})^{m}$, where $\bold{X} = \{\bold{x}_{i}: i=1, ..., m\}$.
-Embedded nodes are connected to form a minimum spanning tree (MST) protocol that ensures internal nodes have three neighbours and tip nodes have one neighbour.
-Both the branch lengths and tree topology may freely change as nodes move.
-Once a tree $T(\bold{X})$ is formed, its prior probability $p(T)$ and the likelihood of a sequence aligmnent p(D\big|T) under a given model and data $D$ may be easily determined.
+Then the hyperboloid model $\mathbb{H}^d$ is the sheet inside $\bold{x}\in\mathbb{R}^{d+1}$ such that $x_{0}^{2} - \sum_{i} x_{i}^{2} = 1$.
+It has metric
+\begin{equation}
+    d_{hyp}(\bold{x}, \bold{y}) = \text{acosh}(-\langle \bold{x}, \bold{y} \rangle),
+\end{equation}
+where the Lorentz inner product of $\bold{x}$ and $\bold{y}$ is:
+\begin{equation*}
+	\langle \bold{x}, \bold{y} \rangle = -x_{0}y_{0} + \sum_{i>0} x_{i}y_{i}
+\end{equation*}
+Thus, for $\bold{x}, \bold{y} \in \mathbb{P}^{d}$ we can use that $d(\bold{x}, \bold{y}) = d_{hyp}(\phi(\bold{x}), \phi(\bold{y}))$.
+Because of their connection we use these two models somewhat interchangably, modelling points in the Poincaré ball, but computing their distances on the hyperboloid.
 
-This method is quite distinct from cost functions that are based on pair-wise distances. For example Chami's variant on Dasgupta's cost, the log-a-like used by Wilson or see refs in Chami. Here, nodes placements do not directly contribute to the cost function (tree posterior), they only impact how a tree is formed.
+\subsection{Sampling in Hyperbolic Space}
+Given a point in hyperbolic space, we want to sample nearby points according to a distribution.
+To do this, we project points from the Poincaré ball into $\mathbb{R}^d$ and sample distributions there before projecting back into $\mathbb{P}^d$.
+This enables sampling to use common and efficient sampling techniques in $\mathbb{R}^d$, here we choose a multivariate normal distribution.
+We consider two possible homeomorphisms $\mathbb{H}^n \to \mathbb{R}^d$: a method of wrapping Euclidean vectors onto the hyperboloid and a homeomorphism from the unit ball into $\mathbb{R}^n$.
 
+\subsubsection{Wrapping Distributions}
+This recently developed method by~\cite{nagano2019wrapped} centres around the projection of a vector $\text{proj}(\bold{x})$ from $\mathbb{R}^d$ onto the hyperboloid model, which we then take into the Poincaré ball.
+The projection is the composition of two fuctions, firstly the vector is mapped via the parallel transport function along the hyperboloid in $\mathbb{R}^{d+1}$ to a desired location $\mu_0$.
+Then the exponential map wraps the vector in $\mathbb{R}^{d+1}$ on the the hypderboloid $\mathbb{H}^d$:
+\begin{equation}
+    \text{proj}_{\mu}: \text{exp}_{\mu} \circ \text{PT}{\mu_{0} \to \mu}.
+\end{equation}
+TODO: improve notation ===
+Further details are provided in the appendix.
 
-\begin{theorem} \label{thm:accessible}
-There exists an isometric embedding of a finite metric space with === into hyperbolic space.
-\end{theorem}
-Practically, we find a slight improvement of the variational approximation when the embedding is restricted to a sphere.
-We hypothesise that ultrametric trees can be embedded into hyperbolic space with their leaves lying on a sphere.
+To project a point from the Poincaré ball to Euclidean space, we first take the inverse stereographic projection from $\mathbb{P}^d$ to $\mathbb{H}^d$ then project ``downwards'' onto the tangent plane of $\bold{x}=0$ using the $d$-dimensional vector $u=(0, 1, 1,...): \mu = \phi^{-1}(\bold{x}_{i}) \cdot u $.
+We may then sample a vector $v$ using any distribution in $\mathbb{R}^d$, such as a Gaussian $G(\mu, \Sigma)$, before projecting back to the Poincare ball with $\phi \circ \text{proj}_{\mu)}(v)$.
 
-\section{Sampling Trees in Hyperbolic Space}
-It is convenient to sample in Euclidean space using common distributions, so we use a homeomorphism between $\mathbb{P}^{d}$ and $\mathbb{R}^{d}$ to embed points.
-The embedding function $g: \mathbb{R}^{d} \to \mathbb{P}^{d}$ is:
+The determinate of the Jacobian of the projection $\text{proj}_{\mu}(x)$:
+\be
+\Big| \frac{\text{proj}_{\mu} (\bold{x})} {\partial \bold{x}} \Big| = \Big(\dfrac{\sinh(||x||)}{||x||}\Big)^{n-1}.
+\ee
+The Jacobian of stereographic projection projection back into the poincare ball $\phi^{-1}$ is:
+\bee
+\frac{\partial \phi^{-1}(\bold{x})} {\partial \bold{x}} = \begin{cases}
+\dfrac{1}{1+x_{0}} &\text{ if } j = i+1\\
+\dfrac{-x_{i+1}}{(1+x_{0})^{2}} &\text{ if } j = 0\\
+0 &\text{ otherwise}\\
+\end{cases}
+\eee
+Since this projection is from $\mathbb{R}^{d+1}$ to $\mathbb{R}^{d}$, the Jacobian matrix is not square and so we  use the $d$-dimensional Jacobian $|J_{\phi^{-1}}(\bold{x})| = (\text{det} (J_{\phi^{-1}} (\bold{x}) J_{\phi^{-1}} (\bold{x})^{T}))^{1/2}$, which simplifies to:
+\be
+\Big|\frac{\partial {\phi^{-1}}(\bold{x})}{\partial \bold{x}}\Big| = \dfrac{(1+x_{0})^{2} + \sum_{i=1}^{d} x_{i}^{2}}{(1+x_{0})^{2(d+1)}}.
+\ee
+
+\subsubsection{A simple homeomorphism}
+Alternatively, we also consider the following embedding function $g: \mathbb{R}^{d} \to \mathbb{P}^{d}$:
 \be
 g(\bold{x}) = \dfrac{\bold{x}}{1+||\bold{x}||_{2}}
 \ee
@@ -91,53 +129,35 @@ with gradient
 \frac{\partial g(\bold{x})}{\partial \bold{x}} = 
 \dfrac{1}{1+||\bold{x}||_{2}} \Big( I - \dfrac{\bold{x} \otimes \bold{x}}{(1+||\bold{x}||_{2})||\bold{x}||_{2}} \Big).
 \ee
+Whilst this mapping does not preserve distances it has fewer computational steps.
 
-Leaves are restricted to a sphere by normalising their radius to a single value.
-Proposals are still multivariate normals in $\mathbb{R}^{d}$, but then the radius is  normalised to radius of the first leaf.
+\subsubsection{Forming a Tree}
+From a set of leaf locations $x$ in the Poincaré ball $x_i \in \mathbb{P}^d$ we seek to construct a tree.
+One way to form a tree is to use the hyperbolic pairwise distances between leaves and construct the neighbour joining (NJ) tree.
+Neighbour joining ===
 
-We must show that the Markov Chains are ergodic, that is, as $m \to \infty$ the distribution $p(\bold{X}_{m}|\bold{X}_{0})$ converges to the posterior distribution regardless of the choice of $p(\bold{X}_{0})$.
-If the chain is not ergodic, then the choice of proposal partitions the state space into subsets which cannot be reached from each other.
-A point set $\bold{X}_{m} \in \mathbb{R}^{d}$ can be reached via our normal distribution proposal, however it remains to be seen if this embedding spans all trees.
-We must know theorem~\ref{thm:accessible}.
-% https://www.robots.ox.ac.uk/~fwood/teaching/C19_hilary_2014_2015/mcmc.pdf
+Recently, \cite{chami2020trees} ===
+
+\begin{theorem} \label{thm:accessible}
+    There exists an isometric embedding of a finite metric space from a tree with === into hyperbolic space.
+    
+    TODO: I'm not sure I can derive this. I think most ML work in hyperbolic space just assumes it's an approximate embedding. ===
+    \end{theorem}
+    We hypothesise that ultrametric trees can be embedded into hyperbolic space with their leaves lying on a sphere.
 
 \section{MCMC}
 Since each set of node embeddings corresponds to a tree which has a well defined likelihood and prior probability, MCMC can proceed with the standard Metropolis-Hastings algorithm.
-The set of nodes are initialised to locations $\bold{X}_{0}$.
-For each node $\bold{x}_{i} \in \bold{X}_{0}$ a new location is proposed and accepted or rejected according to the Metropolis-Hastings algorithm, giving the next iteration $\bold{X}_{1}$.
+The set of nodes are initialised to locations $x^{0}$.
+For each node $x_{i}^t$ at step $t$, a new location is proposed and accepted or rejected according to the Metropolis-Hastings algorithm, giving the next iteration $x_i^{t+1}$.
+Node locations are proposed using their projection into $\mathbb{R}^d$, a Gaussian sample is taken before taking its inverse projection back into $\mathbb{P}^d$.
+For simplicity, leaves are restricted to a sphere by normalising their radius to a single value.
+That is, each proposal is a Gaussian in $\mathbb{R}^d$, but we then scale it to have the same radius as the first leaf.
 
-% \begin{figure}[htbp]
-% \begin{center}
-%     \includegraphics[width=\linewidth, height=\textheight]{fig/t17_trace}
-% \end{center}
-% \end{figure}
-
-\begin{figure}[htbp] \label{fig:map_dim}
-\begin{center}
-    \includegraphics*[width=\linewidth]{fig/map_dim}
-\end{center}
-\caption{Improvement of the MAP estimate on a tree with 17 taxa with increasing dimension.}
-\end{figure}
-
-
-\begin{figure}[htbp] \label{fig:splits}
-\begin{center}
-    \includegraphics*[width=\linewidth]{fig/t17_splits}
-\end{center}
-\caption{Comparison of splits on a tree with 17 taxa.}
-\end{figure}
-
-
-
-\section{Variational Inference}
-Intro to VI===
-
-\begin{figure}[htbp] \label{fig:elbo_trace}
-    \begin{center}
-        \includegraphics*[width=\linewidth]{fig/elbo_trace_t6_simple_nj_lr2_k10_d5}
-    \end{center}
-    \caption{ELBO tree on a tree with 6 taxa. With 17 taxa, the ELBO either decreases or stays roughly constant.}
-    \end{figure}
+% We must show that the Markov Chains are ergodic, that is, as $m \to \infty$ the distribution $p(\bold{X}_{m}|\bold{X}_{0})$ converges to the posterior distribution regardless of the choice of $p(\bold{X}_{0})$.
+% If the chain is not ergodic, then the choice of proposal partitions the state space into subsets which cannot be reached from each other.
+% A point set $\bold{X}_{m} \in \mathbb{R}^{d}$ can be reached via our normal distribution proposal, however it remains to be seen if this embedding spans all trees.
+% We must know theorem~\ref{thm:accessible}.
+% % https://www.robots.ox.ac.uk/~fwood/teaching/C19_hilary_2014_2015/mcmc.pdf
 
 \section{Comparison to MrBayes}
 A posterior was approximated for a 17 taxa set using Dodonaphy's MCMC and its VI before being compared to MrBayes.
@@ -146,73 +166,58 @@ The pairwise patristic distances were computed between the tips on the simulated
 The tips were initialised in the Poincare ball using hydra.
 Then the internal nodes were randomly placed in $\mathbb{P}^{d}$ with uniform directional and radius from a scaled Beta distribution $ r \sim s \times \text{Beta}(a=2, \beta=5)$ using scales $s \in [0, 2*\min(d(0, \bold{x}_{i})]$, where $i$ only includes the tip nodes.
 Internal node locations were sampled $10^{4}$ times and the initialisation with the highest tree likelihood was selected.
+===
 
+\begin{figure}[htbp]
+\begin{center}
+    \includegraphics[width=\linewidth]{fig/t17_trace_post}
+\end{center}
+\caption{Effect of embedding dimension on MCMC trace. (a) MCMC trace plots of the posterior using the simple embedding method connecting leaves using neighbour joining.
+(b) Kernel density estimates of the posterior for the last 200 tree in figure (a).}
+\end{figure}
 
+\begin{figure}[htbp] \label{fig:splits}
+    \begin{center}
+        \includegraphics*[width=\linewidth]{fig/t17_splits}
+    \end{center}
+    \caption{Comparison of splits on a tree with 17 taxa.}
+    \end{figure}
 
+\subsection{Embedding Dimension}
+Every phylogenetic tree has a Euclidean embedding~\cite{devienne2011euclidean}, however the number of dimensions $m$ to be sure of an embedding required grows linearly with the number of taxa $S$~\cite{deza1997geometry}: $m=S-1$.
+On the other hand, hyperbolic embeddings offer low dimensional approximate embeddings of distance spaces.
+Figure~\ref{fig:map_dim} empirically demonstrates that the embedding quality saturates after only 4 or 5 dimensions for a tree with 17 taxa.
 
-\clearpage
-\section{Thoughts}
-\subsection{Embedding}
-\begin{itemize}
-\item Want a MST with given tips and degree constrains:
-Given tips see \href{https://cs. stackexchange.com/questions/40131/spanning-tree-with-chosen-leaves?rq=1}{this} stackexchange question.
-But degree constrained is harder. 
-\href{https://cs.stackexchange.com/questions/22775/minimal-spanning-tree-with-degree-constraint}{This} algorithm looks at only constraining the .
+\begin{figure}[htbp] \label{fig:map_dim}
+\begin{center}
+    \includegraphics*[width=\linewidth]{fig/map_dim}
+\end{center}
+\caption{Improvement of the MAP estimate on a tree with 17 taxa with increasing dimension.}
+\end{figure}
 
-\begin{verbatim}
-For n-2 iterations:
-    Find the pair of edges i and j \
-        neighbouring a single internal\
-        vertex that minimises the cost\
-        C(i)+C(j)
-    Add edges i and j to the tree
-\end{verbatim}
-\item I tried without the Matsumuto adjustment and the likelihood was a bit worse.
-\end{itemize}
+\section{Variational Inference}
+In VI, the posterior surface (here a set of surfaces --- one for each embedded node $i$) is approximated by a variational distribution $q_{i}(z_{i})$, each parameterised by parameters $z_{i}$.
+When the data $D$ is fixed, minimising the KL divergence to the posterior $\text{KL}({\bf q}(\phi)||p(T\big|D))$ is equivalent to maximising the evidence lower bound (ELBO):
+\be
+\text{ELBO}(q) = \mathbb{E}_{q}[\log(p(z,D))] - \mathbb{E}_{q}[\log(q(z))].
+\ee
+Working with the ELBO is computationally advantageous since it does not depend on the intractable marginal distribution of the data $p(D)$, which is involves integrate over all tree topologies and all branch lengths.
 
-\subsection{MCMC}
-\begin{itemize}
-\item What type of tree rearrangements occur when topology changes?
-\item Posterior surfance is smooth if topology doesn't change.
-\item Remove isometric component of new vector. Want rotations and translations component
-\item I tried using log-a-like function instead of likelihood \cite{wilson2021learning} (leaves constrained to a sphere). It gave terrible trees on a six taxa dataset - likelihood $\sim -8000$ (not $-2600$) and bad splits. I tried weighting the edges inversely with their length (shorter edges are weighted more) and the result was about the same.
-\item Try on more taxa 20, 100, 200 using hpc
-\item How easy is it to add taxa? Might only need pair-wise distance to a subset of other taxa.
-\end{itemize}
+To optimise the elbo we use stochastic gradient ascent implemented in PyTorch.
+The autograd functionality of PyTorch automatically computes the gradient of the elbo in order to stochastically optimise with gradients.
 
-\subsection{VI}
-\begin{itemize}
-\item Pytorch's optimisers don't converge for non-convex problems.
-\item Posterior ``surface'' is non-convex and not continuous...
-\item What if we learn the curvature?
-\end{itemize}
+Define which $q$ you use ===
 
-\subsection{Full rank}
-Intuitively, nodes that are close together should be a bit correlated. However, it doesn't seem to improve things much. In the off-diagonals in the covariance matrix are initialised to zero, the ELBO gets much higher faster compared to if the off-diagonal terms have a non-zero covariance. That said, I haven't run simulations long enough to be sure, only $1000$ epochs with a small learning rate of $0.01$.
+The variational distribution $\bold{q}$ is smooth, however the posterior probability is not guaranteed to be continuous let alone differentiable as the tree topology changes.
+Evidently the posterior for each node is unlikely to be normally distributed.
+The feasibility of VI rests on how well a simple distribution $q$ can approximate these densities.
 
-\subsection{Distance-based}
-Could we adopt an approach like Wilson and Chami, where only the distributions of the embedded points are optimised based on their pair-wise distances.
-Only then do we infer a tree.
-The advantage of this is that the cost function is differentiable and more in line with what other people in the ML community do.
-However, this isn't actually modelling the Bayesian Posterior, just a proxy for it.
-
-
-%\newpage
-%\section{Variational Inference}
-%In VI, the posterior surface (here a set of surfaces --- one for each embedded node $i$) is approximated by a variational distribution $q_{i}(z_{i})$, each parameterised by parameters $z_{i}$.
-%When the data $D$ is fixed, minimising the KL divergence to the posterior $\text{KL}({\bf q}(\phi)||p(T\big|D))$ is equivalent to maximising the evidence lower bound (ELBO):
-%\be
-%\text{ELBO}(q) = \mathbb{E}_{q}[\log(p(z,D))] - \mathbb{E}_{q}[\log(q(z))].
-%\ee
-%Working with the ELBO is computationally advantageous since it does not depend on the intractable marginal distribution of the data $p(D)$, which is involves integrate over all tree topologies and all branch lengths.
-%We consider two mean-field variational distributions for the node locations in $\mathbb{P}^{d}$: a logit-Normal distribution and a ``wrapped'' Normal distribution as proposed in \cite{Nagano2019Wrapped}.
-%
-%In both these approaches, the variational distribution $\bold{q}$ is smooth, however the posterior probability is not guaranteed to be continuous let alone differentiable as the topology changes.
-%However this difficulty is partly overcome since the ELBO is not a point estimate, but is an expectation taken from $k$ samples.
-%Any discontinuities in $p(z,D)$ are smoothed through sampling under $q$.
-%
-%To optimise the elbo we use stochastic gradient ascent implemented in PyTorch.
-%The autograd functionality of PyTorch automatically computes the gradient of the elbo in order to stochastically optimise with gradients.
+\begin{figure}[htbp] \label{fig:elbo_trace}
+\begin{center}
+    \includegraphics*[width=\linewidth]{fig/elbo_trace_simple_nj_lr3_k10_d5}
+\end{center}
+\caption{ELBO tree on a tree with 17 taxa, learning rate of $10^{-3}$, $k=10$ samples for each ELBO calculation.}
+\end{figure}
 
 %The final log likelihood from BEAST was -6280 (similar to it's log posterior of -6271). In comparison, Dodonaphy MCMC gave -6280, which is a close match.
 %However, figure~\ref{fig:stat_cmp}a illustrates that samples from Dodonaphy's MCMC always gave one incorrect split.
@@ -239,8 +244,6 @@ However, this isn't actually modelling the Bayesian Posterior, just a proxy for 
 %The embedded posterior surfaces generated from samples $\bold{X}_{i}$ shouldn't be considered static, but transient over the simulation.
 %Nonetheless, these degrees of freedom should not affect the result of the MCMC.
 %
-%These densities are clearly not normally distributed.
-%The feasibility of VI rests on how well a simple distribution $q$ can approximate these densities.
 %Boosting to a mixture model may increase the ability for VI to represent these embeddings.
 	
 %\subsection{VI}
@@ -311,17 +314,41 @@ However, this isn't actually modelling the Bayesian Posterior, just a proxy for 
 \bibliography{notes}
 
 \clearpage
+\section{Thoughts}
+\subsection{Embedding}
+\begin{itemize}
+\item I tried without the Matsumuto adjustment and the likelihood was a bit worse.
+\end{itemize}
+
+\subsection{MCMC}
+\begin{itemize}
+\item What type of tree rearrangements occur when topology changes?
+\item Posterior surfance is smooth if topology doesn't change.
+\item Remove isometric component of new vector. Want rotations and translations component
+\item I tried using log-a-like function instead of likelihood \cite{wilson2021learning} (leaves constrained to a sphere). It gave terrible trees on a six taxa dataset - likelihood $\sim -8000$ (not $-2600$) and bad splits. I tried weighting the edges inversely with their length (shorter edges are weighted more) and the result was about the same.
+\item Try on more taxa 20, 100, 200 using hpc
+\item How easy is it to add taxa? Might only need pair-wise distance to a subset of other taxa.
+\end{itemize}
+
+\subsection{VI}
+\begin{itemize}
+\item Pytorch's optimisers don't converge for non-convex problems.
+\item Posterior ``surface'' is non-convex and not continuous...
+\item What if we learn the curvature?
+\end{itemize}
+
+\subsection{Full rank}
+Intuitively, nodes that are close together should be a bit correlated. However, it doesn't seem to improve things much. In the off-diagonals in the covariance matrix are initialised to zero, the ELBO gets much higher faster compared to if the off-diagonal terms have a non-zero covariance. That said, I haven't run simulations long enough to be sure, only $1000$ epochs with a small learning rate of $0.01$.
+
+\subsection{Distance-based}
+Could we adopt an approach like Wilson and Chami, where only the distributions of the embedded points are optimised based on their pair-wise distances.
+Only then do we infer a tree.
+The advantage of this is that the cost function is differentiable and more in line with what other people in the ML community do.
+However, this isn't actually modelling the Bayesian Posterior, just a proxy for it.
+
+
+\clearpage
 \section{Appendix}
-\subsection{Numerical stability in Hyperbolic space}
-As either $||x||_{2}^{2}\to 1$ or $||y||_{2}^{2} \to 1$, eq.~\ref{eq:poin_dist} can become a numerically unstable way to compute distances.
-Since the poincare ball is a stereographic projection of the hyperboloid, an equivalent metric comes from projecting of $x$ and $y$ into the hyperboloid model of $\mathbb{H}^{d}$ and using its metric.
-The hyperboloid model is the sheet inside $\bold{x}\in\mathbb{R}^{d+1}$ such that $x_{0}^{2} - \sum_{i} x_{i}^{2} = 1$.
-It has metric $d_{hyp}(\bold{x}, \bold{y}) = \text{acosh}(-\langle \bold{x}, \bold{y} \rangle)$, where the Lorentz inner product of $\bold{x}$ and $\bold{y}$ is:
-\begin{equation*}
-	\langle \bold{x}, \bold{y} \rangle = -x_{0}y_{0} + \sum_{i>0} x_{i}y_{i}
-\end{equation*}
-The stereographic projection onto the hyperboloid $\phi:\mathbb{P}^{d} \to \mathbb{H}^{d}$ takes a point to $\phi(\bold{x}) = \big(\frac{(1+||x||_{2})}{(1-||x||_{2})}, \frac{2 \bold{x}}{(1- ||x||_{2}}\big)$.
-Thus, for $\bold{x}, \bold{y} \in \mathbb{P}_{d}$ we can use $d(\bold{x}, \bold{y}) = d_{hyp}(\psi(\bold{x}), \psi(\bold{y}))$.
 
 % define \Phi inverse explicitly in
 
@@ -332,50 +359,47 @@ Normalising the leaf positions to radius $r$ by $n_{r}(x) = r \bold{x}/||\bold{x
 \dfrac{r}{||x||} \Big( I - \dfrac{x \otimes x}{||x||^{2}} \Big)
 \ee
 
-\paragraph{Wrapping Method}
-We propose a node's new location from a Gaussian by projecting the point from the Poincare ball into $\Psi: \mathbb{P}^{d} \to \mathbb{R}^{d}$.
-First project onto the hyperboloid model in $\mathbb{R}^{d+1}$ using $\text{proj}^{-1}(\bold{x})$ (see appendix), then projecting onto the tangent plane of $\bold{x}=0$ using the $d$-dimensional vector $u=(0, 1, 1, 1,...)$: $\Psi(\bold{x}_{i}) = \text{proj}^{-1}(\bold{x}_{i}) \cdot u $.
-A new point is drawn from a Gaussian located at $\Psi(\bold{x}_{i})$ with given standard deviation, before being projected back to the Poincare ball with $\Phi^{-1}$.
-
-The determinate of the Jacobian of the projection $\text{proj}_{\mu}: \text{exp}_{\mu} \circ \text{PT}{\mu_{0} \to \mu}$:
-\be
-\Big| \frac{\text{proj}_{\mu} (\bold{x})} {\partial \bold{x}} \Big| = \Big(\dfrac{\sinh(||x||)}{||x||}\Big)^{n-1}.
-\ee
-The Jacobian of stereographic projection projection back into the poincare ball $
-% Double check this
-\phi^{-1}$ is:
-\bee
-\frac{\partial \phi^{-1}(\bold{x})} {\partial \bold{x}} = \begin{cases}
-\dfrac{1}{1+x_{0}} &\text{ if } j = i+1\\
-\dfrac{-x_{i+1}}{(1+x_{0})^{2}} &\text{ if } j = 0\\
-0 &\text{ otherwise}\\
-\end{cases}
-\eee
-Since this projection is from $\mathbb{R}^{d+1}$ to $\mathbb{R}^{d}$, the Jacobian matrix is not square and so we  use the $d$-dimensional Jacobian $|J_{\phi^{-1}}(\bold{x})| = (\text{det} (J_{\phi^{-1}} (\bold{x}) J_{\phi^{-1}} (\bold{x})^{T}))^{1/2}$. The determinant of the Jacobian simplifies to:
-\be
-\Big|\frac{\partial {\phi^{-1}}(\bold{x})}{\partial \bold{x}}\Big| = \dfrac{(1+x_{0})^{2} + \sum_{i=1}^{d} x_{i}^{2}}{(1+x_{0})^{2(d+1)}}.
-\ee
+\subsection{Details of wrapping}
+TODO ===
 
 \paragraph{Discontinuities}
 Note that the likelihood function is discontinuous as the topology changes.
 This means the optima found may be only locally optimal and may depend on the starting location.
 The initialisation by Hydra aims to mitigate this effect.
 
+% \paragraph{Euclidean Embedding Dimension}
+% We simulated a number of birth-death trees to compute their minumum embedding dimension.
+% Given a pairwise distance matrix $d$, proposition 6.2.4 in~\cite{deza1997geometry} gives the minimum embedding dimension in Euclidean space is the rank of the matrix
+% \begin{equation} \label{eq:euclid_dim}
+%     p_{ij} = \frac{1}{2}(d_{i,N}^2 + d_{j,N}^2 - d_{i,j}^2).
+% \end{equation}
+% Trees were simulated using a birth rate of $2$ and a death rate of $1/2$.
+% From the pairwise patristic distance on each tree we computed the minimum embedding dimension according to eq.~\ref{eq:euclid_dim}.
+% Figure~\ref{fig:euclid_dim} illustrates how increasing the number of taxa linearly increases the minimum embedding dimension.
+% \begin{figure}[htbp]
+% \begin{center}
+% \includegraphics[width=\linewidth]{fig/euclid_dim.png}
+% \end{center}
+% \caption{The minimum Euclidean embedding dimension of simulated birth-death trees against the size of their taxon set.
+% The fitted line is $y=x-2$.}
+% \label{fig:euclid_dim}
+% \end{figure}
+
 \paragraph{Brute force MST}
 The figure below shows a grid search of the posterior landscape under a MST protocol.
 We could do a similar thing for neighbour joining now that we're primarily using it.
 \begin{figure}[htbp]
-    \begin{center}
-    \includegraphics[width=.33\linewidth]{fig/node6_posterior}%
-    \includegraphics[width=.33\linewidth]{fig/node8_posterior}%
-    \includegraphics[width=.33\linewidth]{fig/node9_posterior}
-    \end{center}
-    \caption{Fix all node positions but one (a) node 6, (b) node 8 and (c) node 9. Move this one node throughout the Poincaré disk and plot the tree posterior by placing the node at that point.}
-    \end{figure}
+\begin{center}
+\includegraphics[width=.33\linewidth]{fig/node6_posterior}%
+\includegraphics[width=.33\linewidth]{fig/node8_posterior}%
+\includegraphics[width=.33\linewidth]{fig/node9_posterior}
+\end{center}
+\caption{Fix all node positions but one (a) node 6, (b) node 8 and (c) node 9. Move this one node throughout the Poincaré disk and plot the tree posterior by placing the node at that point.}
+\end{figure}
     
 
 \end{document}
-
+\section{MST}
 We modify Prim's algorithm to add edges one by one, but only if the edges are valid.
 An edge $e_{ij}$ from vertex $i$ to $j$ is valid provided: a) vertex $v_{j}$ has not been visited, b) $e_{ij}$ doesn't add a second edge to a leaf node, and c) internal vertices have up to three neighbours, of which at least one must be internal.
  
@@ -397,3 +421,6 @@ mark vertex $v_{j}$ as visited
 Not every tree may be accessible under this MST protocol and in this sense, we have a variational distribution over trees.
 Given a connection protocol, is there a limit to the trees that can be generated?
 \end{algorithm}
+
+% For an unrooted tree with $S$ taxa, there will be $m=2S - 2$ nodes locations $\bold{X} \in(\mathbb{P}^{d})^{m}$, where $\bold{X} = \{\bold{x}_{i}: i=1, ..., m\}$.
+% Embedded nodes are connected to form a minimum spanning tree (MST) protocol that ensures internal nodes have three neighbours and tip nodes have one neighbour.
