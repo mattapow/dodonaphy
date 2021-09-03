@@ -6,6 +6,7 @@ import Cutils
 import torch
 import numpy as np
 from collections import defaultdict
+import math
 
 
 def make_peel_incentre(leaf_locs, curvature=-torch.ones(1)):
@@ -327,7 +328,7 @@ def is_valid_edge(to_, from_, adjacency, visited, S, node_count, open_slots, vis
     return is_valid
 
 
-def nj(leaf_r, leaf_dir, curvature=-torch.ones(1)):
+def nj(pdm):
     """Generate Neighbour joining tree.
 
     Args:
@@ -338,7 +339,7 @@ def nj(leaf_r, leaf_dir, curvature=-torch.ones(1)):
     Returns:
         tuple: (peel, blens)
     """
-    leaf_node_count = leaf_r.shape[0]
+    leaf_node_count = len(pdm)
     int_node_count = leaf_node_count - 2
     node_count = leaf_node_count + int_node_count
     eps = torch.finfo(torch.double).eps
@@ -347,38 +348,45 @@ def nj(leaf_r, leaf_dir, curvature=-torch.ones(1)):
     peel = np.zeros((int_node_count + 1, 3), dtype=int)
     blens = torch.zeros(node_count, dtype=torch.float64)
 
-    # get pair-wise distances
-    pdm = Cutils.get_pdm(leaf_r, leaf_dir, curvature=curvature, asNumpy=True)
-
     # construct Q matrix
     Q = compute_Q(pdm)
 
     # Add a mask to the Q matrix
-    mask = np.array(leaf_node_count * [False])
-    Qm = np.ma.masked_array(Q, mask=np.outer(mask, mask))
+    mask = torch.tensor(leaf_node_count * [False])
 
     # for each internal node
     for int_i in range(int_node_count + 1):
         # find minimum of Q matrix
-        g, f = np.unravel_index(Qm.argmin(), Qm.shape)
+        Q.masked_fill_(~torch.outer(~mask, ~mask), math.inf)
+        g, f = unravel_index(Q.argmin(), Q.shape)
 
         # add this branch to peel
         u = int_i + leaf_node_count
-        peel[int_i, :] = (f, g, u)
+        peel[int_i, 0] = f
+        peel[int_i, 1] = g
+        peel[int_i, 2] = u
 
         # get distances to new node u
         pdm = add_pdm_node_nj(pdm, f, g)
 
         # add edges above f and g to blens
-        blens[f] = torch.clamp(torch.tensor(pdm[f][u]), min=eps)
-        blens[g] = torch.clamp(torch.tensor(pdm[g][u]), min=eps)
+        blens[f] = torch.clamp(pdm[f, u], min=eps)
+        blens[g] = torch.clamp(pdm[g, u], min=eps)
 
         # update Q matrix
-        mask[f] = mask[g] = True
-        mask = np.hstack((mask, False))
-        Qm = update_Q(Qm, pdm, mask)
+        mask[f] = mask[g] = torch.tensor(True)
+        mask = torch.hstack((mask, torch.tensor(False)))
+        Q = update_Q(Q, pdm, mask)
 
     return peel, blens
+
+
+def unravel_index(index, shape):
+    out = []
+    for dim in reversed(shape):
+        out.append(index % dim)
+        index = index // dim
+    return tuple(reversed(out))
 
 
 def compute_Q(pdm):
@@ -391,16 +399,15 @@ def compute_Q(pdm):
         [type]: [description]
     """
     n = len(pdm)
-    sum_pdm = np.sum(pdm, axis=1, keepdims=True)
-    sum_i = np.repeat(sum_pdm, n, axis=1)
-    sum_j = np.repeat(sum_pdm.T, n, axis=0)
+    sum_pdm = torch.sum(pdm, axis=1, keepdims=True)
+    sum_i = torch.repeat_interleave(sum_pdm, n, dim=1)
+    sum_j = torch.repeat_interleave(sum_pdm.T, n, dim=0)
     Q = (n - 2) * pdm - sum_i - sum_j
-    np.fill_diagonal(Q, 0)
-
+    Q.fill_diagonal_(0)
     return Q
 
 
-def update_Q(Qm, pdm_updated, mask):
+def update_Q(Q, pdm_updated, mask):
     """ add new node to masked Q matrix
 
     Args:
@@ -411,23 +418,21 @@ def update_Q(Qm, pdm_updated, mask):
     Returns:
         [type]: [description]
     """
-    n = len(Qm)
+    n = len(Q)
 
     # new column Q_u for new node u
-    sum_pdm = np.sum(pdm_updated, axis=-1)
+    sum_pdm = torch.sum(pdm_updated, dim=-1)
     Q_u = (n - 2) * pdm_updated[:-1, -1] - sum_pdm[:-1] - sum_pdm[-1]
 
     # add to Q matrix
-    Q = np.zeros((n+1, n+1))
-    Q[:-1, :-1] = Qm.data
-    Q[-1, :-1] = Q_u
-    Q[:-1, -1] = Q_u
+    Q = torch.vstack((Q, Q_u.unsqueeze(dim=0)))
+    Q_u = torch.cat((Q_u, torch.zeros(1)))
+    Q = torch.hstack((Q, Q_u.unsqueeze(dim=1)))
 
     # update mask
-    mask = ~np.outer(~mask, ~mask)
-    Qm = np.ma.masked_array(Q, mask=mask)
+    mask = ~torch.outer(~mask, ~mask)
 
-    return Qm
+    return Q
 
 
 def add_pdm_node_nj(pdm, f, g):
@@ -442,17 +447,16 @@ def add_pdm_node_nj(pdm, f, g):
     n = len(pdm)
 
     # get distance other taxa to new node
-    pdm_u = .5 * (pdm[f][:] + pdm[g][:] - pdm[f][g])
+    pdm_u = .5 * (pdm[f] + pdm[g] - pdm[f][g])
 
     # get distance fu and fg
-    sum_pdm = np.sum(pdm, axis=-1)
+    sum_pdm = torch.sum(pdm, dim=-1)
     pdm_u[f] = .5 * pdm[f][g] + (sum_pdm[f] - sum_pdm[g]) / (2 * (n - 2))
     pdm_u[g] = pdm[f][g] - pdm_u[f]
 
     # add new node to pdm
-    pdm_out = np.zeros((n+1, n+1))
-    pdm_out[:-1, :-1] = pdm
-    pdm_out[-1, :-1] = pdm_u
-    pdm_out[:-1, -1] = pdm_u
+    pdm = torch.vstack((pdm, pdm_u.unsqueeze(dim=0)))
+    pdm_u = torch.cat((pdm_u, torch.zeros(1)))
+    pdm = torch.hstack((pdm, pdm_u.unsqueeze(dim=1)))
 
-    return pdm_out
+    return pdm

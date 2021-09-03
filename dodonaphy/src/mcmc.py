@@ -1,5 +1,6 @@
 from . import utils, tree, hydra, peeler
 from .base_model import BaseModel
+import Cutils
 # from ..ext.power_spherical import PowerSpherical
 
 from torch.distributions.uniform import Uniform
@@ -44,7 +45,9 @@ class Chain(BaseModel):
             leaf_r_all, self.leaf_dir = utils.cart_to_dir(loc_poin)
             self.leaf_r = leaf_r_all[0]
         elif self.connect_method == 'nj':
-            self.peel, self.blens = peeler.nj(self.leaf_r.repeat(self.S), self.leaf_dir)
+            pdm = torch.from_numpy(Cutils.get_pdm(
+                self.leaf_r.repeat(self.S), self.leaf_dir, curvature=self.curvature, asNumpy=True))
+            self.peel, self.blens = peeler.nj(pdm)
         elif self.connect_method == 'mst':
             self.peel = peeler.make_peel_mst(self.leaf_r.repeat(self.S), self.leaf_dir, self.int_r, self.int_dir)
         elif self.connect_method == 'mst_choice':
@@ -195,7 +198,7 @@ class DodonaphyMCMC():
             print("100%")
 
         swaps = 0
-        print("Running for %d epochs.\n" % epochs)
+        print("Running for %d iterations.\n" % epochs)
         for i in range(epochs):
             for c in range(self.nChains):
                 # step
@@ -210,7 +213,7 @@ class DodonaphyMCMC():
                     self.save_iteration(path_write, i)
 
                 if i > 0:
-                    print('epoch: %-12i LnL: %10.1f Acceptance Rate: %5.3f' %
+                    print('Iteration: %-12i LnL: %10.1f Acceptance Rate: %5.3f' %
                           (i, self.chain[0].lnP, self.chain[0].accepted / self.chain[0].iterations),
                           end="", flush=True)
 
@@ -343,7 +346,7 @@ class DodonaphyMCMC():
         assert connect_method in ['incentre', 'mst', 'geodesics', 'nj', 'mst_choice']
 
         # embed tips with distances using Hydra
-        emm_tips = hydra.hydra(dists, dim=dim, stress=True, **{'isotropic_adj': True})
+        emm_tips = hydra.hydra(dists, dim=dim, curvature=curvature, stress=True, **{'isotropic_adj': True})
         print('Embedding Stress (tips only) = {:.4}'.format(emm_tips["stress"].item()))
 
         # Initialise model

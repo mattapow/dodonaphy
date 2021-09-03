@@ -276,7 +276,9 @@ class BaseModel(object):
                 peel, int_locs = peeler.make_peel_tips(leaf_r_prop * leaf_dir_prop, connect_method=self.connect_method)
                 int_r_prop, int_dir_prop = utils.cart_to_dir(int_locs)
         elif self.connect_method == 'nj':
-            peel, blens = peeler.nj(leaf_r, leaf_dir_prop, self.curvature)
+            pdm = torch.from_numpy(Cutils.get_pdm(
+                leaf_r_prop.repeat(self.S), leaf_dir_prop, curvature=self.curvature, asNumpy=True))
+            peel, blens = peeler.nj(pdm)
         elif self.connect_method == 'mst':
             peel = peeler.make_peel_mst(leaf_r, leaf_dir_prop, int_r_prop, int_dir_prop)
         elif self.connect_method == 'mst_choice':

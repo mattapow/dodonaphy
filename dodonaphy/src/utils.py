@@ -29,7 +29,7 @@ def angle_to_directional(theta):
     return directional
 
 
-def get_pdm(leaf_r, leaf_dir, int_r, int_dir, curvature=-torch.ones(1)):
+def get_pdm(leaf_r, leaf_dir, int_r=None, int_dir=None, curvature=-torch.ones(1)):
     leaf_node_count = leaf_r.shape[0]
     node_count = leaf_r.shape[0] + int_r.shape[0]
     edge_list = defaultdict(list)
@@ -371,7 +371,7 @@ def LogDirPrior(blen, aT, bT, a, c):
     n_branch = int(len(blen))
     n_leaf = int(n_branch / 2 + 1)
 
-    treeL = sum(blen)
+    treeL = torch.sum(blen)
 
     blen_pos = blen.clone()
     blen_pos[torch.isclose(blen_pos, torch.zeros(1, dtype=torch.double))] = 1

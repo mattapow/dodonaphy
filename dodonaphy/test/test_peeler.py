@@ -1,4 +1,5 @@
 from src import utils, poincare, peeler
+import Cutils
 import pytest
 import torch
 import numpy as np
@@ -194,3 +195,18 @@ def test_make_peel_geodesic_example2():
         assert(int(peel[i][0]) is not int(peel[i][1]))
         assert(int(peel[i][0]) is not int(peel[i][2]))
         assert(int(peel[i][1]) is not int(peel[i][2]))
+
+
+def test_nj():
+
+    leaf_r = torch.tensor([.5, .5, .5, .5])
+    leaf_theta = torch.tensor([np.pi/10, -np.pi/10, np.pi*6/8, -np.pi*6/8])
+    leaf_dir = utils.angle_to_directional(leaf_theta)
+
+    pdm = torch.from_numpy(Cutils.get_pdm(leaf_r, leaf_dir, asNumpy=True))
+    peel, blens = peeler.nj(pdm)
+
+    assert np.allclose(peel, [[1, 0, 4], [3, 2, 5], [5, 4, 6]])
+    assert torch.allclose(blens.double(),
+                          torch.tensor([0.1462, 0.1462, 0.5108, 0.5108, 0.3589, 0.3589]).double(),
+                          atol=.0001)
