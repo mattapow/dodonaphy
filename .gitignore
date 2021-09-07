@@ -17,13 +17,12 @@ __pycache__/
 data/*
 results/*
 
-ext/trees-bootstrap
-ext/mb
+ext/
 
 *.gz
 *.aux
 doc/notes.log
-doc/fig/*
+doc/fig*
 doc/notes.out
 doc/notes.bbl
 doc/notes.blg
