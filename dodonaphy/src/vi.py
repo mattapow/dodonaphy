@@ -188,6 +188,8 @@ class DodonaphyVI(BaseModel):
                 # Save varitaional parameters
                 fn = os.path.join(path_write, "VI_params_init.csv")
                 self.save(fn)
+            
+            elbo_fn = os.path.join(path_write, 'elbo.txt')
 
         lr_lambda = lambda epoch: 1.0 / np.sqrt(epoch + 1)
         optimizer = torch.optim.Adam(list(self.VariationalParams.values()), lr=lr)
@@ -211,30 +213,32 @@ class DodonaphyVI(BaseModel):
             print('epoch %-12i ELBO: %10.3f' % (epoch+1, elbo_hist[-1]))
             hist_dat.append(elbo_hist[-1])
 
+            if path_write is not None:
+                with open(elbo_fn, 'a') as f:
+                    f.write("%f\n" % elbo_hist[-1])
+
         if epochs > 0 and path_write is not None:
-            plt.figure()
-            plt.plot(range(epochs), elbo_hist, 'r', label='elbo')
-            plt.title('Elbo values')
-            plt.xlabel('Epochs')
-            plt.ylabel('elbo')
-            plt.legend()
-            plt.savefig(path_write + "/elbo_trace.png")
+            try:
+                plt.figure()
+                plt.plot(range(epochs), elbo_hist, 'r', label='elbo')
+                plt.title('Elbo values')
+                plt.xlabel('Epochs')
+                plt.ylabel('elbo')
+                plt.legend()
+                plt.savefig(path_write + "/elbo_trace.png")
 
-            plt.clf()
-            plt.hist(hist_dat)
-            plt.savefig(path_write + "/elbo_hist.png")
-
-            fn = os.path.join(path_write, 'elbo.txt')
-            with open(fn, 'w') as f:
-                for i in range(epochs):
-                    f.write("%f\n" % elbo_hist[i])
+                plt.clf()
+                plt.hist(hist_dat)
+                plt.savefig(path_write + "/elbo_hist.png")
+            except Exception:
+                print("Could no generate and save elbo figures.")
 
         final_elbo = self.elbo_normal(100).item()
         print('Final ELBO: {}'.format(final_elbo))
         if path_write is not None:
             fn = os.path.join(path_write, 'vi.info')
             with open(fn, 'a') as file:
-                file.write('%-12s: %i\n' % ("Final ELBO", final_elbo))
+                file.write('%-12s: %i\n' % ("Final ELBO (100 samples)", final_elbo))
 
     def elbo_normal(self, size=1):
         """[summary]
