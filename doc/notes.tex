@@ -213,21 +213,44 @@ However, finding such an embedding remains an open question.
 To circumvent this issue, we optimise the likelihood not of a tree, but based on the pair-wise distance of every pair of nodes.
 Given a set of leaf nodes in the embedding space $x \in \mathbb{H}^{d}$, the cost function employed is:
 \begin{equation}
-C = \sum_{i \neq j} w_{ij} (\log L(d_{ij}|D)) + \log p(d_{ij}))
+p(z, D) = \prod_{i \neq j} L(d_{ij}|D)))^{w_{ij}}  p(\textnormal{NJ}(d_{ij}))
+\end{equation}
+
+\begin{equation}
+\log p(z, D) = \sum_{i \neq j} w_{ij} \log L(d_{ij}|D))) + \log p(\textnormal{NJ}(d_{ij}))
 \end{equation}
 \noindent where $L(d_{ij}|D)$ is the likelihood of the distance from $x_{i}$ to $x_{j}$ given the sequence alignment data $D$ and the weight $w_{ij}$ applied to each edge sums to one $\sum_{ij} w_{ij} = 1$.
-The prior probability of the data comes from an exponential prior on the branch lengths.
+Note that in most instances the likelihood the likelihood if less than one, so a larger weight gives less emphasis.
+
+The prior probability $p(\textnormal{NJ}(d_{ij}))$ comes from forming a neighbour joining tree then computing a gamma Dirichlet prior on branch lengths and a uniform prior on topologies.
 This definition does not requires a time reversible likelihood function, however we use a simple Jukes-Cantor model of evolution which gives $L(d_{ij})=L(d_{ji})$.
 
-To better mimic the likelihood of a tree, we weight edges according to the $Q$ matrix, which is used to determine which edges are joined during neighbour joining (NJ): 
+To better mimic the likelihood of a tree, we weight edges according to their embedding distance --- nodes that are closer neighbours according to the Q-criterion have less weight (more emphasis).
+
 \be
-Q_{ij} = (S-2)d_{ij} - \sum_{k}^{S}d(i, k) - \sum_{k}^{S}d(j, k).
+w_{ij} = \frac{\exp(-d_{ij})}{\sum_{j} \exp(-d_{ij})}.
 \ee
-In the algorithm, the most negative entry in $Q$ is selected to and these nodes are connected creating a new ancestor, before again selecting the most negative entry of $Q$.
-Accordingly, the weight applied to each edge is constructed as the negative of $Q$, then a normalised exponential (softmax) function is applied so the weights sum to one:
-\be
-w_{ij} = \frac{\exp(-Q_{ij})}{\sum_{ij} \exp(-Q_{ij})}.
-\ee
+
+
+% Q-criterion, which is used to determine which edges are joined during neighbour joining (NJ): 
+%\be
+%Q_{ij} = (S-2)d_{ij} - \sum_{k}^{S}d(i, k) - \sum_{k}^{S}d(j, k).
+%\ee
+%In the algorithm, the most negative entry in $Q$ is selected to and these nodes are connected creating a new ancestor, before again selecting the most negative entry of $Q$.
+%Accordingly, the weight applied to each edge is constructed as the negative inverse of $Q$, then a normalised exponential (softmax) function is applied so the weights sum to one for each node:
+%\be
+%w_{ij} = \frac{\exp(-1/Q_{ij})}{\sum_{j} \exp(-1/Q_{ij})}.
+%\ee
+%Nodes that are closer neighbours according to the Q-criterion have less weight (more emphasis).
+
+%The additional scaling by the current epoch number $n$ is put in as a cooling effect so that:
+%\be
+%\lim_{n\to\infty} w_{ij} = 
+%\begin{cases}
+%1 \qquad if \min(Q_{ij})\\
+%0 \qquad otherwise
+%\end{cases}
+%\ee
 
 \subsection{Variational Distributions}
 We approximated the posterior surface for each leaf node using a log-normal distribution $\textnormal{LogNormal}(x_{i}, \Sigma_{i})$ in Euclidean space $x_{i} \in \mathbb{R}^{d}$ wrapped onto a sphere.
