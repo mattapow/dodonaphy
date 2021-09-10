@@ -7,6 +7,8 @@
 \usepackage{epstopdf}
 \usepackage{hyperref}
 \DeclareGraphicsRule{.tif}{png}{.png}{`convert #1 `dirname #1`/`basename #1 .tif`.png}
+\DeclareMathOperator*{\argmax}{argmax}
+\DeclareMathOperator*{\argmin}{argmin}
 \usepackage[utf8]{inputenc}
 \usepackage[english]{babel}
 
@@ -47,7 +49,7 @@ A successful embedding requires an isometry between distances in trees and dista
 Previous work has shown that ultrametric trees always have an isometric embedding in Euclidean space~\cite{pavoine2005measuring}.
 Furthermore, there is an isometric embedding in Euclidean space for any rooted phylogenetic tree by taking the square-root of distances between leaves on the tree~\cite{devienne2011euclidean}.
 However, Euclidean embeddings generally have a minimum embedding dimension~\cite{deza1997geometry}, trading one high-dimensional problem for another.
-Spurred on by quality embeddings of nested data structures (such as trees) in low dimensions~\cite{sala2018representation}, several recent works turn to hyperbolic space for embeddings~\cite{chami2020trees, wilson2021learning, matsumoto2020novel}.
+Spurred on by quality embeddings of nested data structures (such as trees) in low dimensions~\cite{sala2018representation}, several recent works turn to hyperbolic space for embeddings~\cite{chami2020trees, wilson2021learning, matsumoto2020novel, lee2021deep}.
 However, none of these works consider the problem of Bayesian inference in hyperbolic space.
 
 In this work, we embed points onto a sphere $S^{d-1}$ in hyperbolic space $\mathbb{H}^d$, with each point corrresponding to a genetic sequence.
@@ -77,11 +79,11 @@ It has metric
     d_{hyp}(\bold{x}, \bold{y}) = \text{acosh}(-\langle \bold{x}, \bold{y} \rangle),
 \end{equation}
 where the Lorentz inner product of $\bold{x}$ and $\bold{y}$ is:
-\begin{equation*}
+\begin{equation}
 	\langle \bold{x}, \bold{y} \rangle = -x_{0}y_{0} + \sum_{i>0} x_{i}y_{i}
-\end{equation*}
+\end{equation}
 Thus, for $\bold{x}, \bold{y} \in \mathbb{P}^{d}$ we can use that $d(\bold{x}, \bold{y}) = d_{hyp}(\phi(\bold{x}), \phi(\bold{y}))$.
-Because of their connection we use these two models somewhat interchangably, modelling points in the Poincaré ball, but computing their distances on the hyperboloid.
+Because of their connection we use these two models somewhat interchangeably, modelling points in the Poincaré ball, but computing their distances on the hyperboloid.
 
 \subsection{Sampling in Hyperbolic Space}
 Given a point in hyperbolic space, we want to sample nearby points according to a distribution.
@@ -138,12 +140,9 @@ Neighbour joining ===
 
 Recently, \cite{chami2020trees} ===
 
-\begin{theorem} \label{thm:accessible}
-    There exists an isometric embedding of a finite metric space from a tree with === into hyperbolic space.
-    
-    TODO: I'm not sure I can derive this. I think most ML work in hyperbolic space just assumes it's an approximate embedding. ===
-    \end{theorem}
-    We hypothesise that ultrametric trees can be embedded into hyperbolic space with their leaves lying on a sphere.
+\cite{sarkar2012low} find a construction  to embed any given tree into the hyperbolic plane $\mathbb{H}^{2}$ with arbitrary low distortion.
+
+We hypothesise that ultrametric trees can be embedded into hyperbolic space with their leaves lying on a sphere.
 
 \section{MCMC}
 Since each set of node embeddings corresponds to a tree which has a well defined likelihood and prior probability, MCMC can proceed with the standard Metropolis-Hastings algorithm.
@@ -226,31 +225,23 @@ The prior probability $p(\textnormal{NJ}(d_{ij}))$ comes from forming a neighbou
 This definition does not requires a time reversible likelihood function, however we use a simple Jukes-Cantor model of evolution which gives $L(d_{ij})=L(d_{ji})$.
 
 To better mimic the likelihood of a tree, we weight edges according to their embedding distance --- nodes that are closer neighbours according to the Q-criterion have less weight (more emphasis).
-
+The Q-criterion is used to determine which edges are joined during neighbour joining (NJ): 
 \be
-w_{ij} = \frac{\exp(-d_{ij})}{\sum_{j} \exp(-d_{ij})}.
+Q_{ij} = (S-2)d_{ij} - \sum_{k}^{S}d(i, k) - \sum_{k}^{S}d(j, k).
 \ee
-
-
-% Q-criterion, which is used to determine which edges are joined during neighbour joining (NJ): 
-%\be
-%Q_{ij} = (S-2)d_{ij} - \sum_{k}^{S}d(i, k) - \sum_{k}^{S}d(j, k).
-%\ee
-%In the algorithm, the most negative entry in $Q$ is selected to and these nodes are connected creating a new ancestor, before again selecting the most negative entry of $Q$.
-%Accordingly, the weight applied to each edge is constructed as the negative inverse of $Q$, then a normalised exponential (softmax) function is applied so the weights sum to one for each node:
-%\be
-%w_{ij} = \frac{\exp(-1/Q_{ij})}{\sum_{j} \exp(-1/Q_{ij})}.
-%\ee
-%Nodes that are closer neighbours according to the Q-criterion have less weight (more emphasis).
-
-%The additional scaling by the current epoch number $n$ is put in as a cooling effect so that:
-%\be
-%\lim_{n\to\infty} w_{ij} = 
-%\begin{cases}
-%1 \qquad if \min(Q_{ij})\\
-%0 \qquad otherwise
-%\end{cases}
-%\ee
+In the neighbour joining algorithm, the most negative entry in $Q$ is selected to and these nodes are connected creating a new ancestor, before again selecting the most negative entry of $Q$.
+Accordingly, the weight applied to each edge is constructed as the negative inverse of $Q$, then a normalised exponential (softmax) function is applied so the weights sum to one for each node:
+\be
+w_{ij} = \frac{\exp(n Q_{ij})}{\sum_{j} \exp(n Q_{ij})}.
+\ee
+The additional scaling by the current epoch number $n \in \{1,2,3...\}$ is put in as a cooling effect so that:
+\be
+\lim_{n\to\infty} w_{ij} = 
+\begin{cases}
+1 \qquad \textnormal{if } i = \argmin_{k}(d_{kj}) \\
+0 \qquad \textnormal{otherwise}
+\end{cases}
+\ee
 
 \subsection{Variational Distributions}
 We approximated the posterior surface for each leaf node using a log-normal distribution $\textnormal{LogNormal}(x_{i}, \Sigma_{i})$ in Euclidean space $x_{i} \in \mathbb{R}^{d}$ wrapped onto a sphere.
