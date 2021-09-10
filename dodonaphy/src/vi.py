@@ -188,7 +188,7 @@ class DodonaphyVI(BaseModel):
                 # Save varitaional parameters
                 fn = os.path.join(path_write, "VI_params_init.csv")
                 self.save(fn)
-            
+
             elbo_fn = os.path.join(path_write, 'elbo.txt')
 
         lr_lambda = lambda epoch: 1.0 / np.sqrt(epoch + 1)
@@ -333,16 +333,16 @@ class DodonaphyVI(BaseModel):
             path_write=path_write,
             lr=lr)
 
-        # draw samples
-        peels, blens, X, lp = mymod.draw_sample(n_draws, lp=True)
-
-        # Save varitaional parameters
+        # draw samples (one-by-one for reduced memory requirements)
+        # and save them
         if path_write is not None:
             tree.save_tree_head(path_write, "vi", S)
             for i in range(n_draws):
-                lnPr = mymod.compute_prior_gamma_dir(blens[i])
-                tree.save_tree(path_write, "vi", peels[i], blens[i], i, lp[i].item(), lnPr.item())
+                peels, blens, X, lp = mymod.draw_sample(1, lp=True)
+                lnPr = mymod.compute_prior_gamma_dir(blens[0])
+                tree.save_tree(path_write, "vi", peels[0], blens[0], i, lp[0].item(), lnPr.item())
 
+            # Save varitaional parameters
             fn = os.path.join(path_write, "VI_params.csv")
             mymod.save(fn)
 
