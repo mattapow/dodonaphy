@@ -149,7 +149,8 @@ class DodonaphyVI(BaseModel):
         logPrior = self.compute_prior_gamma_dir(sample['blens'])
 
         # Likelihood
-        logP = self.compute_LL(sample['peel'], sample['blens'])
+        # logP = self.compute_LL(sample['peel'], sample['blens'])
+        logP = self.compute_log_a_like(sample['leaf_r'], sample['leaf_dir'], curvature=self.curvature)
 
         return logP + logPrior - sample['logQ'] + sample['jacobian']
 

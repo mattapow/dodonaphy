@@ -18,7 +18,7 @@ cdef class Cu_edge:
     def __lt__(self, other):
         return self.distance < other.distance
 
-cpdef get_pdm(leaf_r, leaf_dir, int_r=None, int_dir=None, curvature=-torch.ones(1), asNumpy=False):
+cpdef get_pdm_torch(leaf_r, leaf_dir, int_r=None, int_dir=None, curvature=-torch.ones(1)):
     """Pair-wise hyperbolic distance matrix
 
         Note if curvature=0, then the SQUARED Euclidean distance is computed.
@@ -28,20 +28,87 @@ cpdef get_pdm(leaf_r, leaf_dir, int_r=None, int_dir=None, curvature=-torch.ones(
         int_r (1D tensor):
         inr_dir (1D tensor):
         curvature (double): curvature
-        asNumpy:
 
     Returns:
         ndarray: distance between point 1 and point 2
     """
-    if torch.isclose(curvature.double(), torch.zeros(1).double()):
+    cdef int leaf_node_count = leaf_r.shape[0]
+    cdef int int_node_count = 0
+    if int_r is None:
+        int_r = torch.tensor((0)).unsqueeze(dim=-1)
+        int_dir = torch.tensor((0, 0)).unsqueeze(dim=-1)
+    else:
+        int_node_count = int_r.shape[0]
+    cdef int node_count = leaf_node_count + int_node_count
+    
+    # return tensor
+    cdef pdm = torch.zeros((node_count, node_count)).double()
+
+    cdef int i_node
+    for i in range(node_count):
+        for j in range(i + 1, node_count):
+            if i < leaf_node_count and j >= leaf_node_count and int_r is not None:
+                # leaf to internal
+                j_node = j - leaf_node_count
+                dist_ij = hyperbolic_distance(
+                    leaf_r[i],
+                    int_r[j_node],
+                    leaf_dir[i],
+                    int_dir[j_node],
+                    curvature)
+            elif i < leaf_node_count and j < leaf_node_count:
+                # leaf to leaf
+                dist_ij = hyperbolic_distance(
+                    leaf_r[i],
+                    leaf_r[j],
+                    leaf_dir[i],
+                    leaf_dir[j],
+                    curvature)
+            else:
+                # internal to internal
+                i_node = i - leaf_node_count
+                j_node = j - leaf_node_count
+                dist_ij = hyperbolic_distance(
+                    int_r[i_node],
+                    int_r[j_node],
+                    int_dir[i_node],
+                    int_dir[j_node],
+                    curvature)
+
+            # apply the inverse transform from Matsumoto et al 2020
+            dist_ij = torch.log(torch.cosh(dist_ij))
+
+            pdm[i, j] = pdm[j, i] = dist_ij
+
+    return pdm
+
+
+cpdef get_pdm_np(leaf_r, leaf_dir, int_r=None, int_dir=None, curvature=-torch.ones(1), dtype='dict'):
+    """Pair-wise hyperbolic distance matrix
+
+        Note if curvature=0, then the SQUARED Euclidean distance is computed.
+    Args:
+        leaf_r (tensor):
+        leaf_dir (tensor):
+        int_r (1D tensor):
+        inr_dir (1D tensor):
+        curvature (double): curvature
+        dtype (string): "dict" or "numpy"
+
+    Returns:
+        ndarray: distance between point 1 and point 2
+    """
+    DTYPE=np.double
+    if np.isclose(curvature.detach().numpy(), np.zeros(1).astype(DTYPE)):
         # Euclidean distance
-        assert asNumpy, "Euclidean distances returned as numpy array. Set asNumpy to True."
+        assert dtype=='numpy', "Euclidean distances returned as numpy array. Set asNumpy to True."
         X = leaf_r[0] * leaf_dir
         pdm_linear = scipy.spatial.distance.pdist(X.detach().numpy(), metric='euclidean')
         # convert to matrix and square distances
         return scipy.spatial.distance.squareform(pdm_linear**2)
 
-    DTYPE=np.double
+    assert dtype in ('dict', 'numpy')
+
     cdef np.ndarray[np.double_t, ndim=1] leaf_r_np = leaf_r.detach().numpy().astype(DTYPE)
     cdef np.ndarray[np.double_t, ndim=2] leaf_dir_np = leaf_dir.detach().numpy().astype(DTYPE)
     cdef int leaf_node_count = leaf_r.shape[0]
@@ -57,19 +124,19 @@ cpdef get_pdm(leaf_r, leaf_dir, int_r=None, int_dir=None, curvature=-torch.ones(
     cdef int node_count = leaf_node_count + int_node_count
     
     # return array if pairwise distance if asNumpy
-    cdef np.ndarray[np.double_t, ndim=2] pdm = np.zeros((node_count*asNumpy, node_count*asNumpy))
+    cdef asNumpy = dtype == 'numpy'
+    cdef np.ndarray[np.double_t, ndim=2] pdm_np = np.zeros((node_count*asNumpy, node_count*asNumpy))
 
     # return dict of lists
-    if not asNumpy:
-        edge_list = dict()
+    if dtype == 'dict':
+        pdm_dict = dict()
         for i in range(node_count):
-            edge_list[i] = list()
+            pdm_dict[i] = list()
 
     cdef double dist_ij = 0
     cdef int i_node
     for i in range(node_count):
         for j in range(i + 1, node_count):
-
             if i < leaf_node_count and j >= leaf_node_count and int_r is not None:
                 # leaf to internal
                 j_node = j - leaf_node_count
@@ -101,15 +168,16 @@ cpdef get_pdm(leaf_r, leaf_dir, int_r=None, int_dir=None, curvature=-torch.ones(
             # apply the inverse transform from Matsumoto et al 2020
             dist_ij = np.log(np.cosh(dist_ij))
 
-            if asNumpy:
-                pdm[i, j] = pdm[j, i] = dist_ij
-            else:
-                edge_list[i].append(Cu_edge(dist_ij, i, j))
-                edge_list[j].append(Cu_edge(dist_ij, j, i))
+            if dtype == 'dict':
+                pdm_dict[i].append(Cu_edge(dist_ij, i, j))
+                pdm_dict[j].append(Cu_edge(dist_ij, j, i))
+            elif dtype == 'numpy':
+                pdm_np[i, j] = pdm_np[j, i] = dist_ij
 
-    if asNumpy:
-        return pdm
-    return edge_list
+    if dtype == 'dict':
+        return pdm_dict
+    elif dtype == 'numpy':
+        return pdm_np
 
 cpdef hyperbolic_distance_np(double r1, double r2, np.ndarray[np.double_t, ndim=1] directional1,
                             np.ndarray[np.double_t, ndim=1] directional2, double curvature):

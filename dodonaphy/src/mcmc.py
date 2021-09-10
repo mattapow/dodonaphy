@@ -45,8 +45,7 @@ class Chain(BaseModel):
             leaf_r_all, self.leaf_dir = utils.cart_to_dir(loc_poin)
             self.leaf_r = leaf_r_all[0]
         elif self.connect_method == 'nj':
-            pdm = torch.from_numpy(Cutils.get_pdm(
-                self.leaf_r.repeat(self.S), self.leaf_dir, curvature=self.curvature, asNumpy=True))
+            pdm = Cutils.get_pdm_torch(self.leaf_r.repeat(self.S), self.leaf_dir, curvature=self.curvature)
             self.peel, self.blens = peeler.nj(pdm)
         elif self.connect_method == 'mst':
             self.peel = peeler.make_peel_mst(self.leaf_r.repeat(self.S), self.leaf_dir, self.int_r, self.int_dir)

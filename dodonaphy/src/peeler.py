@@ -104,7 +104,7 @@ def make_peel_mst(leaf_r, leaf_dir, int_r, int_dir, curvature=-torch.ones(1), st
     """
     leaf_node_count = leaf_r.shape[0]
     node_count = leaf_r.shape[0] + int_r.shape[0]
-    edge_list = Cutils.get_pdm(leaf_r, leaf_dir, int_r, int_dir, curvature=curvature)
+    edge_list = Cutils.get_pdm_np(leaf_r, leaf_dir, int_r, int_dir, curvature=curvature, dtype='dict')
 
     # queue here is a min-heap
     queue = []

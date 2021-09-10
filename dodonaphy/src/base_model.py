@@ -145,31 +145,28 @@ class BaseModel(object):
         return calculate_treelikelihood(self.partials, self.weights, peel, mats,
                                         torch.full([4], 0.25, dtype=torch.float64))
 
-    def compute_log_a_like(self, leaf_r, leaf_dir, curvature=-1.):
+    def compute_log_a_like(self, leaf_r, leaf_dir, curvature=-torch.ones(1, dtype=torch.double)):
         """Compute the log-a-like function of the embedding.
 
         The log-probability of all the pairwise taxa.
         """
         # get pair-wise disatance
-        pdm = torch.from_numpy(Cutils.get_pdm(leaf_r, leaf_dir, curvature=curvature, asNumpy=True))
+        pdm = Cutils.get_pdm_torch(leaf_r.repeat(self.S), leaf_dir, curvature=curvature)
 
         eps = torch.finfo(torch.double).eps
         P = torch.zeros((4, 4, self.L))
+
+        # Q = peeler.compute_Q(pdm)
+        weight = torch.softmax(-pdm, dim=-1)
 
         # For each node
         for i in range(self.S):
             # compute the probability matrix to each other node
             mats = JC69_p_t(pdm[i])
             for j in range(i - 1):
-                P = P + torch.log(torch.clamp(torch.matmul(mats[j], self.partials[i]), min=eps))
-                # P = P + torch.log(torch.clamp(torch.matmul(mats[j] / pdm[i, j], self.partials[i]), min=eps))
+                P = P + weight[i, j] * torch.log(torch.clamp(torch.matmul(mats[j], self.partials[i]), min=eps))
 
-        # normalise for 1/distance weighting
-        # idx = torch.triu_indices(self.S, self.S, offset=1)
-        # P = P + torch.sum(torch.log(pdm[idx[0], idx[1]]))
-
-        # normalise for number of sites
-        return torch.sum(P * self.weights) / sum(self.weights)
+        return torch.sum(P * self.weights)
 
     def select_peel_mst(self, leaf_r, leaf_dir, int_r, int_dir, curvature=-torch.ones(1)):
         leaf_node_count = leaf_r.shape[0]
@@ -276,8 +273,7 @@ class BaseModel(object):
                 peel, int_locs = peeler.make_peel_tips(leaf_r_prop * leaf_dir_prop, connect_method=self.connect_method)
                 int_r_prop, int_dir_prop = utils.cart_to_dir(int_locs)
         elif self.connect_method == 'nj':
-            pdm = torch.from_numpy(Cutils.get_pdm(
-                leaf_r_prop.repeat(self.S), leaf_dir_prop, curvature=self.curvature, asNumpy=True))
+            pdm = Cutils.get_pdm_torch(leaf_r_prop.repeat(self.S), leaf_dir_prop, curvature=self.curvature)
             peel, blens = peeler.nj(pdm)
         elif self.connect_method == 'mst':
             peel = peeler.make_peel_mst(leaf_r, leaf_dir_prop, int_r_prop, int_dir_prop)

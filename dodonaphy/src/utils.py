@@ -4,6 +4,7 @@ from collections import defaultdict
 from .hyperboloid import poincare_to_hyper, lorentz_product
 from .edge import u_edge
 from . import poincare
+import Cutils
 
 
 def angle_to_directional(theta):
@@ -29,18 +30,32 @@ def angle_to_directional(theta):
     return directional
 
 
-def get_pdm(leaf_r, leaf_dir, int_r=None, int_dir=None, curvature=-torch.ones(1)):
+def get_pdm(leaf_r, leaf_dir, int_r=None, int_dir=None, curvature=-torch.ones(1), astorch=False):
     leaf_node_count = leaf_r.shape[0]
-    node_count = leaf_r.shape[0] + int_r.shape[0]
-    edge_list = defaultdict(list)
+    node_count = leaf_r.shape[0]
+    if int_r is not None:
+        node_count = node_count + int_r.shape[0]
+
+    if astorch:
+        pdm = torch.zeros((node_count, node_count)).double()
+    else:
+        pdm = defaultdict(list)
 
     for i in range(node_count):
-        for j in range(max(i + 1, leaf_node_count), node_count):
+        for j in range(i + 1, node_count):
             dist_ij = 0
 
-            if (i < leaf_node_count):
+            if (i < leaf_node_count) and (j < leaf_node_count):
+                # leaf to leaf
+                dist_ij = Cutils.hyperbolic_distance(
+                    leaf_r[i],
+                    leaf_r[j],
+                    leaf_dir[i],
+                    leaf_dir[j],
+                    curvature)
+            elif (i < leaf_node_count):
                 # leaf to internal
-                dist_ij = hyperbolic_distance(
+                dist_ij = Cutils.hyperbolic_distance(
                     leaf_r[i],
                     int_r[j - leaf_node_count],
                     leaf_dir[i],
@@ -49,7 +64,7 @@ def get_pdm(leaf_r, leaf_dir, int_r=None, int_dir=None, curvature=-torch.ones(1)
             else:
                 # internal to internal
                 i_node = i - leaf_node_count
-                dist_ij = hyperbolic_distance(
+                dist_ij = Cutils.hyperbolic_distance(
                     int_r[i_node],
                     int_r[j - leaf_node_count],
                     int_dir[i_node],
@@ -59,10 +74,13 @@ def get_pdm(leaf_r, leaf_dir, int_r=None, int_dir=None, curvature=-torch.ones(1)
             # apply the inverse transform from Matsumoto et al 2020
             dist_ij = torch.log(torch.cosh(dist_ij))
 
-            edge_list[i].append(u_edge(dist_ij, i, j))
-            edge_list[j].append(u_edge(dist_ij, j, i))
+            if astorch:
+                pdm[i, j] = pdm[j, i] = dist_ij
+            else:
+                pdm[i].append(u_edge(dist_ij, i, j))
+                pdm[j].append(u_edge(dist_ij, j, i))
 
-    return edge_list
+    return pdm
 
 
 def get_pdm_tips(leaf_r, leaf_dir, curvature=-torch.ones(1)):
