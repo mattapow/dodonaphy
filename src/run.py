@@ -6,6 +6,7 @@ import random
 import os
 import numpy as np
 import time
+import sys
 
 from dodonaphy.src.vi import DodonaphyVI
 from dodonaphy.src.mcmc import DodonaphyMCMC as mcmc
@@ -13,8 +14,17 @@ from dodonaphy.src.phylo import compress_alignment
 
 
 def main():
+    if len(sys.argv) != 2:
+        print("Usage: %s value" % sys.argv[0])
+        sys.exit()
+    try:
+        input = float(sys.argv[1])
+    except Exception:
+        print("Argument not a float.")
+        sys.exit()
+
     # Simulation parameters
-    dim = 5  # number of dimensions for embedding
+    dim = int(input)  # number of dimensions for embedding
     S = 17  # number of sequences to simulate
     L = 1000  # length of sequences to simulate
     prior = {"birth_rate": 2., "death_rate": .5}
