@@ -2,6 +2,7 @@ import dendropy
 from dendropy.simulate import treesim
 from dendropy.model.discrete import simulate_discrete_chars
 from dendropy.model.birthdeath import birth_death_likelihood
+from dendropy.interop import raxml
 import random
 import os
 import numpy as np
@@ -34,7 +35,8 @@ def main():
     embed_method = 'simple'     # 'simple' or 'wrap'
     doSave = True
     inference = 'vi'
-    curvature = -1
+    curvature = -1.
+    start_tree = 'RAxML'       # 'RAxML' or 'true_tree'
 
     # VI parameters
     k_samples = 10       # tree samples per elbo calculation
@@ -97,19 +99,26 @@ def main():
         dna.write_to_path(dest=dnaPath, schema="nexus")
 
         # save simTree info log-likelihood
-        LL = birth_death_likelihood(
-            tree=simtree, birth_rate=prior['birth_rate'], death_rate=prior['death_rate'])
+        LL = birth_death_likelihood(tree=simtree, birth_rate=prior['birth_rate'], death_rate=prior['death_rate'])
         with open(treeInfoPath, 'w') as f:
             f.write('Log Likelihood: %f\n' % LL)
             simtree.write_ascii_plot(f)
 
     partials, weights = compress_alignment(dna)
 
+    if start_tree == 'RAxML':
+        rx = raxml.RaxmlRunner()
+        tree0 = rx.estimate_tree(
+            char_matrix=dna,
+            raxml_args=["--no-bfgs"])
+    else:
+        tree0 = simtree
+
     # Get tip pair-wise distance
     dists = np.zeros((S, S))
-    pdc = simtree.phylogenetic_distance_matrix()
-    for i, t1 in enumerate(simtree.taxon_namespace[:-1]):
-        for j, t2 in enumerate(simtree.taxon_namespace[i+1:]):
+    pdc = tree0.phylogenetic_distance_matrix()
+    for i, t1 in enumerate(tree0.taxon_namespace[:-1]):
+        for j, t2 in enumerate(tree0.taxon_namespace[i+1:]):
             dists[i][i+j+1] = pdc(t1, t2)
     dists = dists + dists.transpose()
 
