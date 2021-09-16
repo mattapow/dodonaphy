@@ -26,6 +26,7 @@ class BaseModel(object):
         self.prior = prior
         assert curvature <= 0
         self.curvature = torch.tensor(curvature)
+        self.epoch = 0
 
         # make space for internal partials
         for i in range(self.S - 1):
@@ -145,19 +146,16 @@ class BaseModel(object):
         return calculate_treelikelihood(self.partials, self.weights, peel, mats,
                                         torch.full([4], 0.25, dtype=torch.float64))
 
-    def compute_log_a_like(self, leaf_r, leaf_dir, curvature=-torch.ones(1, dtype=torch.double)):
+    def compute_log_a_like(self, pdm, temp=1.0):
         """Compute the log-a-like function of the embedding.
 
         The log-probability of all the pairwise taxa.
         """
-        # get pair-wise disatance
-        pdm = Cutils.get_pdm_torch(leaf_r.repeat(self.S), leaf_dir, curvature=curvature)
-
         eps = torch.finfo(torch.double).eps
         P = torch.zeros((4, 4, self.L))
 
-        # Q = peeler.compute_Q(pdm)
-        weight = torch.softmax(-pdm, dim=-1)
+        Q = peeler.compute_Q(pdm)
+        weight = torch.softmax(Q / temp, dim=1)
 
         # For each node
         for i in range(self.S):
@@ -181,7 +179,7 @@ class BaseModel(object):
         leaf = np.random.choice(leaf_node_count, p=p)
         return peeler.make_peel_mst(leaf_r, leaf_dir, int_r, int_dir, curvature=-torch.ones(1), start_node=leaf)
 
-    def sample(self, leaf_loc, leaf_cov, int_loc=None, int_cov=None):
+    def sample(self, leaf_loc, leaf_cov, int_loc=None, int_cov=None, getPeel=True):
         # reshape covariance if single number
         n_leaf_vars = self.S * self.D
         if torch.numel(leaf_cov) == 1:
@@ -266,34 +264,38 @@ class BaseModel(object):
             # restrict int_r to less than leaf_r
             int_r_prop[int_r_prop > leaf_r_prop] = leaf_r_prop
 
-        # proposal peel and blens
-        leaf_r = leaf_r_prop.repeat(self.S)
-        if self.connect_method in ('geodesics', 'incentre'):
-            with torch.no_grad():
-                peel, int_locs = peeler.make_peel_tips(leaf_r_prop * leaf_dir_prop, connect_method=self.connect_method)
-                int_r_prop, int_dir_prop = utils.cart_to_dir(int_locs)
-        elif self.connect_method == 'nj':
-            pdm = Cutils.get_pdm_torch(leaf_r_prop.repeat(self.S), leaf_dir_prop, curvature=self.curvature)
-            peel, blens = peeler.nj(pdm)
-        elif self.connect_method == 'mst':
-            peel = peeler.make_peel_mst(leaf_r, leaf_dir_prop, int_r_prop, int_dir_prop)
-        elif self.connect_method == 'mst_choice':
-            peel = self.select_peel_mst(leaf_r, leaf_dir_prop, int_r_prop, int_dir_prop)
-        elif self.connect_method == 'delaunay':
-            peel = peeler.make_peel_delaunay(leaf_r, leaf_dir_prop, int_r_prop, int_dir_prop)
+        if not getPeel:
+            peel = blens = lnP = lnPrior = None
+        else:
+            # proposal peel and blens
+            leaf_r = leaf_r_prop.repeat(self.S)
+            if self.connect_method in ('geodesics', 'incentre'):
+                with torch.no_grad():
+                    peel, int_locs = peeler.make_peel_tips(
+                        leaf_r_prop * leaf_dir_prop, connect_method=self.connect_method)
+                    int_r_prop, int_dir_prop = utils.cart_to_dir(int_locs)
+            elif self.connect_method == 'nj':
+                pdm = Cutils.get_pdm_torch(leaf_r_prop.repeat(self.S), leaf_dir_prop, curvature=self.curvature)
+                peel, blens = peeler.nj(pdm)
+            elif self.connect_method == 'mst':
+                peel = peeler.make_peel_mst(leaf_r, leaf_dir_prop, int_r_prop, int_dir_prop)
+            elif self.connect_method == 'mst_choice':
+                peel = self.select_peel_mst(leaf_r, leaf_dir_prop, int_r_prop, int_dir_prop)
+            elif self.connect_method == 'delaunay':
+                peel = peeler.make_peel_delaunay(leaf_r, leaf_dir_prop, int_r_prop, int_dir_prop)
 
-        # get proposal branch lengths
-        if self.connect_method != 'nj':
-            blens = self.compute_branch_lengths(
-                self.S, peel, leaf_r, leaf_dir_prop, int_r_prop, int_dir_prop, useNP=False)
+            # get proposal branch lengths
+            if self.connect_method != 'nj':
+                blens = self.compute_branch_lengths(
+                    self.S, peel, leaf_r, leaf_dir_prop, int_r_prop, int_dir_prop, useNP=False)
 
-        # get log likelihood
-        lnP = self.compute_LL(peel, blens)
-        # lnP = self.compute_log_a_like(leaf_r, leaf_dir_prop)
+            # get log likelihood
+            lnP = self.compute_LL(peel, blens)
+            # lnP = self.compute_log_a_like(leaf_r, leaf_dir_prop)
 
-        # get log prior
-        lnPrior = self.compute_prior_gamma_dir(blens)
-        # lnPrior = self.compute_prior_birthdeath(peel, blens, **self.prior)
+            # get log prior
+            lnPrior = self.compute_prior_gamma_dir(blens)
+            # lnPrior = self.compute_prior_birthdeath(peel, blens, **self.prior)
 
         if self.connect_method in ('geodesics', 'incentre', 'nj'):
             proposal = {

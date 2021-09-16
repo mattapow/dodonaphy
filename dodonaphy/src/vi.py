@@ -9,6 +9,7 @@ from .phylo import calculate_treelikelihood, JC69_p_t
 from . import utils, tree, hydra
 from .base_model import BaseModel
 import matplotlib.pyplot as plt
+import Cutils
 
 
 class DodonaphyVI(BaseModel):
@@ -141,16 +142,26 @@ class DodonaphyVI(BaseModel):
             int_loc = self.VariationalParams["int_mu"].reshape(n_int_params)
             int_cov = torch.eye(n_int_params, dtype=torch.double) *\
                 self.VariationalParams["int_sigma"].exp().reshape(n_int_params)
-            sample = self.sample(leaf_loc, leaf_cov, int_loc, int_cov)
+            sample = self.sample(leaf_loc, leaf_cov, int_loc, int_cov, getPeel=False)
         else:
-            sample = self.sample(leaf_loc, leaf_cov)
+            sample = self.sample(leaf_loc, leaf_cov, getPeel=False)
 
-        # logPrior
-        logPrior = self.compute_prior_gamma_dir(sample['blens'])
+        if self.connect_method == 'mst':
+            pdm = Cutils.get_pdm_torch(sample['leaf_r'].repeat(self.S), sample['leaf_dir'],
+                                       sample['int_r'], sample['int_dir'],
+                                       curvature=self.curvature)
+        else:
+            pdm = Cutils.get_pdm_torch(sample['leaf_r'].repeat(self.S), sample['leaf_dir'],
+                                       curvature=self.curvature)
 
-        # Likelihood
+        # logPrior = self.compute_prior_gamma_dir(sample['blens'])
         # logP = self.compute_LL(sample['peel'], sample['blens'])
-        logP = self.compute_log_a_like(sample['leaf_r'], sample['leaf_dir'], curvature=self.curvature)
+        logPrior = self.compute_prior_gamma_dir(pdm[:])
+
+        anneal_epoch = torch.tensor(100)
+        min_temp = torch.tensor(.1)
+        temp = torch.maximum(1.0 / torch.exp(self.epoch / anneal_epoch), min_temp)
+        logP = self.compute_log_a_like(pdm, temp=temp)
 
         return logP + logPrior - sample['logQ'] + sample['jacobian']
 
