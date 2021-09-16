@@ -231,7 +231,7 @@ class DodonaphyVI(BaseModel):
         if epochs > 0 and path_write is not None:
             try:
                 plt.figure()
-                plt.plot(range(epochs), elbo_hist, 'r', label='elbo')
+                plt.plot(range(1, epochs), elbo_hist[1:], 'r', label='elbo')
                 plt.title('Elbo values')
                 plt.xlabel('Epochs')
                 plt.ylabel('elbo')
@@ -242,7 +242,7 @@ class DodonaphyVI(BaseModel):
                 plt.hist(hist_dat)
                 plt.savefig(path_write + "/elbo_hist.png")
             except Exception:
-                print("Could no generate and save elbo figures.")
+                print("Could not generate and save elbo figures.")
 
         final_elbo = self.elbo_normal(100).item()
         print('Final ELBO: {}'.format(final_elbo))
