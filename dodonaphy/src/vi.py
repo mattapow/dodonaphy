@@ -160,7 +160,7 @@ class DodonaphyVI(BaseModel):
 
         anneal_epoch = torch.tensor(100)
         min_temp = torch.tensor(.1)
-        temp = torch.maximum(1.0 / torch.exp(self.epoch / anneal_epoch), min_temp)
+        temp = torch.maximum(torch.exp(- self.epoch / anneal_epoch), min_temp)
         logP = self.compute_log_a_like(pdm, temp=temp)
 
         return logP + logPrior - sample['logQ'] + sample['jacobian']
