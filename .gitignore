@@ -26,6 +26,8 @@ doc/fig*
 doc/notes.out
 doc/notes.bbl
 doc/notes.blg
+doc/notes.fdb_latexmk
+doc/notes.fls
 
 
 *.so

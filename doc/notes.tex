@@ -121,7 +121,7 @@ Since this projection is from $\mathbb{R}^{d+1}$ to $\mathbb{R}^{d}$, the Jacobi
 \Big|\frac{\partial {\phi^{-1}}(\bold{x})}{\partial \bold{x}}\Big| = \dfrac{(1+x_{0})^{2} + \sum_{i=1}^{d} x_{i}^{2}}{(1+x_{0})^{2(d+1)}}.
 \ee
 
-\subsubsection{A simple homeomorphism}
+\subsubsection{A alternative homeomorphism}
 Alternatively, we also consider the following embedding function $g: \mathbb{R}^{d} \to \mathbb{P}^{d}$:
 \be
 g(\bold{x}) = \dfrac{\bold{x}}{1+||\bold{x}||_{2}}
@@ -138,9 +138,16 @@ From a set of leaf locations $x$ in the Poincaré ball $x_i \in \mathbb{P}^d$ we
 One way to form a tree is to use the hyperbolic pairwise distances between leaves and construct the neighbour joining (NJ) tree.
 Neighbour joining ===
 
-Recently, \cite{chami2020trees} ===
+Recently, \cite{chami2020trees} proposed a method for forming trees in hyperbolic space.
+Given a set of points (leaf nodes) in $\mathbb{H}^{d}$, they optimise a continuous version of Dasgupta's cost function on these points.
+At the end of the optimisation they form a tree based the geodesics between these leaf nodes.
+The closest points are selected and their least common ancestor is placed at the closest point to the origin on the geodesic between the two points.
+This encoding provides a bijection between leaf node embeddings and trees that satisfy the four point condition.
+However, not all phylogenetic trees satisfy the four point condition.
 
-\cite{sarkar2012low} find a construction  to embed any given tree into the hyperbolic plane $\mathbb{H}^{2}$ with arbitrary low distortion.
+On the other hand, given every (internal and leaf) point on a tree, embeddings are guaranteed to exist in hyperbolic space.
+\cite{sarkar2012low} found a construction to embed any given tree into the hyperbolic plane $\mathbb{H}^{2}$ with arbitrary low distortion.
+
 
 We hypothesise that ultrametric trees can be embedded into hyperbolic space with their leaves lying on a sphere.
 
@@ -163,7 +170,7 @@ A posterior was approximated for a 17 taxa set using Dodonaphy's MCMC and its VI
 A tree was simulated using a birth (rate $2$) death (rate $.5$) model and a sequence alignment was generated from this tree under the JC69 model of genetic evolution.
 The pairwise patristic distances were computed between the tips on the simulated tree.
 The tips were initialised in the Poincare ball using hydra.
-Then the internal nodes were randomly placed in $\mathbb{P}^{d}$ with uniform directional and radius from a scaled Beta distribution $ r \sim s \times \text{Beta}(a=2, \beta=5)$ using scales $s \in [0, 2*\min(d(0, \bold{x}_{i})]$, where $i$ only includes the tip nodes.
+Then the internal nodes were randomly placed in $\mathbb{P}^{d}$ with uniform directional and radius from a scaled Uniform distribution $ r \sim \mathcal{U}(0, \min ||\bold{x}_{i}||)$ using, where $i$ only includes the tip nodes.
 Internal node locations were sampled $10^{4}$ times and the initialisation with the highest tree likelihood was selected.
 ===
 
@@ -171,8 +178,8 @@ Internal node locations were sampled $10^{4}$ times and the initialisation with 
 \begin{center}
     \includegraphics[width=\linewidth]{fig/t17_trace_post}
 \end{center}
-\caption{Effect of embedding dimension on MCMC trace. (a) MCMC trace plots of the posterior using the simple embedding method connecting leaves using neighbour joining.
-(b) Kernel density estimates of the posterior for the last 200 tree in figure (a).}
+\caption{Effect of embedding dimension on MCMC estimates. (a) Trace plots of the posterior using the simple embedding method connecting leaves using neighbour joining.
+(b) Kernel density estimates of the posterior discarding the first 20\% as burnin in figure (a).}
 \end{figure}
 
 \begin{figure}[htbp] \label{fig:splits}
@@ -196,6 +203,7 @@ Figure~\ref{fig:map_dim} empirically demonstrates that the embedding quality sat
 \caption{Improvement of the MAP estimate on a tree with 17 taxa with increasing dimension.}
 \end{figure}
 
+\clearpage
 \section{Variational Inference}
 In VI, the posterior surface (here a set of surfaces --- one for each embedded node $i$) is approximated by a variational distribution $q_{i}(z_{i})$, each parameterised by parameters $z_{i}$.
 When the data $D$ is fixed, minimising the KL divergence to the posterior $\text{KL}({\bf q}(\phi)||p(T\big|D))$ is equivalent to maximising the evidence lower bound (ELBO):
@@ -212,17 +220,21 @@ However, finding such an embedding remains an open question.
 To circumvent this issue, we optimise the likelihood not of a tree, but based on the pair-wise distance of every pair of nodes.
 Given a set of leaf nodes in the embedding space $x \in \mathbb{H}^{d}$, the cost function employed is:
 \begin{equation}
-p(z, D) = \prod_{i \neq j} L(d_{ij}|D)))^{w_{ij}}  p(\textnormal{NJ}(d_{ij}))
+p(z, D) = \prod_{i \neq j} L(d_{ij}|D)^{w_{ij}}  p(d_{ij})
 \end{equation}
-
+taking the logarithm:
 \begin{equation}
-\log p(z, D) = \sum_{i \neq j} w_{ij} \log L(d_{ij}|D))) + \log p(\textnormal{NJ}(d_{ij}))
+\log p(z, D) = \sum_{i \neq j} w_{ij} \log L(d_{ij}|D) + \log p(d_{ij})
 \end{equation}
 \noindent where $L(d_{ij}|D)$ is the likelihood of the distance from $x_{i}$ to $x_{j}$ given the sequence alignment data $D$ and the weight $w_{ij}$ applied to each edge sums to one $\sum_{ij} w_{ij} = 1$.
-Note that in most instances the likelihood the likelihood if less than one, so a larger weight gives less emphasis.
-
-The prior probability $p(\textnormal{NJ}(d_{ij}))$ comes from forming a neighbour joining tree then computing a gamma Dirichlet prior on branch lengths and a uniform prior on topologies.
+Note that in most instances the likelihood is less than one, so a larger weight gives less emphasis.
 This definition does not requires a time reversible likelihood function, however we use a simple Jukes-Cantor model of evolution which gives $L(d_{ij})=L(d_{ji})$.
+
+The prior probability of the distances $p(d_{ij})$  a gamma Dirichlet prior on all the pairwise branch lengths and a uniform prior on topologies.
+The gamma Dirichlet prior is a slight improvement on an exponential distribution on branch lengths that is implemented in MrBayesas~\cite{rannala2012tail}.
+In it, the total tree branch length follows a diffuse gamma distribution with $\alpha = \beta = 1$.
+Then the total branch lengths are partitioned using a Dirichlet distribution.
+We apply this to all pairwise distances, not just those in a given tree.
 
 To better mimic the likelihood of a tree, we weight edges according to their embedding distance --- nodes that are closer neighbours according to the Q-criterion have less weight (more emphasis).
 The Q-criterion is used to determine which edges are joined during neighbour joining (NJ): 
@@ -230,11 +242,12 @@ The Q-criterion is used to determine which edges are joined during neighbour joi
 Q_{ij} = (S-2)d_{ij} - \sum_{k}^{S}d(i, k) - \sum_{k}^{S}d(j, k).
 \ee
 In the neighbour joining algorithm, the most negative entry in $Q$ is selected to and these nodes are connected creating a new ancestor, before again selecting the most negative entry of $Q$.
-Accordingly, the weight applied to each edge is constructed as the negative inverse of $Q$, then a normalised exponential (softmax) function is applied so the weights sum to one for each node:
+Accordingly, the weight applied to each edge is constructed from $Q$ by applying a normalised exponential (softmax) function so the weights sum to one for each node:
 \be
-w_{ij} = \frac{\exp(n Q_{ij})}{\sum_{j} \exp(n Q_{ij})}.
+w_{ij} = \frac{\exp(Q_{ij}/t)}{\sum_{j} \exp(Q_{ij}/t)}.
 \ee
-The additional scaling by the current epoch number $n \in \{1,2,3...\}$ is put in as a cooling effect so that:
+
+The scaling by temperature $t = \exp(-n/n^{*})$, which depends on the current epoch number $n \in \{1,2,3...\}$ and the chosen constant $n^{*}=100$, is put in as an annealing effect so that initially $t\approx 1$ for $n\ll n^{*}$ and then as the epochs grow:
 \be
 \lim_{n\to\infty} w_{ij} = 
 \begin{cases}
@@ -242,6 +255,12 @@ The additional scaling by the current epoch number $n \in \{1,2,3...\}$ is put i
 0 \qquad \textnormal{otherwise}
 \end{cases}
 \ee
+Asymptotically, the weight tends to one for the closest Q-neighbour for each node.
+Whilst this does not capture the binary tree nature of phylogenetic trees, could there be a way?
+
+\begin{theorem}
+Could the distribution optimised by the weighted cost equal the a spanning tree in the limit?
+\end{theorem}
 
 \subsection{Variational Distributions}
 We approximated the posterior surface for each leaf node using a log-normal distribution $\textnormal{LogNormal}(x_{i}, \Sigma_{i})$ in Euclidean space $x_{i} \in \mathbb{R}^{d}$ wrapped onto a sphere.
@@ -256,114 +275,31 @@ The autograd functionality of PyTorch automatically computes the gradient of the
 \subsection{Sampling Trees}
 At the end of the optimisation, trees must be sampled to approximate the posterior distribution on trees.
 We sample trees by sampling one point from each variational distribution (one per leaf node) and connect them using neighbour joining.
-Connecting them in this way does not yield the same ===
+Connecting them in this way does not yield the same as sampling under the objective function.
+Consequently, the split frequencies shown in figure~\ref{fig:splits_vi} do not compare well to MrBayes.
 
-\begin{theorem}
-Could the distribution optimised by cost $C$ equal the neighbour joining tree in the limit?
-\end{theorem}
+\begin{figure}[htbp] \label{fig:elbo_trace}
+\begin{center}
+    \includegraphics*[width=\linewidth]{fig/elbo_simple_nj_lr1k1d8crv1_QExpScaleNoNorm}
+\end{center}
+\caption{ELBO tree on a tree with 17 taxa in eight dimensions. The learning rate is $10^{-1}$ and there were $k=1$ importance samples for each ELBO calculation.}	
+\end{figure}
+
+
+\begin{figure}[htbp] \label{fig:splits_vi}
+\begin{center}
+    \includegraphics*[width=\linewidth]{fig/t17_splits_vi}
+\end{center}
+\caption{Poor match of splits MrBayes and dodonaphy's VI on a dataset with $17$ taxa.}
+\end{figure}
 
 
 %The variational distribution $\bold{q}$ is smooth, however the posterior probability is not guaranteed to be continuous let alone differentiable as the tree topology changes.
 %Evidently the posterior for each node is unlikely to be normally distributed.
 %The feasibility of VI rests on how well a simple distribution $q$ can approximate these densities.
 
-\begin{figure}[htbp] \label{fig:elbo_trace}
-\begin{center}
-    \includegraphics*[width=\linewidth]{fig/elbo_trace_simple_nj_lr1_k2_d5_lal}
-\end{center}
-\caption{ELBO tree on a tree with 17 taxa in five dimensions. The learning rate is $10^{-1}$ and there were $k=2$ importance samples for each ELBO calculation.}
-\end{figure}
 
-%The final log likelihood from BEAST was -6280 (similar to it's log posterior of -6271). In comparison, Dodonaphy MCMC gave -6280, which is a close match.
-%However, figure~\ref{fig:stat_cmp}a illustrates that samples from Dodonaphy's MCMC always gave one incorrect split.
-%This could indicate that the MCMC chain is stuck in a local optima and that techniques like using Metropolis-coupled MCMC to escape this optima should be employed.
-%
-%\begin{figure}[htbp]
-%\begin{center}
-%\includegraphics[width=.333\linewidth]{fig/compare-SF}%
-%\includegraphics[width=.333\linewidth]{fig/cmp_tree_length}%
-%\includegraphics[width=.333\linewidth]{fig/cmp_treeness}
-%\includegraphics[width=.25\linewidth]{fig/cmp_b1}%
-%\includegraphics[width=.25\linewidth]{fig/cmp_b2}%
-%\includegraphics[width=.25\linewidth]{fig/cmp_b3}%
-%\includegraphics[width=.25\linewidth]{fig/cmp_b4}
-%\caption{Comparison of tree statistics between Beast and Dodonaphy: (a) split posterior probability (b) total branch length (c) ``treeness'' (signal/signal+noise) (d-g) branch lengths (possibly not same branch??).}
-%\label{fig:stat_cmp}
-%\end{center}
-%\end{figure}
-%
-%Figure~\ref{fig:locations} shows a kernel density estimate for each node location at various stages.
-%Comparing figures~\ref{fig:locations}a and b reveals that the posterior surface of nodes can drift over the simulation.
-%Indeed tree reconstructions are invariant to isometries on the embedded points since they are only based on their relative distances.
-%Additionally, tree reconstructions won't change as a tip node moves along the surface with constant distance to its nearest neighbour (provided the tree doesn't change topology).
-%The embedded posterior surfaces generated from samples $\bold{X}_{i}$ shouldn't be considered static, but transient over the simulation.
-%Nonetheless, these degrees of freedom should not affect the result of the MCMC.
-%
-%Boosting to a mixture model may increase the ability for VI to represent these embeddings.
 	
-%\subsection{VI}
-%The traces in figure~\ref{fig:elbos} illustrate that the elbos has a strange start, getting worse for a few hundred epochs, but then increases steadily but probably hasn’t converged after the 1e4 epochs.
-%\begin{figure}[htbp]
-%\begin{center}
-%\includegraphics[width=.333\linewidth]{fig/mcmc_mst_locations.png}%
-%\includegraphics[width=.333\linewidth]{fig/mcmc_geo_locations.png}%
-%\includegraphics[width=.333\linewidth]{fig/mcmc_tri_locations.png}
-%\includegraphics[width=.333\linewidth]{fig/vi_simple_mst_locations.png}%
-%\includegraphics[width=.333\linewidth]{fig/vi_simple_geodesics_locations.png}%
-%\includegraphics[width=.333\linewidth]{fig/vi_simple_incentre_locations.png}
-%\caption{Density estimates of the node locations from Dodonaphy's MCMC projected into $\mathbb{R}^{2}$. MCMC: using (a) mst, (b) geodesics, (c) incentres . 
-%Variational densities after learning for $10^{3}$ epochs in $\mathbb{P}^{2}$ using (d) mst, (e) geodesics, (f) incentres.
-%}
-%\label{fig:elbos}
-%\end{center}
-%\end{figure}
-%
-%\begin{figure}[htbp]
-%\begin{center}
-%\includegraphics[width=.333\linewidth]{fig/elbo_trace_mst.png}%
-%\includegraphics[width=.333\linewidth]{fig/elbo_trace_geodesics.png}%
-%\includegraphics[width=.333\linewidth]{fig/elbo_trace_incentre.png}
-%\caption{ELBO trace from VI on six taxa using the ``simple'' embedding with (a) MST, (b) geodesics, (d) incentres. All with $k=10$ ELBO samples and a learning rate of $10^{-3}$.}
-%\label{fig:elbo_method}
-%\end{center}
-%\end{figure}
-%
-%\begin{figure}[htbp]
-%\includegraphics[width=.2\linewidth]{fig/elbo_trace_mst_lr3_k1.png}%
-%\includegraphics[width=.2\linewidth]{fig/elbo_trace_mst_lr3_k5.png}%
-%\includegraphics[width=.2\linewidth]{fig/elbo_trace_mst_lr3_k10.png}%
-%\includegraphics[width=.2\linewidth]{fig/elbo_trace_mst_lr3_k20.png}%
-%\includegraphics[width=.2\linewidth]{fig/elbo_trace_mst_lr3_k50.png}
-%\includegraphics[width=.2\linewidth]{fig/elbo_trace_mst_lr4_k1.png}%
-%\includegraphics[width=.2\linewidth]{fig/elbo_trace_mst_lr4_k5.png}%
-%\includegraphics[width=.2\linewidth]{fig/elbo_trace_mst_lr4_k10.png}%
-%\includegraphics[width=.2\linewidth]{fig/elbo_trace_mst_lr4_k20.png}
-%\caption{Effect of number of ELBO samples $k=\{1, 5, 10, 20, 50\}$.
-%Top row with learning rate $10^{-3}$ and bottom row $10^{4}$.
-%All using a ``simple'' embedding.}
-%\label{fig:k_samples}
-%\end{figure}
-%
-%\begin{figure}[htbp]
-%\begin{center}
-%\includegraphics[width=.333\linewidth]{fig/elbo_trace_mst_lr2.png}%
-%\includegraphics[width=.333\linewidth]{fig/elbo_trace_mst_lr3.png}%
-%\includegraphics[width=.333\linewidth]{fig/elbo_trace_mst_lr4.png}
-%\caption{Effect of learning rate $\{10^{-2}, 10^{-3}, 10^{-4}\}$ with fixed $k=10$ under MST using ``simple'' embedding.}
-%\label{fig:lr}
-%\end{center}
-%\end{figure}
-%
-%\begin{figure}[htbp]
-%\begin{center}
-%\includegraphics[width=.333\linewidth]{fig/elbo_trace_mst_lr2.png}%
-%\includegraphics[width=.333\linewidth]{fig/elbo_trace_mst_lr3.png}%
-%\includegraphics[width=.333\linewidth]{fig/elbo_trace_mst_lr4.png}
-%\caption{Effect of learning rate $\{10^{-2}, 10^{-3}, 10^{-4}\}$ with fixed $k=10$ under MST using ``simple'' embedding.}
-%\label{fig:lr}
-%\end{center}
-%\end{figure}
-
 \section{Acknowledgement}
 Computational facilities were provided by the UTS eResearch High Performance Computer Cluster.
 
@@ -393,6 +329,7 @@ Computational facilities were provided by the UTS eResearch High Performance Com
 \item Pytorch's optimisers don't converge for non-convex problems.
 \item Posterior ``surface'' is non-convex and not continuous...
 \item What if we learn the curvature?
+\item Boosting to a mixture model may increase the ability for VI to represent these embeddings.
 \end{itemize}
 
 \subsection{Full rank}
@@ -403,6 +340,14 @@ Could we adopt an approach like Wilson and Chami, where only the distributions o
 Only then do we infer a tree.
 The advantage of this is that the cost function is differentiable and more in line with what other people in the ML community do.
 However, this isn't actually modelling the Bayesian Posterior, just a proxy for it.
+
+\subsection{Degrees of freedom}
+Figure~\ref{fig:locations} shows a kernel density estimate for each node location at various stages.
+Comparing figures~\ref{fig:locations}a and b reveals that the posterior surface of nodes can drift over the simulation.
+Indeed tree reconstructions are invariant to isometries on the embedded points since they are only based on their relative distances.
+Additionally, tree reconstructions won't change as a tip node moves along the surface with constant distance to its nearest neighbour (provided the tree doesn't change topology).
+The embedded posterior surfaces generated from samples $\bold{X}_{i}$ shouldn't be considered static, but transient over the simulation.
+Nonetheless, these degrees of freedom should not affect the result of the MCMC.
 
 
 \clearpage

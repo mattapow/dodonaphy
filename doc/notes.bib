@@ -37,7 +37,7 @@
 	title = {Novel metric for hyperbolic phylogenetic tree embeddings},
 	url = {http://biorxiv.org/lookup/doi/10.1101/2020.10.09.334243},
 	abstract = {Advances in experimental technologies such as DNA sequencing have opened up new avenues for the applications of phylogenetic methods to various fields beyond their traditional application in evolutionary investigations, extending to the fields of development, differentiation, cancer genomics, and immunogenomics. Thus, the importance of phylogenetic methods is increasingly being recognized, and the development of a novel phylogenetic approach can contribute to several areas of research. Recently, the use of hyperbolic geometry has attracted attention in artificial intelligence research. Hyperbolic space can better represent a hierarchical structure compared to Euclidean space, and can therefore be useful for describing and analyzing a phylogenetic tree. In this study, we developed a novel metric that considers the characteristics of a phylogenetic tree for representation in hyperbolic space. We compared the performance of the proposed hyperbolic embeddings, general hyperbolic embeddings, and Euclidean embeddings, and confirmed that our method could be used to more precisely reconstruct evolutionary distance. We also demonstrate that our approach is useful for predicting the nearest-neighbor node in a partial phylogenetic tree with missing nodes. This study highlights the utility of adopting a geometric approach for further advancing the applications of phylogenetic methods.
-          
+
             The demo code is attached as a supplementary file in a compiled jupyter notebook. The code used for analyses is available on GitHub at
             https://github.com/hmatsu1226/HyPhyTree
             .},
@@ -358,7 +358,7 @@ Section: New Results},
 	file = {Full Text PDF:/Users/151569/.Zotero/storage/UI3APGHD/de Vienne et al. - 2011 - Euclidean Nature of Phylogenetic Distance Matrices.pdf:application/pdf;Snapshot:/Users/151569/.Zotero/storage/YVYQRCR4/1676258.html:text/html},
 }
 
-@inproceedings{sarkar2012lowa,
+@inproceedings{sarkar2012low,
 	address = {Berlin, Heidelberg},
 	series = {Lecture {Notes} in {Computer} {Science}},
 	title = {Low {Distortion} {Delaunay} {Embedding} of {Trees} in {Hyperbolic} {Plane}},
@@ -377,3 +377,38 @@ Section: New Results},
 }
 
 
+@article{lee2021deep,
+  title = {Deep Hierarchical Embedding for Simultaneous Modeling of {{GPCR}} Proteins in a Unified Metric Space},
+  author = {Lee, Taeheon and Lee, Sangseon and Kang, Minji and Kim, Sun},
+  year = {2021},
+  month = may,
+  journal = {Scientific Reports},
+  volume = {11},
+  number = {1},
+  pages = {9543},
+  publisher = {{Nature Publishing Group}},
+  issn = {2045-2322},
+  doi = {10.1038/s41598-021-88623-8},
+  abstract = {GPCR proteins belong to diverse families of proteins that are defined at multiple hierarchical levels. Inspecting relationships between GPCR proteins on the hierarchical structure is important, since characteristics of the protein can be inferred from proteins in similar hierarchical information. However, modeling of GPCR families has been performed separately for each of the family, subfamily, and sub-subfamily level. Relationships between GPCR proteins are ignored in these approaches as they process the information in the proteins with several disconnected models. In this study, we propose DeepHier, a deep learning model to simultaneously learn representations of GPCR family hierarchy from the protein sequences with a unified single model. Novel loss term based on metric learning is introduced to incorporate hierarchical relations between proteins. We tested our approach using a public GPCR sequence dataset. Metric distances in the deep feature space corresponded to the hierarchical family relation between GPCR proteins. Furthermore, we demonstrated that further downstream tasks, like phylogenetic reconstruction and motif discovery, are feasible in the constructed embedding space. These results show that hierarchical relations between sequences were successfully captured in both of technical and biological aspects.},
+  copyright = {2021 The Author(s)},
+  language = {en},
+  annotation = {Bandiera\_abtest: a Cc\_license\_type: cc\_by Cg\_type: Nature Research Journals Primary\_atype: Research Subject\_term: Bioinformatics;Computational models;Phylogeny Subject\_term\_id: bioinformatics;computational-models;phylogeny},
+  file = {/Users/151569/.Zotero/storage/VNHE9KBN/Lee et al. - 2021 - Deep hierarchical embedding for simultaneous model.pdf;/Users/151569/.Zotero/storage/TBMLZER6/s41598-021-88623-8.html}
+}
+
+@article{rannala2012tail,
+	title = {Tail {Paradox}, {Partial} {Identifiability}, and {Influential} {Priors} in {Bayesian} {Branch} {Length} {Inference}},
+	volume = {29},
+	issn = {0737-4038},
+	url = {https://doi.org/10.1093/molbev/msr210},
+	doi = {10.1093/molbev/msr210},
+	abstract = {Recent studies have observed that Bayesian analyses of sequence data sets using the program MrBayes sometimes generate extremely large branch lengths, with posterior credibility intervals for the tree length (sum of branch lengths) excluding the maximum likelihood estimates. Suggested explanations for this phenomenon include the existence of multiple local peaks in the posterior, lack of convergence of the chain in the tail of the posterior, mixing problems, and misspecified priors on branch lengths. Here, we analyze the behavior of Bayesian Markov chain Monte Carlo algorithms when the chain is in the tail of the posterior distribution and note that all these phenomena can occur. In Bayesian phylogenetics, the likelihood function approaches a constant instead of zero when the branch lengths increase to infinity. The flat tail of the likelihood can cause poor mixing and undue influence of the prior. We suggest that the main cause of the extreme branch length estimates produced in many Bayesian analyses is the poor choice of a default prior on branch lengths in current Bayesian phylogenetic programs. The default prior in MrBayes assigns independent and identical distributions to branch lengths, imposing strong (and unreasonable) assumptions about the tree length. The problem is exacerbated by the strong correlation between the branch lengths and parameters in models of variable rates among sites or among site partitions. To resolve the problem, we suggest two multivariate priors for the branch lengths (called compound Dirichlet priors) that are fairly diffuse and demonstrate their utility in the special case of branch length estimation on a star phylogeny. Our analysis highlights the need for careful thought in the specification of high-dimensional priors in Bayesian analyses.},
+	number = {1},
+	urldate = {2021-07-28},
+	journal = {Molecular Biology and Evolution},
+	author = {Rannala, Bruce and Zhu, Tianqi and Yang, Ziheng},
+	month = jan,
+	year = {2012},
+	pages = {325--335},
+	file = {Snapshot:/Users/151569/.Zotero/storage/IR453V6A/1749935.html:text/html;Full Text PDF:/Users/151569/.Zotero/storage/5L5XYMHK/Rannala et al. - 2012 - Tail Paradox, Partial Identifiability, and Influen.pdf:application/pdf},
+}
