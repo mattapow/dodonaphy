@@ -8,9 +8,6 @@ import os
 import numpy as np
 import time
 import sys
-
-from dodonaphy.src.vi import DodonaphyVI
-from dodonaphy.src.mcmc import DodonaphyMCMC as mcmc
 from dodonaphy.src.phylo import compress_alignment
 
 
@@ -131,6 +128,7 @@ def main():
     start = time.time()
     if inference == 'mcmc':
         # Run Dodoanphy MCMC
+        from dodonaphy.src.mcmc import DodonaphyMCMC as mcmc
         mcmc.run(dim, partials[:], weights, dists, path_write,
                  epochs=epochs, step_scale=step_scale, save_period=save_period,
                  n_grids=n_grids, n_trials=n_trials, max_scale=max_scale, nChains=nChains,
@@ -139,6 +137,7 @@ def main():
 
     if inference == 'vi':
         # Run Dodonaphy variational inference
+        from dodonaphy.src.vi import DodonaphyVI
         DodonaphyVI.run(dim, S, partials[:], weights, dists, path_write,
                         epochs=epochs, k_samples=k_samples, n_draws=n_draws,
                         n_grids=n_grids, n_trials=n_trials,

@@ -348,13 +348,14 @@ class DodonaphyMCMC():
         emm_tips = hydra.hydra(dists, dim=dim, curvature=curvature, stress=True, **{'isotropic_adj': True})
         print('Embedding Stress (tips only) = {:.4}'.format(emm_tips["stress"].item()))
 
-        # Initialise model
-        mymod = DodonaphyMCMC(
-            partials, weights, dim, step_scale=step_scale, nChains=nChains,
-            connect_method=connect_method, embed_method=embed_method, curvature=curvature, **prior)
+        with torch.no_grad():
+            # Initialise model
+            mymod = DodonaphyMCMC(
+                partials, weights, dim, step_scale=step_scale, nChains=nChains,
+                connect_method=connect_method, embed_method=embed_method, curvature=curvature, **prior)
 
-        # Choose internal node locations from best random initialisation
-        mymod.initialise_chains(emm_tips, n_grids=n_grids, n_trials=n_trials, max_scale=max_scale)
+            # Choose internal node locations from best random initialisation
+            mymod.initialise_chains(emm_tips, n_grids=n_grids, n_trials=n_trials, max_scale=max_scale)
 
-        # Learn
-        mymod.learn(epochs, burnin=burnin, path_write=path_write, save_period=save_period)
+            # Learn
+            mymod.learn(epochs, burnin=burnin, path_write=path_write, save_period=save_period)
