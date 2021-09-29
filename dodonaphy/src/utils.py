@@ -208,6 +208,31 @@ def cart_to_dir_tree(X):
 
 
 def hyperbolic_distance(r1, r2, directional1, directional2, curvature):
+    """Generates hyperbolic distance between two points in poincoire ball.
+
+    Args:
+        r1 (tensor): radius of point 1
+        r2 (tensor): radius of point 2
+        directional1 (1D tensor): directional of point 1
+        directional2 (1D tensor): directional of point 2
+        curvature (tensor): curvature
+
+    Returns:
+        tensor: distance between point 1 and point 2
+    """
+    safety = 0.5
+    eps = .000000001
+    if r1 > safety or r2 > safety or abs(curvature - 1.) > eps:
+        return hyperbolic_distance_safe(r1, r2, directional1, directional2, curvature)
+
+    x1 = dir_to_cart(r1, directional1)
+    x2 = dir_to_cart(r2, directional2)
+
+    invariant = 2 * torch.sum(x2**2-x1**2) / (1-torch.linalg.norm(x1)**2) / (1-torch.linalg.norm(x2)**2)
+    return torch.arccos(1 + invariant)
+
+
+def hyperbolic_distance_safe(r1, r2, directional1, directional2, curvature):
     """Generates hyperbolic distance between two points in poincoire ball
 
     Args:
