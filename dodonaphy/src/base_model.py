@@ -80,7 +80,8 @@ class BaseModel(object):
 
         return int_r, int_dir
 
-    def compute_branch_lengths(self, S, peel, leaf_r, leaf_dir, int_r, int_dir, curvature=-torch.ones(1), useNP=True):
+    @staticmethod
+    def compute_branch_lengths(S, peel, leaf_r, leaf_dir, int_r, int_dir, curvature=-torch.ones(1), useNP=True):
         """Computes the hyperbolic distance of two points given in radial/directional coordinates in the Poincare ball
 
         Args:
@@ -102,7 +103,8 @@ class BaseModel(object):
             leaf_dir = leaf_dir.detach().numpy().astype(DTYPE)
             int_r = int_r.detach().numpy().astype(DTYPE)
             int_dir = int_dir.detach().numpy().astype(DTYPE)
-        blens = torch.empty(self.bcount, dtype=torch.float64)
+        bcount = 2*S - 2
+        blens = torch.empty(bcount, dtype=torch.float64)
         for b in range(S-1):
             directional2 = int_dir[peel[b][2]-S-1, ]
             r2 = int_r[peel[b][2]-S-1]
