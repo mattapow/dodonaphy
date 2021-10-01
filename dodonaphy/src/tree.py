@@ -70,7 +70,7 @@ def dendrophy_to_pb(tree):
     return peel, blens.double()
 
 
-def plot_tree(ax, peel, X, color=(0, 0, 0), labels=True, radius=1):
+def plot_tree(ax, peel, X_torch, color=(0, 0, 0), labels=True, radius=1):
     """ Plot a tree in the Poincare disk
 
     Parameters
@@ -88,6 +88,7 @@ def plot_tree(ax, peel, X, color=(0, 0, 0), labels=True, radius=1):
     ax.add_patch(circ)
 
     # nodes
+    X = np.array(X_torch)
     ax.plot(X[:, 0], X[:, 1], '.', color=color)
 
     # edges

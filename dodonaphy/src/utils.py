@@ -291,13 +291,15 @@ def get_plca(locs):
 
     Returns:
         [type]: A list of lists containing the edges.
+        The "distance" of each edge is the negative of the distance
+        of the LCA to the origin.
     """
     node_count = locs.shape[0]
     edge_list = [[] for _ in range(node_count)]
 
     for i in range(node_count):
         for j in range(i):
-            dist_ij = poincare.hyp_lca(locs[i], locs[j], return_coord=False)
+            dist_ij = - poincare.hyp_lca(locs[i], locs[j], return_coord=False)
 
             edge_list[i].append(u_edge(dist_ij, i, j))
             edge_list[j].append(u_edge(dist_ij, j, i))

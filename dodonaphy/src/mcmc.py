@@ -93,7 +93,7 @@ class Chain(BaseModel):
             self.peel = proposal['peel']
             self.blens = proposal['blens']
             self.jacobian = proposal['jacobian']
-            if self.connect_method == 'mst':
+            if self.connect_method != 'nj':
                 self.int_r = proposal['int_r']
                 self.int_dir = proposal['int_dir']
             self.accepted += 1

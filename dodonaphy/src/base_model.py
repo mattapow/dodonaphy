@@ -264,17 +264,19 @@ class BaseModel(object):
             # restrict int_r to less than leaf_r
             int_r_prop[int_r_prop > leaf_r_prop] = leaf_r_prop
 
+        # internal nodes and peel for geodesics
+        leaf_r = leaf_r_prop.repeat(self.S)
+        if self.connect_method in ('geodesics', 'incentre'):
+            with torch.no_grad():
+                peel, int_locs = peeler.make_peel_tips(
+                    leaf_r_prop * leaf_dir_prop, connect_method=self.connect_method)
+                int_r_prop, int_dir_prop = utils.cart_to_dir(int_locs)
+
+        # proposal peel for other methods if requested
         if not getPeel:
             peel = blens = lnP = lnPrior = None
         else:
-            # proposal peel and blens
-            leaf_r = leaf_r_prop.repeat(self.S)
-            if self.connect_method in ('geodesics', 'incentre'):
-                with torch.no_grad():
-                    peel, int_locs = peeler.make_peel_tips(
-                        leaf_r_prop * leaf_dir_prop, connect_method=self.connect_method)
-                    int_r_prop, int_dir_prop = utils.cart_to_dir(int_locs)
-            elif self.connect_method == 'nj':
+            if self.connect_method == 'nj':
                 pdm = Cutils.get_pdm_torch(leaf_r_prop.repeat(self.S), leaf_dir_prop, curvature=self.curvature)
                 peel, blens = peeler.nj(pdm)
             elif self.connect_method == 'mst':
@@ -297,7 +299,7 @@ class BaseModel(object):
             lnPrior = self.compute_prior_gamma_dir(blens)
             # lnPrior = self.compute_prior_birthdeath(peel, blens, **self.prior)
 
-        if self.connect_method in ('geodesics', 'incentre', 'nj'):
+        if self.connect_method in ('nj'):
             proposal = {
                 'leaf_r': leaf_r_prop,
                 'leaf_dir': leaf_dir_prop,
@@ -308,7 +310,7 @@ class BaseModel(object):
                 'lnP': lnP,
                 'lnPrior': lnPrior
             }
-        else:
+        elif self.connect_method in ('geodesics', 'incentre', 'mst', 'mst_choice'):
             proposal = {
                 'leaf_r': leaf_r_prop,
                 'leaf_dir': leaf_dir_prop,
@@ -366,7 +368,6 @@ class BaseModel(object):
         of branch lengths to the tree length. In the Dirichlet, the parameter for
         external branches is α and for internal branches is αc, so that the prior
         ratio between internal and external branch is c."
-        NB: scaling constants from Rannala et al., 2020 are omitted, as for MrBayes.
 
         Args:
             blen ([type]): [description]
