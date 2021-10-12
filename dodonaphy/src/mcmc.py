@@ -11,8 +11,9 @@ import os
 
 class Chain(BaseModel):
     def __init__(self, partials, weights, dim, leaf_r=None, leaf_dir=None, int_r=None, int_dir=None, step_scale=0.01,
-                 temp=1, target_acceptance=.234, connect_method='mst', embed_method='simple', curvature=-1, **prior):
-        super().__init__(partials, weights, dim, curvature=curvature, **prior)
+                 temp=1, target_acceptance=.234, connect_method='mst', embed_method='simple', curvature=-1,
+                 dists_data=None, **prior):
+        super().__init__(partials, weights, dim, curvature=curvature, dists_data=None, **prior)
         self.leaf_dir = leaf_dir  # S x D
         self.int_dir = int_dir  # S-2 x D
         self.int_r = int_r  # S-2
@@ -60,8 +61,10 @@ class Chain(BaseModel):
                 self.S, self.peel, self.leaf_r.repeat(self.S), self.leaf_dir, self.int_r, self.int_dir)
 
         # current likelihood
-        # self.lnP = self.compute_log_a_like(self.leaf_r.repeat(self.S), self.leaf_dir)
+        # self.lnP = self.compute_log_a_like(pdm)
         self.lnP = self.compute_LL(self.peel, self.blens)
+        # leaf_X = utils.dir_to_cart(self.leaf_r, self.leaf_dir)
+        # self.lnP = self.compute_hypHC(leaf_X)
 
         # current prior
         # self.lnPrior = self.compute_prior_birthdeath(self.peel, self.blens, **self.prior)
@@ -155,7 +158,7 @@ class Chain(BaseModel):
 class DodonaphyMCMC():
 
     def __init__(self, partials, weights, dim, connect_method='mst', embed_method='simple',
-                 step_scale=0.01, nChains=1, curvature=-1., **prior):
+                 step_scale=0.01, nChains=1, curvature=-1., dists_data=None, **prior):
         self.nChains = nChains
         self.chain = []
         dTemp = 0.1
@@ -163,7 +166,7 @@ class DodonaphyMCMC():
             temp = 1./(1+dTemp*i)
             self.chain.append(
                 Chain(partials, weights, dim, step_scale=step_scale, temp=temp, embed_method=embed_method,
-                      connect_method=connect_method, curvature=curvature, **prior))
+                      connect_method=connect_method, curvature=curvature, dists_data=dists_data, **prior))
 
     def learn(self, epochs, burnin=0, path_write='./out', save_period=1):
         print("Using 1 cold chain and %d hot chains." % int(self.nChains-1))
@@ -212,7 +215,7 @@ class DodonaphyMCMC():
                     self.save_iteration(path_write, i)
 
                 if i > 0:
-                    print('Iteration: %-12i LnL: %10.1f Acceptance Rate: %5.3f' %
+                    print('Iteration: %i LnL: %f Acceptance Rate: %5.3f' %
                           (i, self.chain[0].lnP, self.chain[0].accepted / self.chain[0].iterations),
                           end="", flush=True)
 
@@ -337,7 +340,7 @@ class DodonaphyMCMC():
                 self.chain[i].int_dir = torch.from_numpy(int_dir.astype(np.double))
 
     @staticmethod
-    def run(dim, partials, weights, dists, path_write=None,
+    def run(dim, partials, weights, dists_data, path_write=None,
             epochs=1000, step_scale=0.01, save_period=1, burnin=0,
             n_grids=10, n_trials=100, max_scale=1, nChains=1,
             connect_method='mst', embed_method='simple', curvature=-1., **prior):
@@ -345,14 +348,15 @@ class DodonaphyMCMC():
         assert connect_method in ['incentre', 'mst', 'geodesics', 'nj', 'mst_choice']
 
         # embed tips with distances using Hydra
-        emm_tips = hydra.hydra(dists, dim=dim, curvature=curvature, stress=True, **{'isotropic_adj': True})
+        emm_tips = hydra.hydra(dists_data, dim=dim, curvature=curvature, stress=True, **{'isotropic_adj': True})
         print('Embedding Stress (tips only) = {:.4}'.format(emm_tips["stress"].item()))
 
         with torch.no_grad():
             # Initialise model
             mymod = DodonaphyMCMC(
                 partials, weights, dim, step_scale=step_scale, nChains=nChains,
-                connect_method=connect_method, embed_method=embed_method, curvature=curvature, **prior)
+                connect_method=connect_method, embed_method=embed_method, curvature=curvature,
+                dists_data=dists_data, **prior)
 
             # Choose internal node locations from best random initialisation
             mymod.initialise_chains(emm_tips, n_grids=n_grids, n_trials=n_trials, max_scale=max_scale)

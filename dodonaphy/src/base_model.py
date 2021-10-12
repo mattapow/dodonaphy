@@ -1,3 +1,4 @@
+from src import poincare
 from .phylo import calculate_treelikelihood, JC69_p_t
 from . import peeler, hyperboloid, utils
 from . import tree as treeFunc
@@ -16,7 +17,7 @@ class BaseModel(object):
     """Base Model for Inference
     """
 
-    def __init__(self, partials, weights, dim, curvature=-1., **prior):
+    def __init__(self, partials, weights, dim, curvature=-1., dists_data=None, **prior):
         self.partials = partials.copy()
         self.weights = weights
         self.S = len(self.partials)
@@ -27,6 +28,7 @@ class BaseModel(object):
         assert curvature <= 0
         self.curvature = torch.tensor(curvature)
         self.epoch = 0
+        self.dists_data = dists_data
 
         # make space for internal partials
         for i in range(self.S - 1):
@@ -166,7 +168,54 @@ class BaseModel(object):
             for j in range(i - 1):
                 P = P + weight[i, j] * torch.log(torch.clamp(torch.matmul(mats[j], self.partials[i]), min=eps))
 
-        return torch.sum(P * self.weights)
+        L = torch.sum(self.weights)
+        return torch.sum(P * self.weights)/L
+
+    def compute_hypHC(self, leaf_X, temperature=0.05, n_triplets=100):
+        """Computes log of HypHC loss
+        "From Trees to Continuous Embeddings and Back: Hyperbolic Hierarchical Clustering"
+
+        Args:
+            leaf_X  ([type]): Positions of leaves
+
+        Returns:
+            [type]: Log of loss
+        """
+        triplets = similarities = torch.zeros(n_triplets, 3)
+        triplets = triplets.long()
+        for i in range(n_triplets):
+            triplets[i, :] = torch.multinomial(torch.ones((self.S,)), 3)
+            similarities[i, :] = torch.tensor(
+                self.get_similarities(triplets[i, [0, 0, 1]], triplets[i, [1, 2, 2]], self.dists_data))
+
+        triplets = np.array(triplets)
+        e1 = leaf_X[triplets[:, 0]]
+        e2 = leaf_X[triplets[:, 1]]
+        e3 = leaf_X[triplets[:, 2]]
+        d_12 = poincare.hyp_lca(e1, e2, return_coord=False)
+        d_13 = poincare.hyp_lca(e1, e3, return_coord=False)
+        d_23 = poincare.hyp_lca(e2, e3, return_coord=False)
+        lca_norm = torch.cat([d_12, d_13, d_23], dim=-1)
+        weights = torch.softmax(lca_norm / temperature, dim=-1)
+        w_ord = torch.sum(similarities * weights, dim=-1, keepdim=True)
+        total = torch.sum(similarities, dim=-1, keepdim=True) - w_ord
+        return torch.mean(total)
+
+    def get_similarities(self, u, v, pdm_data,
+                         freqs=torch.full([4], 0.25, dtype=torch.float64)):
+        """Similarities of taxa u and v.
+        Take exp(-pdm)
+
+        Args:
+            u ([type]): [description]
+            v ([type]): [description]
+            pdm_data ([type]): Pairwise distance of data
+            freqs ([type], optional): [description]. Defaults to torch.full([4], 0.25, dtype=torch.float64).
+
+        Returns:
+            [type]: [description]
+        """
+        return torch.exp(-pdm_data[u, v])
 
     def select_peel_mst(self, leaf_r, leaf_dir, int_r, int_dir, curvature=-torch.ones(1)):
         leaf_node_count = leaf_r.shape[0]
@@ -292,7 +341,9 @@ class BaseModel(object):
 
             # get log likelihood
             lnP = self.compute_LL(peel, blens)
-            # lnP = self.compute_log_a_like(leaf_r, leaf_dir_prop)
+            # lnP = self.compute_log_a_like(pdm)
+            # leaf_X = utils.dir_to_cart(leaf_r_prop, leaf_dir_prop)
+            # lnP = self.compute_hypHC(leaf_X)
 
             # get log prior
             lnPrior = self.compute_prior_gamma_dir(blens)

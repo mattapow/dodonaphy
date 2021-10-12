@@ -13,8 +13,10 @@ import Cutils
 
 
 class DodonaphyVI(BaseModel):
-    def __init__(self, partials, weights, dim, embed_method='wrap', connect_method='mst', curvature=-1., **prior):
-        super().__init__(partials, weights, dim, connect_method=connect_method, curvature=curvature, **prior)
+    def __init__(self, partials, weights, dim, embed_method='wrap', connect_method='mst', curvature=-1.,
+                 dists_data=None, **prior):
+        super().__init__(partials, weights, dim, connect_method=connect_method, curvature=curvature,
+                         dists_data=dists_data, **prior)
         print('Initialising variational model.\n')
 
         # Store mu on poincare ball in R^dim.
@@ -267,7 +269,7 @@ class DodonaphyVI(BaseModel):
         return torch.mean(elbos)
 
     @staticmethod
-    def run(dim, S, partials, weights, dists, path_write,
+    def run(dim, S, partials, weights, dists_data, path_write,
             epochs=1000, k_samples=3, n_draws=100,
             n_grids=10, n_trials=100, max_scale=1,
             embed_method='wrap', lr=1e-3, connect_method='nj',
@@ -282,11 +284,12 @@ class DodonaphyVI(BaseModel):
         print('Using %s embedding with %s connections' % (embed_method, connect_method))
 
         # embed tips with hydra
-        emm_tips = hydra.hydra(D=dists, dim=dim, equi_adj=0., stress=True)
+        emm_tips = hydra.hydra(D=dists_data, dim=dim, equi_adj=0., stress=True)
         print('Embedding Stress (tips only) = {:.4}'.format(emm_tips["stress"].item()))
 
         # Initialise model
-        mymod = DodonaphyVI(partials, weights, dim, embed_method=embed_method, connect_method=connect_method, **prior)
+        mymod = DodonaphyVI(partials, weights, dim, embed_method=embed_method, connect_method=connect_method,
+                            dists_data=dists_data, **prior)
 
         # Choose internal node locations from best random initialisation
         if connect_method == 'mst':
@@ -315,8 +318,8 @@ class DodonaphyVI(BaseModel):
             int_sigma = np.log(np.abs(np.array(int_loc_t0)) * cv + eps)
 
         # set leaf variational sigma using closest neighbour
-        dists[dists == 0] = np.inf
-        closest = dists.min(axis=0)
+        dists_data[dists_data == 0] = np.inf
+        closest = dists_data.min(axis=0)
         closest = np.repeat([closest], dim, axis=0).transpose()
         leaf_sigma = np.log(np.abs(closest) * cv + eps)
 
