@@ -91,9 +91,9 @@ def test_make_peel_incentre():
         [0.06644704, 0.18495312, -0.03839615],
         [-0.12724270, -0.02395994, 0.20075329]])
     lca = poincare.hyp_lca(leaf_locs[0], leaf_locs[1])
-    d0_1 = utils.hyperbolic_distance_locs(leaf_locs[0], leaf_locs[1])
-    d0_lca = utils.hyperbolic_distance_locs(leaf_locs[0], lca)
-    d1_lca = utils.hyperbolic_distance_locs(leaf_locs[1], lca)
+    d0_1 = Cutils.hyperbolic_distance_lorentz(leaf_locs[0], leaf_locs[1])
+    d0_lca = Cutils.hyperbolic_distance_lorentz(leaf_locs[0], lca)
+    d1_lca = Cutils.hyperbolic_distance_lorentz(leaf_locs[1], lca)
     d0_lca_d1 = d0_lca + d1_lca
     # // d0_1 should be the same as d0_lca_d1
     assert pytest.approx(d0_1, d0_lca_d1)
