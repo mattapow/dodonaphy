@@ -91,9 +91,9 @@ def make_peel_tips(leaf_locs, connect_method='geodesics', curvature=-torch.ones(
                     dist_ij = - poincare.hyp_lca(int_locs[i-leaf_node_count], int_locs[int_i], return_coord=False)
             elif connect_method == 'incentre':
                 if i < leaf_node_count:
-                    dist_ij = utils.hyperbolic_distance_locs(leaf_locs[i], int_locs[int_i])
+                    dist_ij = Cutils.hyperbolic_distance_lorentz(leaf_locs[i], int_locs[int_i])
                 else:
-                    dist_ij = utils.hyperbolic_distance_locs(int_locs[i-leaf_node_count], int_locs[int_i])
+                    dist_ij = Cutils.hyperbolic_distance_lorentz(int_locs[i-leaf_node_count], int_locs[int_i])
                 # apply the inverse transform from Matsumoto et al 2020
                 dist_ij = torch.log(torch.cosh(dist_ij))
             heappush(queue, u_edge(dist_ij, i, cur_internal))
@@ -368,6 +368,7 @@ def nj(pdm):
         # find minimum of Q matrix
         Q.masked_fill_(~torch.outer(~mask, ~mask), math.inf)
         g, f = unravel_index(Q.argmin(), Q.shape)
+        # TODO: use view if unravel is problem.
 
         # add this branch to peel
         u = int_i + leaf_node_count

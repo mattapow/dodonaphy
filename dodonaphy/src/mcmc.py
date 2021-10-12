@@ -38,6 +38,7 @@ class Chain(BaseModel):
         # initialise likelihood and prior values of embedding
 
         # set peel + poincare locations
+        pdm = Cutils.get_pdm_torch(self.leaf_r.repeat(self.S), self.leaf_dir, curvature=self.curvature)
         if self.connect_method in ('geodesics', 'incentre'):
             loc_poin = self.leaf_dir * self.leaf_r
             self.peel, int_locs = peeler.make_peel_tips(loc_poin, self.connect_method)
@@ -45,7 +46,6 @@ class Chain(BaseModel):
             leaf_r_all, self.leaf_dir = utils.cart_to_dir(loc_poin)
             self.leaf_r = leaf_r_all[0]
         elif self.connect_method == 'nj':
-            pdm = Cutils.get_pdm_torch(self.leaf_r.repeat(self.S), self.leaf_dir, curvature=self.curvature)
             self.peel, self.blens = peeler.nj(pdm)
         elif self.connect_method == 'mst':
             self.peel = peeler.make_peel_mst(self.leaf_r.repeat(self.S), self.leaf_dir, self.int_r, self.int_dir)

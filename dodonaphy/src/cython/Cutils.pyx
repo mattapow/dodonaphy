@@ -203,8 +203,8 @@ cpdef hyperbolic_distance_np(double r1, double r2, np.ndarray[np.double_t, ndim=
     return 1. / np.sqrt(-curvature) * np.arccosh(inner)
     
 
-cpdef hyperbolic_distance(r1, r2, directional1, directional2, curvature):
-    """Generates hyperbolic distance between two points in poincoire ball
+cpdef hyperbolic_distance(r1, r2, directional1, directional2, curvature=-torch.ones(1)):
+    """Generates hyperbolic distance between two points in poincare ball.
 
     Args:
         r1 (tensor): radius of point 1
@@ -216,20 +216,34 @@ cpdef hyperbolic_distance(r1, r2, directional1, directional2, curvature):
     Returns:
         tensor: distance between point 1 and point 2
     """
-    # if torch.allclose(r1, r2) and torch.allclose(directional1, directional2):
-    #     return torch.zeros(1)
+    x1 = dir_to_cart(r1, directional1)
+    x2 = dir_to_cart(r2, directional2)
+
+    if abs(curvature + 1.) > .000000001:
+        return hyperbolic_distance_lorentz(x1, x2, curvature)
+
+    invariant = 2 * torch.sum((x2-x1)**2) / (1-torch.linalg.norm(x1)**2) / (1-torch.linalg.norm(x2)**2)
+    if torch.isnan(invariant):
+        return hyperbolic_distance_lorentz(x1, x2, curvature)
+    return torch.acosh(1 + invariant)
+
+
+cpdef hyperbolic_distance_lorentz(x1, x2, curvature=-torch.ones(1)):
+    """Generates hyperbolic distance between two points in poincare ball.
+    Project onto hyperboloid and compute using Lorentz product.
+
+    Returns:
+        tensor: distance between point 1 and point 2
+    """
+
     if torch.isclose(curvature, torch.zeros(1)):
-        x1 = dir_to_cart(r1, directional1)
-        x2 = dir_to_cart(r2, directional2)
-        return torch.sum(x2**2-x1**2)**.5
+        return torch.norm(x2-x1)
 
-    # Use lorentz distance for numerical stability
-    cdef double eps = 0.0000000000000003
-    z1 = poincare_to_hyper(dir_to_cart(r1, directional1))
-    z2 = poincare_to_hyper(dir_to_cart(r2, directional2))
-    inner = torch.clamp(-lorentz_product(z1, z2), min=1+eps)
-    return 1. / torch.sqrt(-curvature) * torch.arccosh(inner)
-
+    z1 = poincare_to_hyper(x1).squeeze()
+    z2 = poincare_to_hyper(x2).squeeze()
+    eps = torch.finfo(torch.float64).eps
+    inner = torch.clamp(-lorentz_product(z1, z2), min=1.+eps)
+    return 1. / torch.sqrt(-curvature) * torch.acosh(inner)
 
 cdef lorentz_product_np(np.ndarray[np.double_t, ndim=1] x, np.ndarray[np.double_t, ndim=1] y):
     """
@@ -349,3 +363,27 @@ cdef dir_to_cart(r, directional):
         if npScalar or torchScalar:
             return directional * r
         return directional * r[:, None]
+
+
+cpdef real2ball_LADJ(y, radius=1):
+    """Copmute log of absolute value of determinate of jacobian of real2ball on point y
+
+    Args:
+        y (tensor): Points in R^n n_points x n_dimensions
+
+    Returns:
+        scalar tensor: log absolute determinate of Jacobian
+    """
+    if y.ndim == 1:
+        y = y.unsqueeze(dim=-1)
+
+    n, D = y.shape
+    log_abs_det_J = torch.zeros(1)
+
+    norm = torch.norm(y, dim=-1, keepdim=True)
+
+    for k in range(n):
+        J = (torch.eye(D, D) - torch.outer(y[k], y[k]) / (norm[k] * (norm[k] + 1))) / (1+norm[k])
+        log_abs_det_J = log_abs_det_J + torch.logdet(radius * J)
+
+    return log_abs_det_J

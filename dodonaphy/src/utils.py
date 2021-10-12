@@ -1,7 +1,6 @@
 import numpy as np
 import torch
 from collections import defaultdict
-from .hyperboloid import poincare_to_hyper, lorentz_product
 from .edge import u_edge
 from . import poincare
 import Cutils
@@ -90,7 +89,7 @@ def get_pdm_tips(leaf_r, leaf_dir, curvature=-torch.ones(1)):
     for i in range(leaf_node_count):
         for j in range(i):
             dist_ij = 0
-            dist_ij = hyperbolic_distance(
+            dist_ij = Cutils.hyperbolic_distance(
                 leaf_r[i], leaf_r[j], leaf_dir[i], leaf_dir[j], curvature)
 
             # apply the inverse transform from Matsumoto et al 2020
@@ -115,9 +114,9 @@ def dir_to_cart(r, directional):
     (2D tensor) Cartesian coordinates of each point n_points x dim
 
     """
-    # # Ensure directional is unit vector
-    # if not torch.allclose(torch.norm(directional, dim=-1).double(), torch.tensor(1.).double()):
-    #     raise RuntimeError('Directional given is not a unit vector.')
+    # Ensure directional is unit vector
+    if not torch.allclose(torch.norm(directional, dim=-1).double(), torch.tensor(1.).double()):
+        raise RuntimeError('Directional given is not a unit vector.')
 
     if r.shape == torch.Size([]):
         return directional * r
@@ -207,82 +206,6 @@ def cart_to_dir_tree(X):
     return leaf_r, int_r, leaf_dir, int_dir
 
 
-def hyperbolic_distance(r1, r2, directional1, directional2, curvature):
-    """Generates hyperbolic distance between two points in poincoire ball.
-
-    Args:
-        r1 (tensor): radius of point 1
-        r2 (tensor): radius of point 2
-        directional1 (1D tensor): directional of point 1
-        directional2 (1D tensor): directional of point 2
-        curvature (tensor): curvature
-
-    Returns:
-        tensor: distance between point 1 and point 2
-    """
-    safety = 0.5
-    eps = .000000001
-    if r1 > safety or r2 > safety or abs(curvature - 1.) > eps:
-        return hyperbolic_distance_safe(r1, r2, directional1, directional2, curvature)
-
-    x1 = dir_to_cart(r1, directional1)
-    x2 = dir_to_cart(r2, directional2)
-
-    invariant = 2 * torch.sum(x2**2-x1**2) / (1-torch.linalg.norm(x1)**2) / (1-torch.linalg.norm(x2)**2)
-    return torch.arccos(1 + invariant)
-
-
-def hyperbolic_distance_safe(r1, r2, directional1, directional2, curvature):
-    """Generates hyperbolic distance between two points in poincoire ball
-
-    Args:
-        r1 (tensor): radius of point 1
-        r2 (tensor): radius of point 2
-        directional1 (1D tensor): directional of point 1
-        directional2 (1D tensor): directional of point 2
-        curvature (tensor): curvature
-
-    Returns:
-        tensor: distance between point 1 and point 2
-    """
-    # if torch.allclose(r1, r2) and torch.allclose(directional1, directional2):
-    #     return torch.zeros(1)
-
-    x1 = dir_to_cart(r1, directional1)
-    x2 = dir_to_cart(r2, directional2)
-    if torch.isclose(curvature, torch.zeros(1)):
-        return torch.sum(x2**2-x1**2)**.5
-
-    # Use lorentz distance for numerical stability
-    z1 = poincare_to_hyper(x1).squeeze()
-    z2 = poincare_to_hyper(x2).squeeze()
-    eps = torch.finfo(torch.float64).eps
-    inner = torch.clamp(-lorentz_product(z1, z2), min=1+eps)
-    return 1. / torch.sqrt(-curvature) * torch.acosh(inner)
-
-
-def hyperbolic_distance_locs(z1, z2, curvature=-torch.ones(1)):
-    """Generates hyperbolic distance between two points in poincoire ball
-
-    Args:
-        z1 (tensor): coords or point 1 in Poincare ball
-        z2 (tensor): coords or point 2 in Poincare ball
-        curvature (tensor): curvature
-
-    Returns:
-        tensor: distance between point 1 and point 2
-    """
-    if torch.isclose(curvature, torch.zeros(1)):
-        return torch.sum(z2**2-z1**2)**.5
-
-    # Use lorentz distance for numerical stability
-    z1 = poincare_to_hyper(z1).squeeze()
-    z2 = poincare_to_hyper(z2).squeeze()
-    eps = torch.finfo(torch.float64).eps
-    inner = torch.clamp(-lorentz_product(z1, z2), min=1+eps)
-    return 1. / torch.sqrt(-curvature) * torch.acosh(inner)
-
-
 def get_plca(locs):
     """Return a pair-wise least common ancestor matrix based.
 
@@ -344,31 +267,6 @@ def real2ball(loc_real, radius=1):
     norm_loc_real = torch.norm(loc_real, dim=-1, keepdim=True).repeat(1, dim)
     loc_ball = torch.div(radius * loc_real, (1 + norm_loc_real))
     return loc_ball
-
-
-def real2ball_LADJ(y, radius=1):
-    """Copmute log of absolute value of determinate of jacobian of real2ball on point y
-
-    Args:
-        y (tensor): Points in R^n n_points x n_dimensions
-
-    Returns:
-        scalar tensor: log absolute determinate of Jacobian
-    """
-    # TODO: move to cython
-    if y.ndim == 1:
-        y = y.unsqueeze(dim=-1)
-
-    n, D = y.shape
-    log_abs_det_J = torch.zeros(1)
-
-    norm = torch.norm(y, dim=-1, keepdim=True)
-
-    for k in range(n):
-        J = (torch.eye(D, D) - torch.outer(y[k], y[k]) / (norm[k] * (norm[k] + 1))) / (1+norm[k])
-        log_abs_det_J = log_abs_det_J + torch.logdet(radius * J)
-
-    return log_abs_det_J
 
 
 def normalise(y):

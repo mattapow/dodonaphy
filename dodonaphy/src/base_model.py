@@ -193,7 +193,7 @@ class BaseModel(object):
         if self.embed_method == 'simple':
             # transform leaves to R^n
             leaf_loc_t0 = utils.ball2real(leaf_loc)
-            log_abs_det_jacobian = -utils.real2ball_LADJ(leaf_loc_t0)
+            log_abs_det_jacobian = -Cutils.real2ball_LADJ(leaf_loc_t0)
 
             # flatten data to sample
             leaf_loc_t0 = leaf_loc_t0.reshape(n_leaf_vars)
@@ -233,7 +233,7 @@ class BaseModel(object):
             if self.embed_method == 'simple':
                 # transform internals to R^n
                 int_loc_t0 = utils.ball2real(int_loc)
-                log_abs_det_jacobian = log_abs_det_jacobian - utils.real2ball_LADJ(int_loc_t0)
+                log_abs_det_jacobian = log_abs_det_jacobian - Cutils.real2ball_LADJ(int_loc_t0)
 
                 # flatten data to sample
                 int_loc_t0 = int_loc_t0.reshape(n_int_vars)
@@ -275,11 +275,11 @@ class BaseModel(object):
                 int_r_prop, int_dir_prop = utils.cart_to_dir(int_locs)
 
         # proposal peel for other methods if requested
+        pdm = Cutils.get_pdm_torch(leaf_r_prop.repeat(self.S), leaf_dir_prop, curvature=self.curvature)
         if not getPeel:
             peel = blens = lnP = lnPrior = None
         else:
             if self.connect_method == 'nj':
-                pdm = Cutils.get_pdm_torch(leaf_r_prop.repeat(self.S), leaf_dir_prop, curvature=self.curvature)
                 peel, blens = peeler.nj(pdm)
             elif self.connect_method == 'mst':
                 peel = peeler.make_peel_mst(leaf_r, leaf_dir_prop, int_r_prop, int_dir_prop)
