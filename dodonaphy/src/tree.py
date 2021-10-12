@@ -50,6 +50,7 @@ def dendrophy_to_pb(tree):
     peel : adjacencies of internal nodes (left child, right child, node)
     blens : branch lengths
     """
+    tree.isrooted = True
     # Get branch lengths
     S = len(tree)
     n_edges = 2 * S - 2
