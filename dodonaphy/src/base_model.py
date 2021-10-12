@@ -213,16 +213,14 @@ class BaseModel(object):
 
         elif self.embed_method == 'wrap':
             # transform leaves to R^n
-            leaf_loc_t0 = hyperboloid.p2t0(leaf_loc)
+            leaf_loc_t0, log_abs_det_jacobian = hyperboloid.p2t0(leaf_loc, get_jacobian=True)
             leaf_loc_t0 = leaf_loc_t0.clone()
 
             # propose new leaf nodes from normal in R^n and convert to poincare ball
             normal_dist = MultivariateNormal(torch.zeros((self.S * self.D), dtype=torch.double), leaf_cov)
             sample = normal_dist.rsample()
             logQ = normal_dist.log_prob(sample)
-            leaf_loc_prop, log_abs_det_jacobian = hyperboloid.t02p(
-                sample.reshape(self.S, self.D), leaf_loc_t0.reshape(self.S, self.D), get_jacobian=True)
-            log_abs_det_jacobian = -log_abs_det_jacobian
+            leaf_loc_prop = hyperboloid.t02p(sample.reshape(self.S, self.D), leaf_loc_t0.reshape(self.S, self.D))
 
         # get r and directional
         leaf_r_prop = torch.norm(leaf_loc_prop[0, :])
@@ -249,15 +247,14 @@ class BaseModel(object):
 
             elif self.embed_method == 'wrap':
                 # transform ints to R^n
-                int_loc_t0 = hyperboloid.p2t0(int_loc).clone()
+                int_loc_t0, int_jacobian = hyperboloid.p2t0(int_loc, get_jacobian=True).clone()
+                log_abs_det_jacobian = log_abs_det_jacobian - int_jacobian
 
                 # propose new int nodes from normal in R^n
                 normal_dist = MultivariateNormal(torch.zeros_like(int_loc_t0.squeeze()), int_cov)
                 sample = normal_dist.rsample()
                 logQ = logQ + normal_dist.log_prob(sample)
-                int_loc_prop, int_jacobian = hyperboloid.t02p(
-                    sample.reshape(self.S-2, self.D), int_loc_t0.reshape(self.S-2, self.D), get_jacobian=True)
-                log_abs_det_jacobian = log_abs_det_jacobian - int_jacobian
+                int_loc_prop = hyperboloid.t02p(sample.reshape(self.S-2, self.D), int_loc_t0.reshape(self.S-2, self.D))
 
             # get r and directional
             int_r_prop = torch.norm(int_loc_prop, dim=-1)

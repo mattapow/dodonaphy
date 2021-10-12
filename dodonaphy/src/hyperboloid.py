@@ -138,7 +138,22 @@ def exponential_map(x, v):
     return torch.cosh(vnorm) * x + torch.sinh(vnorm) * v / vnorm
 
 
-def p2t0(loc):
+def exp_map_inverse(z, mu):
+    """Inverse of exponential map
+
+    Args:
+        z ([type]): Hyperboloid location in R^n+1
+        mu ([type]): Tangent point
+
+    Returns:
+        [type]: [description]
+    """
+    alpha = - lorentz_product(mu, z)
+    factor = torch.acosh(alpha) / (torch.sqrt(alpha**2 - 1))
+    return factor * (z - alpha * mu)
+
+
+def p2t0(loc, mu=None, get_jacobian=False):
     """Convert location on Poincare ball to Euclidean space.
 
     Use stereographic projection of point onto hyperboloid surface in R^n+1,
@@ -147,17 +162,34 @@ def p2t0(loc):
     Parameters
     ----------
     loc: Location in Poincare ball, loc in R^n with |loc|<1
+    mu: Base position of vector on tangent plane at origin.
 
     Returns
     -------
     Projection of location into the tangent space T_0H^n, which is R^n
 
     """
-    loc_hyp = poincare_to_hyper(loc)
-    if loc.ndim == 1:
-        return loc_hyp[1:]
-    elif loc.ndim == 2:
-        return loc_hyp[:, 1:]
+    if loc.dim() < 2:
+        loc = loc.unsqueeze(dim=-1)
+
+    vec_hyp = poincare_to_hyper(loc)
+    if mu is None:
+        mu = torch.zeros_like(loc)
+        mu = up_to_hyper(mu)
+    n_loc, dim = loc.shape
+    zero = torch.zeros((dim+1)).double()
+    zero[0] = 1
+
+    out = torch.zeros_like(loc)
+    for i in range(n_loc):
+        vec_t0_mu = exp_map_inverse(vec_hyp[i, :], mu[i, :])
+        vec_t0_0 = parallel_transport(vec_t0_mu, mu[i, :], zero)
+        out[i, :] = vec_t0_0[1:]
+
+    if get_jacobian:
+        _, jacobian = t02p(out, mu[:, 1:], get_jacobian=True)
+        return out, -jacobian
+    return out
 
 
 def t02p(x, mu=None, get_jacobian=False):
@@ -301,7 +333,7 @@ def hyper_to_poincare_jacobian(location):
 
     # precomputed determinant
     a = (1 + location[0])
-    norm = torch.norm(location[1:])
+    norm = torch.sum(torch.pow(location[1:], 2))
     det = torch.div(torch.pow(a, 2) + norm, torch.pow(a, 2*(dim+1)))
 
     # compute Jacobian matrix then get determinant

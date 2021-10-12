@@ -25,3 +25,43 @@ def test_tangent_to_hyper():
     v_tilde = torch.tensor([2.4, -.3])
     z = hyp.tangent_to_hyper(mu, v_tilde, dim)
     assert torch.isclose(hyp.lorentz_product(z), torch.as_tensor(-1).double())
+
+
+def test_p2t02p():
+    input = torch.tensor([[.1, .3, .4]]).double()
+    output = hyp.t02p(hyp.p2t0(input))
+    assert approx(input.data, output.data)
+
+
+def test_t02p2t0():
+    input = torch.tensor([[10., .3, -.44]]).double()
+    output = hyp.p2t0(hyp.t02p(input))
+    assert approx(input.data, output.data)
+
+
+def test_jacobian_default_mu():
+    x_t0 = torch.tensor([[1.4, -.3, -.8]]).double()
+    x_poin, jacobian0 = hyp.t02p(x_t0, get_jacobian=True)
+    x_t0_2, jacobian2 = hyp.p2t0(x_poin, get_jacobian=True)
+    assert torch.allclose(x_t0, x_t0_2)
+    assert torch.allclose(jacobian0, -jacobian2)
+
+
+def test_jacobian_mu_0():
+    x_t0 = torch.tensor([[-.4, -.0, -1.]]).double()
+    mu = torch.zeros_like(x_t0).double()
+    x_poin, jacobian0 = hyp.t02p(x_t0, mu, get_jacobian=True)
+    mu = torch.hstack((torch.ones(1, 1), mu))
+    x_t0_2, jacobian2 = hyp.p2t0(x_poin, mu, get_jacobian=True)
+    assert torch.allclose(x_t0, x_t0_2)
+    assert torch.allclose(jacobian0, -jacobian2)
+
+
+def test_jacobian_mu_1():
+    x_t0 = torch.tensor([[-6.4, 0., 1.]]).double()
+    mu = torch.tensor([[.2, .3, -.5]]).double()
+    x_poin, jacobian_0 = hyp.t02p(x_t0, mu, get_jacobian=True)
+    mu_2 = hyp.up_to_hyper(mu)
+    x_t0_2, jacobian_2 = hyp.p2t0(x_poin, mu_2, get_jacobian=True)
+    assert torch.allclose(x_t0, x_t0_2, atol=0.00001)
+    assert torch.allclose(jacobian_0, -jacobian_2)
