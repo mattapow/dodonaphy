@@ -8,7 +8,7 @@ import os
 import numpy as np
 import time
 import sys
-from dodonaphy.src.phylo import compress_alignment
+from src.phylo import compress_alignment
 
 
 def main():
@@ -64,6 +64,7 @@ def main():
             path_write = os.path.join(
                 method_dir, "d%i_lr%i_k%i_crv%d" %
                 (dim, lnLr, k_samples, -curvature*100))
+            print(f"Saving to {path_write}")
         else:
             path_write = None
 
@@ -73,6 +74,7 @@ def main():
             path_write = os.path.join(
                 method_dir, "d%d_c%d_crv%d" %
                 (dim, nChains, -curvature*100))
+            print(f"Saving to {path_write}")
         else:
             path_write = None
 
@@ -128,7 +130,7 @@ def main():
     start = time.time()
     if inference == 'mcmc':
         # Run Dodoanphy MCMC
-        from dodonaphy.src.mcmc import DodonaphyMCMC as mcmc
+        from src.mcmc import DodonaphyMCMC as mcmc
         mcmc.run(dim, partials[:], weights, dists, path_write,
                  epochs=epochs, step_scale=step_scale, save_period=save_period,
                  n_grids=n_grids, n_trials=n_trials, max_scale=max_scale, nChains=nChains,
@@ -137,7 +139,7 @@ def main():
 
     if inference == 'vi':
         # Run Dodonaphy variational inference
-        from dodonaphy.src.vi import DodonaphyVI
+        from src.vi import DodonaphyVI
         DodonaphyVI.run(dim, S, partials[:], weights, dists, path_write,
                         epochs=epochs, k_samples=k_samples, n_draws=n_draws,
                         n_grids=n_grids, n_trials=n_trials,

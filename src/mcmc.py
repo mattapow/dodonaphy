@@ -102,6 +102,16 @@ class Chain(BaseModel):
             self.accepted += 1
         self.iterations += 1
 
+        # import matplotlib.pyplot as plt
+        # if not accept:
+        #     color = 'r'
+        # else:
+        #     color = 'g'
+        #     plt.cla()
+        # X_torch = utils.dir_to_cart_tree(
+        #     proposal['leaf_r'], proposal['int_r'], proposal['leaf_dir'], proposal['int_dir'], self.D)
+        # tree.plot_tree(plt.gca(), proposal['peel'], X_torch, color=color, labels=False, radius=proposal['leaf_r'])
+        # plt.pause(0.01)
         return accept
 
     def accept_ratio(self, p):
@@ -145,6 +155,7 @@ class Chain(BaseModel):
         eps = torch.tensor(torch.finfo(torch.double).eps)
         acceptance = self.accepted / self.iterations
         dy = acceptance - self.target_acceptance
+        # print(f"new step={self.step_scale + lr * dy}")
         self.step_scale = torch.maximum(self.step_scale + lr * dy, eps)
 
         # check convegence

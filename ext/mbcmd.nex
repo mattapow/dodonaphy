@@ -5,6 +5,4 @@ Begin mrbayes;
     prset statefreqpr=fixed(equal);
     prset brlenspr = unconstrained:gammadir(1.,.1,1.,1.);
     mcmc;
-    sump;
-    sumt;
 end;

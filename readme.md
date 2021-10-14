@@ -1,31 +1,39 @@
-# Dodonaphy Experiments
+# Dodonaphy
 
-Scripts in src are for running experiments with dodonaphy package.
+Hyperbolic embeddings for approximating phylogenetic posteriors.
+
+This code is under active research & development and not intended for production use for phylogenetic inference.
+
 
 ## Installing
+Install the dodonaphy package using pip:
+```
+pip install dodonaphy
+```
+alternatively the package can be installed locally using
+```
+pip install -e .
+```
 
-First install dodonaphy, see ./dodonaphy/readme.md.
+## Running tests
+Once the package is installed tests are run using pytest:
+```
+pytest
+```
 
-## Running
+## Model
+The basic idea is embed points in Hyperbolic space and connect them to form a tree.
+Perform Bayesian inference (MCMC or Variational Inference) in the embedding space.
+Gradient ascent is performed using pytorch.
+See doc/notes.pdf for a description of the embedding models being used.
 
-In src, invoke the run.py to run the simulations:
+## Basic usage
+Run dodonaphy using
+```
+dodonaphy [dim]
+```
+where dim is the embedding dimension e.g. "dodonaphy 4".
+The entry point is run.py in the src folder and at the moment, most options must be specified as variables in run.py.
 
-    >> python3 run.py
-
-## Comparing with BEAST or MrBayes
-Each run will generate a dna.nex file that was used as input for the analysis.
-Run an MCMC (BEAST or MrBayes) on this file for comparison.
-
-## Install asdsf for post processing
-
-For post processing the asdsf, install bali-phy https://github.com/bredelings/BAli-Phy
-and copy the trees-bootstrap file into ext.
-
-## Post processing
-
-Post process the simulations using locations_kde.py and stat_cmp.py.
-To process the asdsf using bali-phy files in ext, first run trees-boostrap as
-
-    >> trees-bootstrap dir-1/C1.trees dir-2/C1.trees ... dir-n/C1.trees --LOD-table=LOD-table > partitions.bs 
-
-Then plot the splits using cmp_splits.py.
+## Post-processing
+A number of pre- and post-processing functions are in the post_process folder.

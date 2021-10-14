@@ -7,11 +7,11 @@ import os
 from dendropy.model.discrete import simulate_discrete_chars
 import torch
 
-dim = 3
+dim = 2
 S = 17
 L = 1000
-radius = .3
-connect_method = 'hyp_hc'
+radius = .2
+connect_method = 'geo'
 
 mu = np.zeros((dim))
 cov = np.eye(dim)
@@ -25,11 +25,15 @@ elif connect_method == 'hyp_hc':
     peel, int_locs = peeler.make_peel_geodesic(torch.tensor(leaf_locs))
     int_r, int_dir = utils.cart_to_dir(int_locs)
     blens = base_model.BaseModel.compute_branch_lengths(S, peel, leaf_r, leaf_dir, int_r, int_dir, useNP=False)
+elif connect_method == 'geo':
+    peel, int_locs = peeler.make_peel_geodesic(torch.tensor(leaf_locs))
+    int_r, int_dir = utils.cart_to_dir(int_locs)
+    blens = base_model.BaseModel.compute_branch_lengths(S, peel, leaf_r, leaf_dir, int_r, int_dir, useNP=False)
 
 tipnames = np.arange(S).astype(str)
 nwk = tree.tree_to_newick(tipnames, peel, blens)
 
-root_dir = "./data/T%s_hypHC" % (S)
+root_dir = "../data/T%s_hypGEO" % (S)
 tree_path = os.path.join(root_dir, "simtree.nex")
 tree_info_path = os.path.join(root_dir, "simtree.info")
 dna_path = os.path.join(root_dir, "dna.nex")
