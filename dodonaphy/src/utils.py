@@ -139,9 +139,11 @@ def dir_to_cart_tree(leaf_r, int_r, leaf_dir, int_dir, dim):
     2D tensor: Cartesian coords of leaves, then internal nodes, then root above node 0
 
     """
-    n_leaf = leaf_r.shape[0]
+    n_leaf = leaf_dir.shape[0]
     n_points = n_leaf + int_r.shape[0]
     X = torch.zeros((n_points + 1, dim))  # extra point for root
+    if leaf_r.shape == torch.Size([]):
+        leaf_r = torch.tile(leaf_r, (n_leaf,))
 
     X[:n_leaf, :] = dir_to_cart(leaf_r, leaf_dir)
     X[n_leaf:-1, :] = dir_to_cart(int_r, int_dir)
