@@ -253,10 +253,6 @@ class BaseModel(object):
             logQ = normal_dist.log_prob(sample)
             leaf_loc_t0 = sample.reshape((self.S, self.D))
 
-            # # normalise leaves to sphere with radius leaf_r_prop = first leaf radii
-            # leaf_r_t0 = torch.norm(leaf_loc_t0[0, :])
-            # leaf_loc_t0 = utils.normalise(leaf_loc_t0) * leaf_r_t0
-
             # Convert to Ball
             leaf_loc_prop = utils.real2ball(leaf_loc_t0)
 
@@ -270,6 +266,10 @@ class BaseModel(object):
             sample = normal_dist.rsample()
             logQ = normal_dist.log_prob(sample)
             leaf_loc_prop = hyperboloid.t02p(sample.reshape(self.S, self.D), leaf_loc_t0.reshape(self.S, self.D))
+
+        # normalise leaves to sphere with radius leaf_r_prop = first leaf radii
+        leaf_r_prop = torch.norm(leaf_loc_prop[0, :])
+        leaf_loc_prop = utils.normalise(leaf_loc_prop) * leaf_r_prop
 
         # get r and directional
         leaf_r_prop = torch.norm(leaf_loc_prop[0, :])
