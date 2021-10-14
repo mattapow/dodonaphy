@@ -1,12 +1,12 @@
 import dendropy
-from dendropy.simulate import treesim
-from dendropy.model.discrete import simulate_discrete_chars
-from src.phylo import compress_alignment, JC69_p_t, calculate_treelikelihood
-from src import tree as treeFunc
-from src.base_model import BaseModel
 import torch
 from dendropy.interop import raxml
+from dendropy.model.discrete import simulate_discrete_chars
+from dendropy.simulate import treesim
 from pytest import approx
+from src import tree as treeFunc
+from src.base_model import BaseModel
+from src.phylo import JC69_p_t, calculate_treelikelihood, compress_alignment
 
 
 def test_calculate_likelihood():

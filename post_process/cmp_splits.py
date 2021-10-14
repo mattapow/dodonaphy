@@ -1,7 +1,8 @@
-from numpy import genfromtxt, power, argsort, flip, arange
+import os
+
 import matplotlib.pyplot as plt
 from matplotlib import cm
-import os
+from numpy import arange, argsort, flip, genfromtxt, power
 
 dir = "./data/T17"
 resultsDir = os.path.join(dir, "results")

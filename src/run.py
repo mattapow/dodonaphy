@@ -1,13 +1,15 @@
-import dendropy
-from dendropy.simulate import treesim
-from dendropy.model.discrete import simulate_discrete_chars
-from dendropy.model.birthdeath import birth_death_likelihood
-from dendropy.interop import raxml
-import random
 import os
-import numpy as np
-import time
+import random
 import sys
+import time
+
+import dendropy
+import numpy as np
+from dendropy.interop import raxml
+from dendropy.model.birthdeath import birth_death_likelihood
+from dendropy.model.discrete import simulate_discrete_chars
+from dendropy.simulate import treesim
+
 from src.phylo import compress_alignment
 
 

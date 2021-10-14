@@ -1,9 +1,9 @@
-import matplotlib.pyplot as plt
-from numpy import genfromtxt
-import seaborn as sns
 import os
-import numpy as np
 
+import matplotlib.pyplot as plt
+import numpy as np
+import seaborn as sns
+from numpy import genfromtxt
 
 # experiments_mcmc = ["simple_mst_c5_d2",
 #                     "simple_mst_c5_d5",

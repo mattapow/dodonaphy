@@ -1,11 +1,12 @@
 # simulate a hyperbolic tree
 
+import os
+
 import dendropy
 import numpy as np
-from dodonaphy.src import peeler, tree, utils, base_model
-import os
-from dendropy.model.discrete import simulate_discrete_chars
 import torch
+from dendropy.model.discrete import simulate_discrete_chars
+from src import base_model, peeler, tree, utils
 
 dim = 2
 S = 17

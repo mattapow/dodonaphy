@@ -1,6 +1,6 @@
 import dendropy
-from dendropy.model.discrete import simulate_discrete_chars
 from dendropy.model.birthdeath import birth_death_likelihood
+from dendropy.model.discrete import simulate_discrete_chars
 
 S = 17
 L = 1000

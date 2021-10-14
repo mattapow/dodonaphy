@@ -1,8 +1,8 @@
-from src import utils, poincare, peeler
 import Cutils
+import numpy as np
 import pytest
 import torch
-import numpy as np
+from src import peeler, poincare, utils
 
 
 def test_make_peel_simple():

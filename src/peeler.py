@@ -1,12 +1,12 @@
-from heapq import heapify, heappush, heappop
-from collections import deque
-from . import tree, utils, poincare
-from .edge import u_edge
+from collections import defaultdict, deque
+from heapq import heapify, heappop, heappush
+
 import Cutils
-import torch
 import numpy as np
-from collections import defaultdict
-import math
+import torch
+
+from . import poincare, tree, utils
+from .edge import u_edge
 
 
 def make_peel_incentre(leaf_locs, curvature=-torch.ones(1)):
@@ -369,6 +369,7 @@ def nj(pdm):
         Q.masked_fill_(~torch.outer(~mask, ~mask), math.inf)
         g, f = unravel_index(Q.argmin(), Q.shape)
         # TODO: use view if unravel is problem.
+        # TODO: use softsort.
 
         # add this branch to peel
         u = int_i + leaf_node_count

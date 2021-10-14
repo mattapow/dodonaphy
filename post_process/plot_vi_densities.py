@@ -1,12 +1,13 @@
-import seaborn as sns
-import matplotlib.pyplot as plt
-import matplotlib.cm
-import numpy as np
-from dodonaphy.src.vi import read
-from dodonaphy.src import utils, peeler, tree, hyperboloid
-from numpy.random import multivariate_normal
 import os
+
+import matplotlib.cm
+import matplotlib.pyplot as plt
+import numpy as np
+import seaborn as sns
 import torch
+from src import hyperboloid, peeler, tree, utils
+from src.vi import read
+from numpy.random import multivariate_normal
 
 """
 Node locations from VI

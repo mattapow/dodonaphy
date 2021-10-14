@@ -1,9 +1,9 @@
+import matplotlib.pyplot as plt
 import numpy as np
 import torch
-from . import utils, tree, peeler
+
+from . import hyperboloid, peeler, tree, utils
 from .vi import DodonaphyVI
-from . import hyperboloid
-import matplotlib.pyplot as plt
 
 
 class vi_wrapper(DodonaphyVI):

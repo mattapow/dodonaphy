@@ -1,6 +1,7 @@
 import numpy as np
 import torch
 from matplotlib.patches import Circle
+
 from .poincare import geodesic_fn
 
 

@@ -1,15 +1,15 @@
 import os
-from typing import List, Any
+from typing import Any, List
 
+import Cutils
+import matplotlib.pyplot as plt
 import numpy as np
 import torch
 
-from .hyperboloid import p2t0
-from .phylo import calculate_treelikelihood, JC69_p_t
-from . import utils, tree, hydra
+from . import hydra, tree, utils
 from .base_model import BaseModel
-import matplotlib.pyplot as plt
-import Cutils
+from .hyperboloid import p2t0
+from .phylo import JC69_p_t, calculate_treelikelihood
 
 
 class DodonaphyVI(BaseModel):

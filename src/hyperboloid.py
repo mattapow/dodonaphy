@@ -14,8 +14,8 @@ https://github.com/pfnet-research/hyperbolic_wrapped_distribution
 
 
 """
-import torch
 import numpy as np
+import torch
 
 
 def lorentz_product(x, y=None):

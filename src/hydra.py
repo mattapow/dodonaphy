@@ -1,8 +1,9 @@
-import torch
-import numpy as np
-import Cutils
-import warnings
 import math
+import warnings
+
+import Cutils
+import numpy as np
+import torch
 
 
 def hydra(D, dim=2, curvature=-1., alpha=1.1, equi_adj=0.5, **kwargs):

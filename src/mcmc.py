@@ -1,12 +1,14 @@
-from . import utils, tree, hydra, peeler
-from .base_model import BaseModel
-import Cutils
-# from ..ext.power_spherical import PowerSpherical
-
-from torch.distributions.uniform import Uniform
-import torch
-import numpy as np
 import os
+
+import Cutils
+import numpy as np
+import torch
+from torch.distributions.uniform import Uniform
+
+from . import hydra, peeler, tree, utils
+from .base_model import BaseModel
+
+# from ..ext.power_spherical import PowerSpherical
 
 
 class Chain(BaseModel):

@@ -1,7 +1,8 @@
 # Some functions from https://github.com/HazyResearch/HypHC
-import torch
-from . import hyperboloid
 import numpy as np
+import torch
+
+from . import hyperboloid
 
 
 def isometric_transform(a, x):

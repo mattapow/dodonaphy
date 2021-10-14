@@ -1,10 +1,11 @@
 """
 Plot Max A Posterior as a function of curvature.
 """
-import matplotlib.pyplot as plt
-from numpy import genfromtxt
 import os
+
+import matplotlib.pyplot as plt
 import numpy as np
+from numpy import genfromtxt
 from sklearn.cluster import MeanShift
 
 name_stub = "simple_nj_c1_d5_crv-"

@@ -1,20 +1,20 @@
+import os
+import random
+
 import dendropy
+import matplotlib.pyplot as plt
+import numpy as np
+import seaborn as sns
 from dendropy.interop import raxml
 from src import tree
-import random
-import os
-import numpy as np
-import matplotlib.pyplot as plt
-import seaborn as sns
-
 from src.base_model import BaseModel
-from dodonaphy.src.phylo import compress_alignment
+from src.phylo import compress_alignment
 
 
 def main():
     # Experimental folder
     S = 17  # number of sequences to simulate
-    root_dir = os.path.abspath(os.path.join(".", "data", "T%d_hypNJ" % (S)))
+    root_dir = os.path.abspath(os.path.join("..", "data", "T%d_hypNJ" % (S)))
     dna_path = os.path.join(root_dir, "dna.nex")
 
     # load in the dna
@@ -27,7 +27,7 @@ def main():
     # plot
     sns.kdeplot(data=LL)
     # plt.hist(LL)
-    plt.title('Bootstrap Distribution')
+    plt.title('Bootstrap Distribution of Likelihood')
     plt.show()
 
 

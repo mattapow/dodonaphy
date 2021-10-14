@@ -1,9 +1,10 @@
-import matplotlib.pyplot as plt
 import matplotlib.cm
+import matplotlib.pyplot as plt
 # from matplotlib.patches import Circle
 import numpy as np
-from dodonaphy.src import peeler, tree, utils
 import torch
+from src import peeler, tree, utils
+
 # import pandas as pd
 
 """

@@ -1,12 +1,11 @@
 # from matplotlib.markers import MarkerStyle
 # from src import poincare
-import torch
-from torch.distributions.multivariate_normal import MultivariateNormal
-from dodonaphy.src import utils
-from dodonaphy.src import hyperboloid
-import seaborn as sns
 import matplotlib.pyplot as plt
+import seaborn as sns
+import torch
+from src import hyperboloid, utils
 from matplotlib.patches import Circle
+from torch.distributions.multivariate_normal import MultivariateNormal
 
 # sampling parameters
 loc_og = torch.tensor([0.00001, .000001]).double()

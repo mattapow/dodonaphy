@@ -5,8 +5,8 @@ Created on Sat Mar 20 07:55:22 2021
 
 @author: 151569
 """
-import torch
 import src.hyperboloid as hyp
+import torch
 from pytest import approx
 
 

@@ -1,14 +1,14 @@
 # from torch.functional import meshgrid
-from src.vi import DodonaphyVI
-from src.phylo import compress_alignment
-from src import peeler, utils, tree, hyperboloid
-
-import torch
-import numpy as np
 import dendropy
 # from dendropy.simulate import treesim
 # from dendropy.model.discrete import simulate_discrete_chars
 import matplotlib.pyplot as plt
+import numpy as np
+import torch
+from src import hyperboloid, peeler, tree, utils
+from src.phylo import compress_alignment
+from src.vi import DodonaphyVI
+
 # from matplotlib import cm
 # import seaborn as sns
 

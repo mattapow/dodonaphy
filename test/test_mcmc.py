@@ -1,9 +1,9 @@
-import dendropy
-from dendropy.simulate import treesim
-from dendropy.model.discrete import simulate_discrete_chars
 import random
-import numpy as np
 
+import dendropy
+import numpy as np
+from dendropy.model.discrete import simulate_discrete_chars
+from dendropy.simulate import treesim
 from src.mcmc import DodonaphyMCMC as mcmc
 from src.phylo import compress_alignment
 

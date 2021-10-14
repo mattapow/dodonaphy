@@ -1,9 +1,9 @@
 import dendropy
-from dendropy.simulate import treesim
-from dendropy.model.discrete import simulate_discrete_chars
-from src.vi import DodonaphyVI
-from src.phylo import compress_alignment
 import torch
+from dendropy.model.discrete import simulate_discrete_chars
+from dendropy.simulate import treesim
+from src.phylo import compress_alignment
+from src.vi import DodonaphyVI
 
 
 def test_draws_different_vi_simple_mst():

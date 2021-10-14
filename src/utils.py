@@ -1,9 +1,11 @@
+from collections import defaultdict
+
+import Cutils
 import numpy as np
 import torch
-from collections import defaultdict
-from .edge import u_edge
+
 from . import poincare
-import Cutils
+from .edge import u_edge
 
 
 def angle_to_directional(theta):

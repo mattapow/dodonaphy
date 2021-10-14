@@ -1,16 +1,20 @@
-from src import poincare
-from .phylo import calculate_treelikelihood, JC69_p_t
-from . import peeler, hyperboloid, utils
-from . import tree as treeFunc
-from .utils import LogDirPrior
-import Cutils
-
-import torch
-from torch.distributions.multivariate_normal import MultivariateNormal
-from dendropy import Tree as Tree
-from dendropy.model.birthdeath import birth_death_likelihood as birth_death_likelihood
-import numpy as np
 import math
+
+import Cutils
+import numpy as np
+import torch
+from dendropy import Tree as Tree
+from dendropy.model.birthdeath import \
+    birth_death_likelihood as birth_death_likelihood
+from torch.distributions.multivariate_normal import MultivariateNormal
+
+from src import poincare
+
+from . import hyperboloid, peeler
+from . import tree as treeFunc
+from . import utils
+from .phylo import JC69_p_t, calculate_treelikelihood
+from .utils import LogDirPrior
 
 
 class BaseModel(object):
