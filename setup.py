@@ -14,7 +14,7 @@ setup(
     author_email='mathieu.fourment@uts.edu.au',
     description='Hyperbolic embedding of phylogenies in pytorch',
     install_requires=[
-        line.strip() for line in Path('requirements.txt').read_text('utf-8').splitlines()
+        line.strip() for line in Path('requirements/common.txt').read_text('utf-8').splitlines()
     ],
     ext_modules=cythonize([Extension('Cutils', ['src/cython/Cutils.pyx'], include_dirs=[np.get_include()])]),
     entry_points={

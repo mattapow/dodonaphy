@@ -203,7 +203,7 @@ def test_nj():
     leaf_theta = torch.tensor([np.pi/10, -np.pi/10, np.pi*6/8, -np.pi*6/8])
     leaf_dir = utils.angle_to_directional(leaf_theta)
 
-    pdm = torch.from_numpy(Cutils.get_pdm_np(leaf_r, leaf_dir, dtype='numpy'))
+    pdm = Cutils.get_pdm_torch(leaf_r, leaf_dir)
     peel, blens = peeler.nj(pdm)
 
     assert np.allclose(peel, [[1, 0, 4], [3, 2, 5], [5, 4, 6]])

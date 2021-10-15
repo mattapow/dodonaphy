@@ -3,21 +3,15 @@ dodonaphy.code-workspace
 __pycache__/
 
 .vscode/*
-
-*.egg
-*.EGG
-*.egg-info
-*.EGG-INFO
-.*.cfg
+dodonaphy.egg-info
 
 *.DS_Store
 
 .idea/*
 
 data/*
-results/*
-
-ext/
+ext
+env
 
 *.gz
 *.aux
@@ -32,6 +26,6 @@ doc/notes.fls
 
 *.so
 *.o
-dodonaphy/src/cython/Cutils.c
+src/cython/Cutils.c
 
 *.prof

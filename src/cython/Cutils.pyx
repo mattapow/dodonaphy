@@ -1,7 +1,6 @@
-import torch as torch
+import torch
 import numpy as np
 cimport numpy as np
-import scipy.spatial.distance
 
 
 cdef class Cu_edge:
@@ -99,18 +98,6 @@ cpdef get_pdm_np(leaf_r, leaf_dir, int_r=None, int_dir=None, curvature=-torch.on
         ndarray: distance between point 1 and point 2
     """
     DTYPE=np.double
-    if np.isclose(curvature.detach().numpy(), np.zeros(1).astype(DTYPE)):
-        # Euclidean distance
-        assert dtype=='numpy', "Euclidean distances returned as numpy array. Set asNumpy to True."
-        X = leaf_r[0] * leaf_dir
-        pdm_linear = scipy.spatial.distance.pdist(X.detach().numpy(), metric='euclidean')
-        # convert to matrix and square distances
-        return scipy.spatial.distance.squareform(pdm_linear**2)
-
-    assert dtype in ('dict', 'numpy')
-
-    cdef np.ndarray[np.double_t, ndim=1] leaf_r_np = leaf_r.detach().numpy().astype(DTYPE)
-    cdef np.ndarray[np.double_t, ndim=2] leaf_dir_np = leaf_dir.detach().numpy().astype(DTYPE)
     cdef int leaf_node_count = leaf_r.shape[0]
     cdef int int_node_count = 0
     if int_r is None:
@@ -118,14 +105,27 @@ cpdef get_pdm_np(leaf_r, leaf_dir, int_r=None, int_dir=None, curvature=-torch.on
         int_dir = torch.tensor((0, 0)).unsqueeze(dim=-1)
     else:
         int_node_count = int_r.shape[0]
+    cdef np.ndarray[np.double_t, ndim=1] leaf_r_np = leaf_r.detach().numpy().astype(DTYPE)
+    cdef np.ndarray[np.double_t, ndim=2] leaf_dir_np = leaf_dir.detach().numpy().astype(DTYPE)
     cdef np.ndarray[np.double_t, ndim=1] int_r_np = int_r.detach().numpy().astype(DTYPE)
     cdef np.ndarray[np.double_t, ndim=2] int_dir_np = int_dir.detach().numpy().astype(DTYPE)
-    
+
     cdef int node_count = leaf_node_count + int_node_count
-    
+
     # return array if pairwise distance if asNumpy
     cdef asNumpy = dtype == 'numpy'
     cdef np.ndarray[np.double_t, ndim=2] pdm_np = np.zeros((node_count*asNumpy, node_count*asNumpy))
+
+    if np.isclose(curvature.detach().numpy(), np.zeros(1).astype(DTYPE)):
+        # Euclidean distance
+        assert dtype=='numpy', "Euclidean distances returned as numpy array. Set asNumpy to True."
+        X = leaf_r[0] * leaf_dir
+        for i in range(X.shape[0]):
+            for j in range(X.shape[1]): 
+                pdm_np[i, j] = pdm_np[j, i] = np.norm(X[i, :] - X[j, :])
+        return pdm_np
+
+    assert dtype in ('dict', 'numpy')
 
     # return dict of lists
     if dtype == 'dict':

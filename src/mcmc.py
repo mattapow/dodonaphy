@@ -361,7 +361,8 @@ class DodonaphyMCMC():
         assert connect_method in ['incentre', 'mst', 'geodesics', 'nj', 'mst_choice']
 
         # embed tips with distances using Hydra
-        emm_tips = hydra.hydra(dists_data, dim=dim, curvature=curvature, stress=True, **{'isotropic_adj': True})
+        emm_tips = hydra.hydra(
+            dists_data, dim=dim, curvature=curvature, stress=True, equi_adj=0.0)
         print('Embedding Stress (tips only) = {:.4}'.format(emm_tips["stress"].item()))
 
         with torch.no_grad():

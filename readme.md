@@ -6,7 +6,19 @@ This code is under active research & development and not intended for production
 
 
 ## Installing
-Install the dodonaphy package using pip:
+Create a pip envirnment.
+On Mac OS Catalina, CommandLineTools (possibly used in setuptools) has error in python==3.8.2.
+But numpy isn't yet supported in python>=3.10.
+```
+python3.9 -m pip venv env
+source env/bin/activate
+```
+First install the common requirements (because numpy and cython are needed before installing dodonaphy)
+```
+python3 -m pip install -r requirements/common.txt
+```
+
+Then install the dodonaphy package using pip:
 ```
 pip install dodonaphy
 ```
@@ -37,3 +49,7 @@ The entry point is run.py in the src folder and at the moment, most options must
 
 ## Post-processing
 A number of pre- and post-processing functions are in the post_process folder.
+To install the additional packages used here run:
+```
+python3 -m pip install -r requirements/post_processing.txt
+```
