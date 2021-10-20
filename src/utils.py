@@ -1,10 +1,9 @@
 from collections import defaultdict
 
-import Cutils
 import numpy as np
 import torch
 
-from . import poincare
+from . import poincare, Cutils
 from .edge import u_edge
 
 

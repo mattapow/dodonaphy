@@ -1,12 +1,11 @@
 import os
 from typing import Any, List
 
-import Cutils
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
 
-from . import hydra, tree, utils
+from . import hydra, tree, utils, Cutils
 from .base_model import BaseModel
 from .hyperboloid import p2t0
 from .phylo import JC69_p_t, calculate_treelikelihood

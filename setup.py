@@ -16,7 +16,7 @@ setup(
     install_requires=[
         line.strip() for line in Path('requirements/common.txt').read_text('utf-8').splitlines()
     ],
-    ext_modules=cythonize([Extension('Cutils', ['src/cython/Cutils.pyx'], include_dirs=[np.get_include()])]),
+    ext_modules=cythonize([Extension('src.Cutils', ['src/cython/Cutils.pyx'], include_dirs=[np.get_include()])]),
     entry_points={
         'console_scripts': [
             'dodonaphy = src.run:main'

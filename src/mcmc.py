@@ -1,11 +1,10 @@
 import os
 
-import Cutils
 import numpy as np
 import torch
 from torch.distributions.uniform import Uniform
 
-from . import hydra, peeler, tree, utils
+from . import hydra, peeler, tree, utils, Cutils
 from .base_model import BaseModel
 
 # from ..ext.power_spherical import PowerSpherical

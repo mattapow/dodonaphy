@@ -1,6 +1,5 @@
 import math
 
-import Cutils
 import numpy as np
 import torch
 from dendropy import Tree as Tree
@@ -10,7 +9,7 @@ from torch.distributions.multivariate_normal import MultivariateNormal
 
 from src import poincare
 
-from . import hyperboloid, peeler
+from . import hyperboloid, peeler, Cutils
 from . import tree as treeFunc
 from . import utils
 from .phylo import JC69_p_t, calculate_treelikelihood

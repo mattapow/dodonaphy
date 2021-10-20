@@ -1,9 +1,8 @@
-import Cutils
 import numpy as np
 import pytest
 import torch
 from pytest import approx
-from src import utils
+from src import utils, Cutils
 
 
 def test_hyperbolic_distance():

@@ -2,11 +2,10 @@ import math
 from collections import defaultdict, deque
 from heapq import heapify, heappop, heappush
 
-import Cutils
 import numpy as np
 import torch
 
-from . import poincare, tree, utils
+from . import poincare, tree, utils, Cutils
 from .edge import u_edge
 
 
