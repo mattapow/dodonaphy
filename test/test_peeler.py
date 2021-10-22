@@ -205,7 +205,66 @@ def test_nj():
     pdm = Cutils.get_pdm_torch(leaf_r, leaf_dir)
     peel, blens = peeler.nj(pdm)
 
-    assert np.allclose(peel, [[1, 0, 4], [3, 2, 5], [5, 4, 6]])
+    peel1 = np.allclose(peel, [[1, 0, 4], [3, 2, 5], [5, 4, 6]])
+    peel2 = np.allclose(peel, [[0, 1, 4], [2, 3, 5], [4, 5, 6]])
+    assert peel1 or peel2, "Wrong topology."
     assert torch.allclose(blens.double(),
-                          torch.tensor([0.1462, 0.1462, 0.5108, 0.5108, 0.3589, 0.3589]).double(),
+                          torch.tensor([0.1462, 0.1462, 0.5108, 0.5108, 0.2554, 0.4624]).double(),
+                          atol=.0001)
+
+def test_nj_uneven():
+    leaf_r = torch.tensor([.1, .2, .3, .4])
+    leaf_theta = torch.tensor([np.pi/2, -np.pi/10, np.pi, -np.pi*6/8])
+    leaf_dir = utils.angle_to_directional(leaf_theta)
+
+    pdm = Cutils.get_pdm_torch(leaf_r, leaf_dir)
+    peel, blens = peeler.nj(pdm)
+    peel1 = np.allclose(peel, [[1, 0, 4], [3, 2, 5], [5, 4, 6]])
+    peel2 = np.allclose(peel, [[0, 1, 4], [2, 3, 5], [4, 5, 6]])
+    assert peel1 or peel2, "Wrong topology."
+
+def test_compute_Q():
+    pdm = torch.zeros((5, 5)).double()
+    pdm[0, 1] = 5.
+    pdm[0, 2] = 9.
+    pdm[0, 3] = 9.
+    pdm[0, 4] = 8.
+    pdm[1, 2] = 10.
+    pdm[1, 3] = 10.
+    pdm[1, 4] = 9.
+    pdm[2, 3] = 8.
+    pdm[2, 4] = 7.
+    pdm[3, 4] = 3.
+    pdm = pdm + pdm.T
+
+    Q = peeler.compute_Q(pdm)
+    Q1 = torch.tensor([
+        [0, -50, -38, -34, -34],
+        [-50, 0, -38, -34, -34],
+        [-38, -38, 0, -40, -40],
+        [-34, -34, -40, 0, -48],
+        [-34, -34, -40, -48, 0]
+    ]).double()
+    assert torch.allclose(Q, Q1)
+
+def test_nj_knownQ():
+    pdm = torch.zeros((5, 5)).double()
+    pdm[0, 1] = 5.
+    pdm[0, 2] = 9.
+    pdm[0, 3] = 9.
+    pdm[0, 4] = 8.
+    pdm[1, 2] = 10.
+    pdm[1, 3] = 10.
+    pdm[1, 4] = 9.
+    pdm[2, 3] = 8.
+    pdm[2, 4] = 7.
+    pdm[3, 4] = 3.
+    pdm = pdm + pdm.T
+
+    peel, blens = peeler.nj(pdm)
+    peel1 = np.allclose(peel, [[0, 1, 5], [3, 4, 6], [5, 2, 7], [7, 6, 8]])
+    peel2 = np.allclose(peel, [[0, 1, 5], [5, 2, 6], [6, 3, 7], [7, 4, 8]])
+    assert peel1 or peel2, "Wrong topology."
+    assert torch.allclose(blens.double(),
+                          torch.tensor([2, 3, 4, 2, 1, 3, 2, 0]).double(),
                           atol=.0001)

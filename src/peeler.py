@@ -1,4 +1,3 @@
-import math
 from collections import defaultdict, deque
 from heapq import heapify, heappop, heappush
 
@@ -6,6 +5,7 @@ import numpy as np
 import torch
 
 from . import poincare, tree, utils, Cutils
+from .node import Node
 from .edge import u_edge
 
 
@@ -341,13 +341,13 @@ def nj(pdm):
     """Generate Neighbour joining tree.
 
     Args:
-        leaf_r ([type]): [description]
-        leaf_dir ([type]): [description]
-        curvature ([type], optional): [description]. Defaults to torch.ones(1).
+        pdm: pairwise distance.
 
     Returns:
         tuple: (peel, blens)
     """
+    # pdm.requires_grad_(True)
+
     leaf_node_count = len(pdm)
     int_node_count = leaf_node_count - 2
     node_count = leaf_node_count + int_node_count
@@ -357,39 +357,79 @@ def nj(pdm):
     peel = np.zeros((int_node_count + 1, 3), dtype=int)
     blens = torch.zeros(node_count, dtype=torch.float64)
 
-    # construct Q matrix
-    Q = compute_Q(pdm)
-
     # Add a mask to the Q matrix
     mask = torch.tensor(leaf_node_count * [False])
+    node_map = torch.arange(leaf_node_count)
 
     # for each internal node
-    for int_i in range(int_node_count + 1):
-        # find minimum of Q matrix
-        Q.masked_fill_(~torch.outer(~mask, ~mask), math.inf)
-        g, f = unravel_index(Q.argmin(), Q.shape)
-        # TODO: use view if unravel is problem.
-        # TODO: use softsort.
+    for int_i in range(int_node_count+1):
+        # construct Q matrix
+        Q = compute_Q(pdm, mask)
 
-        # add this branch to peel
+        # find minimum index of Q matrix
+        mask_2d = ~torch.outer(~mask, ~mask)
+        Q.masked_fill_(mask_2d, np.inf)
+
+        f, g = unravel_index(Q.argmin(), Q.shape)
+
+        # add these branches to peel
         u = int_i + leaf_node_count
-        peel[int_i, 0] = f
-        peel[int_i, 1] = g
+        peel[int_i, 0] = node_map[f]
+        peel[int_i, 1] = node_map[g]
         peel[int_i, 2] = u
 
-        # get distances to new node u
-        pdm = add_pdm_node_nj(pdm, f, g)
+        if int_i == int_node_count:
+            continue
+
+        # get distance other taxa to new node
+        dist_u = .5 * (pdm[f] + pdm[g] - pdm[f][g])
+
+        # get distance from u to f and f
+        n_active = sum(~mask)
+        sum_pdm = torch.sum(pdm*~mask_2d, dim=-1)
+        dist_u[f] = .5 * pdm[f][g] + (sum_pdm[f] - sum_pdm[g]) / (2 * (n_active - 2))
+        dist_u[g] = pdm[f][g] - dist_u[f]
 
         # add edges above f and g to blens
-        blens[f] = torch.clamp(pdm[f, u], min=eps)
-        blens[g] = torch.clamp(pdm[g, u], min=eps)
+        blens[node_map[f]] = torch.clamp(dist_u[f], min=eps)
+        blens[node_map[g]] = torch.clamp(dist_u[g], min=eps)
 
-        # update Q matrix
-        mask[f] = mask[g] = torch.tensor(True)
-        mask = torch.hstack((mask, torch.tensor(False)))
-        Q = update_Q(Q, pdm, mask)
+        # replace g by dist_u in the pdm
+        pdm[g, :] = dist_u
+        pdm[:, g] = dist_u
+        pdm[g, g] = torch.zeros(1)
+
+        # replace g by u node_map and mask f
+        node_map[g] = u
+        mask[f] = True
+
+    blens[node_map[g]] = .5 * pdm[f][g] + (sum_pdm[f] - sum_pdm[g]) / (2 * (3 - 2))
+    blens[node_map[f]] = pdm[f][g] - blens[node_map[g]]
 
     return peel, blens
+
+def compute_Q(pdm, mask=None):
+    """Compute the Q matrix for Neighbour joining.
+
+    Args:
+        pdm (ndarray): [description]
+        n_active (long): [description]
+
+    Returns:
+        [type]: [description]
+    """
+    n_pdm = len(pdm)
+    if mask is None:
+        n_active = n_pdm
+    else:
+        n_active = sum(~mask)
+    
+    sum_pdm = torch.sum(pdm, axis=1, keepdims=True)
+    sum_i = torch.repeat_interleave(sum_pdm, n_pdm, dim=1)
+    sum_j = torch.repeat_interleave(sum_pdm.T, n_pdm, dim=0)
+    Q = (n_active - 2) * pdm - sum_i - sum_j
+    Q.fill_diagonal_(0)
+    return Q
 
 
 def unravel_index(index, shape):
@@ -400,74 +440,3 @@ def unravel_index(index, shape):
     return tuple(reversed(out))
 
 
-def compute_Q(pdm):
-    """Compute the Q matrix for Neighbour joining.
-
-    Args:
-        pdm (ndarray): [description]
-
-    Returns:
-        [type]: [description]
-    """
-    n = len(pdm)
-    sum_pdm = torch.sum(pdm, axis=1, keepdims=True)
-    sum_i = torch.repeat_interleave(sum_pdm, n, dim=1)
-    sum_j = torch.repeat_interleave(sum_pdm.T, n, dim=0)
-    Q = (n - 2) * pdm - sum_i - sum_j
-    Q.fill_diagonal_(0)
-    return Q
-
-
-def update_Q(Q, pdm_updated, mask):
-    """ add new node to masked Q matrix
-
-    Args:
-        Q ([type]): [description]
-        pdm_updated ([type]): [description]
-        mask([type]): [description]
-
-    Returns:
-        [type]: [description]
-    """
-    n = len(Q)
-
-    # new column Q_u for new node u
-    sum_pdm = torch.sum(pdm_updated, dim=-1)
-    Q_u = (n - 2) * pdm_updated[:-1, -1] - sum_pdm[:-1] - sum_pdm[-1]
-
-    # add to Q matrix
-    Q = torch.vstack((Q, Q_u.unsqueeze(dim=0)))
-    Q_u = torch.cat((Q_u, torch.zeros(1)))
-    Q = torch.hstack((Q, Q_u.unsqueeze(dim=1)))
-
-    # update mask
-    mask = ~torch.outer(~mask, ~mask)
-
-    return Q
-
-
-def add_pdm_node_nj(pdm, f, g):
-    """Add a node to the pdm based on neighbour joining.
-
-    Args:
-        pdm ([type]): pair-wise distance matrix
-        f ([type]): f-g are index of lowest in Q matrix
-        g ([type]): f-g are index of lowest in Q matrix
-    """
-    # distance to new node
-    n = len(pdm)
-
-    # get distance other taxa to new node
-    pdm_u = .5 * (pdm[f] + pdm[g] - pdm[f][g])
-
-    # get distance fu and fg
-    sum_pdm = torch.sum(pdm, dim=-1)
-    pdm_u[f] = .5 * pdm[f][g] + (sum_pdm[f] - sum_pdm[g]) / (2 * (n - 2))
-    pdm_u[g] = pdm[f][g] - pdm_u[f]
-
-    # add new node to pdm
-    pdm = torch.vstack((pdm, pdm_u.unsqueeze(dim=0)))
-    pdm_u = torch.cat((pdm_u, torch.zeros(1)))
-    pdm = torch.hstack((pdm, pdm_u.unsqueeze(dim=1)))
-
-    return pdm
