@@ -91,14 +91,19 @@ class DodonaphyVI(BaseModel):
             for _ in range(nSample):
 
                 n_tip_params = torch.numel(self.VariationalParams["leaf_mu"])
-                leaf_loc = self.VariationalParams["leaf_mu"].reshape(n_tip_params)
+                leaf_loc = self.VariationalParams["leaf_mu"].reshape(
+                    n_tip_params)
                 leaf_cov = torch.eye(n_tip_params, dtype=torch.double) *\
-                    self.VariationalParams["leaf_sigma"].exp().reshape(n_tip_params)
+                    self.VariationalParams["leaf_sigma"].exp().reshape(
+                        n_tip_params)
                 if self.connect_method == 'mst':
-                    n_int_params = torch.numel(self.VariationalParams["int_mu"])
-                    int_loc = self.VariationalParams["int_mu"].reshape(n_int_params)
+                    n_int_params = torch.numel(
+                        self.VariationalParams["int_mu"])
+                    int_loc = self.VariationalParams["int_mu"].reshape(
+                        n_int_params)
                     int_cov = torch.eye(n_int_params, dtype=torch.double) *\
-                        self.VariationalParams["int_sigma"].exp().reshape(n_int_params)
+                        self.VariationalParams["int_sigma"].exp().reshape(
+                            n_int_params)
                     sample = self.sample(leaf_loc, leaf_cov, int_loc, int_cov)
                 else:
                     sample = self.sample(leaf_loc, leaf_cov)
@@ -110,10 +115,12 @@ class DodonaphyVI(BaseModel):
                         sample['leaf_r'].repeat(self.S), sample['int_r'],
                         sample['leaf_dir'], sample['int_dir'], self.D))
                 else:
-                    location.append(utils.dir_to_cart(sample['leaf_r'].repeat(self.S), sample['leaf_dir']))
+                    location.append(utils.dir_to_cart(
+                        sample['leaf_r'].repeat(self.S), sample['leaf_dir']))
                 if kwargs.get('lp'):
                     LL = calculate_treelikelihood(
-                        self.partials, self.weights, sample['peel'], JC69_p_t(sample['blens']),
+                        self.partials, self.weights, sample['peel'], JC69_p_t(
+                            sample['blens']),
                         torch.full([4], 0.25, dtype=torch.float64))
                     lp.append(LL)
 
@@ -157,14 +164,14 @@ class DodonaphyVI(BaseModel):
 
         # logPrior = self.compute_prior_gamma_dir(sample['blens'])
         # logP = self.compute_LL(sample['peel'], sample['blens'])
-        logPrior = self.compute_prior_gamma_dir(pdm[:])
+        # logPrior = self.compute_prior_gamma_dir(pdm[:])
 
-        anneal_epoch = torch.tensor(100)
-        min_temp = torch.tensor(.1)
-        temp = torch.maximum(torch.exp(- self.epoch / anneal_epoch), min_temp)
-        logP = self.compute_log_a_like(pdm, temp=temp)
+        # anneal_epoch = torch.tensor(100)
+        # min_temp = torch.tensor(.1)
+        # temp = torch.maximum(torch.exp(- self.epoch / anneal_epoch), min_temp)
+        # logP = self.compute_log_a_like(pdm, temp=temp)
 
-        return logP + logPrior - sample['logQ'] + sample['jacobian']
+        return sample['lnP'] + sample['lnPrior'] - sample['logQ'] + sample['jacobian']
 
     def learn(self, param_init=None, epochs=1000, k_samples=3, path_write='./out', lr=1e-3):
         """Learn the variational parameters using Adam optimiser
@@ -176,6 +183,14 @@ class DodonaphyVI(BaseModel):
         print("Using %i tree samples at each epoch." % k_samples)
         print("Running for %i epochs.\n" % epochs)
 
+        # initialise variational parameters if given
+        if param_init is not None:
+            self.VariationalParams["leaf_mu"] = param_init["leaf_mu"]
+            self.VariationalParams["leaf_sigma"] = param_init["leaf_sigma"]
+            if self.connect_method == 'mst':
+                self.VariationalParams["int_mu"] = param_init["int_mu"]
+                self.VariationalParams["int_sigma"] = param_init["int_sigma"]
+
         if path_write is not None:
             fn = path_write + '/' + 'vi.info'
             with open(fn, 'w') as file:
@@ -186,16 +201,10 @@ class DodonaphyVI(BaseModel):
                 file.write('%-12s: %i\n' % ("Patterns", self.L))
                 file.write('%-12s: %f\n' % ("Learn Rate", lr))
                 file.write('%-12s: %s\n' % ("Embed Mthd", self.embed_method))
-                file.write('%-12s: %s\n' % ("Connect Mthd", self.connect_method))
+                file.write('%-12s: %s\n' %
+                           ("Connect Mthd", self.connect_method))
                 for key, value in self.prior.items():
                     file.write('%-12s: %s\n' % (key, str(value)))
-
-            if param_init is not None:
-                self.VariationalParams["leaf_mu"] = param_init["leaf_mu"]
-                self.VariationalParams["leaf_sigma"] = param_init["leaf_sigma"]
-                if self.connect_method == 'mst':
-                    self.VariationalParams["int_mu"] = param_init["int_mu"]
-                    self.VariationalParams["int_sigma"] = param_init["int_sigma"]
 
                 # Save varitaional parameters
                 fn = os.path.join(path_write, "VI_params_init.csv")
@@ -203,9 +212,11 @@ class DodonaphyVI(BaseModel):
 
             elbo_fn = os.path.join(path_write, 'elbo.txt')
 
-        lr_lambda = lambda epoch: 1.0 / np.sqrt(epoch + 1)
-        optimizer = torch.optim.Adam(list(self.VariationalParams.values()), lr=lr)
-        scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lr_lambda)
+        def lr_lambda(epoch): return 1.0 / np.sqrt(epoch + 1)
+        optimizer = torch.optim.Adam(
+            list(self.VariationalParams.values()), lr=lr)
+        scheduler = torch.optim.lr_scheduler.LambdaLR(
+            optimizer, lr_lambda=lr_lambda)
 
         elbo_hist = []
         hist_dat: List[Any] = []
@@ -250,7 +261,8 @@ class DodonaphyVI(BaseModel):
         if path_write is not None:
             fn = os.path.join(path_write, 'vi.info')
             with open(fn, 'a') as file:
-                file.write('%-12s: %i\n' % ("Final ELBO (100 samples)", final_elbo))
+                file.write('%-12s: %i\n' %
+                           ("Final ELBO (100 samples)", final_elbo))
 
     def elbo_normal(self, size=1):
         """[summary]
@@ -280,11 +292,13 @@ class DodonaphyVI(BaseModel):
 
         """
         print('\nRunning Dodonaphy Variational Inference.')
-        print('Using %s embedding with %s connections' % (embed_method, connect_method))
+        print('Using %s embedding with %s connections' %
+              (embed_method, connect_method))
 
         # embed tips with hydra
         emm_tips = hydra.hydra(D=dists_data, dim=dim, equi_adj=0., stress=True)
-        print('Embedding Stress (tips only) = {:.4}'.format(emm_tips["stress"].item()))
+        print('Embedding Stress (tips only) = {:.4}'.format(
+            emm_tips["stress"].item()))
 
         # Initialise model
         mymod = DodonaphyVI(partials, weights, dim, embed_method=embed_method, connect_method=connect_method,
@@ -295,26 +309,18 @@ class DodonaphyVI(BaseModel):
             int_r, int_dir = mymod.initialise_ints(
                 emm_tips, n_grids=n_grids, n_trials=n_trials, max_scale=max_scale)
 
-        # convert to tangent space
-        leaf_loc_poin = utils.dir_to_cart(torch.from_numpy(emm_tips["r"]), torch.from_numpy(emm_tips["directional"]))
+        # convert to cartesian coords
+        leaf_loc_poin = utils.dir_to_cart(torch.from_numpy(
+            emm_tips["r"]), torch.from_numpy(emm_tips["directional"]))
         if connect_method == 'mst':
             int_loc_poin = torch.from_numpy(utils.dir_to_cart(int_r, int_dir))
-
-        if embed_method == 'wrap':
-            leaf_loc_t0 = p2t0(leaf_loc_poin)
-            if connect_method == 'mst':
-                int_loc_t0 = p2t0(int_loc_poin)
-        elif embed_method == 'simple':
-            leaf_loc_t0 = utils.ball2real(leaf_loc_poin)
-            if connect_method == 'mst':
-                int_loc_t0 = utils.ball2real(int_loc_poin)
 
         # set variational parameters with small coefficient of variation
         cv = 1. / 100
         eps = np.finfo(np.double).eps
-        # leaf_sigma = np.log(np.abs(np.array(leaf_loc_t0)) * cv + eps)
+        # leaf_sigma = np.log(np.abs(np.array(leaf_loc_poin)) * cv + eps)
         if connect_method == 'mst':
-            int_sigma = np.log(np.abs(np.array(int_loc_t0)) * cv + eps)
+            int_sigma = np.log(np.abs(np.array(int_loc_poin)) * cv + eps)
 
         # set leaf variational sigma using closest neighbour
         dists_data[dists_data == 0] = np.inf
@@ -324,14 +330,14 @@ class DodonaphyVI(BaseModel):
 
         if connect_method == 'mst':
             param_init = {
-                "leaf_mu": leaf_loc_t0.clone().double().requires_grad_(True),
+                "leaf_mu": leaf_loc_poin.clone().double().requires_grad_(True),
                 "leaf_sigma": torch.from_numpy(leaf_sigma).double().requires_grad_(True),
-                "int_mu": int_loc_t0.clone().double().requires_grad_(True),
+                "int_mu": int_loc_poin.clone().double().requires_grad_(True),
                 "int_sigma": torch.from_numpy(int_sigma).double().requires_grad_(True)
             }
         elif connect_method in ('geodesics', 'incentre', 'nj'):
             param_init = {
-                "leaf_mu": leaf_loc_t0.clone().double().requires_grad_(True),
+                "leaf_mu": leaf_loc_poin.clone().double().requires_grad_(True),
                 "leaf_sigma": torch.from_numpy(leaf_sigma).double().requires_grad_(True)
             }
 
@@ -353,7 +359,8 @@ class DodonaphyVI(BaseModel):
             for i in range(n_draws):
                 peels, blens, X, lp = mymod.draw_sample(1, lp=True)
                 lnPr = mymod.compute_prior_gamma_dir(blens[0])
-                tree.save_tree(path_write, "vi", peels[0], blens[0], i, lp[0].item(), lnPr.item())
+                tree.save_tree(
+                    path_write, "vi", peels[0], blens[0], i, lp[0].item(), lnPr.item())
 
             # Save varitaional parameters
             fn = os.path.join(path_write, "VI_params.csv")
@@ -368,18 +375,21 @@ class DodonaphyVI(BaseModel):
 
             for i in range(self.S):
                 for d in range(self.D):
-                    f.write('%f\t' % self.VariationalParams['leaf_sigma'][i, d])
+                    f.write('%f\t' %
+                            self.VariationalParams['leaf_sigma'][i, d])
             f.write('\n')
 
             if self.connect_method == 'mst':
                 for i in range(self.S-2):
                     for d in range(self.D):
-                        f.write('%f\t' % self.VariationalParams['int_mu'][i, d])
+                        f.write('%f\t' %
+                                self.VariationalParams['int_mu'][i, d])
                 f.write('\n')
 
                 for i in range(self.S-2):
                     for d in range(self.D):
-                        f.write('%f\t' % self.VariationalParams['int_sigma'][i, d])
+                        f.write('%f\t' %
+                                self.VariationalParams['int_sigma'][i, d])
                 f.write('\n')
 
 
@@ -388,9 +398,13 @@ def read(path_read, connect_method='mst'):
         lines = [line.rstrip('\n') for line in f]
 
     VariationalParams = {}
-    VariationalParams['leaf_mu'] = np.array([float(i) for i in lines[0].rstrip().split("\t")])
-    VariationalParams['leaf_sigma'] = np.array([float(i) for i in lines[1].rstrip().split("\t")])
+    VariationalParams['leaf_mu'] = np.array(
+        [float(i) for i in lines[0].rstrip().split("\t")])
+    VariationalParams['leaf_sigma'] = np.array(
+        [float(i) for i in lines[1].rstrip().split("\t")])
     if connect_method == 'mst':
-        VariationalParams['int_mu'] = np.array([float(i) for i in lines[2].rstrip().split("\t")])
-        VariationalParams['int_sigma'] = np.array([float(i) for i in lines[3].rstrip().split("\t")])
+        VariationalParams['int_mu'] = np.array(
+            [float(i) for i in lines[2].rstrip().split("\t")])
+        VariationalParams['int_sigma'] = np.array(
+            [float(i) for i in lines[3].rstrip().split("\t")])
     return VariationalParams
