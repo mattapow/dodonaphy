@@ -92,7 +92,8 @@ def main():
         rng = random.Random(1)
         simtree = treesim.birth_death_tree(
             birth_rate=prior['birth_rate'], death_rate=prior['death_rate'], num_extant_tips=S, rng=rng)
-        dna = simulate_discrete_chars(seq_len=L, tree_model=simtree, seq_model=dendropy.model.discrete.Jc69(), rng=rng)
+        dna = simulate_discrete_chars(
+            seq_len=L, tree_model=simtree, seq_model=dendropy.model.discrete.Jc69(), rng=rng)
 
         # save simtree
         simtree.write(path=tree_path, schema="nexus")
@@ -101,7 +102,8 @@ def main():
         dna.write_to_path(dest=dna_path, schema="nexus")
 
         # save simTree info log-likelihood
-        LL = birth_death_likelihood(tree=simtree, birth_rate=prior['birth_rate'], death_rate=prior['death_rate'])
+        LL = birth_death_likelihood(
+            tree=simtree, birth_rate=prior['birth_rate'], death_rate=prior['death_rate'])
         with open(tree_info_path, 'w') as f:
             f.write('Log Likelihood: %f\n' % LL)
             simtree.write_ascii_plot(f)

@@ -66,8 +66,10 @@ def dendrophy_to_pb(tree):
     n_int_nds = len(nds)
     peel = np.zeros((n_int_nds, 3), dtype=int)
     for i in range(n_int_nds):
-        peel[i, 0] = tree.bipartition_encoding.index(nds[i].child_edges()[0].bipartition)
-        peel[i, 1] = tree.bipartition_encoding.index(nds[i].child_edges()[1].bipartition)
+        peel[i, 0] = tree.bipartition_encoding.index(
+            nds[i].child_edges()[0].bipartition)
+        peel[i, 1] = tree.bipartition_encoding.index(
+            nds[i].child_edges()[1].bipartition)
         peel[i, 2] = tree.bipartition_encoding.index(nds[i].bipartition)
     return peel, blens.double()
 
@@ -153,7 +155,8 @@ def tree_to_newick(tipnames, peel_row, blen_row):
         if p == (plen-1):
             chunks[n3] = "(" + chunks[n1] + "," + chunks[n2] + ")" + ";"
         else:
-            chunks[n3] = "(" + chunks[n1] + "," + chunks[n2] + ")" + ":" + str(blen_row[n3].item())
+            chunks[n3] = "(" + chunks[n1] + "," + chunks[n2] + \
+                ")" + ":" + str(blen_row[n3].item())
     return str(chunks[peel_row[-1][2]])
 
 

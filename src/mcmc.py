@@ -25,7 +25,8 @@ class Chain(BaseModel):
 
         assert embed_method in ('simple', 'wrap')
         self.embed_method = embed_method
-        assert connect_method in ("incentre", "geodesics", "mst", "nj", "mst_choice")
+        assert connect_method in (
+            "incentre", "geodesics", "mst", "nj", "mst_choice")
         self.connect_method = connect_method
 
         self.step_scale = torch.tensor(step_scale, requires_grad=True)
@@ -40,21 +41,26 @@ class Chain(BaseModel):
         # initialise likelihood and prior values of embedding
 
         # set peel + poincare locations
-        pdm = Cutils.get_pdm_torch(self.leaf_r.repeat(self.S), self.leaf_dir, curvature=self.curvature)
+        pdm = Cutils.get_pdm_torch(self.leaf_r.repeat(
+            self.S), self.leaf_dir, curvature=self.curvature)
         if self.connect_method in ('geodesics', 'incentre'):
             loc_poin = self.leaf_dir * self.leaf_r
-            self.peel, int_locs = peeler.make_peel_tips(loc_poin, self.connect_method)
+            self.peel, int_locs = peeler.make_peel_tips(
+                loc_poin, self.connect_method)
             self.int_r, self.int_dir = utils.cart_to_dir(int_locs)
             leaf_r_all, self.leaf_dir = utils.cart_to_dir(loc_poin)
             self.leaf_r = leaf_r_all[0]
         elif self.connect_method == 'nj':
             self.peel, self.blens = peeler.nj(pdm)
         elif self.connect_method == 'mst':
-            self.peel = peeler.make_peel_mst(self.leaf_r.repeat(self.S), self.leaf_dir, self.int_r, self.int_dir)
+            self.peel = peeler.make_peel_mst(self.leaf_r.repeat(
+                self.S), self.leaf_dir, self.int_r, self.int_dir)
         elif self.connect_method == 'mst_choice':
-            self.peel = self.select_peel_mst(self.leaf_r.repeat(self.S), self.leaf_dir, self.int_r, self.int_dir)
+            self.peel = self.select_peel_mst(self.leaf_r.repeat(
+                self.S), self.leaf_dir, self.int_r, self.int_dir)
         elif self.connect_method == 'delaunay':
-            self.peel = peeler.make_peel_delaunay(self.leaf_r.repeat(self.S), self.leaf_dir, self.int_r, self.int_dir)
+            self.peel = peeler.make_peel_delaunay(self.leaf_r.repeat(
+                self.S), self.leaf_dir, self.int_r, self.int_dir)
 
         # set blens
         if self.connect_method != 'nj':
@@ -75,8 +81,10 @@ class Chain(BaseModel):
         # propose new embedding
         leaf_loc = self.leaf_r * self.leaf_dir
         if self.connect_method == 'mst':
-            int_loc = self.int_dir * torch.tile(self.int_r, (2, 1)).transpose(dim0=0, dim1=1)
-            proposal = self.sample(leaf_loc, self.step_scale, int_loc, self.step_scale)
+            int_loc = self.int_dir * \
+                torch.tile(self.int_r, (2, 1)).transpose(dim0=0, dim1=1)
+            proposal = self.sample(
+                leaf_loc, self.step_scale, int_loc, self.step_scale)
         else:
             proposal = self.sample(leaf_loc, self.step_scale)
 
@@ -228,13 +236,15 @@ class DodonaphyMCMC():
 
                 if i > 0:
                     print('Iteration: %i LnL: %f Acceptance Rate: %5.3f' %
-                          (i, self.chain[0].lnP, self.chain[0].accepted / self.chain[0].iterations),
+                          (i, self.chain[0].lnP, self.chain[0].accepted /
+                           self.chain[0].iterations),
                           end="", flush=True)
 
                     if self.nChains > 1:
                         print(" (", end="")
                         for c in range(self.nChains-1):
-                            print(' %5.3f' % (self.chain[c+1].accepted / self.chain[c+1].iterations), end="")
+                            print(' %5.3f' % (
+                                self.chain[c+1].accepted / self.chain[c+1].iterations), end="")
                         print(")")
                     else:
                         print("")
@@ -262,9 +272,12 @@ class DodonaphyMCMC():
             f.write('%-12s: %i\n' % ("Chains", self.nChains))
             for i in range(self.nChains):
                 f.write('%-12s: %f\n' % ("Chain temp", self.chain[i].temp))
-                f.write('%-12s: %f\n' % ("Step Scale", self.chain[i].step_scale))
-                f.write('%-12s: %s\n' % ("Connect Mthd", self.chain[i].connect_method))
-                f.write('%-12s: %s\n' % ("Embed Mthd", self.chain[i].embed_method))
+                f.write('%-12s: %f\n' %
+                        ("Step Scale", self.chain[i].step_scale))
+                f.write('%-12s: %s\n' %
+                        ("Connect Mthd", self.chain[i].connect_method))
+                f.write('%-12s: %s\n' %
+                        ("Embed Mthd", self.chain[i].embed_method))
             for key, value in self.chain[0].prior.items():
                 f.write('%-12s: %f\n' % (key, value))
 
@@ -339,8 +352,10 @@ class DodonaphyMCMC():
         # initialise each chain
         for i in range(self.nChains):
             # put leaves on a sphere
-            self.chain[i].leaf_r = torch.tensor(np.mean(emm["r"], dtype=np.double))
-            self.chain[i].leaf_dir = torch.from_numpy(emm["directional"].astype(np.double))
+            self.chain[i].leaf_r = torch.tensor(
+                np.mean(emm["r"], dtype=np.double))
+            self.chain[i].leaf_dir = torch.from_numpy(
+                emm["directional"].astype(np.double))
             self.chain[i].n_points = len(self.chain[i].leaf_dir)
             self.chain[i].int_r = None
             self.chain[i].int_dir = None
@@ -349,7 +364,8 @@ class DodonaphyMCMC():
                 int_r, int_dir = self.chain[i].initialise_ints(
                     emm, n_grids=n_grids, n_trials=n_trials, max_scale=max_scale)
                 self.chain[i].int_r = torch.from_numpy(int_r.astype(np.double))
-                self.chain[i].int_dir = torch.from_numpy(int_dir.astype(np.double))
+                self.chain[i].int_dir = torch.from_numpy(
+                    int_dir.astype(np.double))
 
     @staticmethod
     def run(dim, partials, weights, dists_data, path_write=None,
@@ -357,12 +373,14 @@ class DodonaphyMCMC():
             n_grids=10, n_trials=100, max_scale=1, nChains=1,
             connect_method='mst', embed_method='simple', curvature=-1., **prior):
         print('\nRunning Dodonaphy MCMC')
-        assert connect_method in ['incentre', 'mst', 'geodesics', 'nj', 'mst_choice']
+        assert connect_method in ['incentre',
+                                  'mst', 'geodesics', 'nj', 'mst_choice']
 
         # embed tips with distances using Hydra
         emm_tips = hydra.hydra(
             dists_data, dim=dim, curvature=curvature, stress=True, equi_adj=0.0)
-        print('Embedding Stress (tips only) = {:.4}'.format(emm_tips["stress"].item()))
+        print('Embedding Stress (tips only) = {:.4}'.format(
+            emm_tips["stress"].item()))
 
         with torch.no_grad():
             # Initialise model
@@ -372,7 +390,9 @@ class DodonaphyMCMC():
                 dists_data=dists_data, **prior)
 
             # Choose internal node locations from best random initialisation
-            mymod.initialise_chains(emm_tips, n_grids=n_grids, n_trials=n_trials, max_scale=max_scale)
+            mymod.initialise_chains(
+                emm_tips, n_grids=n_grids, n_trials=n_trials, max_scale=max_scale)
 
             # Learn
-            mymod.learn(epochs, burnin=burnin, path_write=path_write, save_period=save_period)
+            mymod.learn(epochs, burnin=burnin,
+                        path_write=path_write, save_period=save_period)

@@ -8,7 +8,8 @@ from src import utils, Cutils
 def test_hyperbolic_distance():
     r1 = torch.tensor([0.3])
     r2 = torch.tensor([0.6])
-    dir1 = torch.tensor([torch.as_tensor(1./np.sqrt(2)), torch.as_tensor(1./np.sqrt(2))])
+    dir1 = torch.tensor([torch.as_tensor(1./np.sqrt(2)),
+                        torch.as_tensor(1./np.sqrt(2))])
     dir2 = torch.tensor([torch.as_tensor(-.5), torch.as_tensor(np.sqrt(0.75))])
     dist = Cutils.hyperbolic_distance(r1, r2, dir1, dir2, -torch.tensor([1.]))
     x1 = utils.dir_to_cart(r1, dir1)
@@ -20,8 +21,10 @@ def test_hyperbolic_distance():
 def test_hyperbolic_distance_boundary1():
     r1 = torch.tensor([0.99999997])
     r2 = torch.tensor([0.99999997])
-    dir1 = torch.tensor([torch.as_tensor(-1./np.sqrt(2)), torch.as_tensor(1./np.sqrt(2))], dtype=torch.double)
-    dir2 = torch.tensor([torch.as_tensor(0.0), torch.as_tensor(1.0)], dtype=torch.double)
+    dir1 = torch.tensor([torch.as_tensor(-1./np.sqrt(2)),
+                        torch.as_tensor(1./np.sqrt(2))], dtype=torch.double)
+    dir2 = torch.tensor(
+        [torch.as_tensor(0.0), torch.as_tensor(1.0)], dtype=torch.double)
     dist = Cutils.hyperbolic_distance(r1, r2, dir1, dir2, -torch.tensor([1.]))
     x1 = utils.dir_to_cart(r1, dir1)
     x2 = utils.dir_to_cart(r2, dir2)
@@ -32,8 +35,10 @@ def test_hyperbolic_distance_boundary1():
 def test_hyperbolic_distance_boundary2():
     r1 = torch.tensor([0.99999997])
     r2 = torch.tensor([0.99999997])
-    dir1 = torch.tensor([torch.as_tensor(-0.0), torch.as_tensor(-1.0)], dtype=torch.double)
-    dir2 = torch.tensor([torch.as_tensor(0.0), torch.as_tensor(1.0)], dtype=torch.double)
+    dir1 = torch.tensor(
+        [torch.as_tensor(-0.0), torch.as_tensor(-1.0)], dtype=torch.double)
+    dir2 = torch.tensor(
+        [torch.as_tensor(0.0), torch.as_tensor(1.0)], dtype=torch.double)
     dist = Cutils.hyperbolic_distance(r1, r2, dir1, dir2, -torch.tensor([1.]))
     x1 = utils.dir_to_cart(r1, dir1)
     x2 = utils.dir_to_cart(r2, dir2)
@@ -44,8 +49,10 @@ def test_hyperbolic_distance_boundary2():
 def test_hyperbolic_distance_boundary3():
     r1 = torch.tensor([0.99999999])
     r2 = torch.tensor([0.99999999])
-    dir1 = torch.tensor([torch.as_tensor(-1./np.sqrt(2)), torch.as_tensor(1./np.sqrt(2))], dtype=torch.double)
-    dir2 = torch.tensor([torch.as_tensor(0.0), torch.as_tensor(1.0)], dtype=torch.double)
+    dir1 = torch.tensor([torch.as_tensor(-1./np.sqrt(2)),
+                        torch.as_tensor(1./np.sqrt(2))], dtype=torch.double)
+    dir2 = torch.tensor(
+        [torch.as_tensor(0.0), torch.as_tensor(1.0)], dtype=torch.double)
     dist = Cutils.hyperbolic_distance(r1, r2, dir1, dir2, -torch.tensor([1.]))
     x1 = utils.dir_to_cart(r1, dir1)
     x2 = utils.dir_to_cart(r2, dir2)
@@ -56,8 +63,10 @@ def test_hyperbolic_distance_boundary3():
 def test_hyperbolic_distance_boundary_close():
     r1 = torch.tensor([0.9999999999])
     r2 = torch.tensor([0.99999999991])
-    dir1 = torch.tensor([torch.as_tensor(0.), torch.as_tensor(1.)], dtype=torch.double)
-    dir2 = torch.tensor([torch.as_tensor(0.), torch.as_tensor(1.)], dtype=torch.double)
+    dir1 = torch.tensor(
+        [torch.as_tensor(0.), torch.as_tensor(1.)], dtype=torch.double)
+    dir2 = torch.tensor(
+        [torch.as_tensor(0.), torch.as_tensor(1.)], dtype=torch.double)
     dist = Cutils.hyperbolic_distance(r1, r2, dir1, dir2, -torch.tensor([1.]))
     x1 = utils.dir_to_cart(r1, dir1)
     x2 = utils.dir_to_cart(r2, dir2)
@@ -66,8 +75,10 @@ def test_hyperbolic_distance_boundary_close():
 
 
 def test_hyperbolic_distance_zero():
-    dir1 = torch.tensor([torch.as_tensor(1./np.sqrt(2)), torch.as_tensor(1./np.sqrt(2))])
-    dir2 = torch.tensor([torch.as_tensor(1./np.sqrt(2)), torch.as_tensor(1./np.sqrt(2))])
+    dir1 = torch.tensor([torch.as_tensor(1./np.sqrt(2)),
+                        torch.as_tensor(1./np.sqrt(2))])
+    dir2 = torch.tensor([torch.as_tensor(1./np.sqrt(2)),
+                        torch.as_tensor(1./np.sqrt(2))])
     dist = Cutils.hyperbolic_distance(
         torch.tensor([0.5]), torch.tensor([0.5]), dir1,
         dir2, -torch.tensor([1.]))
@@ -93,8 +104,10 @@ def test_dir_to_cart_5d():
 def test_euclidean_distance():
     r1 = torch.tensor([0.3])
     r2 = torch.tensor([.6])
-    dir1 = torch.tensor([torch.as_tensor(1./np.sqrt(2)), torch.as_tensor(1./np.sqrt(2))], dtype=torch.double)
-    dir2 = torch.tensor([torch.as_tensor(-.5), torch.as_tensor(np.sqrt(0.75))], dtype=torch.double)
+    dir1 = torch.tensor([torch.as_tensor(1./np.sqrt(2)),
+                        torch.as_tensor(1./np.sqrt(2))], dtype=torch.double)
+    dir2 = torch.tensor(
+        [torch.as_tensor(-.5), torch.as_tensor(np.sqrt(0.75))], dtype=torch.double)
     dist = Cutils.hyperbolic_distance(
         r1, r2, dir1,
         dir2, torch.zeros(1))

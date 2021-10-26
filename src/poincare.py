@@ -64,7 +64,8 @@ def incentre(a, b, return_coord=True):
     w_a = hyp_dist_o(b)
     w_b = hyp_dist_o(a)
     ab = torch.stack((a, b))
-    w_c = hyperboloid.hyperboloid_dists(hyperboloid.poincare_to_hyper(ab))[0][1]
+    w_c = hyperboloid.hyperboloid_dists(
+        hyperboloid.poincare_to_hyper(ab))[0][1]
     proj = (w_a * a + w_b * b) / (w_a + w_b + w_c)
 
     if not return_coord:

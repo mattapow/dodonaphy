@@ -307,7 +307,8 @@ def normalise_LADJ(y):
 
     log_abs_det_J = torch.zeros(1)
     for k in range(n):
-        J = torch.div(torch.eye(D, D) - torch.div(torch.outer(y[k], y[k]), torch.pow(norm[k], 2)), norm[k])
+        J = torch.div(torch.eye(
+            D, D) - torch.div(torch.outer(y[k], y[k]), torch.pow(norm[k], 2)), norm[k])
         log_abs_det_J = log_abs_det_J + torch.logdet(J)
     return log_abs_det_J
 
@@ -326,6 +327,7 @@ def LogDirPrior(blen, aT, bT, a, c):
     intb = torch.sum(torch.log(blen_pos[n_leaf:]))
 
     lnPrior = (a-1)*tipb + (a*c-1)*intb
-    lnPrior = lnPrior + (aT - a*n_leaf - a*c*(n_leaf-3)) * torch.log(treeL) - bT*treeL
+    lnPrior = lnPrior + (aT - a*n_leaf - a*c*(n_leaf-3)) * \
+        torch.log(treeL) - bT*treeL
 
     return lnPrior

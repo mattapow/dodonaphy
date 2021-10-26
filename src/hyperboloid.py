@@ -62,7 +62,8 @@ def hyperboloid_dists(loc):
 
     for i in range(n_points):
         for j in range(i + 1, n_points):
-            dists[i][j] = torch.acosh(-lorentz_product(loc[i].squeeze(0), loc[j].squeeze(0)))
+            dists[i][j] = torch.acosh(-lorentz_product(
+                loc[i].squeeze(0), loc[j].squeeze(0)))
     dists = dists + torch.transpose(dists, 0, 1)
 
     # Diagonals
@@ -231,7 +232,8 @@ def t02p(x, mu=None, get_jacobian=False):
         x_hyp = tangent_to_hyper(mu_hyp[i, :], x[i, :], dim)
         x_poin[i, :] = hyper_to_poincare(x_hyp)
         if get_jacobian:
-            jacobian = jacobian + tangent_to_hyper_jacobian(mu_hyp[i, :], x[i, :], dim)
+            jacobian = jacobian + \
+                tangent_to_hyper_jacobian(mu_hyp[i, :], x[i, :], dim)
             jacobian = jacobian + hyper_to_poincare_jacobian(x_hyp)
 
     if get_jacobian:

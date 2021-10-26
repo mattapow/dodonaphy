@@ -26,7 +26,8 @@ def test_mcmc_incentre():
     rng = random.Random(1)
     simtree = treesim.birth_death_tree(
         birth_rate=prior['birth_rate'], death_rate=prior['death_rate'], num_extant_tips=S, rng=rng)
-    dna = simulate_discrete_chars(seq_len=L, tree_model=simtree, seq_model=dendropy.model.discrete.Jc69(), rng=rng)
+    dna = simulate_discrete_chars(
+        seq_len=L, tree_model=simtree, seq_model=dendropy.model.discrete.Jc69(), rng=rng)
 
     partials, weights = compress_alignment(dna)
 
@@ -63,7 +64,8 @@ def test_mcmc_mst():
     rng = random.Random(1)
     simtree = treesim.birth_death_tree(
         birth_rate=prior['birth_rate'], death_rate=prior['death_rate'], num_extant_tips=S, rng=rng)
-    dna = simulate_discrete_chars(seq_len=L, tree_model=simtree, seq_model=dendropy.model.discrete.Jc69(), rng=rng)
+    dna = simulate_discrete_chars(
+        seq_len=L, tree_model=simtree, seq_model=dendropy.model.discrete.Jc69(), rng=rng)
 
     partials, weights = compress_alignment(dna)
 
@@ -101,7 +103,8 @@ def test_mcmc_geodesics():
     rng = random.Random(1)
     simtree = treesim.birth_death_tree(
         birth_rate=prior['birth_rate'], death_rate=prior['death_rate'], num_extant_tips=S, rng=rng)
-    dna = simulate_discrete_chars(seq_len=L, tree_model=simtree, seq_model=dendropy.model.discrete.Jc69(), rng=rng)
+    dna = simulate_discrete_chars(
+        seq_len=L, tree_model=simtree, seq_model=dendropy.model.discrete.Jc69(), rng=rng)
 
     partials, weights = compress_alignment(dna)
 
@@ -139,7 +142,8 @@ def test_mcmc_simple_nj():
     rng = random.Random(1)
     simtree = treesim.birth_death_tree(
         birth_rate=prior['birth_rate'], death_rate=prior['death_rate'], num_extant_tips=S, rng=rng)
-    dna = simulate_discrete_chars(seq_len=L, tree_model=simtree, seq_model=dendropy.model.discrete.Jc69(), rng=rng)
+    dna = simulate_discrete_chars(
+        seq_len=L, tree_model=simtree, seq_model=dendropy.model.discrete.Jc69(), rng=rng)
 
     partials, weights = compress_alignment(dna)
 
@@ -177,7 +181,8 @@ def test_mcmc_wrap_nj():
     rng = random.Random(1)
     simtree = treesim.birth_death_tree(
         birth_rate=prior['birth_rate'], death_rate=prior['death_rate'], num_extant_tips=S, rng=rng)
-    dna = simulate_discrete_chars(seq_len=L, tree_model=simtree, seq_model=dendropy.model.discrete.Jc69(), rng=rng)
+    dna = simulate_discrete_chars(
+        seq_len=L, tree_model=simtree, seq_model=dendropy.model.discrete.Jc69(), rng=rng)
 
     partials, weights = compress_alignment(dna)
 

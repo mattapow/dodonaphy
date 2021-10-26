@@ -69,7 +69,8 @@ def hydra(D, dim=2, curvature=-1., alpha=1.1, equi_adj=0.5, **kwargs):
         warnings.warn("Diagonal of input matrix D has been set to zero")
 
     if dim > len(D):
-        raise RuntimeError("Hydra cannot embed %d points in %d-dimensions. Limit of %d." % (len(D), dim, len(D)))
+        raise RuntimeError(
+            "Hydra cannot embed %d points in %d-dimensions. Limit of %d." % (len(D), dim, len(D)))
 
     if not np.allclose(D, np.transpose(D)):
         warnings.warn(

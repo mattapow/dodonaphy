@@ -35,7 +35,8 @@ class BaseModel(object):
 
         # make space for internal partials
         for i in range(self.S - 1):
-            self.partials.append(torch.zeros((1, 4, self.L), dtype=torch.float64, requires_grad=False))
+            self.partials.append(torch.zeros(
+                (1, 4, self.L), dtype=torch.float64, requires_grad=False))
 
     def initialise_ints(self, emm_tips, n_grids=10, n_trials=10, max_scale=2):
         # try out some inner node positions and pick the best
@@ -59,7 +60,8 @@ class BaseModel(object):
         for i in range(n_grids):
             _scale = i/n_grids * max_scale
             for _ in range(n_trials):
-                peel = peeler.make_peel_mst(leaf_r, leaf_dir, torch.from_numpy(_int_r), torch.from_numpy(_int_dir))
+                peel = peeler.make_peel_mst(leaf_r, leaf_dir, torch.from_numpy(
+                    _int_r), torch.from_numpy(_int_dir))
                 blen = self.compute_branch_lengths(
                     self.S, peel, leaf_r, leaf_dir, torch.from_numpy(_int_r), torch.from_numpy(_int_dir))
                 _lnP = self.compute_LL(peel, blen)
@@ -169,7 +171,9 @@ class BaseModel(object):
             # compute the probability matrix to each other node
             mats = JC69_p_t(pdm[i])
             for j in range(i - 1):
-                P = P + weight[i, j] * torch.log(torch.clamp(torch.matmul(mats[j], self.partials[i]), min=eps))
+                P = P + \
+                    weight[i, j] * torch.log(torch.clamp(
+                        torch.matmul(mats[j], self.partials[i]), min=eps))
 
         L = torch.sum(self.weights)
         return torch.sum(P * self.weights)/L
@@ -225,8 +229,10 @@ class BaseModel(object):
         lnP = torch.zeros(leaf_node_count)
         # TODO: Randomly select leaves if getting slow
         for leaf in range(leaf_node_count):
-            peel = peeler.make_peel_mst(leaf_r, leaf_dir, int_r, int_dir, curvature=-torch.ones(1), start_node=leaf)
-            blens = self.compute_branch_lengths(leaf_node_count, peel, leaf_r, leaf_dir, int_r, int_dir)
+            peel = peeler.make_peel_mst(
+                leaf_r, leaf_dir, int_r, int_dir, curvature=-torch.ones(1), start_node=leaf)
+            blens = self.compute_branch_lengths(
+                leaf_node_count, peel, leaf_r, leaf_dir, int_r, int_dir)
             lnP[leaf] = self.compute_LL(peel, blens)
         sftmx = torch.nn.Softmax(dim=0)
         p = np.array(sftmx(lnP))
@@ -276,14 +282,16 @@ class BaseModel(object):
 
         # get r and directional
         leaf_r_prop = torch.norm(leaf_loc_prop[0, :])
-        leaf_dir_prop = leaf_loc_prop / torch.norm(leaf_loc_prop, dim=-1, keepdim=True)
+        leaf_dir_prop = leaf_loc_prop / \
+            torch.norm(leaf_loc_prop, dim=-1, keepdim=True)
 
         # internal nodes for mst
         if self.connect_method in ('mst', 'mst_choice'):
             if self.embed_method == 'simple':
                 # transform internals to R^n
                 int_loc_t0 = utils.ball2real(int_loc)
-                log_abs_det_jacobian = log_abs_det_jacobian - Cutils.real2ball_LADJ(int_loc_t0)
+                log_abs_det_jacobian = log_abs_det_jacobian - \
+                    Cutils.real2ball_LADJ(int_loc_t0)
 
                 # flatten data to sample
                 int_loc_t0 = int_loc_t0.reshape(n_int_vars)
@@ -299,18 +307,22 @@ class BaseModel(object):
 
             elif self.embed_method == 'wrap':
                 # transform ints to R^n
-                int_loc_t0, int_jacobian = hyperboloid.p2t0(int_loc, get_jacobian=True).clone()
+                int_loc_t0, int_jacobian = hyperboloid.p2t0(
+                    int_loc, get_jacobian=True).clone()
                 log_abs_det_jacobian = log_abs_det_jacobian - int_jacobian
 
                 # propose new int nodes from normal in R^n
-                normal_dist = MultivariateNormal(torch.zeros_like(int_loc_t0.squeeze()), int_cov)
+                normal_dist = MultivariateNormal(
+                    torch.zeros_like(int_loc_t0.squeeze()), int_cov)
                 sample = normal_dist.rsample()
                 logQ = logQ + normal_dist.log_prob(sample)
-                int_loc_prop = hyperboloid.t02p(sample.reshape(self.S-2, self.D), int_loc_t0.reshape(self.S-2, self.D))
+                int_loc_prop = hyperboloid.t02p(sample.reshape(
+                    self.S-2, self.D), int_loc_t0.reshape(self.S-2, self.D))
 
             # get r and directional
             int_r_prop = torch.norm(int_loc_prop, dim=-1)
-            int_dir_prop = int_loc_prop / torch.norm(int_loc_prop, dim=-1, keepdim=True)
+            int_dir_prop = int_loc_prop / \
+                torch.norm(int_loc_prop, dim=-1, keepdim=True)
 
             # restrict int_r to less than leaf_r
             int_r_prop[int_r_prop > leaf_r_prop] = leaf_r_prop
@@ -444,6 +456,7 @@ class BaseModel(object):
             - n_leaf * lgamma(a) - (n_leaf-3) * lgamma(a * c)
 
         # uniform prior on topologies
-        lnPrior -= torch.sum(torch.log(torch.arange(n_leaf*2-5, 0, -2)))
+        lnPrior = lnPrior - \
+            torch.sum(torch.log(torch.arange(n_leaf*2-5, 0, -2)))
 
         return lnPrior
