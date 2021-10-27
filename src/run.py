@@ -69,11 +69,11 @@ def run(args):
             k_samples=args.importance,
             n_draws=args.draws,
             n_grids=args.grids,
-            n_trials=args.strials,
+            n_trials=args.trials,
             max_scale=args.max_scale,
             lr=args.learn,
             embed_method=args.embed,
-            connect_method=args.embed,
+            connect_method=args.connect,
             curvature=args.curv,
             **prior,
         )
