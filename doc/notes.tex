@@ -133,6 +133,20 @@ with gradient
 \ee
 Whilst this mapping does not preserve distances it has fewer computational steps.
 
+To compare these two embedding functions we see how a normal distrubution embeds using both methods.
+We take the point $(0, .5) \in \mathbb{P}^2$ map it to $g(x) \in \mathbb{R}^2$, sample from a normal centred at the $g(x)$.
+Then we take the inverse back into the Poincaré ball (figure~\ref{fig:maps}).
+The ''simple" embedding places less weight near the origin and spreads points radially.
+
+\begin{figure}[ht]
+    \centering
+    \includegraphics*[width=\linewidth]{fig/embed_normal}
+    \includegraphics*[width=\linewidth]{fig/embed_normal_origin}
+    \caption{Embedding a normal distribution using both functions.}
+    \label{fig:maps}
+\end{figure}
+
+
 \subsubsection{Forming a Tree}
 From a set of leaf locations $x$ in the Poincaré ball $x_i \in \mathbb{P}^d$ we seek to construct a tree.
 One way to form a tree is to use the hyperbolic pairwise distances between leaves and construct the neighbour joining (NJ) tree.
@@ -176,7 +190,7 @@ Internal node locations were sampled $10^{4}$ times and the initialisation with 
 
 \begin{figure}[htbp]
 \begin{center}
-    \includegraphics[width=\linewidth]{fig/t17_trace_post}
+    \includegraphics[width=\linewidth]{fig/trace_simple_nj}
 \end{center}
 \caption{Effect of embedding dimension on MCMC estimates. (a) Trace plots of the posterior using the simple embedding method connecting leaves using neighbour joining.
 (b) Kernel density estimates of the posterior discarding the first 20\% as burnin in figure (a).}
@@ -294,6 +308,15 @@ Consequently, the split frequencies shown in figure~\ref{fig:splits_vi} do not c
 \end{figure}
 
 
+\begin{figure}[htbp] \label{fig:wilson_mcmc}
+    \begin{center}
+        \includegraphics*[width=\linewidth]{fig/trace_simple_nj_wilson}
+        \includegraphics*[width=\linewidth]{fig/trace_simple_nj_wilson_pdm}
+        \includegraphics*[width=\linewidth]{fig/trace_simple_nj_wilson_Q}
+    \end{center}
+    \caption{MCMC with all tip-tip pairwise likleihoods included.}
+\end{figure}
+
 %The variational distribution $\bold{q}$ is smooth, however the posterior probability is not guaranteed to be continuous let alone differentiable as the tree topology changes.
 %Evidently the posterior for each node is unlikely to be normally distributed.
 %The feasibility of VI rests on how well a simple distribution $q$ can approximate these densities.
@@ -361,9 +384,6 @@ Normalising the leaf positions to radius $r$ by $n_{r}(x) = r \bold{x}/||\bold{x
 \frac{\partial n_{r}(\bold{x})}{\partial \bold{x}} = r \frac{\partial n_{1}(\bold{x})}{\partial \bold{x}} = 
 \dfrac{r}{||x||} \Big( I - \dfrac{x \otimes x}{||x||^{2}} \Big)
 \ee
-
-\subsection{Details of wrapping}
-TODO ===
 
 \paragraph{Discontinuities}
 Note that the likelihood function is discontinuous as the topology changes.
