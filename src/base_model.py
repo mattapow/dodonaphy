@@ -239,7 +239,7 @@ class BaseModel(object):
         leaf = np.random.choice(leaf_node_count, p=p)
         return peeler.make_peel_mst(leaf_r, leaf_dir, int_r, int_dir, curvature=-torch.ones(1), start_node=leaf)
 
-    def sample(self, leaf_loc, leaf_cov, int_loc=None, int_cov=None, getPeel=True):
+    def sample(self, leaf_loc, leaf_cov, int_loc=None, int_cov=None):
         # reshape covariance if single number
         n_leaf_vars = self.S * self.D
         if torch.numel(leaf_cov) == 1:
@@ -267,14 +267,17 @@ class BaseModel(object):
 
         elif self.embed_method == 'wrap':
             # transform leaves to R^n
-            leaf_loc_t0, log_abs_det_jacobian = hyperboloid.p2t0(leaf_loc, get_jacobian=True)
+            leaf_loc_t0, log_abs_det_jacobian = hyperboloid.p2t0(
+                leaf_loc.reshape(self.D, self.S), get_jacobian=True)
             leaf_loc_t0 = leaf_loc_t0.clone()
 
             # propose new leaf nodes from normal in R^n and convert to poincare ball
-            normal_dist = MultivariateNormal(torch.zeros((self.S * self.D), dtype=torch.double), leaf_cov)
+            normal_dist = MultivariateNormal(torch.zeros(
+                (self.S * self.D), dtype=torch.double), leaf_cov)
             sample = normal_dist.rsample()
             logQ = normal_dist.log_prob(sample)
-            leaf_loc_prop = hyperboloid.t02p(sample.reshape(self.S, self.D), leaf_loc_t0.reshape(self.S, self.D))
+            leaf_loc_prop = hyperboloid.t02p(sample.reshape(
+                self.S, self.D), leaf_loc_t0.reshape(self.S, self.D))
 
         # normalise leaves to sphere with radius leaf_r_prop = first leaf radii
         leaf_r_prop = torch.norm(leaf_loc_prop[0, :])
@@ -335,34 +338,34 @@ class BaseModel(object):
                     leaf_r_prop * leaf_dir_prop, connect_method=self.connect_method)
                 int_r_prop, int_dir_prop = utils.cart_to_dir(int_locs)
 
-        # proposal peel for other methods if requested
-        pdm = Cutils.get_pdm_torch(leaf_r_prop.repeat(self.S), leaf_dir_prop, curvature=self.curvature)
-        if not getPeel:
-            peel = blens = lnP = lnPrior = None
-        else:
-            if self.connect_method == 'nj':
-                peel, blens = peeler.nj(pdm)
-            elif self.connect_method == 'mst':
-                peel = peeler.make_peel_mst(leaf_r, leaf_dir_prop, int_r_prop, int_dir_prop)
-            elif self.connect_method == 'mst_choice':
-                peel = self.select_peel_mst(leaf_r, leaf_dir_prop, int_r_prop, int_dir_prop)
-            elif self.connect_method == 'delaunay':
-                peel = peeler.make_peel_delaunay(leaf_r, leaf_dir_prop, int_r_prop, int_dir_prop)
+        # get peels
+        if self.connect_method == 'nj':
+            pdm = Cutils.get_pdm_torch(leaf_r_prop.repeat(
+                self.S), leaf_dir_prop, curvature=self.curvature)
+            peel, blens = peeler.nj(pdm)
+        elif self.connect_method == 'mst':
+            peel = peeler.make_peel_mst(
+                leaf_r, leaf_dir_prop, int_r_prop, int_dir_prop)
+        elif self.connect_method == 'mst_choice':
+            peel = self.select_peel_mst(
+                leaf_r, leaf_dir_prop, int_r_prop, int_dir_prop)
+        elif self.connect_method == 'delaunay':
+            peel = peeler.make_peel_delaunay(
+                leaf_r, leaf_dir_prop, int_r_prop, int_dir_prop)
+        # get proposal branch lengths
+        if self.connect_method != 'nj':
+            blens = self.compute_branch_lengths(
+                self.S, peel, leaf_r, leaf_dir_prop, int_r_prop, int_dir_prop, useNP=False)
 
-            # get proposal branch lengths
-            if self.connect_method != 'nj':
-                blens = self.compute_branch_lengths(
-                    self.S, peel, leaf_r, leaf_dir_prop, int_r_prop, int_dir_prop, useNP=False)
+        # get log likelihood
+        lnP = self.compute_LL(peel, blens)
+        # lnP = self.compute_log_a_like(pdm)
+        # leaf_X = utils.dir_to_cart(leaf_r_prop, leaf_dir_prop)
+        # lnP = self.compute_hypHC(leaf_X)
 
-            # get log likelihood
-            lnP = self.compute_LL(peel, blens)
-            # lnP = self.compute_log_a_like(pdm)
-            # leaf_X = utils.dir_to_cart(leaf_r_prop, leaf_dir_prop)
-            # lnP = self.compute_hypHC(leaf_X)
-
-            # get log prior
-            lnPrior = self.compute_prior_gamma_dir(blens)
-            # lnPrior = self.compute_prior_birthdeath(peel, blens, **self.prior)
+        # get log prior
+        lnPrior = self.compute_prior_gamma_dir(blens)
+        # lnPrior = self.compute_prior_birthdeath(peel, blens, **self.prior)
 
         if self.connect_method in ('nj'):
             proposal = {

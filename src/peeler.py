@@ -5,19 +5,22 @@ import numpy as np
 import torch
 
 from . import poincare, tree, utils, Cutils
-from .node import Node
 from .edge import u_edge
 
 
 def make_peel_incentre(leaf_locs, curvature=-torch.ones(1)):
-    return make_peel_tips(leaf_locs, connect_method='incentre', curvature=curvature)
+    return make_peel_tips(leaf_locs,
+                          connect_method="incentre",
+                          curvature=curvature)
 
 
 def make_peel_geodesic(leaf_locs):
-    return make_peel_tips(leaf_locs, connect_method='geodesics')
+    return make_peel_tips(leaf_locs, connect_method="geodesics")
 
 
-def make_peel_tips(leaf_locs, connect_method='geodesics', curvature=-torch.ones(1)):
+def make_peel_tips(leaf_locs,
+                   connect_method="geodesics",
+                   curvature=-torch.ones(1)):
     """Generate a tree recursively using the incentre of the closest two points.
 
     Args:
@@ -31,17 +34,17 @@ def make_peel_tips(leaf_locs, connect_method='geodesics', curvature=-torch.ones(
     int_node_count = leaf_locs.shape[0] - 2
     node_count = leaf_locs.shape[0] * 2 - 2
 
-    if connect_method == 'geodesics':
+    if connect_method == "geodesics":
         edge_list = utils.get_plca(leaf_locs)
-    elif connect_method == 'incentre':
+    elif connect_method == "incentre":
         leaf_r, leaf_dir = utils.cart_to_dir(leaf_locs)
         edge_list = utils.get_pdm_tips(leaf_r, leaf_dir, curvature=curvature)
     else:
-        raise ValueError('connect_method must be geodesics or incentre')
+        raise ValueError("connect_method must be geodesics or incentre")
 
-    int_locs = torch.zeros(int_node_count+1, dims, dtype=torch.double)
+    int_locs = torch.zeros(int_node_count + 1, dims, dtype=torch.double)
     leaf_locs = leaf_locs.double()
-    peel = np.zeros((int_node_count+1, 3), dtype=np.int16)
+    peel = np.zeros((int_node_count + 1, 3), dtype=np.int16)
     visited = node_count * [False]
 
     # queue = [edges for neighbours in edge_list for edges in neighbours]
@@ -52,9 +55,9 @@ def make_peel_tips(leaf_locs, connect_method='geodesics', curvature=-torch.ones(
             heappush(queue, edge_list[i][j])
 
     int_i = 0
-    while int_i < int_node_count+1:
+    while int_i < int_node_count + 1:
         e = heappop(queue)
-        if(visited[e.from_] | visited[e.to_]):
+        if visited[e.from_] | visited[e.to_]:
             continue
 
         # create a new internal node to link these
@@ -63,15 +66,15 @@ def make_peel_tips(leaf_locs, connect_method='geodesics', curvature=-torch.ones(
         if e.from_ < leaf_node_count:
             from_point = leaf_locs[e.from_]
         else:
-            from_point = int_locs[e.from_-leaf_node_count]
+            from_point = int_locs[e.from_ - leaf_node_count]
         if e.to_ < leaf_node_count:
             to_point = leaf_locs[e.to_]
         else:
-            to_point = int_locs[e.to_-leaf_node_count]
+            to_point = int_locs[e.to_ - leaf_node_count]
 
-        if connect_method == 'geodesics':
+        if connect_method == "geodesics":
             int_locs[int_i] = poincare.hyp_lca(from_point, to_point)
-        elif connect_method == 'incentre':
+        elif connect_method == "incentre":
             int_locs[int_i] = poincare.incentre(from_point, to_point)
 
         peel[int_i][0] = e.from_
@@ -84,16 +87,23 @@ def make_peel_tips(leaf_locs, connect_method='geodesics', curvature=-torch.ones(
         for i in range(cur_internal):
             if visited[i]:
                 continue
-            if connect_method == 'geodesics':
+            if connect_method == "geodesics":
                 if i < leaf_node_count:
-                    dist_ij = - poincare.hyp_lca(leaf_locs[i], int_locs[int_i], return_coord=False)
+                    dist_ij = -poincare.hyp_lca(
+                        leaf_locs[i], int_locs[int_i], return_coord=False)
                 else:
-                    dist_ij = - poincare.hyp_lca(int_locs[i-leaf_node_count], int_locs[int_i], return_coord=False)
-            elif connect_method == 'incentre':
+                    dist_ij = -poincare.hyp_lca(
+                        int_locs[i - leaf_node_count],
+                        int_locs[int_i],
+                        return_coord=False,
+                    )
+            elif connect_method == "incentre":
                 if i < leaf_node_count:
-                    dist_ij = Cutils.hyperbolic_distance_lorentz(leaf_locs[i], int_locs[int_i])
+                    dist_ij = Cutils.hyperbolic_distance_lorentz(
+                        leaf_locs[i], int_locs[int_i])
                 else:
-                    dist_ij = Cutils.hyperbolic_distance_lorentz(int_locs[i-leaf_node_count], int_locs[int_i])
+                    dist_ij = Cutils.hyperbolic_distance_lorentz(
+                        int_locs[i - leaf_node_count], int_locs[int_i])
                 # apply the inverse transform from Matsumoto et al 2020
                 dist_ij = torch.log(torch.cosh(dist_ij))
             heappush(queue, u_edge(dist_ij, i, cur_internal))
@@ -102,7 +112,12 @@ def make_peel_tips(leaf_locs, connect_method='geodesics', curvature=-torch.ones(
     return peel, int_locs
 
 
-def make_peel_mst(leaf_r, leaf_dir, int_r, int_dir, curvature=-torch.ones(1), start_node=None):
+def make_peel_mst(leaf_r,
+                  leaf_dir,
+                  int_r,
+                  int_dir,
+                  curvature=-torch.ones(1),
+                  start_node=None):
     """Create a tree represtation (peel) from its hyperbolic embedic data
 
     Args:
@@ -113,13 +128,19 @@ def make_peel_mst(leaf_r, leaf_dir, int_r, int_dir, curvature=-torch.ones(1), st
     """
     leaf_node_count = leaf_r.shape[0]
     node_count = leaf_r.shape[0] + int_r.shape[0]
-    edge_list = Cutils.get_pdm_np(leaf_r, leaf_dir, int_r, int_dir, curvature=curvature, dtype='dict')
+    edge_list = Cutils.get_pdm_np(leaf_r,
+                                  leaf_dir,
+                                  int_r,
+                                  int_dir,
+                                  curvature=curvature,
+                                  dtype="dict")
 
     # queue here is a min-heap
     queue = []
     heapify(queue)
 
-    start_edge = get_start_edge(start_node, edge_list, node_count, leaf_node_count)
+    start_edge = get_start_edge(start_node, edge_list, node_count,
+                                leaf_node_count)
     heappush(queue, start_edge)
 
     adjacency = defaultdict(list)
@@ -131,7 +152,15 @@ def make_peel_mst(leaf_r, leaf_dir, int_r, int_dir, curvature=-torch.ones(1), st
 
         # check if edge is valid for binary tree
         is_valid = is_valid_edge(
-            e.to_, e.from_, adjacency, visited, leaf_node_count, node_count, open_slots, visited_count)
+            e.to_,
+            e.from_,
+            adjacency,
+            visited,
+            leaf_node_count,
+            node_count,
+            open_slots,
+            visited_count,
+        )
 
         if is_valid:
             adjacency[e.from_].append(e.to_)
@@ -192,7 +221,7 @@ def get_start_edge(start_node, edge_list, node_count, leaf_node_count):
             if start_edge.from_ < leaf_node_count and start_edge.to_ >= leaf_node_count:
                 is_valid = True
             if len(candidate_edges) == 0:
-                raise RuntimeError('No candidates found')
+                raise RuntimeError("No candidates found")
     return start_edge
 
 
@@ -228,7 +257,7 @@ def force_binary(adjacency):
         adjacency ([type]): [description]
     """
     # prune internal nodes that don't create a bifurcation
-    leaf_node_count = int(len(adjacency)/2 + 1)
+    leaf_node_count = int(len(adjacency) / 2 + 1)
     unused, adjacency = prune(leaf_node_count, adjacency)
 
     if unused.__len__() > 0:
@@ -266,8 +295,7 @@ def prune(S, adjacency):
             adjacency[n].clear()
             for i in range(adjacency[neighbour].__len__()):
                 if adjacency[neighbour][i] == n:
-                    adjacency[neighbour].pop(
-                        adjacency[neighbour][0] + i)
+                    adjacency[neighbour].pop(adjacency[neighbour][0] + i)
 
             unused.append(n)
             to_check.append(neighbour)
@@ -287,7 +315,8 @@ def prune(S, adjacency):
     return unused, adjacency
 
 
-def is_valid_edge(to_, from_, adjacency, visited, S, node_count, open_slots, visited_count):
+def is_valid_edge(to_, from_, adjacency, visited, S, node_count, open_slots,
+                  visited_count):
     # ensure the destination node has not been visited yet
     # internal nodes can have up to 3 adjacencies, of which at least
     # one must be internal
@@ -337,76 +366,56 @@ def is_valid_edge(to_, from_, adjacency, visited, S, node_count, open_slots, vis
     return is_valid
 
 
-def nj(pdm):
+def nj(pdm, tau=None):
     """Generate Neighbour joining tree.
 
     Args:
         pdm: pairwise distance.
+        tau: temperature. Set to None to use regular argmin.
+        As temperature -> 0, softrank becomes rank.
 
     Returns:
         tuple: (peel, blens)
     """
-    # pdm.requires_grad_(True)
-
     leaf_node_count = len(pdm)
     int_node_count = leaf_node_count - 2
     node_count = leaf_node_count + int_node_count
     eps = torch.finfo(torch.double).eps
 
-    # initialise peel and branch lengths
     peel = np.zeros((int_node_count + 1, 3), dtype=int)
     blens = torch.zeros(node_count, dtype=torch.float64)
 
-    # Add a mask to the Q matrix
     mask = torch.tensor(leaf_node_count * [False])
     node_map = torch.arange(leaf_node_count)
 
-    # for each internal node
-    for int_i in range(int_node_count+1):
-        # construct Q matrix
+    for int_i in range(int_node_count + 1):
         Q = compute_Q(pdm, mask)
 
-        # find minimum index of Q matrix
-        mask_2d = ~torch.outer(~mask, ~mask)
-        Q.masked_fill_(mask_2d, np.inf)
+        if tau is None:
+            f, g = unravel_index(Q.argmin(), Q.shape)
+        else:
+            f, g = soft_argmin(Q, tau)
 
-        f, g = unravel_index(Q.argmin(), Q.shape)
-
-        # add these branches to peel
         u = int_i + leaf_node_count
-        peel[int_i, 0] = node_map[f]
-        peel[int_i, 1] = node_map[g]
-        peel[int_i, 2] = u
+        peel[int_i, :] = (node_map[f], node_map[g], u)
+
+        dist_u = get_new_dist(pdm, mask, f, g)
+
+        blens[node_map[f]] = dist_u[f]
+        blens[node_map[g]] = torch.clamp(pdm[f][g] - dist_u[f], min=eps)
 
         if int_i == int_node_count:
             continue
 
-        # get distance other taxa to new node
-        dist_u = .5 * (pdm[f] + pdm[g] - pdm[f][g])
-
-        # get distance from u to f and f
-        n_active = sum(~mask)
-        sum_pdm = torch.sum(pdm*~mask_2d, dim=-1)
-        dist_u[f] = .5 * pdm[f][g] + (sum_pdm[f] - sum_pdm[g]) / (2 * (n_active - 2))
-        dist_u[g] = pdm[f][g] - dist_u[f]
-
-        # add edges above f and g to blens
-        blens[node_map[f]] = torch.clamp(dist_u[f], min=eps)
-        blens[node_map[g]] = torch.clamp(dist_u[g], min=eps)
-
         # replace g by dist_u in the pdm
-        pdm[g, :] = dist_u
-        pdm[:, g] = dist_u
-        pdm[g, g] = torch.zeros(1)
-
-        # replace g by u node_map and mask f
+        pdm = torch.vstack((pdm[:g, :], dist_u, pdm[g + 1:, :]))
+        pdm = torch.hstack((pdm[:, :g], dist_u.unsqueeze(dim=-1), pdm[:,
+                                                                      g + 1:]))
         node_map[g] = u
         mask[f] = True
 
-    blens[node_map[g]] = .5 * pdm[f][g] + (sum_pdm[f] - sum_pdm[g]) / (2 * (3 - 2))
-    blens[node_map[f]] = pdm[f][g] - blens[node_map[g]]
-
     return peel, blens
+
 
 def compute_Q(pdm, mask=None):
     """Compute the Q matrix for Neighbour joining.
@@ -420,14 +429,15 @@ def compute_Q(pdm, mask=None):
     """
     n_pdm = len(pdm)
     if mask is None:
-        n_active = n_pdm
-    else:
-        n_active = sum(~mask)
-    
-    sum_pdm = torch.sum(pdm, axis=1, keepdims=True)
+        mask = torch.full((n_pdm, ), False)
+    n_active = sum(~mask)
+
+    mask_2d = ~torch.outer(~mask, ~mask)
+    sum_pdm = torch.sum(pdm * ~mask_2d, axis=1, keepdims=True)
     sum_i = torch.repeat_interleave(sum_pdm, n_pdm, dim=1)
     sum_j = torch.repeat_interleave(sum_pdm.T, n_pdm, dim=0)
     Q = (n_active - 2) * pdm - sum_i - sum_j
+    Q = Q * ~mask_2d
     Q.fill_diagonal_(0)
     return Q
 
@@ -440,3 +450,47 @@ def unravel_index(index, shape):
     return tuple(reversed(out))
 
 
+def soft_sort(s, tau):
+    s_sorted = s.sort(descending=True, dim=1)[0]
+    pairwise_distances = (s.transpose(0, 1) - s_sorted).abs().neg() / tau
+    P_hat = pairwise_distances.softmax(-1)
+    return P_hat
+
+
+def soft_argmin(Q, tau):
+    # flatten
+    tril_idx = torch.tril_indices(Q.shape[0], Q.shape[1], offset=-1)
+    Q1 = Q[tril_idx[0], tril_idx[1]].unsqueeze(0)
+
+    # add small noise to break ties
+    Q1 = Q1 + torch.distributions.normal.Normal(
+        torch.zeros_like(Q1),
+        torch.ones_like(Q1) / 1000.0).rsample()
+
+    permute = soft_sort(-Q1, tau)
+    integers = torch.arange(Q1.numel()).double()
+    rank = torch.matmul(permute, integers)
+    argmin = torch.isclose(rank, torch.zeros(1).double(),
+                           atol=0.01).nonzero().squeeze()
+
+    # unflatten
+    f = tril_idx[0][argmin]
+    g = tril_idx[1][argmin]
+    return f, g
+
+
+def get_new_dist(pdm, mask, f, g):
+    eps = torch.finfo(torch.double).eps
+
+    # get distance other taxa to new node u
+    dist_u = 0.5 * (pdm[f] + pdm[g] - pdm[f][g])
+
+    # get distance from u to f and f
+    n_active = torch.clamp(sum(~mask), min=3)
+    mask_2d = ~torch.outer(~mask, ~mask)
+    sum_pdm = torch.sum(pdm * ~mask_2d, dim=-1)
+    dist_u[f] = torch.clamp(0.5 * pdm[f][g] + (sum_pdm[f] - sum_pdm[g]) /
+                            (2 * (n_active - 2)),
+                            min=eps)
+    dist_u[g] = 0
+    return dist_u

@@ -150,9 +150,9 @@ class DodonaphyVI(BaseModel):
             int_loc = self.VariationalParams["int_mu"].reshape(n_int_params)
             int_cov = torch.eye(n_int_params, dtype=torch.double) *\
                 self.VariationalParams["int_sigma"].exp().reshape(n_int_params)
-            sample = self.sample(leaf_loc, leaf_cov, int_loc, int_cov, getPeel=False)
+            sample = self.sample(leaf_loc, leaf_cov, int_loc, int_cov)
         else:
-            sample = self.sample(leaf_loc, leaf_cov, getPeel=False)
+            sample = self.sample(leaf_loc, leaf_cov)
 
         if self.connect_method == 'mst':
             pdm = Cutils.get_pdm_torch(sample['leaf_r'].repeat(self.S), sample['leaf_dir'],
