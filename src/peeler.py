@@ -458,6 +458,9 @@ def soft_sort(s, tau):
 
 
 def soft_argmin(Q, tau):
+    """Soft argmin of matrix Q.
+    NB. this is buggy because somtimes the rank doesn't have a single element that is 0.0+/-.01
+    """
     # flatten
     tril_idx = torch.tril_indices(Q.shape[0], Q.shape[1], offset=-1)
     Q1 = Q[tril_idx[0], tril_idx[1]].unsqueeze(0)
