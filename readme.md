@@ -43,10 +43,9 @@ See doc/notes.pdf for a description of the embedding models being used.
 ## Basic usage
 Run Dodonaphy using
 ```
-dodonaphy [dim]
+python src/run.py [OPTIONS]
 ```
-where dim is the embedding dimension e.g. "dodonaphy 4".
-The entry point is run.py in the src folder. At the moment, most options must be specified as variables in run.py.
+At the command line, type "python src/run.py -h" to see the options.
 
 ## Post-processing
 Several pre-processing and post-processing functions are in the post_process folder.

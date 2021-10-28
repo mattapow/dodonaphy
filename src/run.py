@@ -171,14 +171,29 @@ def tip_distances(tree0, n_taxa):
 def init_parser():
     parser = argparse.ArgumentParser(
         prog="Dodonaphy",
-        description="Compute a Bayesian phylogenetic posterior from a hyperbolic embedding.",
+        description=
+        "Compute a Bayesian phylogenetic posterior from a hyperbolic embedding.",
     )
-    parser.add_argument("--dim", "-D", default=5, type=int, help="Embedding dimensions")
-    parser.add_argument("--taxa", "-S", default=17, type=int, help="Number of taxa.")
-    parser.add_argument("--seq", "-L", default=100, type=int, help="Sequence length.")
-    parser.add_argument(
-        "--epoch", "-n", default=1000, type=int, help="Epochs (iterations)."
-    )
+    parser.add_argument("--dim",
+                        "-D",
+                        default=5,
+                        type=int,
+                        help="Embedding dimensions")
+    parser.add_argument("--taxa",
+                        "-S",
+                        default=17,
+                        type=int,
+                        help="Number of taxa.")
+    parser.add_argument("--seq",
+                        "-L",
+                        default=100,
+                        type=int,
+                        help="Sequence length.")
+    parser.add_argument("--epoch",
+                        "-n",
+                        default=1000,
+                        type=int,
+                        help="Epochs (iterations).")
     parser.add_argument(
         "--draws",
         "-d",
@@ -214,9 +229,11 @@ def init_parser():
         choices=("mcmc", "vi"),
         help="Inference method: MCMC or Variational Inference.",
     )
-    parser.add_argument(
-        "--curv", "-c", default=-1.0, type=float, help="Hyperbolic curvature."
-    )
+    parser.add_argument("--curv",
+                        "-c",
+                        default=-1.0,
+                        type=float,
+                        help="Hyperbolic curvature.")
     parser.add_argument(
         "--start",
         "-t",
@@ -234,7 +251,8 @@ def init_parser():
         "--exp_ext",
         default="",
         type=str,
-        help="Add a suffix to the experimental directory data/T[S]/*/d*_c*_crv*_[exp_ext]",
+        help=
+        "Add a suffix to the experimental directory data/T[S]/*/d*_c*_crv*_[exp_ext]",
     )
 
     # VI parameters
@@ -245,20 +263,28 @@ def init_parser():
         type=int,
         help="Number of tree samples for each epoch in Variational inference.",
     )
-    parser.add_argument(
-        "--learn", "-r", default=1e-1, type=float, help="Learning rate."
-    )
+    parser.add_argument("--learn",
+                        "-r",
+                        default=1e-1,
+                        type=float,
+                        help="Learning rate.")
 
     # MCMC parameters
-    parser.add_argument(
-        "--step", "-x", default=0.001, type=float, help="Initial step scale for MCMC."
-    )
-    parser.add_argument(
-        "--chains", "-N", default=5, type=int, help="Number of MCMC chains."
-    )
-    parser.add_argument(
-        "--burn", "-b", default=0, type=int, help="Number of burn in iterations."
-    )
+    parser.add_argument("--step",
+                        "-x",
+                        default=0.001,
+                        type=float,
+                        help="Initial step scale for MCMC.")
+    parser.add_argument("--chains",
+                        "-N",
+                        default=5,
+                        type=int,
+                        help="Number of MCMC chains.")
+    parser.add_argument("--burn",
+                        "-b",
+                        default=0,
+                        type=int,
+                        help="Number of burn in iterations.")
 
     # MST parameters
     parser.add_argument(
@@ -277,14 +303,17 @@ def init_parser():
         "--max_scale",
         default=1,
         type=float,
-        help="Maximum radius for mst internal node positions relative to minimum leaf radius.",
+        help=
+        "Maximum radius for mst internal node positions relative to minimum leaf radius.",
     )
-    parser.add_argument(
-        "--birth", default=2.0, type=float, help="Birth rate of simulated tree."
-    )
-    parser.add_argument(
-        "--death", default=0.5, type=float, help="Death rate of simulated tree."
-    )
+    parser.add_argument("--birth",
+                        default=2.0,
+                        type=float,
+                        help="Birth rate of simulated tree.")
+    parser.add_argument("--death",
+                        default=0.5,
+                        type=float,
+                        help="Death rate of simulated tree.")
     return parser
 
 
