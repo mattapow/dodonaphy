@@ -391,21 +391,24 @@ def nj(pdm, tau=None):
     for int_i in range(int_node_count + 1):
         Q = compute_Q(pdm, mask)
 
-        if tau is None:
+        if tau == None:
             f, g = unravel_index(Q.argmin(), Q.shape)
+            dist_u = get_new_dist(pdm, mask, f, g)
+            dist_uf = dist_u[f]
+            dist_fg = pdm[f][g]
         else:
-            f, g = soft_argmin(Q, tau)
+            hot_g, hot_f = soft_argmin_one_hot(torch.tril(Q), tau=1e-5)
+            dist_u, dist_uf, dist_fg = get_new_dist_soft(pdm, mask, hot_f, hot_g)
+            f = hot_f.detach().round().nonzero().squeeze()
+            g = hot_g.detach().round().nonzero().squeeze()
+            dist_u[f] = dist_uf
+            dist_u[g] = 0
 
         u = int_i + leaf_node_count
         peel[int_i, :] = (node_map[f], node_map[g], u)
 
-        dist_u = get_new_dist(pdm, mask, f, g)
-
-        blens[node_map[f]] = dist_u[f]
-        blens[node_map[g]] = torch.clamp(pdm[f][g] - dist_u[f], min=eps)
-
-        if int_i == int_node_count:
-            continue
+        blens[node_map[f]] = dist_uf
+        blens[node_map[g]] = torch.clamp(dist_fg - dist_uf, min=eps)
 
         # replace g by dist_u in the pdm
         pdm = torch.vstack((pdm[:g, :], dist_u, pdm[g + 1:, :]))
@@ -452,43 +455,52 @@ def unravel_index(index, shape):
 
 def soft_sort(s, tau):
     s_sorted = s.sort(descending=True, dim=1)[0]
-    pairwise_distances = (s.transpose(0, 1) - s_sorted).abs().neg() / tau
+    pairwise_distances = (s.transpose(1, 2) - s_sorted).abs().neg() / tau
     P_hat = pairwise_distances.softmax(-1)
     return P_hat
 
 
-def soft_argmin(Q, tau):
-    """Soft argmin of matrix Q.
-    NB. this is buggy because somtimes the rank doesn't have a single element that is 0.0+/-.01
+def soft_argmin_one_hot(input_2d, tau, noise=.0001):
+    """Returns one-hot vectors indexing the minimum of a 2D tensor.
     """
-    # flatten
-    tril_idx = torch.tril_indices(Q.shape[0], Q.shape[1], offset=-1)
-    Q1 = Q[tril_idx[0], tril_idx[1]].unsqueeze(0)
+    n, m = input_2d.size()
+    input_2d = input_2d + torch.distributions.Normal(
+        torch.zeros(n * m),
+        torch.ones(n * m) * noise).rsample().view(n, m)
+    one_hot_i = soft_row_argmin(input_2d, tau)
+    one_hot_j = soft_row_argmin(input_2d.T, tau)
+    return one_hot_i, one_hot_j
 
-    # add small noise to break ties
-    Q1 = Q1 + torch.distributions.normal.Normal(
-        torch.zeros_like(Q1),
-        torch.ones_like(Q1) / 1000.0).rsample()
+def soft_row_argmin(input_2d, tau):
+    """Take a 2D tensor and return a one hot vector with indexing the row with the minumum of input.
+    """
+    input_3d = input_2d.unsqueeze(-1)
+    permute = soft_sort(input_3d, tau).squeeze()
+    row_max = torch.sum(permute[:, -1] * input_3d.squeeze(), -1)
+    return soft_sort(row_max.unsqueeze(-1).unsqueeze(0), tau).squeeze()[-1]
 
-    permute = soft_sort(-Q1, tau)
-    integers = torch.arange(Q1.numel()).double()
-    rank = torch.matmul(permute, integers)
-    argmin = torch.isclose(rank, torch.zeros(1).double(),
-                           atol=0.01).nonzero().squeeze()
 
-    # unflatten
-    f = tril_idx[0][argmin]
-    g = tril_idx[1][argmin]
-    return f, g
+def get_new_dist_soft(pdm, mask, hot_f, hot_g):
+    dist_f = hot_f @ pdm
+    dist_g = hot_g @ pdm
+    dist_fg = hot_g @ dist_f
+    dist_u = 0.5 * (dist_f + dist_g - dist_fg)
+
+    n_active = torch.clamp(sum(~mask), min=3)
+    mask_2d = ~torch.outer(~mask, ~mask)
+    sum_pdm = torch.sum(pdm * ~mask_2d, dim=-1)
+    dist_uf = torch.clamp(0.5 * dist_fg + (sum_pdm @ hot_f - sum_pdm @ hot_g) /
+                          (2 * (n_active - 2)),
+                          min=torch.finfo(torch.double).eps)
+    return dist_u, dist_uf, dist_fg
 
 
 def get_new_dist(pdm, mask, f, g):
     eps = torch.finfo(torch.double).eps
-
-    # get distance other taxa to new node u
+    # get distance all taxa to new node u
     dist_u = 0.5 * (pdm[f] + pdm[g] - pdm[f][g])
 
-    # get distance from u to f and f
+    # get distance from u to f
     n_active = torch.clamp(sum(~mask), min=3)
     mask_2d = ~torch.outer(~mask, ~mask)
     sum_pdm = torch.sum(pdm * ~mask_2d, dim=-1)

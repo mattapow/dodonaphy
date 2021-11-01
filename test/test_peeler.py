@@ -221,6 +221,7 @@ def test_nj_knownQ():
     assert torch.isclose(
         sum(blens).double(),
         torch.tensor(17).double()), "Wrong sum of branch lengths."
+    assert blens.requires_grad == True
 
 
 def test_nj_soft():
@@ -230,6 +231,7 @@ def test_nj_soft():
     leaf_dir = utils.angle_to_directional(leaf_theta)
 
     pdm = Cutils.get_pdm_torch(leaf_r, leaf_dir)
+    pdm.requires_grad=True
     peel, blens = peeler.nj(pdm, tau=0.00001)
 
     peel_check = []
@@ -244,6 +246,7 @@ def test_nj_soft():
     assert torch.isclose(sum(blens).float(),
                          torch.tensor(2.0318).float(),
                          atol=.001)
+    assert blens.requires_grad == True
 
 
 def test_soft_nj_knownQ():
@@ -265,9 +268,13 @@ def test_soft_nj_knownQ():
     peel_check.append(
         np.allclose(peel, [[0, 1, 5], [3, 4, 6], [5, 2, 7], [7, 6, 8]]))
     peel_check.append(
+        np.allclose(peel, [[0, 1, 5], [3, 4, 6], [2, 6, 7], [5, 7, 8]]))
+    peel_check.append(
         np.allclose(peel, [[0, 1, 5], [5, 2, 6], [6, 3, 7], [7, 4, 8]]))
     peel_check.append(
         np.allclose(peel, [[0, 1, 5], [3, 4, 6], [5, 6, 7], [2, 7, 8]]))
+    peel_check.append(
+        np.allclose(peel, [[0, 1, 5], [5, 2, 6], [6, 4, 7], [3, 7, 8]]))
     peel_check.append(
         np.allclose(peel, [[1, 0, 5], [2, 5, 6], [4, 3, 7], [7, 6, 8]]))
     assert sum(
@@ -275,3 +282,35 @@ def test_soft_nj_knownQ():
     assert torch.isclose(
         sum(blens).double(),
         torch.tensor(17).double()), "Wrong sum of branch lengths."
+
+
+def test_soft_sort_1d():
+    input = torch.tensor([2, 5.5, 3, -1, 0])
+    permute = peeler.soft_sort(input.unsqueeze(-1).unsqueeze(0),
+                               tau=0.000001).squeeze()
+    output = permute @ input
+    correct = torch.tensor([5.5, 3, 2, 0, -1])
+    assert torch.allclose(output, correct)
+
+
+def test_soft_sort_2d():
+    input = torch.tensor([[0, 50, 38, 34], [50, 0, 38, 34], [38, 38, 0, 40],
+                          [34, 34, 40, 0]])
+    permute = peeler.soft_sort(input.unsqueeze(-1), tau=0.000001)
+
+    row0_argmax = permute[0, 0]
+    assert torch.allclose(row0_argmax[1], torch.ones(1))
+    assert torch.allclose(sum(row0_argmax), torch.ones(1))
+    row1_argmax = permute[1, 0]
+    assert torch.allclose(row1_argmax[0], torch.ones(1))
+    assert torch.allclose(sum(row1_argmax), torch.ones(1))
+    row2_argmax = permute[2, 0]
+    assert torch.allclose(row2_argmax[3], torch.ones(1))
+    assert torch.allclose(sum(row2_argmax), torch.ones(1))
+
+
+def test_soft_argmin_one_hot():
+    input_2d = torch.tensor(([4, 5, 10], [3, 4, 2.3], [20, 2, 8]))
+    one_hot_i, one_hot_j = peeler.soft_argmin_one_hot(input_2d, tau=.000001)
+    assert torch.allclose(one_hot_i, torch.tensor([0., 0., 1.])), "wrong i index"
+    assert torch.allclose(one_hot_j, torch.tensor([0., 1., 0.])), "wrong j index"
