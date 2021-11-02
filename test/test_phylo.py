@@ -11,8 +11,13 @@ def test_prior_mrbayes_0():
     dendo_tree = dendropy.Tree.get(data=data, schema="newick")
     _, blens = treeFunc.dendrophy_to_pb(dendo_tree)
 
-    lnPrior = BaseModel.compute_prior_gamma_dir(blens, aT=torch.ones(1), bT=torch.full((1,), .1), a=torch.ones(1),
-                                                c=torch.ones(1))
+    lnPrior = BaseModel.compute_prior_gamma_dir(
+        blens,
+        aT=torch.ones(1),
+        bT=torch.full((1,), 0.1),
+        a=torch.ones(1),
+        c=torch.ones(1),
+    )
     assert lnPrior == approx(17.34844, abs=1e-5)
 
 
@@ -22,6 +27,11 @@ def test_prior_mrbayes_1():
     dendo_tree = dendropy.Tree.get(data=data, schema="newick")
     _, blens = treeFunc.dendrophy_to_pb(dendo_tree)
 
-    lnPrior = BaseModel.compute_prior_gamma_dir(blens, aT=torch.ones(1), bT=torch.full((1,), .1), a=torch.ones(1),
-                                                c=torch.ones(1))
+    lnPrior = BaseModel.compute_prior_gamma_dir(
+        blens,
+        aT=torch.ones(1),
+        bT=torch.full((1,), 0.1),
+        a=torch.ones(1),
+        c=torch.ones(1),
+    )
     assert lnPrior == approx(13.56829, abs=1e-5)
