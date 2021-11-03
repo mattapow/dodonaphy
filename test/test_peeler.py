@@ -287,10 +287,11 @@ def test_soft_nj_knownQ():
     peel_check.append(np.allclose(peel, [[0, 1, 5], [5, 2, 6], [6, 3, 7], [7, 4, 8]]))
     peel_check.append(np.allclose(peel, [[0, 1, 5], [3, 4, 6], [5, 6, 7], [2, 7, 8]]))
     peel_check.append(np.allclose(peel, [[0, 1, 5], [5, 2, 6], [6, 4, 7], [3, 7, 8]]))
+    peel_check.append(np.allclose(peel, [[0, 1, 5], [5, 2, 6], [3, 4, 7], [6, 7, 8]]))
     peel_check.append(np.allclose(peel, [[1, 0, 5], [2, 5, 6], [4, 3, 7], [7, 6, 8]]))
     assert sum(peel_check), "Wrong topology. NB. not all correct cases covered."
     assert torch.isclose(
-        sum(blens).double(), torch.tensor(17).double()
+        sum(blens).double(), torch.tensor(17).double(), atol=0.01
     ), "Wrong sum of branch lengths."
 
 

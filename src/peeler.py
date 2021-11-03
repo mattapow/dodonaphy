@@ -397,10 +397,12 @@ def nj(pdm, tau=None):
             dist_uf = dist_u[f]
             dist_fg = pdm[f][g]
         else:
-            hot_g, hot_f = soft_argmin_one_hot(torch.tril(Q), tau=1e-5)
+            hot_g, hot_f = soft_argmin_one_hot(
+                torch.tril(Q), tau=0.00001, noise_ratio=30
+            )
             dist_u, dist_uf, dist_fg = get_new_dist_soft(pdm, mask, hot_f, hot_g)
-            f = hot_f.detach().round().nonzero().squeeze()
-            g = hot_g.detach().round().nonzero().squeeze()
+            f = hot_f.detach().round().nonzero()[0]
+            g = hot_g.detach().round().nonzero()[0]
             dist_u[f] = dist_uf
             dist_u[g] = 0
 
@@ -411,9 +413,8 @@ def nj(pdm, tau=None):
         blens[node_map[g]] = torch.clamp(dist_fg - dist_uf, min=eps)
 
         # replace g by dist_u in the pdm
-        pdm = torch.vstack((pdm[:g, :], dist_u, pdm[g + 1:, :]))
-        pdm = torch.hstack((pdm[:, :g], dist_u.unsqueeze(dim=-1), pdm[:,
-                                                                      g + 1:]))
+        pdm = torch.vstack((pdm[:g, :], dist_u, pdm[g + 1 :, :]))
+        pdm = torch.hstack((pdm[:, :g], dist_u.unsqueeze(dim=-1), pdm[:, g + 1 :]))
         node_map[g] = u
         mask[f] = True
 
@@ -432,7 +433,7 @@ def compute_Q(pdm, mask=None):
     """
     n_pdm = len(pdm)
     if mask is None:
-        mask = torch.full((n_pdm, ), False)
+        mask = torch.full((n_pdm,), False)
     n_active = sum(~mask)
 
     mask_2d = ~torch.outer(~mask, ~mask)
@@ -460,20 +461,20 @@ def soft_sort(s, tau):
     return P_hat
 
 
-def soft_argmin_one_hot(input_2d, tau, noise=.0001):
-    """Returns one-hot vectors indexing the minimum of a 2D tensor.
-    """
+def soft_argmin_one_hot(input_2d, tau, noise_ratio=100):
+    """Returns one-hot vectors indexing the minimum of a 2D tensor."""
+    sigma = tau * noise_ratio
     n, m = input_2d.size()
     input_2d = input_2d + torch.distributions.Normal(
-        torch.zeros(n * m),
-        torch.ones(n * m) * noise).rsample().view(n, m)
+        torch.zeros(n * m), torch.ones(n * m) * sigma
+    ).rsample().view(n, m)
     one_hot_i = soft_row_argmin(input_2d, tau)
     one_hot_j = soft_row_argmin(input_2d.T, tau)
     return one_hot_i, one_hot_j
 
+
 def soft_row_argmin(input_2d, tau):
-    """Take a 2D tensor and return a one hot vector with indexing the row with the minumum of input.
-    """
+    """Take a 2D tensor and return a one hot vector with indexing the row with the minumum of input."""
     input_3d = input_2d.unsqueeze(-1)
     permute = soft_sort(input_3d, tau).squeeze()
     row_max = torch.sum(permute[:, -1] * input_3d.squeeze(), -1)
@@ -489,9 +490,10 @@ def get_new_dist_soft(pdm, mask, hot_f, hot_g):
     n_active = torch.clamp(sum(~mask), min=3)
     mask_2d = ~torch.outer(~mask, ~mask)
     sum_pdm = torch.sum(pdm * ~mask_2d, dim=-1)
-    dist_uf = torch.clamp(0.5 * dist_fg + (sum_pdm @ hot_f - sum_pdm @ hot_g) /
-                          (2 * (n_active - 2)),
-                          min=torch.finfo(torch.double).eps)
+    dist_uf = torch.clamp(
+        0.5 * dist_fg + (sum_pdm @ hot_f - sum_pdm @ hot_g) / (2 * (n_active - 2)),
+        min=torch.finfo(torch.double).eps,
+    )
     return dist_u, dist_uf, dist_fg
 
 
@@ -504,8 +506,8 @@ def get_new_dist(pdm, mask, f, g):
     n_active = torch.clamp(sum(~mask), min=3)
     mask_2d = ~torch.outer(~mask, ~mask)
     sum_pdm = torch.sum(pdm * ~mask_2d, dim=-1)
-    dist_u[f] = torch.clamp(0.5 * pdm[f][g] + (sum_pdm[f] - sum_pdm[g]) /
-                            (2 * (n_active - 2)),
-                            min=eps)
+    dist_u[f] = torch.clamp(
+        0.5 * pdm[f][g] + (sum_pdm[f] - sum_pdm[g]) / (2 * (n_active - 2)), min=eps
+    )
     dist_u[g] = 0
     return dist_u
