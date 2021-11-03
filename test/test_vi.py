@@ -1,7 +1,11 @@
+import os
+from numpy import allclose
+
 import dendropy
 import torch
 from dendropy.model.discrete import simulate_discrete_chars
 from dendropy.simulate import treesim
+from src import vi
 from src.phylo import compress_alignment
 from src.vi import DodonaphyVI
 
@@ -155,3 +159,25 @@ def test_draws_different_vi_simple_nj():
     assert not torch.equal(lp__[0], lp__[1])
     assert not torch.equal(lp__[0], lp__[2])
     assert not torch.equal(lp__[1], lp__[2])
+
+
+def test_io():
+    simtree = treesim.birth_death_tree(
+        birth_rate=1.0, death_rate=0.5, num_extant_tips=6
+    )
+    dna = simulate_discrete_chars(
+        seq_len=1000, tree_model=simtree, seq_model=dendropy.model.discrete.Jc69()
+    )
+    partials, weights = compress_alignment(dna)
+    mymod = DodonaphyVI(
+        partials, weights, 2, embed_method="simple", connect_method="nj"
+    )
+    tmp_dir = "./tmp"
+    os.makedirs(tmp_dir, exist_ok=True)
+    fp = os.path.join(tmp_dir, "test_data.csv")
+    mymod.save(fp)
+    output = vi.read(fp, connect_method="nj")
+    assert allclose(output["leaf_mu"], mymod.VariationalParams["leaf_mu"].detach().numpy())
+    assert allclose(output["leaf_sigma"], mymod.VariationalParams["leaf_sigma"].detach().numpy())
+    os.remove(fp)
+    os.removedirs(tmp_dir)

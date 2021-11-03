@@ -206,9 +206,10 @@ class DodonaphyVI(BaseModel):
                 for key, value in self.prior.items():
                     file.write('%-12s: %s\n' % (key, str(value)))
 
-                # Save varitaional parameters
-                fn = os.path.join(path_write, "VI_params_init.csv")
-                self.save(fn)
+            vi_path = os.path.join(path_write, 'vi_params')
+            os.mkdir(vi_path)
+            fn = os.path.join(vi_path, f"vi_{0}.csv")
+            self.save(fn)
 
             elbo_fn = os.path.join(path_write, 'elbo.txt')
 
@@ -239,6 +240,8 @@ class DodonaphyVI(BaseModel):
             if path_write is not None:
                 with open(elbo_fn, 'a') as f:
                     f.write("%f\n" % elbo_hist[-1])
+                fn = os.path.join(path_write, 'vi_params', f"vi_{epoch+1}.csv")
+                self.save(fn)
 
         if epochs > 0 and path_write is not None:
             try:
@@ -362,49 +365,52 @@ class DodonaphyVI(BaseModel):
                 tree.save_tree(
                     path_write, "vi", peels[0], blens[0], i, lp[0].item(), lnPr.item())
 
-            # Save varitaional parameters
-            fn = os.path.join(path_write, "VI_params.csv")
-            mymod.save(fn)
 
     def save(self, fn):
-        with open(fn, 'w') as f:
+        with open(fn, "w") as f:
             for i in range(self.S):
                 for d in range(self.D):
-                    f.write('%f\t' % self.VariationalParams['leaf_mu'][i, d])
-            f.write('\n')
-
-            for i in range(self.S):
+                    f.write("%f\t" % self.VariationalParams["leaf_mu"][i, d])
                 for d in range(self.D):
-                    f.write('%f\t' %
-                            self.VariationalParams['leaf_sigma'][i, d])
-            f.write('\n')
+                    f.write("%f\t" % self.VariationalParams["leaf_sigma"][i, d])
+                f.write("\n")
+            f.write("\n")
 
-            if self.connect_method == 'mst':
-                for i in range(self.S-2):
+            if self.connect_method == "mst":
+                for i in range(self.S - 2):
                     for d in range(self.D):
-                        f.write('%f\t' %
-                                self.VariationalParams['int_mu'][i, d])
-                f.write('\n')
-
-                for i in range(self.S-2):
+                        f.write("%f\t" % self.VariationalParams["int_mu"][i, d])
                     for d in range(self.D):
-                        f.write('%f\t' %
-                                self.VariationalParams['int_sigma'][i, d])
-                f.write('\n')
+                        f.write("%f\t" % self.VariationalParams["int_sigma"][i, d])
+                    f.write("\n")
+                f.write("\n")
 
 
 def read(path_read, connect_method='mst'):
     with open(path_read, 'r') as f:
         lines = [line.rstrip('\n') for line in f]
-
-    VariationalParams = {}
-    VariationalParams['leaf_mu'] = np.array(
-        [float(i) for i in lines[0].rstrip().split("\t")])
-    VariationalParams['leaf_sigma'] = np.array(
-        [float(i) for i in lines[1].rstrip().split("\t")])
+    dim = int(len([float(i) for i in lines[0].rstrip().split("\t")]) / 2)
+    n_lines = len(lines) - 1
     if connect_method == 'mst':
-        VariationalParams['int_mu'] = np.array(
-            [float(i) for i in lines[2].rstrip().split("\t")])
-        VariationalParams['int_sigma'] = np.array(
-            [float(i) for i in lines[3].rstrip().split("\t")])
+        n_taxa = int( n_lines/ 2 + 1)
+    else:
+        n_taxa = n_lines
+
+    VariationalParams = {
+        'leaf_mu': np.empty((n_taxa, dim)),
+        'leaf_sigma': np.empty((n_taxa, dim))
+    }
+    
+    for i in range(n_taxa):
+        line_in = np.array([float(j) for j in lines[i].rstrip().split("\t")])
+        VariationalParams['leaf_mu'][i, :] = line_in[:dim]
+        VariationalParams['leaf_sigma'][i, :] = line_in[dim:]
+
+    if connect_method == 'mst':
+        VariationalParams['int_mu'] = np.empty((n_taxa-2, dim))
+        VariationalParams['int_sigma'] = np.empty((n_taxa-2, dim))
+        for i in range(n_taxa-2):
+            line_in = np.array([float(j) for j in lines[i+n_taxa].rstrip().split("\t")])
+        VariationalParams['int_mu'][i, :] = line_in[:dim]
+        VariationalParams['int_sigma'][i, :] = line_in[dim:]
     return VariationalParams
