@@ -15,29 +15,39 @@ def compress_alignment(alignment):
 
     partials = []
 
-    dna_map = {'A': [1.0, 0.0, 0.0, 0.0],
-               'C': [0.0, 1.0, 0.0, 0.0],
-               'G': [0.0, 0.0, 1.0, 0.0],
-               'T': [0.0, 0.0, 0.0, 1.0]}
+    dna_map = {
+        "A": [1.0, 0.0, 0.0, 0.0],
+        "C": [0.0, 1.0, 0.0, 0.0],
+        "G": [0.0, 0.0, 1.0, 0.0],
+        "T": [0.0, 0.0, 0.0, 1.0],
+    }
     unknown = [1.0] * 4
 
     for taxon in taxa:
         partials.append(
-            torch.tensor(np.transpose(np.array([dna_map.get(c.upper(), unknown) for c in patterns[taxon]]))))
+            torch.tensor(
+                np.transpose(
+                    np.array([dna_map.get(c.upper(), unknown) for c in patterns[taxon]])
+                )
+            )
+        )
     return partials, torch.tensor(np.array(weights))
 
 
 def calculate_treelikelihood(partials, weights, post_indexing, mats, freqs):
     for left, right, node in post_indexing:
-        partials[node] = torch.matmul(mats[left], partials[left]) * torch.matmul(mats[right], partials[right])
-    return torch.sum(torch.log(torch.matmul(freqs, partials[post_indexing[-1][-1]])) * weights)
+        partials[node] = torch.matmul(mats[left], partials[left]) * torch.matmul(
+            mats[right], partials[right]
+        )
+    return torch.sum(
+        torch.log(torch.matmul(freqs, partials[post_indexing[-1][-1]])) * weights
+    )
 
 
 def JC69_p_t(branch_lengths):
     d = torch.unsqueeze(branch_lengths, -1)
-    a = 0.25 + 3. / 4. * torch.exp(-4. / 3. * d)
-    b = 0.25 - 0.25 * torch.exp(-4. / 3. * d)
-    return torch.cat((a, b, b, b,
-                      b, a, b, b,
-                      b, b, a, b,
-                      b, b, b, a), -1).reshape(d.shape[0], d.shape[1], 4, 4)
+    a = 0.25 + 3.0 / 4.0 * torch.exp(-4.0 / 3.0 * d)
+    b = 0.25 - 0.25 * torch.exp(-4.0 / 3.0 * d)
+    return torch.cat((a, b, b, b, b, a, b, b, b, b, a, b, b, b, b, a), -1).reshape(
+        d.shape[0], d.shape[1], 4, 4
+    )

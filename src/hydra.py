@@ -6,7 +6,7 @@ import numpy as np
 import torch
 
 
-def hydra(D, dim=2, curvature=-1., alpha=1.1, equi_adj=0.5, **kwargs):
+def hydra(D, dim=2, curvature=-1.0, alpha=1.1, equi_adj=0.5, **kwargs):
     """Strain minimised hyperbolic embedding
     Python Implementation of Martin Keller-Ressel's 2019 CRAN function
     hydra
@@ -70,29 +70,31 @@ def hydra(D, dim=2, curvature=-1., alpha=1.1, equi_adj=0.5, **kwargs):
 
     if dim > len(D):
         raise RuntimeError(
-            "Hydra cannot embed %d points in %d-dimensions. Limit of %d." % (len(D), dim, len(D)))
+            "Hydra cannot embed %d points in %d-dimensions. Limit of %d."
+            % (len(D), dim, len(D))
+        )
 
     if not np.allclose(D, np.transpose(D)):
         warnings.warn(
             "Input matrix D is not symmetric.\
-                Lower triangle part is used.")
+                Lower triangle part is used."
+        )
 
     if dim == 2:
         # set default values in dimension 2
         if "isotropic_adj" not in kwargs:
-            kwargs['isotropic_adj'] = True
+            kwargs["isotropic_adj"] = True
         if "polar" in kwargs:
-            kwargs['polar'] = True
+            kwargs["polar"] = True
     else:
         # set default values in dimension > 2
         if "isotropic_adj" in kwargs:
-            kwargs['isotropic_adj'] = False
+            kwargs["isotropic_adj"] = False
         if "polar" in kwargs:
             warnings.warn("Polar coordinates only valid in dimension two")
-            kwargs['polar'] = False
+            kwargs["polar"] = False
         if equi_adj != 0.0:
-            warnings.warn(
-                "Equiangular adjustment only possible in dimension two.")
+            warnings.warn("Equiangular adjustment only possible in dimension two.")
 
     # convert distance matrix to 'hyperbolic Gram matrix'
     A = np.cosh(np.sqrt(-curvature) * D)
@@ -103,11 +105,13 @@ def hydra(D, dim=2, curvature=-1., alpha=1.1, equi_adj=0.5, **kwargs):
     if A_max > 1e8:
         warnings.warn(
             "Gram Matrix contains values > 1e8. Rerun with smaller\
-            curvature parameter or rescaled distances.")
+            curvature parameter or rescaled distances."
+        )
     if A_max == float("inf"):
         warnings.warn(
             "Gram matrix contains infinite values.\
-            Rerun with smaller curvature parameter or rescaled distances.")
+            Rerun with smaller curvature parameter or rescaled distances."
+        )
 
     # Compute Eigendecomposition of A
     w, v = np.linalg.eigh(A)
@@ -120,8 +124,8 @@ def hydra(D, dim=2, curvature=-1., alpha=1.1, equi_adj=0.5, **kwargs):
     x0 = v[:, 0]
 
     # Extract lower tail of spectrum)
-    X = v[:, (n - dim):n]  # Last dim Eigenvectors
-    spec_tail = w[(n - dim):n]  # Last dim Eigenvalues
+    X = v[:, (n - dim) : n]  # Last dim Eigenvectors
+    spec_tail = w[(n - dim) : n]  # Last dim Eigenvalues
     # A_frob = np.sqrt(np.sum(v**2)) # Frobenius norm of A
 
     x0 = x0 * np.sqrt(lambda0)  # scale by Eigenvalue
@@ -130,11 +134,12 @@ def hydra(D, dim=2, curvature=-1., alpha=1.1, equi_adj=0.5, **kwargs):
     x_min = min(x0)  # find minimum
 
     # no isotropic adjustment: rescale Eigenvectors by Eigenvalues
-    if not kwargs.get('isotropic_adj'):
+    if not kwargs.get("isotropic_adj"):
         if np.array([spec_tail > 0]).any():
             warnings.warn(
                 "Spectral Values have been truncated to zero. Try to use\
-                lower embedding dimension")
+                lower embedding dimension"
+            )
             spec_tail[spec_tail > 0] = 0
         X = np.matmul(X, np.diag(np.sqrt(-spec_tail)))
 
@@ -146,7 +151,7 @@ def hydra(D, dim=2, curvature=-1., alpha=1.1, equi_adj=0.5, **kwargs):
     # Calculate radial coordinate
     # multiplicative adjustment (scaling)
     r = np.sqrt((alpha * x0 - x_min) / (alpha * x0 + x_min))
-    output['r'] = r
+    output["r"] = r
 
     # Calculate polar coordinates if dimension is 2
     if dim == 2:
@@ -156,28 +161,28 @@ def hydra(D, dim=2, curvature=-1., alpha=1.1, equi_adj=0.5, **kwargs):
         # Equiangular adjustment
         if equi_adj > 0.0:
             angles = [(2 * x / n - 1) * math.pi for x in range(0, n)]
-            theta_equi = np.array([x for _, x in sorted(
-                zip(theta, angles))])  # Equi-spaced angles
+            theta_equi = np.array(
+                [x for _, x in sorted(zip(theta, angles))]
+            )  # Equi-spaced angles
             # convex combination of original and equi-spaced angles
             theta = (1 - equi_adj) * theta + equi_adj * theta_equi
             # update directional coordinate
-            directional = np.array(
-                [np.cos(theta), np.sin(theta)]).transpose()
+            directional = np.array([np.cos(theta), np.sin(theta)]).transpose()
 
-            output['theta'] = theta
+            output["theta"] = theta
 
-    output['directional'] = directional
+    output["directional"] = directional
 
     # Set Additional return values
-    if kwargs.get('lorentz'):
-        output['x0'] = x0
-        output['X'] = X
+    if kwargs.get("lorentz"):
+        output["x0"] = x0
+        output["X"] = X
 
-    if kwargs.get('stress'):
-        output['stress'] = stress(r, directional, curvature, D)
+    if kwargs.get("stress"):
+        output["stress"] = stress(r, directional, curvature, D)
 
-    output['curvature'] = curvature
-    output['dim'] = dim
+    output["curvature"] = curvature
+    output["dim"] = dim
     return output
 
 
@@ -195,9 +200,16 @@ def stress(r, directional, curvature, D):
         for j in range(n):
             if i != j:
                 dist[i][j] = Cutils.hyperbolic_distance_np(
-                    r[i], r[j],
-                    directional[i, ], directional[j, ],
-                    curvature)
+                    r[i],
+                    r[j],
+                    directional[
+                        i,
+                    ],
+                    directional[
+                        j,
+                    ],
+                    curvature,
+                )
                 stress_sq = stress_sq + (dist[i][j] - D[i, j]) ** 2
 
     return np.sqrt(stress_sq)

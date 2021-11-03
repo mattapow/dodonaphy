@@ -32,9 +32,8 @@ def post_order_traversal(adjacency, currentNode, peel, visited):
         elif isinstance(adjacency, np.ndarray):
             cur_adj = np.where(adjacency[currentNode])[0]
         for child in cur_adj:
-            if (not visited[child]):
-                childs.append(post_order_traversal(
-                    adjacency, child, peel, visited))
+            if not visited[child]:
+                childs.append(post_order_traversal(adjacency, child, peel, visited))
                 # childs.append(child)
         childs.append(currentNode)
         peel.append(childs)
@@ -42,7 +41,7 @@ def post_order_traversal(adjacency, currentNode, peel, visited):
 
 
 def dendrophy_to_pb(tree):
-    """ Convert Dendrophy tree to peels and blens.
+    """Convert Dendrophy tree to peels and blens.
     Parameters
     ----------
     tree : A Dendrophy tree
@@ -67,15 +66,17 @@ def dendrophy_to_pb(tree):
     peel = np.zeros((n_int_nds, 3), dtype=int)
     for i in range(n_int_nds):
         peel[i, 0] = tree.bipartition_encoding.index(
-            nds[i].child_edges()[0].bipartition)
+            nds[i].child_edges()[0].bipartition
+        )
         peel[i, 1] = tree.bipartition_encoding.index(
-            nds[i].child_edges()[1].bipartition)
+            nds[i].child_edges()[1].bipartition
+        )
         peel[i, 2] = tree.bipartition_encoding.index(nds[i].bipartition)
     return peel, blens.double()
 
 
 def plot_tree(ax, peel, X_torch, color=(0, 0, 0), labels=True, radius=1):
-    """ Plot a tree in the Poincare disk
+    """Plot a tree in the Poincare disk
 
     Parameters
     ----------
@@ -88,12 +89,12 @@ def plot_tree(ax, peel, X_torch, color=(0, 0, 0), labels=True, radius=1):
     -------
 
     """
-    circ = Circle((0, 0), radius=radius, fill=False, edgecolor='k')
+    circ = Circle((0, 0), radius=radius, fill=False, edgecolor="k")
     ax.add_patch(circ)
 
     # nodes
     X = np.array(X_torch)
-    ax.plot(X[:, 0], X[:, 1], '.', color=color)
+    ax.plot(X[:, 0], X[:, 1], ".", color=color)
 
     # edges
     n_parents = peel.shape[0]
@@ -111,23 +112,23 @@ def plot_tree(ax, peel, X_torch, color=(0, 0, 0), labels=True, radius=1):
         n_points = X.shape[0] - 1
         for p in range(n_points):
             msg = str(p)
-            ax.annotate(msg,
-                        xy=(float(X[p, 0]) + .002, float(X[p, 1])),
-                        xycoords='data')
+            ax.annotate(
+                msg, xy=(float(X[p, 0]) + 0.002, float(X[p, 1])), xycoords="data"
+            )
 
 
 def save_tree(dir, filename, peel, blens, iteration, lnL, lnPr):
     if dir is None:
         return
-    S = len(peel)+1
-    tipnames = ['T' + str(x+1) for x in range(S)]
+    S = len(peel) + 1
+    tipnames = ["T" + str(x + 1) for x in range(S)]
     tree = tree_to_newick(tipnames, peel, blens)
 
-    fn = dir + '/' + filename + '.trees'
-    with open(fn, 'a+') as file:
+    fn = dir + "/" + filename + ".trees"
+    with open(fn, "a+") as file:
         file.write("tree STATE_" + str(iteration))
         file.write(" [&lnL=%f, &lnPr=%f] = [&R] " % (lnL, lnPr))
-        file.write(tree + '\n')
+        file.write(tree + "\n")
 
 
 def tree_to_newick(tipnames, peel_row, blen_row):
@@ -142,7 +143,7 @@ def tree_to_newick(tipnames, peel_row, blen_row):
         Newick String: A Tree
     """
     chunks = {}
-    plen = tipnames.__len__()-1
+    plen = tipnames.__len__() - 1
     for p in range(plen):
         n1 = peel_row[p][0]
         n2 = peel_row[p][1]
@@ -152,24 +153,31 @@ def tree_to_newick(tipnames, peel_row, blen_row):
         if n2 <= plen:
             chunks[n2] = tipnames[n2] + ":" + str(blen_row[n2].item())
 
-        if p == (plen-1):
+        if p == (plen - 1):
             chunks[n3] = "(" + chunks[n1] + "," + chunks[n2] + ")" + ";"
         else:
-            chunks[n3] = "(" + chunks[n1] + "," + chunks[n2] + \
-                ")" + ":" + str(blen_row[n3].item())
+            chunks[n3] = (
+                "("
+                + chunks[n1]
+                + ","
+                + chunks[n2]
+                + ")"
+                + ":"
+                + str(blen_row[n3].item())
+            )
     return str(chunks[peel_row[-1][2]])
 
 
 def save_tree_head(path_write, filename, S):
     if path_write is None:
         return
-    fn = path_write + '/' + filename + '.trees'
-    with open(fn, 'w') as file:
+    fn = path_write + "/" + filename + ".trees"
+    with open(fn, "w") as file:
         file.write("#NEXUS\n\n")
         file.write("Begin taxa;\n\tDimensions ntax=" + str(S) + ";\n")
         file.write("\tTaxlabels\n")
         for i in range(S):
-            file.write("\t\t" + "T" + str(i+1) + "\n")
+            file.write("\t\t" + "T" + str(i + 1) + "\n")
         file.write("\t\t;\nEnd;\n\n")
         file.write("Begin trees;\n")
         file.write("\t translate\n")

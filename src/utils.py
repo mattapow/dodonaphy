@@ -30,7 +30,9 @@ def angle_to_directional(theta):
     return directional
 
 
-def get_pdm(leaf_r, leaf_dir, int_r=None, int_dir=None, curvature=-torch.ones(1), astorch=False):
+def get_pdm(
+    leaf_r, leaf_dir, int_r=None, int_dir=None, curvature=-torch.ones(1), astorch=False
+):
     leaf_node_count = leaf_r.shape[0]
     node_count = leaf_r.shape[0]
     if int_r is not None:
@@ -48,19 +50,17 @@ def get_pdm(leaf_r, leaf_dir, int_r=None, int_dir=None, curvature=-torch.ones(1)
             if (i < leaf_node_count) and (j < leaf_node_count):
                 # leaf to leaf
                 dist_ij = Cutils.hyperbolic_distance(
-                    leaf_r[i],
-                    leaf_r[j],
-                    leaf_dir[i],
-                    leaf_dir[j],
-                    curvature)
-            elif (i < leaf_node_count):
+                    leaf_r[i], leaf_r[j], leaf_dir[i], leaf_dir[j], curvature
+                )
+            elif i < leaf_node_count:
                 # leaf to internal
                 dist_ij = Cutils.hyperbolic_distance(
                     leaf_r[i],
                     int_r[j - leaf_node_count],
                     leaf_dir[i],
                     int_dir[j - leaf_node_count],
-                    curvature)
+                    curvature,
+                )
             else:
                 # internal to internal
                 i_node = i - leaf_node_count
@@ -69,7 +69,8 @@ def get_pdm(leaf_r, leaf_dir, int_r=None, int_dir=None, curvature=-torch.ones(1)
                     int_r[j - leaf_node_count],
                     int_dir[i_node],
                     int_dir[j - leaf_node_count],
-                    curvature)
+                    curvature,
+                )
 
             # apply the inverse transform from Matsumoto et al 2020
             dist_ij = torch.log(torch.cosh(dist_ij))
@@ -91,7 +92,8 @@ def get_pdm_tips(leaf_r, leaf_dir, curvature=-torch.ones(1)):
         for j in range(i):
             dist_ij = 0
             dist_ij = Cutils.hyperbolic_distance(
-                leaf_r[i], leaf_r[j], leaf_dir[i], leaf_dir[j], curvature)
+                leaf_r[i], leaf_r[j], leaf_dir[i], leaf_dir[j], curvature
+            )
 
             # apply the inverse transform from Matsumoto et al 2020
             dist_ij = torch.log(torch.cosh(dist_ij))
@@ -116,8 +118,10 @@ def dir_to_cart(r, directional):
 
     """
     # Ensure directional is unit vector
-    if not torch.allclose(torch.norm(directional, dim=-1).double(), torch.tensor(1.).double()):
-        raise RuntimeError('Directional given is not a unit vector.')
+    if not torch.allclose(
+        torch.norm(directional, dim=-1).double(), torch.tensor(1.0).double()
+    ):
+        raise RuntimeError("Directional given is not a unit vector.")
 
     if r.shape == torch.Size([]):
         return directional * r
@@ -175,7 +179,7 @@ def cart_to_dir(X):
 
     if X.ndim == 1:
         X = torch.unsqueeze(X, 0)
-    r = torch.pow(torch.pow(X, 2).sum(dim=1), .5)
+    r = torch.pow(torch.pow(X, 2).sum(dim=1), 0.5)
     directional = X / r[:, None]
 
     for i in torch.where(torch.isclose(r, torch.zeros_like(r))):
@@ -225,7 +229,7 @@ def get_plca(locs):
 
     for i in range(node_count):
         for j in range(i):
-            dist_ij = - poincare.hyp_lca(locs[i], locs[j], return_coord=False)
+            dist_ij = -poincare.hyp_lca(locs[i], locs[j], return_coord=False)
 
             edge_list[i].append(u_edge(dist_ij, i, j))
             edge_list[j].append(u_edge(dist_ij, j, i))
@@ -307,8 +311,10 @@ def normalise_LADJ(y):
 
     log_abs_det_J = torch.zeros(1)
     for k in range(n):
-        J = torch.div(torch.eye(
-            D, D) - torch.div(torch.outer(y[k], y[k]), torch.pow(norm[k], 2)), norm[k])
+        J = torch.div(
+            torch.eye(D, D) - torch.div(torch.outer(y[k], y[k]), torch.pow(norm[k], 2)),
+            norm[k],
+        )
         log_abs_det_J = log_abs_det_J + torch.logdet(J)
     return log_abs_det_J
 
@@ -326,8 +332,11 @@ def LogDirPrior(blen, aT, bT, a, c):
     tipb = torch.sum(torch.log(blen_pos[:n_leaf]))
     intb = torch.sum(torch.log(blen_pos[n_leaf:]))
 
-    lnPrior = (a-1)*tipb + (a*c-1)*intb
-    lnPrior = lnPrior + (aT - a*n_leaf - a*c*(n_leaf-3)) * \
-        torch.log(treeL) - bT*treeL
+    lnPrior = (a - 1) * tipb + (a * c - 1) * intb
+    lnPrior = (
+        lnPrior
+        + (aT - a * n_leaf - a * c * (n_leaf - 3)) * torch.log(treeL)
+        - bT * treeL
+    )
 
     return lnPrior

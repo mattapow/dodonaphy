@@ -12,7 +12,7 @@ class vi_wrapper(DodonaphyVI):
         int_loc = self.VariationalParams["int_mu"]
         with torch.no_grad():
             int_loc[0, :] = int_loc_optim
-        assert self.connect_method == 'simple'
+        assert self.connect_method == "simple"
         leaf_poin = utils.real2ball(leaf_loc)
         leaf_r, leaf_dir = utils.cart_to_dir(leaf_poin)
 
@@ -21,7 +21,9 @@ class vi_wrapper(DodonaphyVI):
 
         # NB: peel_np has no gradient. Gradients through branch lengths only
         peel_np = peeler.make_peel_mst(leaf_r, leaf_dir, int_r, int_dir)
-        blen = self.compute_branch_lengths(self.S, peel_np, leaf_r, leaf_dir, int_r, int_dir, useNP=False)
+        blen = self.compute_branch_lengths(
+            self.S, peel_np, leaf_r, leaf_dir, int_r, int_dir, useNP=False
+        )
         return self.compute_LL(peel_np, blen)
 
     # def learn_ML(self, iter_per_param=500, rounds=2, path_write='./out', lr=.1):
@@ -54,7 +56,9 @@ class vi_wrapper(DodonaphyVI):
     #     # compare to grid search
     #     # print('Grid seach give maximum LL: %f' % max_LL)
 
-    def learn_ML_brute(self, param_init=None, iter_per_param=500, rounds=20, path_write='./out', lr=.1):
+    def learn_ML_brute(
+        self, param_init=None, iter_per_param=500, rounds=20, path_write="./out", lr=0.1
+    ):
         """Learn a Maximum Likelihood embedding.
 
         Args:
@@ -65,25 +69,25 @@ class vi_wrapper(DodonaphyVI):
             lr ([type], optional): [description]. Defaults to 1e-3.
         """
         print("Learning ML tree.", flush=True)
-        assert self.connect_method == 'mst'
+        assert self.connect_method == "mst"
         LL = []
 
         if param_init is not None:
             self.VariationalParams["leaf_mu"] = param_init["leaf_mu"]
             self.VariationalParams["leaf_sigma"] = param_init["leaf_sigma"]
-            if self.connect_method == 'mst':
+            if self.connect_method == "mst":
                 self.VariationalParams["int_mu"] = param_init["int_mu"]
                 self.VariationalParams["int_sigma"] = param_init["int_sigma"]
 
         iter = 0
         for _ in range(rounds):
             isLeaf = False
-            for i in range(self.S-2):
+            for i in range(self.S - 2):
                 # optimise one internal node at a time
                 with torch.no_grad():
                     max_LL = self.grid_search_LL(i, isLeaf=isLeaf, doPlot=True)
                 LL.append(max_LL)
-                print('iteration %-12i Likelihood: %10.3f' % (iter, max_LL))
+                print("iteration %-12i Likelihood: %10.3f" % (iter, max_LL))
                 iter += 1
 
             # isLeaf = True
@@ -99,10 +103,10 @@ class vi_wrapper(DodonaphyVI):
         # plot final tree
         leaf_locs = self.VariationalParams["leaf_mu"]
         int_locs = self.VariationalParams["int_mu"]
-        if self.embed_method == 'simple':
+        if self.embed_method == "simple":
             leaf_poin = utils.real2ball(leaf_locs)
             int_poin = utils.real2ball(int_locs)
-        elif self.embed_method == 'wrap':
+        elif self.embed_method == "wrap":
             leaf_poin = hyperboloid.t02p(leaf_locs)
             int_poin = hyperboloid.t02p(int_locs)
         int_r, int_dir = utils.cart_to_dir(int_poin)
@@ -124,10 +128,10 @@ class vi_wrapper(DodonaphyVI):
         # int_locs = self.VariationalParams["int_mu"]
 
         # convert current nodes to poincare
-        if self.embed_method == 'simple':
+        if self.embed_method == "simple":
             leaf_poin = utils.real2ball(self.VariationalParams["leaf_mu"])
             int_poin = utils.real2ball(self.VariationalParams["int_mu"])
-        elif self.embed_method == 'wrap':
+        elif self.embed_method == "wrap":
             leaf_poin = hyperboloid.t02p(self.VariationalParams["leaf_mu"])
             int_poin = hyperboloid.t02p(self.VariationalParams["int_mu"])
         leaf_r, leaf_dir = utils.cart_to_dir(leaf_poin)
@@ -139,7 +143,9 @@ class vi_wrapper(DodonaphyVI):
         else:
             best_loc = int_poin[idx, :]
         peel = peeler.make_peel_mst(leaf_r, leaf_dir, int_r, int_dir)
-        blen = self.compute_branch_lengths(self.S, peel, leaf_r, leaf_dir, int_r, int_dir)
+        blen = self.compute_branch_lengths(
+            self.S, peel, leaf_r, leaf_dir, int_r, int_dir
+        )
         best_lnLike = self.compute_LL(peel, blen)
 
         # grid search centred at current location in Poincare disk
@@ -147,8 +153,8 @@ class vi_wrapper(DodonaphyVI):
         # scale = torch.pow(torch.sum(torch.pow(best_loc, 2), axis=-1), .5)
         # X = torch.linspace(-scale, scale, steps) + best_loc[0].detach().numpy()
         # Y = torch.linspace(-scale, scale, steps) + best_loc[1].detach().numpy()
-        X = torch.linspace(-.5, .5, steps)
-        Y = torch.linspace(-.5, .5, steps)
+        X = torch.linspace(-0.5, 0.5, steps)
+        Y = torch.linspace(-0.5, 0.5, steps)
         lnLike = torch.zeros((steps, steps))
         for i, x in enumerate(X):
             for j, y in enumerate(Y):
@@ -163,7 +169,9 @@ class vi_wrapper(DodonaphyVI):
                 leaf_r, leaf_dir = utils.cart_to_dir(leaf_poin)
                 int_r, int_dir = utils.cart_to_dir(int_poin)
                 peel = peeler.make_peel_mst(leaf_r, leaf_dir, int_r, int_dir)
-                blen = self.compute_branch_lengths(self.S, peel, leaf_r, leaf_dir, int_r, int_dir)
+                blen = self.compute_branch_lengths(
+                    self.S, peel, leaf_r, leaf_dir, int_r, int_dir
+                )
                 cur_ll = self.compute_LL(peel, blen)
                 lnLike[j, i] = cur_ll
                 if cur_ll > best_lnLike:
@@ -174,12 +182,12 @@ class vi_wrapper(DodonaphyVI):
         if doPlot:
             fig, ax = plt.subplots(1, 2)
             X, Y = np.meshgrid(X, Y)
-            ax[0].contourf(X, Y, lnLike, cmap='hot', levels=200)
+            ax[0].contourf(X, Y, lnLike, cmap="hot", levels=200)
             # plt.colorbar()
             if not isLeaf:
-                ax[0].set_title('Node %i' % (self.S + idx))
+                ax[0].set_title("Node %i" % (self.S + idx))
             else:
-                ax[0].set_title('Node %i' % idx)
+                ax[0].set_title("Node %i" % idx)
 
             # plot best tree
             if isLeaf:
@@ -194,13 +202,13 @@ class vi_wrapper(DodonaphyVI):
             plt.show()
 
         if isLeaf:
-            if self.embed_method == 'simple':
+            if self.embed_method == "simple":
                 self.VariationalParams["leaf_mu"][idx, :] = utils.ball2real(best_loc)
-            elif self.embed_method == 'wrap':
+            elif self.embed_method == "wrap":
                 self.VariationalParams["leaf_mu"][idx, :] = hyperboloid.p2t0(best_loc)
         else:
-            if self.embed_method == 'simple':
+            if self.embed_method == "simple":
                 self.VariationalParams["int_mu"][idx, :] = utils.ball2real(best_loc)
-            elif self.embed_method == 'wrap':
+            elif self.embed_method == "wrap":
                 self.VariationalParams["int_mu"][idx, :] = hyperboloid.p2t0(best_loc)
         return best_lnLike

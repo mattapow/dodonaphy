@@ -9,18 +9,14 @@ from .edge import u_edge
 
 
 def make_peel_incentre(leaf_locs, curvature=-torch.ones(1)):
-    return make_peel_tips(leaf_locs,
-                          connect_method="incentre",
-                          curvature=curvature)
+    return make_peel_tips(leaf_locs, connect_method="incentre", curvature=curvature)
 
 
 def make_peel_geodesic(leaf_locs):
     return make_peel_tips(leaf_locs, connect_method="geodesics")
 
 
-def make_peel_tips(leaf_locs,
-                   connect_method="geodesics",
-                   curvature=-torch.ones(1)):
+def make_peel_tips(leaf_locs, connect_method="geodesics", curvature=-torch.ones(1)):
     """Generate a tree recursively using the incentre of the closest two points.
 
     Args:
@@ -90,7 +86,8 @@ def make_peel_tips(leaf_locs,
             if connect_method == "geodesics":
                 if i < leaf_node_count:
                     dist_ij = -poincare.hyp_lca(
-                        leaf_locs[i], int_locs[int_i], return_coord=False)
+                        leaf_locs[i], int_locs[int_i], return_coord=False
+                    )
                 else:
                     dist_ij = -poincare.hyp_lca(
                         int_locs[i - leaf_node_count],
@@ -100,10 +97,12 @@ def make_peel_tips(leaf_locs,
             elif connect_method == "incentre":
                 if i < leaf_node_count:
                     dist_ij = Cutils.hyperbolic_distance_lorentz(
-                        leaf_locs[i], int_locs[int_i])
+                        leaf_locs[i], int_locs[int_i]
+                    )
                 else:
                     dist_ij = Cutils.hyperbolic_distance_lorentz(
-                        int_locs[i - leaf_node_count], int_locs[int_i])
+                        int_locs[i - leaf_node_count], int_locs[int_i]
+                    )
                 # apply the inverse transform from Matsumoto et al 2020
                 dist_ij = torch.log(torch.cosh(dist_ij))
             heappush(queue, u_edge(dist_ij, i, cur_internal))
@@ -112,12 +111,9 @@ def make_peel_tips(leaf_locs,
     return peel, int_locs
 
 
-def make_peel_mst(leaf_r,
-                  leaf_dir,
-                  int_r,
-                  int_dir,
-                  curvature=-torch.ones(1),
-                  start_node=None):
+def make_peel_mst(
+    leaf_r, leaf_dir, int_r, int_dir, curvature=-torch.ones(1), start_node=None
+):
     """Create a tree represtation (peel) from its hyperbolic embedic data
 
     Args:
@@ -128,19 +124,15 @@ def make_peel_mst(leaf_r,
     """
     leaf_node_count = leaf_r.shape[0]
     node_count = leaf_r.shape[0] + int_r.shape[0]
-    edge_list = Cutils.get_pdm_np(leaf_r,
-                                  leaf_dir,
-                                  int_r,
-                                  int_dir,
-                                  curvature=curvature,
-                                  dtype="dict")
+    edge_list = Cutils.get_pdm_np(
+        leaf_r, leaf_dir, int_r, int_dir, curvature=curvature, dtype="dict"
+    )
 
     # queue here is a min-heap
     queue = []
     heapify(queue)
 
-    start_edge = get_start_edge(start_node, edge_list, node_count,
-                                leaf_node_count)
+    start_edge = get_start_edge(start_node, edge_list, node_count, leaf_node_count)
     heappush(queue, start_edge)
 
     adjacency = defaultdict(list)
@@ -315,8 +307,9 @@ def prune(S, adjacency):
     return unused, adjacency
 
 
-def is_valid_edge(to_, from_, adjacency, visited, S, node_count, open_slots,
-                  visited_count):
+def is_valid_edge(
+    to_, from_, adjacency, visited, S, node_count, open_slots, visited_count
+):
     # ensure the destination node has not been visited yet
     # internal nodes can have up to 3 adjacencies, of which at least
     # one must be internal

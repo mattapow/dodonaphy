@@ -7,7 +7,7 @@ from . import hyperboloid
 
 def isometric_transform(a, x):
     """Reflection (circle inversion of x through orthogonal circle centered at a)."""
-    r2 = torch.sum(a ** 2, dim=-1, keepdim=True) - 1.
+    r2 = torch.sum(a ** 2, dim=-1, keepdim=True) - 1.0
     u = x - a
     return r2 / torch.sum(u ** 2, dim=-1, keepdim=True) * u + a
 
@@ -31,8 +31,8 @@ def euc_reflection(x, a):
 
 
 def _halve(x):
-    """ computes the point on the geodesic segment from o to x at half the distance """
-    return x / (1. + torch.sqrt(1 - torch.sum(x ** 2, dim=-1, keepdim=True)))
+    """computes the point on the geodesic segment from o to x at half the distance"""
+    return x / (1.0 + torch.sqrt(1 - torch.sum(x ** 2, dim=-1, keepdim=True)))
 
 
 def hyp_lca(a, b, return_coord=True):
@@ -64,8 +64,7 @@ def incentre(a, b, return_coord=True):
     w_a = hyp_dist_o(b)
     w_b = hyp_dist_o(a)
     ab = torch.stack((a, b))
-    w_c = hyperboloid.hyperboloid_dists(
-        hyperboloid.poincare_to_hyper(ab))[0][1]
+    w_c = hyperboloid.hyperboloid_dists(hyperboloid.poincare_to_hyper(ab))[0][1]
     proj = (w_a * a + w_b * b) / (w_a + w_b + w_c)
 
     if not return_coord:

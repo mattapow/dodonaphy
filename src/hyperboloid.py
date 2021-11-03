@@ -43,7 +43,7 @@ def lorentz_product(x, y=None):
 
 
 def hyperboloid_dists(loc):
-    """ Get hyperbolic distances between points in X.
+    """Get hyperbolic distances between points in X.
     Distances start from 0 and are positive, as for a metric.
 
     Parameters
@@ -62,8 +62,9 @@ def hyperboloid_dists(loc):
 
     for i in range(n_points):
         for j in range(i + 1, n_points):
-            dists[i][j] = torch.acosh(-lorentz_product(
-                loc[i].squeeze(0), loc[j].squeeze(0)))
+            dists[i][j] = torch.acosh(
+                -lorentz_product(loc[i].squeeze(0), loc[j].squeeze(0))
+            )
     dists = dists + torch.transpose(dists, 0, 1)
 
     # Diagonals
@@ -74,7 +75,7 @@ def hyperboloid_dists(loc):
 
 
 def parallel_transport(xi, x, y):
-    """ Transport a vector from the tangent space at the x
+    """Transport a vector from the tangent space at the x
     to the tangent space at y
 
         From Nagano 2019
@@ -149,8 +150,8 @@ def exp_map_inverse(z, mu):
     Returns:
         [type]: [description]
     """
-    alpha = - lorentz_product(mu, z)
-    factor = torch.acosh(alpha) / (torch.sqrt(alpha**2 - 1))
+    alpha = -lorentz_product(mu, z)
+    factor = torch.acosh(alpha) / (torch.sqrt(alpha ** 2 - 1))
     return factor * (z - alpha * mu)
 
 
@@ -178,7 +179,7 @@ def p2t0(loc, mu=None, get_jacobian=False):
         mu = torch.zeros_like(loc)
         mu = up_to_hyper(mu)
     n_loc, dim = loc.shape
-    zero = torch.zeros((dim+1)).double()
+    zero = torch.zeros((dim + 1)).double()
     zero[0] = 1
 
     out = torch.zeros_like(loc)
@@ -232,8 +233,7 @@ def t02p(x, mu=None, get_jacobian=False):
         x_hyp = tangent_to_hyper(mu_hyp[i, :], x[i, :], dim)
         x_poin[i, :] = hyper_to_poincare(x_hyp)
         if get_jacobian:
-            jacobian = jacobian + \
-                tangent_to_hyper_jacobian(mu_hyp[i, :], x[i, :], dim)
+            jacobian = jacobian + tangent_to_hyper_jacobian(mu_hyp[i, :], x[i, :], dim)
             jacobian = jacobian + hyper_to_poincare_jacobian(x_hyp)
 
     if get_jacobian:
@@ -243,7 +243,7 @@ def t02p(x, mu=None, get_jacobian=False):
 
 
 def up_to_hyper(loc):
-    """ Project directly up onto the hyperboloid
+    """Project directly up onto the hyperboloid
 
     Take a position in R^n and return the point in R^n+1 lying on the hyperboloid H^n
     which is directly 'above' it (in the first dimension)
@@ -266,7 +266,7 @@ def up_to_hyper(loc):
 
 
 def tangent_to_hyper(mu, v_tilde, dim):
-    """ Project a vector onto the hyperboloid
+    """Project a vector onto the hyperboloid
 
     Project a vector from the origin, v_tilde, in the tangent space at the origin T_0 H^n
     onto the hyperboloid H^n at point mu
@@ -303,7 +303,7 @@ def tangent_to_hyper_jacobian(mu, v_tilde, dim):
         Scalar tensor: [description]
     """
     r = torch.norm(v_tilde)
-    return torch.log(torch.pow(torch.div(torch.sinh(r), r), dim-1))
+    return torch.log(torch.pow(torch.div(torch.sinh(r), r), dim - 1))
 
 
 def hyper_to_poincare(location):
@@ -334,9 +334,9 @@ def hyper_to_poincare_jacobian(location):
     dim = location.shape[0]
 
     # precomputed determinant
-    a = (1 + location[0])
+    a = 1 + location[0]
     norm = torch.sum(torch.pow(location[1:], 2))
-    det = torch.div(torch.pow(a, 2) + norm, torch.pow(a, 2*(dim+1)))
+    det = torch.div(torch.pow(a, 2) + norm, torch.pow(a, 2 * (dim + 1)))
 
     # compute Jacobian matrix then get determinant
     # J = torch.zeros((dim-1, dim))
