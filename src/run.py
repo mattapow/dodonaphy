@@ -29,7 +29,7 @@ def run(args):
     else:
         tree_init = simtree
     dists = tip_distances(tree_init, args.taxa)
-    save_period = max(int(args.epoch / args.draws), 1)
+    save_period = max(int(args.epochs / args.draws), 1)
 
     start = time.time()
     if args.infer == "mcmc":
@@ -41,7 +41,7 @@ def run(args):
             weights,
             dists,
             path_write,
-            epochs=args.epoch,
+            epochs=args.epochs,
             step_scale=args.step,
             save_period=save_period,
             n_grids=args.grids,
@@ -65,7 +65,7 @@ def run(args):
             weights,
             dists,
             path_write,
-            epochs=args.epoch,
+            epochs=args.epochs,
             k_samples=args.importance,
             n_draws=args.draws,
             n_grids=args.grids,
@@ -80,12 +80,13 @@ def run(args):
     end = time.time()
     seconds = end - start
     m, s = divmod(seconds, 60)
-    print(f"Time taken for {args.taxa} taxa with {args.epoch} epochs: {m}m {s}s")
+    print(f"Time taken for {args.taxa} taxa with {args.epochs} epochs: {m}m {round(s)}s")
 
 
 def get_path(root_dir, args):
     if args.doSave == False:
         return None
+    print(args.doSave)
 
     if args.exp_ext != "":
         args.exp_ext = "_" + args.exp_ext
@@ -116,7 +117,7 @@ def get_path(root_dir, args):
     if path_write is not None:
         if not os.path.exists(method_dir):
             os.makedirs(method_dir, exist_ok=False)
-        os.mkdir(path_write)
+        os.mkdir(path_write)    
     return path_write
 
 
@@ -189,7 +190,7 @@ def init_parser():
                         default=100,
                         type=int,
                         help="Sequence length.")
-    parser.add_argument("--epoch",
+    parser.add_argument("--epochs",
                         "-n",
                         default=1000,
                         type=int,
@@ -216,12 +217,19 @@ def init_parser():
         help="Embedded method from Euclidean to Hyperbolic space.",
     )
     parser.add_argument(
-        "--doSave",
-        "-s",
-        default=True,
-        type=bool,
+        "--save",
+        dest='doSave',
+        action='store_true',
         help="Whether to save the simulation.",
     )
+    parser.add_argument(
+        '--no-save',
+        dest='doSave',
+        action='store_false',
+        help="Whether to save the simulation.",
+    )
+    parser.set_defaults(doSave=True)
+
     parser.add_argument(
         "--infer",
         "-i",
@@ -320,4 +328,5 @@ def init_parser():
 if __name__ == "__main__":
     parser = init_parser()
     args = parser.parse_args()
+    args.infer='vi'
     run(args)
