@@ -394,8 +394,8 @@ def nj(pdm, tau=None):
                 torch.tril(Q), tau=0.00001, noise_ratio=30
             )
             dist_u, dist_uf, dist_fg = get_new_dist_soft(pdm, mask, hot_f, hot_g)
-            f = hot_f.detach().round().nonzero()[0]
-            g = hot_g.detach().round().nonzero()[0]
+            f = torch.where(hot_f == torch.max(hot_f))[0]
+            g = torch.where(hot_g == torch.max(hot_g))[0]
             dist_u[f] = dist_uf
             dist_u[g] = 0
 
