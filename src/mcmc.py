@@ -137,18 +137,31 @@ class Chain(BaseModel):
         self.iterations += 1
 
         # import matplotlib.pyplot as plt
+
         # if not accept:
-        #     color = 'r'
+        #     color = "r"
         # else:
-        #     color = 'g'
+        #     color = "g"
         #     plt.cla()
         # plt.xlim((-1, 1))
         # plt.ylim((-1, 1))
         # X_torch = utils.dir_to_cart_tree(
-        #     proposal['leaf_r'], proposal['int_r'], proposal['leaf_dir'], proposal['int_dir'], self.D)
-        # tree.plot_tree(plt.gca(), proposal['peel'], X_torch, color=color, labels=False, radius=proposal['leaf_r'])
-        # fname = f"./data/T11_hypGeoDeep/mcmc/simple_geodesics/visu/visu_{self.iterations}.png"
-        # plt.savefig(fname, format='png')
+        #     proposal["leaf_r"],
+        #     proposal["int_r"],
+        #     proposal["leaf_dir"],
+        #     proposal["int_dir"],
+        #     self.D,
+        # )
+        # tree.plot_tree(
+        #     plt.gca(),
+        #     proposal["peel"],
+        #     X_torch,
+        #     color=color,
+        #     labels=False,
+        #     radius=proposal["leaf_r"],
+        # )
+        # fname = f"./data/T11_hypGeoDeep/mcmc/simple_geodesics/visu_crv6/visu_{self.iterations}.png"
+        # plt.savefig(fname, format="png")
         return accept
 
     def accept_ratio(self, p):
