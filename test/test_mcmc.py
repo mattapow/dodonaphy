@@ -4,8 +4,8 @@ import dendropy
 import numpy as np
 from dendropy.model.discrete import simulate_discrete_chars
 from dendropy.simulate import treesim
-from src.mcmc import DodonaphyMCMC as mcmc
-from src.phylo import compress_alignment
+from dodonaphy.mcmc import DodonaphyMCMC as mcmc
+from dodonaphy.phylo import compress_alignment
 
 
 def test_mcmc_incentre():

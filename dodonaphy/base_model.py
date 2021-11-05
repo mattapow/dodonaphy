@@ -6,7 +6,7 @@ from dendropy import Tree as Tree
 from dendropy.model.birthdeath import birth_death_likelihood as birth_death_likelihood
 from torch.distributions.multivariate_normal import MultivariateNormal
 
-from src import poincare
+from dodonaphy import poincare
 
 from . import hyperboloid, peeler, Cutils
 from . import tree as treeFunc

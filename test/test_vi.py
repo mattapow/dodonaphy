@@ -5,9 +5,9 @@ import torch
 from dendropy.model.discrete import simulate_discrete_chars
 from dendropy.simulate import treesim
 from numpy import allclose
-from src import vi
-from src.phylo import compress_alignment
-from src.vi import DodonaphyVI
+from dodonaphy import vi
+from dodonaphy.phylo import compress_alignment
+from dodonaphy.vi import DodonaphyVI
 
 
 def test_draws_different_vi_simple_incentre():

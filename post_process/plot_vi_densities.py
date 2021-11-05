@@ -5,8 +5,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import seaborn as sns
 import torch
-from src import hyperboloid, peeler, tree, utils
-from src.vi import read
+from dodonaphy import hyperboloid, peeler, tree, utils
+from dodonaphy.vi import read
 from numpy.random import multivariate_normal
 
 """

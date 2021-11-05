@@ -26,7 +26,7 @@ doc/notes.fls
 
 *.so
 *.o
-src/cython/Cutils.c
+dodonaphy/cython/Cutils.c
 
 *.prof
 build

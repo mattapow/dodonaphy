@@ -1,9 +1,9 @@
 # from matplotlib.markers import MarkerStyle
-# from src import poincare
+# from dodonaphy import poincare
 import matplotlib.pyplot as plt
 import seaborn as sns
 import torch
-from src import hyperboloid, utils
+from dodonaphy import hyperboloid, utils
 from matplotlib.patches import Circle
 from torch.distributions.multivariate_normal import MultivariateNormal
 

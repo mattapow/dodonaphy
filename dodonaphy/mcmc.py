@@ -4,10 +4,8 @@ import numpy as np
 import torch
 from torch.distributions.uniform import Uniform
 
-from . import hydra, peeler, tree, utils, Cutils
+from . import Cutils, hydra, peeler, tree, utils
 from .base_model import BaseModel
-
-# from ..ext.power_spherical import PowerSpherical
 
 
 class Chain(BaseModel):

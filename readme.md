@@ -42,12 +42,12 @@ See doc/notes.pdf for a description of the embedding models being used.
 ## Basic usage
 Run Dodonaphy using
 ```
-python src/run.py [OPTIONS]
+python dodonaphy/run.py [OPTIONS]
 ```
 
 ## Help
 At the command line, type 
-```python src/run.py --help```
+```python dodonaphy/run.py --help```
 to see the options.
 
 ## Post-processing

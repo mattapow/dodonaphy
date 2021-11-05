@@ -5,9 +5,9 @@ import dendropy
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
-from src import hyperboloid, peeler, tree, utils
-from src.phylo import compress_alignment
-from src.vi import DodonaphyVI
+from dodonaphy import hyperboloid, peeler, tree, utils
+from dodonaphy.phylo import compress_alignment
+from dodonaphy.vi import DodonaphyVI
 
 # from matplotlib import cm
 # import seaborn as sns

@@ -6,7 +6,7 @@ import dendropy
 import numpy as np
 import torch
 from dendropy.model.discrete import simulate_discrete_chars
-from src import base_model, peeler, tree, utils
+from dodonaphy import base_model, peeler, tree, utils
 
 dim = 2
 S = 17

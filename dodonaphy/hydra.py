@@ -1,7 +1,7 @@
 import math
 import warnings
 
-from src import Cutils
+from dodonaphy import Cutils
 import numpy as np
 import torch
 

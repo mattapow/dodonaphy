@@ -6,9 +6,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 import seaborn as sns
 from dendropy.interop import raxml
-from src import tree
-from src.base_model import BaseModel
-from src.phylo import compress_alignment
+from dodonaphy import tree
+from dodonaphy.base_model import BaseModel
+from dodonaphy.phylo import compress_alignment
 
 
 def main():

@@ -1,6 +1,6 @@
 import numpy as np
 from pytest import approx
-from src import hydra
+from dodonaphy import hydra
 
 
 def test_hydra_2d_compare_output():

@@ -1,8 +1,8 @@
 import dendropy
 import torch
 from pytest import approx
-from src import tree as treeFunc
-from src.base_model import BaseModel
+from dodonaphy import tree as treeFunc
+from dodonaphy.base_model import BaseModel
 
 
 def test_prior_mrbayes_0():

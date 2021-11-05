@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 import torch
 from pytest import approx
-from src import utils, Cutils
+from dodonaphy import utils, Cutils
 
 
 def test_hyperbolic_distance():

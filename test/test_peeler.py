@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 import torch
-from src import peeler, poincare, utils, Cutils
+from dodonaphy import peeler, poincare, utils, Cutils
 
 
 def test_make_peel_simple():

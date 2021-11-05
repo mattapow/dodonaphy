@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 # from matplotlib.patches import Circle
 import numpy as np
 import torch
-from src import peeler, tree, utils
+from dodonaphy import peeler, tree, utils
 
 # import pandas as pd
 
