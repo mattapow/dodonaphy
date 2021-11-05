@@ -10,7 +10,7 @@ from dendropy.model.birthdeath import birth_death_likelihood
 from dendropy.model.discrete import simulate_discrete_chars
 from dendropy.simulate import treesim
 
-from src.phylo import compress_alignment
+from dodonaphy.phylo import compress_alignment
 
 
 def run(args):
@@ -20,7 +20,7 @@ def run(args):
     path_write = get_path(root_dir, args)
 
     prior = {"birth_rate": args.birth, "death_rate": args.death}
-    dna, simtree = get_dna(root_dir, prior)
+    dna, simtree = get_dna(root_dir, prior, args.taxa, args.seq)
     partials, weights = compress_alignment(dna)
 
     if args.start == "RAxML":
@@ -33,7 +33,7 @@ def run(args):
 
     start = time.time()
     if args.infer == "mcmc":
-        from src.mcmc import DodonaphyMCMC as mcmc
+        from dodonaphy.mcmc import DodonaphyMCMC as mcmc
 
         mcmc.run(
             args.dim,
@@ -56,7 +56,7 @@ def run(args):
         )
 
     if args.infer == "vi":
-        from src.vi import DodonaphyVI
+        from dodonaphy.vi import DodonaphyVI
 
         DodonaphyVI.run(
             args.dim,
@@ -123,7 +123,7 @@ def get_path(root_dir, args):
     return path_write
 
 
-def get_dna(root_dir, prior):
+def get_dna(root_dir, prior, n_taxa, seq_len):
     tree_path = os.path.join(root_dir, "simtree.nex")
     tree_info_path = os.path.join(root_dir, "simtree.info")
     dna_path = os.path.join(root_dir, "dna.nex")
@@ -140,11 +140,11 @@ def get_dna(root_dir, prior):
         simtree = treesim.birth_death_tree(
             birth_rate=prior["birth_rate"],
             death_rate=prior["death_rate"],
-            num_extant_tips=args.taxa,
+            num_extant_tips=n_taxa,
             rng=rng,
         )
         dna = simulate_discrete_chars(
-            seq_len=args.seq,
+            seq_len=seq_len,
             tree_model=simtree,
             seq_model=dendropy.model.discrete.Jc69(),
             rng=rng,
@@ -221,8 +221,8 @@ def init_parser():
         "--infer",
         "-i",
         default="mcmc",
-        choices=("mcmc", "vi"),
-        help="Inference method: MCMC or Variational Inference.",
+        choices=("mcmc", "vi", "simML"),
+        help="Inference method: MCMC or Variational Inference for Bayesian inference. Use simML to maximise the likelihod of a similarity matrix.",
     )
     parser.add_argument(
         "--curv", "-c", default=-1.0, type=float, help="Hyperbolic curvature."
@@ -297,9 +297,10 @@ def init_parser():
     )
     return parser
 
-
-if __name__ == "__main__":
+def main():
     parser = init_parser()
     args = parser.parse_args()
-    args.infer = "vi"
     run(args)
+
+if __name__ == "__main__":
+    main()

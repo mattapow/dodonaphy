@@ -15,15 +15,14 @@ setup(
     description="Hyperbolic embedding of phylogenies in pytorch",
     install_requires=[
         line.strip()
-        for line in Path("requirements/common_pip.txt").read_text("utf-8").splitlines()
+        for line in Path("requirements/common.txt").read_text("utf-8").splitlines()
     ],
     ext_modules=cythonize(
         [
             Extension(
-                "src.Cutils", ["src/cython/Cutils.pyx"], include_dirs=[np.get_include()]
+                "dodonaphy.Cutils", ["dodonaphy/cython/Cutils.pyx"], include_dirs=[np.get_include()]
             )
         ]
     ),
-    # TODO: this entry point isn't working
-    entry_points={"console_scripts": ["dodo = dodonaphy.__main__:main"]},
+    entry_points={"console_scripts": ["dodo = dodonaphy.run:main"]},
 )

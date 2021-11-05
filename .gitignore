@@ -29,3 +29,4 @@ doc/notes.fls
 src/cython/Cutils.c
 
 *.prof
+build
