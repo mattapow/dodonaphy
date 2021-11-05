@@ -10,6 +10,7 @@ from dendropy.model.birthdeath import birth_death_likelihood
 from dendropy.model.discrete import simulate_discrete_chars
 from dendropy.simulate import treesim
 
+from dodonaphy import utils
 from dodonaphy.phylo import compress_alignment
 
 
@@ -28,7 +29,7 @@ def run(args):
         tree_init = rx.estimate_tree(char_matrix=dna, raxml_args=["--no-bfgs"])
     else:
         tree_init = simtree
-    dists = tip_distances(tree_init, args.taxa)
+    dists = utils.tip_distances(tree_init, args.taxa)
     save_period = max(int(args.epochs / args.draws), 1)
 
     start = time.time()
@@ -77,6 +78,18 @@ def run(args):
             curvature=args.curv,
             **prior,
         )
+
+    if args.infer == "ml":
+        from dodonaphy.ml import ML
+        ML.run(
+            args.taxa,
+            partials[:],
+            weights,
+            dists,
+            path_write,
+            epochs=args.epochs,
+            lr=args.learn,
+        )
     end = time.time()
     seconds = end - start
     m, s = divmod(seconds, 60)
@@ -111,6 +124,18 @@ def get_path(root_dir, args):
             method_dir = os.path.join(root_dir, "mcmc", exp_method)
             path_write = os.path.join(
                 method_dir, "d%d_c%d%s" % (args.dim, args.chains, args.exp_ext)
+            )
+            print(f"Saving to {path_write}")
+        else:
+            path_write = None
+
+    elif args.infer == "ml":
+        assert args.connect == "nj", "Maximum likelihood only works on neighbour joining."
+        if args.doSave:
+            lr = -int(np.log10(args.learn))
+            method_dir = os.path.join(root_dir, "ml", "nj")
+            path_write = os.path.join(
+                method_dir, "lr%d_n%d%s" % (lr, args.epochs, args.exp_ext)
             )
             print(f"Saving to {path_write}")
         else:
@@ -159,16 +184,6 @@ def get_dna(root_dir, prior, n_taxa, seq_len):
             f.write("Log Likelihood: %f\n" % LL)
             simtree.write_ascii_p
     return dna, simtree
-
-
-def tip_distances(tree0, n_taxa):
-    """Get tip pair-wise tip distances"""
-    dists = np.zeros((n_taxa, n_taxa))
-    pdc = tree0.phylogenetic_distance_matrix()
-    for i, t1 in enumerate(tree0.taxon_namespace[:-1]):
-        for j, t2 in enumerate(tree0.taxon_namespace[i + 1 :]):
-            dists[i][i + j + 1] = pdc(t1, t2)
-    return dists + dists.transpose()
 
 
 def init_parser():
@@ -221,8 +236,8 @@ def init_parser():
         "--infer",
         "-i",
         default="mcmc",
-        choices=("mcmc", "vi", "simML"),
-        help="Inference method: MCMC or Variational Inference for Bayesian inference. Use simML to maximise the likelihod of a similarity matrix.",
+        choices=("mcmc", "vi", "ml"),
+        help="Inference method: MCMC or Variational Inference for Bayesian inference. Use ml to maximise the likelihod of a similarity matrix.",
     )
     parser.add_argument(
         "--curv", "-c", default=-1.0, type=float, help="Hyperbolic curvature."

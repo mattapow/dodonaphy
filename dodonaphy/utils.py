@@ -340,3 +340,12 @@ def LogDirPrior(blen, aT, bT, a, c):
     )
 
     return lnPrior
+
+def tip_distances(tree0, n_taxa):
+    """Get tip pair-wise tip distances"""
+    dists = np.zeros((n_taxa, n_taxa))
+    pdc = tree0.phylogenetic_distance_matrix()
+    for i, t1 in enumerate(tree0.taxon_namespace[:-1]):
+        for j, t2 in enumerate(tree0.taxon_namespace[i + 1 :]):
+            dists[i][i + j + 1] = pdc(t1, t2)
+    return dists + dists.transpose()

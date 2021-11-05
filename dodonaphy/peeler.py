@@ -443,7 +443,7 @@ def unravel_index(index, shape):
     out = []
     for dim in reversed(shape):
         out.append(index % dim)
-        index = index // dim
+        index = torch.div(index, dim, rounding_mode='floor')
     return tuple(reversed(out))
 
 

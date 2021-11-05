@@ -139,6 +139,8 @@ def test_io():
     tmp_dir = "./tmp"
     os.makedirs(tmp_dir, exist_ok=True)
     fp = os.path.join(tmp_dir, "test_data.csv")
+    if os.path.exists(fp):
+        os.remove(fp)
     mymod.save(fp)
     output = vi.read(fp, connect_method="nj")
     assert allclose(
