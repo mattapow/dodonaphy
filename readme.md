@@ -4,20 +4,18 @@ Hyperbolic embeddings for approximating phylogenetic posteriors.
 
 This code is under active research & development and not intended for production use for phylogenetic inference.
 
+## Installing with Conda and Pip
+On Mac OS Catalina, CommandLineTools (possibly used in setuptools) has an error in python==3.8.2. Numpy does not yet support python>=3.10. So use 3.9
 
-## Installing
-Create a pip environment.
-Use python version 3.9 because:
-a) on Mac OS Catalina, CommandLineTools (possibly used in setuptools) has an error in python==3.8.2.
-b) Numpy does not yet support python>=3.10.
-```
-python3.9 -m pip venv env
-source env/bin/activate
-```
-First, install the common requirements (because Numpy and Cython are needed before installing Dodonaphy)
-```
-python3 -m pip install -r requirements/common.txt
-```
+```conda create --name dodo python=3.9```
+
+```conda activate dodo```
+
+Pip needs numpy and cython for the setup:
+
+```pip install cython```
+
+```pip install numpy```
 
 Then install the Dodonaphy package using pip:
 ```
@@ -28,10 +26,11 @@ Alternatively the package can be installed locally using
 pip install -e .
 ```
 
+
 ## Running tests
 Once the package is installed, tests are run using pytest:
 ```
-pytest
+py.test
 ```
 
 ## Model
@@ -45,7 +44,11 @@ Run Dodonaphy using
 ```
 python src/run.py [OPTIONS]
 ```
-At the command line, type "python src/run.py -h" to see the options.
+
+## Help
+At the command line, type 
+```python src/run.py --help```
+to see the options.
 
 ## Post-processing
 Several pre-processing and post-processing functions are in the post_process folder.

@@ -15,7 +15,7 @@ setup(
     description="Hyperbolic embedding of phylogenies in pytorch",
     install_requires=[
         line.strip()
-        for line in Path("requirements/common.txt").read_text("utf-8").splitlines()
+        for line in Path("requirements/common_pip.txt").read_text("utf-8").splitlines()
     ],
     ext_modules=cythonize(
         [
