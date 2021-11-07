@@ -13,9 +13,9 @@ from .phylo import JC69_p_t, calculate_treelikelihood
 
 class DodonaphyVI(BaseModel):
     def __init__(self, partials, weights, dim, embed_method='wrap', connect_method='mst', curvature=-1.,
-                 dists_data=None, **prior):
+                 dists=None, **prior):
         super().__init__(partials, weights, dim, connect_method=connect_method, curvature=curvature,
-                         dists_data=dists_data, **prior)
+                         dists=dists, **prior)
         print('Initialising variational model.\n')
 
         # Store mu on poincare ball in R^dim.

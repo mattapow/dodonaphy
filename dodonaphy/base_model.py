@@ -19,7 +19,7 @@ class BaseModel(object):
     """Base Model for Inference"""
 
     def __init__(
-        self, partials, weights, dim, curvature=-1.0, dists_data=None, **prior
+        self, partials, weights, dim, curvature=-1.0, dists=None, **prior
     ):
         self.partials = partials.copy()
         self.weights = weights
@@ -31,7 +31,7 @@ class BaseModel(object):
         assert curvature <= 0
         self.curvature = torch.tensor(curvature)
         self.epoch = 0
-        self.dists_data = dists_data
+        self.dists = {"dists": dists}
 
         # make space for internal partials
         for i in range(self.S - 1):

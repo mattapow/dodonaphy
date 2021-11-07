@@ -24,11 +24,11 @@ class Chain(BaseModel):
         connect_method="mst",
         embed_method="simple",
         curvature=-1,
-        dists_data=None,
+        dists=None,
         **prior,
     ):
         super().__init__(
-            partials, weights, dim, curvature=curvature, dists_data=None, **prior
+            partials, weights, dim, curvature=curvature, dists=None, **prior
         )
         self.leaf_dir = leaf_dir  # S x D
         self.int_dir = int_dir  # S-2 x D

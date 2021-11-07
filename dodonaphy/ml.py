@@ -5,12 +5,14 @@ import os
 
 
 class ML(BaseModel):
-    def __init__(self, partials, weights, dists=None):
-        super().__init__(partials, weights, None, curvature=-1, dists_data=dists)
+    """Maximum Likelihood class
+    """
+    def __init__(self, partials, weights, dists=None, temp=None):
+        self.temp=temp
+        super().__init__(partials, weights, None, curvature=-1, dists=dists)
 
     def learn(self, epochs, lr, path_write):
-        #TODO: self.dists_data has grad_fn UnbindBackward0
-        optimizer = torch.optim.LBFGS(params=list(self.dists_data), lr=lr)
+        optimizer = torch.optim.LBFGS(params=list(self.dists.values()), lr=lr)
         like_hist = []
 
         def closure():
@@ -26,7 +28,7 @@ class ML(BaseModel):
             optimizer.step(closure)
 
             if path_write is not None:
-                peel, blens = peeler.nj(self.dists_data)
+                peel, blens = peeler.nj(self.dists)
                 tree.save_tree(path_write, "ml", peel, blens, i, self.lnP, -1)
                 like_fn = os.path.join(path_write, "list_hist.txt")
                 with open(like_fn, "a") as f:
@@ -40,6 +42,6 @@ class ML(BaseModel):
         return
 
     def compute_likelihood(self):
-        peel, blens = peeler.nj(self.dists_data, tau=0.0001)
+        peel, blens = peeler.nj(self.dists["dists"], tau=0.0001)
         self.lnP = self.compute_LL(peel, blens)
         return self.lnP
