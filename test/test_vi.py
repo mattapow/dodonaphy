@@ -105,11 +105,11 @@ def test_io():
         os.remove(fp)
     mymod.save(fp)
     output = vi.read(fp, connect_method="nj")
+    os.remove(fp)
+    os.rmdir(tmp_dir)
     assert allclose(
         output["leaf_mu"], mymod.VariationalParams["leaf_mu"].detach().numpy()
     )
     assert allclose(
         output["leaf_sigma"], mymod.VariationalParams["leaf_sigma"].detach().numpy()
     )
-    os.remove(fp)
-    os.removedirs(tmp_dir)
