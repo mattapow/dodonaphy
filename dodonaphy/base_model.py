@@ -398,7 +398,7 @@ class BaseModel(object):
             pdm = Cutils.get_pdm_torch(
                 leaf_r_prop.repeat(self.S), leaf_dir_prop, curvature=self.curvature
             )
-            peel, blens = peeler.nj(pdm, tau=0.00001)
+            peel, blens = peeler.nj(pdm, tau=self.temp)
         elif self.connect_method == "mst":
             peel = peeler.make_peel_mst(leaf_r, leaf_dir_prop, int_r_prop, int_dir_prop)
         elif self.connect_method == "mst_choice":

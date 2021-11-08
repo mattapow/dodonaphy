@@ -76,11 +76,13 @@ def run(args):
             embed_method=args.embed,
             connect_method=args.connect,
             curvature=args.curv,
+            temp=args.temp,
             **prior,
         )
 
     if args.infer == "ml":
         from dodonaphy.ml import ML
+
         ML.run(
             args.taxa,
             partials[:],
@@ -89,6 +91,7 @@ def run(args):
             path_write,
             epochs=args.epochs,
             lr=args.learn,
+            temp=args.temp,
         )
     end = time.time()
     seconds = end - start
@@ -130,7 +133,9 @@ def get_path(root_dir, args):
             path_write = None
 
     elif args.infer == "ml":
-        assert args.connect == "nj", "Maximum likelihood only works on neighbour joining."
+        assert (
+            args.connect == "nj"
+        ), "Maximum likelihood only works on neighbour joining."
         if args.doSave:
             lr = -int(np.log10(args.learn))
             method_dir = os.path.join(root_dir, "ml", "nj")
@@ -273,6 +278,12 @@ def init_parser():
     parser.add_argument(
         "--learn", "-r", default=1e-1, type=float, help="Learning rate."
     )
+    parser.add_argument(
+        "--temp",
+        default=0.0001,
+        type=float,
+        help="Temperature for soft neighbour joining",
+    )
 
     # MCMC parameters
     parser.add_argument(
@@ -312,10 +323,12 @@ def init_parser():
     )
     return parser
 
+
 def main():
     parser = init_parser()
     args = parser.parse_args()
     run(args)
+
 
 if __name__ == "__main__":
     main()

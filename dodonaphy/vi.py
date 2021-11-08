@@ -13,7 +13,7 @@ from .phylo import JC69_p_t, calculate_treelikelihood
 
 class DodonaphyVI(BaseModel):
     def __init__(self, partials, weights, dim, embed_method='wrap', connect_method='mst', curvature=-1.,
-                 dists=None, **prior):
+                 dists=None, temp=None, **prior):
         super().__init__(partials, weights, dim, connect_method=connect_method, curvature=curvature,
                          dists=dists, **prior)
         print('Initialising variational model.\n')
@@ -28,6 +28,7 @@ class DodonaphyVI(BaseModel):
         self.embed_method = embed_method
         assert connect_method in ('mst', 'geodesics', 'incentre', 'nj')
         self.connect_method = connect_method
+        self.temp = temp
 
         if self.connect_method in ('geodesics', 'incentre', 'nj'):
             self.VariationalParams = {
@@ -287,7 +288,7 @@ class DodonaphyVI(BaseModel):
             epochs=1000, k_samples=3, n_draws=100,
             n_grids=10, n_trials=100, max_scale=1,
             embed_method='wrap', lr=1e-3, connect_method='nj',
-            **prior):
+            temp=None, **prior):
         """Initialise and run Dodonaphy's variational inference
 
         Initialise the emebedding with tips distances given to hydra.
@@ -305,7 +306,7 @@ class DodonaphyVI(BaseModel):
 
         # Initialise model
         mymod = DodonaphyVI(partials, weights, dim, embed_method=embed_method, connect_method=connect_method,
-                            dists_data=dists_data, **prior)
+                            dists_data=dists_data, temp=temp, **prior)
 
         # Choose internal node locations from best random initialisation
         if connect_method == 'mst':

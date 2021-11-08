@@ -6,6 +6,7 @@ from dendropy.model.discrete import simulate_discrete_chars
 from dendropy.simulate import treesim
 from dodonaphy.mcmc import DodonaphyMCMC as mcmc
 from dodonaphy.phylo import compress_alignment
+from dodonaphy.utils import tip_distances
 
 
 def test_mcmc_incentre():
@@ -36,13 +37,7 @@ def test_mcmc_incentre():
 
     partials, weights = compress_alignment(dna)
 
-    # Get tip pair-wise distance
-    dists = np.zeros((S, S))
-    pdc = simtree.phylogenetic_distance_matrix()
-    for i, t1 in enumerate(simtree.taxon_namespace[:-1]):
-        for j, t2 in enumerate(simtree.taxon_namespace[i + 1 :]):
-            dists[i][i + j + 1] = pdc(t1, t2)
-    dists = dists + dists.transpose()
+    dists = tip_distances(simtree, S)
 
     # Run Dodoanphy MCMC
     path_write_mcmc = None
@@ -89,13 +84,7 @@ def test_mcmc_mst():
 
     partials, weights = compress_alignment(dna)
 
-    # Get tip pair-wise distance
-    dists = np.zeros((S, S))
-    pdc = simtree.phylogenetic_distance_matrix()
-    for i, t1 in enumerate(simtree.taxon_namespace[:-1]):
-        for j, t2 in enumerate(simtree.taxon_namespace[i + 1 :]):
-            dists[i][i + j + 1] = pdc(t1, t2)
-    dists = dists + dists.transpose()
+    dists = tip_distances(simtree, S)
 
     # Run Dodoanphy MCMC
     path_write_mcmc = None
@@ -144,13 +133,7 @@ def test_mcmc_geodesics():
 
     partials, weights = compress_alignment(dna)
 
-    # Get tip pair-wise distance
-    dists = np.zeros((S, S))
-    pdc = simtree.phylogenetic_distance_matrix()
-    for i, t1 in enumerate(simtree.taxon_namespace[:-1]):
-        for j, t2 in enumerate(simtree.taxon_namespace[i + 1 :]):
-            dists[i][i + j + 1] = pdc(t1, t2)
-    dists = dists + dists.transpose()
+    dists = tip_distances(simtree, S)
 
     # Run Dodoanphy MCMC
     path_write_mcmc = None
@@ -187,13 +170,7 @@ def test_mcmc_geodesics_wrap():
     )
     partials, weights = compress_alignment(dna)
 
-    # Get tip pair-wise distance
-    dists = np.zeros((S, S))
-    pdc = simtree.phylogenetic_distance_matrix()
-    for i, t1 in enumerate(simtree.taxon_namespace[:-1]):
-        for j, t2 in enumerate(simtree.taxon_namespace[i + 1 :]):
-            dists[i][i + j + 1] = pdc(t1, t2)
-    dists = dists + dists.transpose()
+    dists = tip_distances(simtree, S)
 
     # Run Dodoanphy MCMC
     path_write_mcmc = None
