@@ -16,23 +16,24 @@ class ML(BaseModel):
         like_hist = []
 
         def closure():
-            if torch.is_grad_enabled():
-                optimizer.zero_grad()
+            optimizer.zero_grad()
             loss = -self.compute_likelihood()
             loss.backward()
-            like_hist.append(-loss.item())
-            print("epoch %i Likelihood: %.3f" % (i + 1, -loss.item()))
             return loss
 
         for i in range(epochs):
             optimizer.step(closure)
+            like_hist.append(self.lnP.item())
+            print("epoch %i Likelihood: %.3f" % (i + 1, like_hist[-1]))
 
             if path_write is not None:
-                peel, blens = peeler.nj(self.dists)
-                tree.save_tree(path_write, "ml", peel, blens, i, self.lnP, -1)
+                tree.save_tree(path_write, "ml", self.peel, self.blens, i, self.lnP, -1)
                 like_fn = os.path.join(path_write, "list_hist.txt")
                 with open(like_fn, "a") as f:
                     f.write("%f\n" % like_hist[-1])
+
+        if epochs > 0 and path_write is not None:
+            ML.trace(epochs, like_hist, path_write)
         return
 
     def run(taxa, partials, weights, dists, path_write, epochs, lr):
@@ -42,6 +43,23 @@ class ML(BaseModel):
         return
 
     def compute_likelihood(self):
-        peel, blens = peeler.nj(self.dists["dists"], tau=0.0001)
-        self.lnP = self.compute_LL(peel, blens)
+        self.peel, self.blens = peeler.nj(self.dists["dists"], tau=0.0001)
+        self.lnP = self.compute_LL(self.peel, self.blens)
         return self.lnP
+
+    def trace(epochs, like_hist, path_write):
+        try:
+            import matplotlib.pyplot as plt
+            plt.figure()
+            plt.plot(range(epochs), like_hist, 'r', label='likelihood')
+            plt.xlabel('Epochs')
+            plt.ylabel('likelihood')
+            plt.legend()
+            plt.savefig(path_write + "/likelihood_trace.png")
+
+            plt.clf()
+            plt.hist(like_hist)
+            plt.title('Likelihood histogram')
+            plt.savefig(path_write + "/likelihood_hist.png")
+        except Exception:
+            print("Could not generate and save likelihood figures.")

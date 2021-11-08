@@ -1,3 +1,5 @@
+import os
+
 import numpy as np
 import torch
 from matplotlib.patches import Circle
@@ -117,14 +119,14 @@ def plot_tree(ax, peel, X_torch, color=(0, 0, 0), labels=True, radius=1):
             )
 
 
-def save_tree(dir, filename, peel, blens, iteration, lnL, lnPr):
-    if dir is None:
+def save_tree(root_dir, filename, peel, blens, iteration, lnL, lnPr):
+    if root_dir is None:
         return
     S = len(peel) + 1
     tipnames = ["T" + str(x + 1) for x in range(S)]
     tree = tree_to_newick(tipnames, peel, blens)
 
-    fn = dir + "/" + filename + ".trees"
+    fn = os.path.join(root_dir, filename + ".trees")
     with open(fn, "a+") as file:
         file.write("tree STATE_" + str(iteration))
         file.write(" [&lnL=%f, &lnPr=%f] = [&R] " % (lnL, lnPr))

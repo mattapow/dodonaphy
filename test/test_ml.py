@@ -1,7 +1,6 @@
 from os import path
 
 import dendropy
-import torch
 from dendropy.model.discrete import simulate_discrete_chars
 from dendropy.simulate import treesim
 from dodonaphy import utils
