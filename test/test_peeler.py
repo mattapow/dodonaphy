@@ -251,19 +251,25 @@ def test_nj_soft():
 
     pdm = Cutils.get_pdm_torch(leaf_r, leaf_dir)
     pdm.requires_grad = True
-    peel, blens = peeler.nj(pdm, tau=0.00001)
+    for _ in range(1000):
+        peel, blens = peeler.nj(pdm, tau=0.0001)
 
-    peel_check = []
-    peel_check.append(np.allclose(peel, [[1, 0, 4], [3, 2, 5], [5, 4, 6]]))
-    peel_check.append(np.allclose(peel, [[0, 1, 4], [2, 3, 5], [4, 5, 6]]))
-    peel_check.append(np.allclose(peel, [[2, 3, 4], [1, 4, 5], [0, 5, 6]]))
-    peel_check.append(np.allclose(peel, [[0, 1, 4], [4, 2, 5], [5, 3, 6]]))
-    peel_check.append(np.allclose(peel, [[2, 3, 4], [0, 4, 5], [1, 5, 6]]))
-    assert sum(
-        peel_check
-    ), "Wrong topology. NB. non-exhaustive check of correct topologies."
-    assert torch.isclose(sum(blens).float(), torch.tensor(2.0318).float(), atol=0.001)
-    assert blens.requires_grad == True
+        peel_check = []
+        peel_check.append(np.allclose(peel, [[1, 0, 4], [3, 2, 5], [5, 4, 6]]))
+        peel_check.append(np.allclose(peel, [[0, 1, 4], [2, 3, 5], [4, 5, 6]]))
+        peel_check.append(np.allclose(peel, [[2, 3, 4], [1, 4, 5], [0, 5, 6]]))
+        peel_check.append(np.allclose(peel, [[0, 1, 4], [4, 2, 5], [5, 3, 6]]))
+        peel_check.append(np.allclose(peel, [[2, 3, 4], [0, 4, 5], [1, 5, 6]]))
+        peel_check.append(np.allclose(peel, [[2, 3, 4], [0, 1, 5], [5, 4, 6]]))
+        peel_check.append(np.allclose(peel, [[0, 1, 4], [4, 3, 5], [2, 5, 6]]))
+        
+        assert sum(
+            peel_check
+        ), f"Possibly an incorrect tree topology:\n{peel}"
+        assert torch.isclose(
+            sum(blens).float(), torch.tensor(2.0318).float(), atol=0.05
+        ), "Incorrect total branch length"
+        assert blens.requires_grad == True, "Branch lengths must carry gradients."
 
 
 def test_soft_nj_knownQ():
@@ -280,19 +286,20 @@ def test_soft_nj_knownQ():
     pdm[3, 4] = 3.0
     pdm = pdm + pdm.T
 
-    peel, blens = peeler.nj(pdm, 0.00001)
-    peel_check = []
-    peel_check.append(np.allclose(peel, [[0, 1, 5], [3, 4, 6], [5, 2, 7], [7, 6, 8]]))
-    peel_check.append(np.allclose(peel, [[0, 1, 5], [3, 4, 6], [2, 6, 7], [5, 7, 8]]))
-    peel_check.append(np.allclose(peel, [[0, 1, 5], [5, 2, 6], [6, 3, 7], [7, 4, 8]]))
-    peel_check.append(np.allclose(peel, [[0, 1, 5], [3, 4, 6], [5, 6, 7], [2, 7, 8]]))
-    peel_check.append(np.allclose(peel, [[0, 1, 5], [5, 2, 6], [6, 4, 7], [3, 7, 8]]))
-    peel_check.append(np.allclose(peel, [[0, 1, 5], [5, 2, 6], [3, 4, 7], [6, 7, 8]]))
-    peel_check.append(np.allclose(peel, [[1, 0, 5], [2, 5, 6], [4, 3, 7], [7, 6, 8]]))
-    assert sum(peel_check), "Wrong topology. NB. not all correct cases covered."
-    assert torch.isclose(
-        sum(blens).double(), torch.tensor(17).double(), atol=0.01
-    ), "Wrong sum of branch lengths."
+    for _ in range(1000):
+        peel, blens = peeler.nj(pdm, 0.0001)
+        peel_check = []
+        peel_check.append(np.allclose(peel, [[0, 1, 5], [3, 4, 6], [5, 2, 7], [7, 6, 8]]))
+        peel_check.append(np.allclose(peel, [[0, 1, 5], [3, 4, 6], [2, 6, 7], [5, 7, 8]]))
+        peel_check.append(np.allclose(peel, [[0, 1, 5], [5, 2, 6], [6, 3, 7], [7, 4, 8]]))
+        peel_check.append(np.allclose(peel, [[0, 1, 5], [3, 4, 6], [5, 6, 7], [2, 7, 8]]))
+        peel_check.append(np.allclose(peel, [[0, 1, 5], [5, 2, 6], [6, 4, 7], [3, 7, 8]]))
+        peel_check.append(np.allclose(peel, [[0, 1, 5], [5, 2, 6], [3, 4, 7], [6, 7, 8]]))
+        peel_check.append(np.allclose(peel, [[1, 0, 5], [2, 5, 6], [4, 3, 7], [7, 6, 8]]))
+        assert sum(peel_check), f"Probable incorrect tree topology: {peel}"
+        assert torch.isclose(
+            sum(blens).double(), torch.tensor(17).double(), atol=0.1
+        ), "Wrong sum of branch lengths."
 
 
 def test_soft_sort_1d():
