@@ -5,15 +5,15 @@ import os
 
 
 class ML(BaseModel):
-    """Maximum Likelihood class
-    """
+    """Maximum Likelihood class"""
+
     def __init__(self, partials, weights, dists=None, temp=None):
-        self.temp=temp
+        self.temp = temp
         super().__init__(partials, weights, None, curvature=-1, dists=dists)
 
     def learn(self, epochs, lr, path_write):
         def lr_lambda(epoch):
-            return 1.0 / (epoch + 1)**0.5
+            return 1.0 / (epoch + 1) ** 0.5
 
         optimizer = torch.optim.LBFGS(params=list(self.dists.values()), lr=lr)
         scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lr_lambda)
