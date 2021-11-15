@@ -18,9 +18,7 @@ from .utils import LogDirPrior
 class BaseModel(object):
     """Base Model for Inference"""
 
-    def __init__(
-        self, partials, weights, dim, curvature=-1.0, dists=None, **prior
-    ):
+    def __init__(self, partials, weights, dim, curvature=-1.0, dists=None, **prior):
         self.partials = partials.copy()
         self.weights = weights
         self.S = len(self.partials)
@@ -389,13 +387,14 @@ class BaseModel(object):
         if self.connect_method in ("geodesics", "incentre"):
             leaf_locs = leaf_r_prop * leaf_dir_prop
             if self.connect_method == "geodesics":
-                peel, int_locs, blens = peeler.make_soft_peel_tips(leaf_locs, connect_method="geodesics", curvature=-torch.ones(1))
-            elif self.connect_method == 'incentre':
+                peel, int_locs, blens = peeler.make_soft_peel_tips(
+                    leaf_locs, connect_method="geodesics", curvature=self.curvature
+                )
+            elif self.connect_method == "incentre":
                 peel, int_locs = peeler.make_peel_tips(
                     leaf_locs, connect_method=self.connect_method
                 )
             int_r_prop, int_dir_prop = utils.cart_to_dir(int_locs)
-        
 
         # get peels
         if self.connect_method == "nj":

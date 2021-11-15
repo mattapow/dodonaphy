@@ -351,12 +351,30 @@ def test_soft_argmin_one_hot():
     assert torch.allclose(one_hot_j, torch.tensor([0.0, 1.0, 0.0])), "wrong j index"
 
 
-def test_soft_geodesic():
+def test_soft_geodesic0():
+    leaf_locs = torch.tensor(
+        [
+            [-0.0181, -0.9082],
+            [-0.1272, -0.8406],
+            [-0.8246, 0.3809],
+        ],
+        dtype=torch.float64,
+        requires_grad=True,
+    )
+    peel, int_locs, blens = peeler.make_soft_peel_tips(
+        leaf_locs, connect_method="geodesics", curvature=-torch.ones(1)
+    )
+    peel1, int_locs1 = peeler.make_peel_geodesic(leaf_locs)
+    assert np.allclose(peel, peel1), f"{peel} != {peel1}"
+    assert torch.allclose(int_locs, int_locs1), f"{int_locs} != {int_locs1}"
+
+
+def test_soft_geodesic1():
     leaf_r = torch.tensor([0.6, 0.6, 0.5, 0.5])
-    leaf_theta = torch.tensor([np.pi *.2, 0, np.pi, -np.pi * .9])
+    leaf_theta = torch.tensor([np.pi * 0.2, 0, np.pi, -np.pi * 0.9])
     leaf_dir = utils.angle_to_directional(leaf_theta)
     leaf_locs = utils.dir_to_cart(leaf_r, leaf_dir).requires_grad_(True)
-    for i in range(1000):
+    for i in range(100):
         peel, int_locs, blens = peeler.make_soft_peel_tips(
             leaf_locs, connect_method="geodesics", curvature=-torch.ones(1)
         )
@@ -409,4 +427,3 @@ def test_hyp_lca_grad():
     optimizer.step()
     print(params)
     print(optimizer)
-
