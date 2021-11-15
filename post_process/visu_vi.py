@@ -3,8 +3,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 
-path_read = '/Users/151569/OneDrive - UTS/Projects/Dodonaphy/dodonaphy/data/T17_hypGEO/vi/simple_geodesics/d4_lr1_k1/VI_params_init.csv'
-VariationalParams = vi.read(path_read, connect_method='nj')
+path_read = '/Users/151569/OneDrive - UTS/Projects/Dodonaphy/dodonaphy/data/T17_hypGEO/vi/simple_geodesics/d5_lr1_k1/vi_params/vi_10.csv'
+VariationalParams = vi.read(path_read, internals=True)
 dim = 4
 taxa = 17
 

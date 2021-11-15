@@ -387,12 +387,12 @@ class DodonaphyVI(BaseModel):
                 f.write("\n")
 
 
-def read(path_read, connect_method='mst'):
+def read(path_read, internals=True):
     with open(path_read, 'r') as f:
         lines = [line.rstrip('\n') for line in f]
     dim = int(len([float(i) for i in lines[0].rstrip().split("\t")]) / 2)
     n_lines = len(lines) - 1
-    if connect_method == 'mst':
+    if internals:
         n_taxa = int( n_lines/ 2 + 1)
     else:
         n_taxa = n_lines
@@ -407,7 +407,7 @@ def read(path_read, connect_method='mst'):
         VariationalParams['leaf_mu'][i, :] = line_in[:dim]
         VariationalParams['leaf_sigma'][i, :] = line_in[dim:]
 
-    if connect_method == 'mst':
+    if internals:
         VariationalParams['int_mu'] = np.empty((n_taxa-2, dim))
         VariationalParams['int_sigma'] = np.empty((n_taxa-2, dim))
         for i in range(n_taxa-2):
