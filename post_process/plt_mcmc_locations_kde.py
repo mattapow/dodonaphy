@@ -1,5 +1,5 @@
 import matplotlib.cm
-# import seaborn as sns
+import seaborn as sns
 import matplotlib.pyplot as plt
 # from matplotlib.patches import Circle
 import numpy as np
@@ -11,17 +11,17 @@ from numpy import genfromtxt
 Histogram of node locations from MCMC
 """
 
-dir = "./data/T6_2/"
-mthd = "mcmc/simple_mst_c1"
+dir = "../data/T17_hypGEO/"
+mthd = "mcmc/simple_geodesics/d2_c1"
 fp = dir + mthd + "/locations.csv"
-isGeodesics = False
+isGeodesics = True
 
-X = genfromtxt(fp, dtype=np.double)
+X = genfromtxt(fp, dtype=np.double, delimiter=",")
 n_trees = X.shape[0]
 D = 2  # dimension must be 2 to plot
-S = 6
+S = 11
 n_points = int(X.shape[1]/D)
-burnin = 980
+burnin = 900
 sampleEnd = 1000
 if sampleEnd > n_trees:
     print(n_trees)
@@ -36,18 +36,14 @@ _, ax = plt.subplots(nrows=1, ncols=1)
 cmap = matplotlib.cm.get_cmap('Spectral')
 
 leaf_poin = np.zeros((S, D))
+rnd_idx = -1
 for i in range(S):
-    x = X[burnin:sampleEnd, 2*i]
-    y = X[burnin:sampleEnd, 2*i+1]
-    for j, xj in enumerate(x):
-        x[j, :] = utils.real2ball(torch.from_numpy(xj), D)
-    for j, yj in enumerate(y):
-        y[j, :] = utils.real2ball(torch.from_numpy(yj), D)
-    idx = -1
-    leaf_poin[i, :] = (x[idx], y[idx])
-    # sns.kdeplot(x=x, y=y, ax=ax, color=cmap(i/n_points), thresh=.1)
-    # ax.annotate('%s' % str(i+1), xy=(leaf_poin[i, :]), xycoords='data')
-
+    r = X[burnin:sampleEnd, 0]
+    x = X[burnin:sampleEnd, 2*i+1] * r
+    y = X[burnin:sampleEnd, 2*i+2] * r
+    leaf_poin[i, :] = (x[rnd_idx], y[rnd_idx])
+    sns.kdeplot(x=x, y=y, ax=ax, color=cmap(i/n_points), thresh=.1)
+    ax.annotate('%s' % str(i+1), xy=(leaf_poin[i, :]), xycoords='data')
 
 # ax.set_xlim([-1, .75])
 # ax.set_ylim([-1, 1.05])
@@ -71,7 +67,9 @@ else:
     X = np.concatenate((leaf_poin, int_poin, leaf_poin[0].reshape(1, D)))
     leaf_r, int_r, leaf_dir, int_dir = utils.cart_to_dir_tree(np.concatenate((leaf_poin, int_poin)))
     peel = peeler.make_peel_mst(leaf_r, leaf_dir, int_r, int_dir)
-tree.plot_tree(ax, peel, X, color=(0, 0, 0), labels=True)
+tree.plot_tree(ax, peel, X, color=(0, 0, 0), labels=False, radius=r[rnd_idx])
+ax.set_xlim([-r[rnd_idx]-.2, r[rnd_idx]+.2])
+ax.set_ylim([-r[rnd_idx]-.2, r[rnd_idx]+.2])
 
-ax.set_title('%s Node Embedding Densities. Trees %d to %d' % (mthd, burnin, sampleEnd))
+# ax.set_title('%s Node Embedding Densities. Trees %d to %d' % (mthd, burnin, sampleEnd))
 plt.show()

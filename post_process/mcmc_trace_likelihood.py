@@ -13,11 +13,11 @@ from numpy import genfromtxt
 #                     "simple_nj_c5_d2",
 #                     "simple_nj_c5_d5",
 #                     "simple_nj_c5_d10"]
-experiments_mcmc = ["wrap_nj"]
+experiments_mcmc = ["simple_geodesics"]
 burnin = 300
 experiments_vi = []
-dir = "../../data/T17_hypNJ"
-paths = [os.path.join(dir, 'mcmc', e, "d5_c5_crv100_noTune", 'mcmc.trees') for e in experiments_mcmc]
+dir = "../data/T11_hypGeoDeep"
+paths = [os.path.join(dir, 'mcmc', e, "d2_c1", 'mcmc.trees') for e in experiments_mcmc]
 for e in experiments_vi:
     paths.append("%s/vi/%s/vi.trees" % (dir, e))
 
@@ -32,22 +32,22 @@ for i in range(3):
 # ax[0].plot(data[:1000, 0]/10, data[:1000, 1])
 # sns.kdeplot(data[burnin:1000, 1], ax=ax[1])
 
-for i in range(2):
-    fn = "dna.nex.run" + str(i+1) + ".p"
-    path = os.path.join(dir, "mrbayes", fn)
-    data = genfromtxt(path, skip_header=2)
-    posterior = data[:, 1]
-    ax[0, 0].plot(data[:1000, 0]/10, posterior[:1000], color='k')
-    sns.kdeplot(posterior[burnin:], ax=ax[0, 1], color='k')
-    posterior = data[:, 2]
-    ax[1, 0].plot(data[:1000, 0]/10, posterior[:1000], color='k')
-    sns.kdeplot(posterior[burnin:], ax=ax[1, 1], color='k')
-    posterior = data[:, 1] + data[:, 2]
-    ax[2, 0].plot(data[:1000, 0]/10, posterior[:1000], color='k')
-    sns.kdeplot(posterior[burnin:], ax=ax[2, 1], color='k')
+# for i in range(2):
+#     fn = "dna.nex.run" + str(i+1) + ".p"
+#     path = os.path.join(dir, "mrbayes", fn)
+#     data = genfromtxt(path, skip_header=2)
+#     posterior = data[:, 1]
+#     ax[0, 0].plot(data[:1000, 0]/10, posterior[:1000], color='k')
+#     sns.kdeplot(posterior[burnin:], ax=ax[0, 1], color='k')
+#     posterior = data[:, 2]
+#     ax[1, 0].plot(data[:1000, 0]/10, posterior[:1000], color='k')
+#     sns.kdeplot(posterior[burnin:], ax=ax[1, 1], color='k')
+#     posterior = data[:, 1] + data[:, 2]
+#     ax[2, 0].plot(data[:1000, 0]/10, posterior[:1000], color='k')
+#     sns.kdeplot(posterior[burnin:], ax=ax[2, 1], color='k')
 
-experiments_mcmc.insert(0, "MrBayes run 1")
-experiments_mcmc.insert(0, "MrBayes run 2")
+# experiments_mcmc.insert(0, "MrBayes run 1")
+# experiments_mcmc.insert(0, "MrBayes run 2")
 
 for path in paths:
     lnL = []
