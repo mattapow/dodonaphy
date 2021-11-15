@@ -135,10 +135,12 @@ def get_path(root_dir, args):
     elif args.infer == "ml":
         assert (
             args.connect == "nj"
-        ), "Maximum likelihood only works on neighbour joining."
+        ), "Maximum likelihood only works on neighbour joining. This is since\n\
+            it it the only purely distance-based connection method\n\
+            implemented. Other methods depend on embedding locations."
         if args.doSave:
             lr = -int(np.log10(args.learn))
-            method_dir = os.path.join(root_dir, "ml", "nj")
+            method_dir = os.path.join(root_dir, "ml", exp_method)
             path_write = os.path.join(
                 method_dir, "lr%d_n%d%s" % (lr, args.epochs, args.exp_ext)
             )
@@ -195,6 +197,7 @@ def init_parser():
     parser = argparse.ArgumentParser(
         prog="Dodonaphy",
         description="Compute a Bayesian phylogenetic posterior from a hyperbolic embedding.",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     parser.add_argument("--dim", "-D", default=5, type=int, help="Embedding dimensions")
     parser.add_argument("--taxa", "-S", default=17, type=int, help="Number of taxa.")

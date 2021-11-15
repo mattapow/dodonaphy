@@ -7,7 +7,6 @@ from dodonaphy import utils
 from dodonaphy.ml import ML
 from dodonaphy.phylo import compress_alignment
 
-
 def test_ml1():
     n_taxa = 6
     sim_tree = treesim.birth_death_tree(

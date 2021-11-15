@@ -3,6 +3,7 @@ from heapq import heapify, heappop, heappush
 
 import numpy as np
 import torch
+from torch import functional
 
 from . import poincare, tree, utils, Cutils
 from .edge import u_edge
@@ -14,6 +15,66 @@ def make_peel_incentre(leaf_locs, curvature=-torch.ones(1)):
 
 def make_peel_geodesic(leaf_locs):
     return make_peel_tips(leaf_locs, connect_method="geodesics")
+
+
+def make_soft_peel_tips(
+    leaf_locs, connect_method="geodesics", curvature=-torch.ones(1)
+):
+    """Recursively generate a tree with gradients
+    Args:
+        leaf_locs (array): Location in of the tips in the Poincare disk
+
+    Returns:
+        tuple: (peel, int_locs)
+    """
+    if connect_method != "geodesics":
+        raise NotImplementedError()
+    if not torch.isclose(curvature, -torch.ones(1)):
+        raise NotImplementedError()
+    dims = leaf_locs.shape[1]
+    leaf_node_count = leaf_locs.shape[0]
+    int_node_count = leaf_locs.shape[0] - 2
+    node_count = leaf_locs.shape[0] * 2 - 2
+
+    int_locs = torch.zeros(int_node_count + 1, dims, dtype=torch.double)
+    leaf_locs = leaf_locs.double()
+    peel = np.zeros((int_node_count + 1, 3), dtype=np.int16)
+    blens = torch.zeros(node_count, dtype=torch.double)
+    mask = torch.tensor(leaf_node_count * [False])
+    node_map = torch.arange(leaf_node_count)
+
+    for int_i in range(int_node_count + 1):
+        pdm = utils.get_plca(leaf_locs.clone(), as_torch=True)
+        pdm_mask = pdm * torch.outer(~mask, ~mask)
+        pdm_tril = torch.tril(pdm_mask)
+        local_inf = torch.max(pdm_mask) + 1.0
+        pdm_nozero = torch.where(pdm_tril != 0, pdm_tril, -local_inf)
+
+        hot_from, hot_to = soft_argmin_one_hot(
+            -pdm_nozero, tau=0.00001, noise_ratio=100
+        )
+        f = torch.where(hot_to == torch.max(hot_to))[0]
+        g = torch.where(hot_from == torch.max(hot_from))[0]
+        from_loc = hot_from @ leaf_locs.clone()
+        to_loc = hot_to @ leaf_locs.clone()
+
+        cur_internal = int_i + leaf_node_count
+        peel[int_i, 0] = node_map[f]
+        peel[int_i, 1] = node_map[g]
+        peel[int_i, 2] = cur_internal
+
+        new_loc = poincare.hyp_lca(from_loc, to_loc)
+        blens[node_map[f]] = poincare.hyp_lca(leaf_locs[f], new_loc, return_coord=False)
+        blens[node_map[g]] = poincare.hyp_lca(leaf_locs[g], new_loc, return_coord=False)
+
+        # replace leaf_loc[g] by u
+        leaf_locs[g] = int_locs[int_i] = new_loc
+        node_map[g] = cur_internal
+        mask[f] = True
+    set1 = set(np.sort(np.unique(peel)))
+    set2 = set(np.arange(node_count+1))
+    assert set1 == set2, f"{set1} is not expected {set2}"
+    return peel, int_locs, blens
 
 
 def make_peel_tips(leaf_locs, connect_method="geodesics", curvature=-torch.ones(1)):
@@ -376,7 +437,7 @@ def nj(pdm, tau=None):
     eps = torch.finfo(torch.double).eps
 
     peel = np.zeros((int_node_count + 1, 3), dtype=int)
-    blens = torch.zeros(node_count, dtype=torch.float64)
+    blens = torch.zeros(node_count, dtype=torch.double)
 
     mask = torch.tensor(leaf_node_count * [False])
     node_map = torch.arange(leaf_node_count)
@@ -391,7 +452,7 @@ def nj(pdm, tau=None):
             dist_fg = pdm[f][g]
         else:
             hot_g, hot_f = soft_argmin_one_hot(
-                torch.tril(Q), tau=0.00001, noise_ratio=30
+                torch.tril(Q), tau=0.000001, noise_ratio=1000
             )
             dist_u, dist_uf, dist_fg = get_new_dist_soft(pdm, mask, hot_f, hot_g)
             f = torch.where(hot_f == torch.max(hot_f))[0]
@@ -443,7 +504,7 @@ def unravel_index(index, shape):
     out = []
     for dim in reversed(shape):
         out.append(index % dim)
-        index = torch.div(index, dim, rounding_mode='floor')
+        index = torch.div(index, dim, rounding_mode="floor")
     return tuple(reversed(out))
 
 
@@ -461,6 +522,7 @@ def soft_argmin_one_hot(input_2d, tau, noise_ratio=100):
     input_2d = input_2d + torch.distributions.Normal(
         torch.zeros(n * m), torch.ones(n * m) * sigma
     ).rsample().view(n, m)
+    # TODO: consider truncating normal with fmod
     one_hot_i = soft_row_argmin(input_2d, tau)
     one_hot_j = soft_row_argmin(input_2d.T, tau)
     return one_hot_i, one_hot_j

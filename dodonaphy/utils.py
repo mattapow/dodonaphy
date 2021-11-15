@@ -213,11 +213,12 @@ def cart_to_dir_tree(X):
     return leaf_r, int_r, leaf_dir, int_dir
 
 
-def get_plca(locs):
+def get_plca(locs, as_torch=False):
     """Return a pair-wise least common ancestor matrix based.
 
     Args:
         locs ([type]): Coordinates in the Poincare ball
+        as_torch (bool): to return as torch tensor (otherwise list).
 
     Returns:
         [type]: A list of lists containing the edges.
@@ -225,15 +226,23 @@ def get_plca(locs):
         of the LCA to the origin.
     """
     node_count = locs.shape[0]
-    edge_list = [[] for _ in range(node_count)]
+    if as_torch:
+        edge_adj = torch.zeros((node_count, node_count), dtype=torch.double)
+    else:
+        edge_list = [[] for _ in range(node_count)]
 
     for i in range(node_count):
         for j in range(i):
-            dist_ij = -poincare.hyp_lca(locs[i], locs[j], return_coord=False)
+            dist_ij = poincare.hyp_lca(locs[i], locs[j], return_coord=False)
+            if as_torch:
+                edge_adj[i, j] = dist_ij
+                edge_adj[j, i] = dist_ij
+            else:
+                edge_list[i].append(u_edge(dist_ij, i, j))
+                edge_list[j].append(u_edge(dist_ij, j, i))
 
-            edge_list[i].append(u_edge(dist_ij, i, j))
-            edge_list[j].append(u_edge(dist_ij, j, i))
-
+    if as_torch:
+        return edge_adj
     return edge_list
 
 
@@ -340,6 +349,7 @@ def LogDirPrior(blen, aT, bT, a, c):
     )
 
     return lnPrior
+
 
 def tip_distances(tree0, n_taxa):
     """Get tip pair-wise tip distances"""

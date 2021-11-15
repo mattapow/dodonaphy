@@ -1,7 +1,10 @@
-from dodonaphy.base_model import BaseModel
-from dodonaphy import peeler, tree
-import torch
+import math
 import os
+
+import torch
+
+from dodonaphy import peeler, tree
+from dodonaphy.base_model import BaseModel
 
 
 class ML(BaseModel):
@@ -49,6 +52,8 @@ class ML(BaseModel):
 
     def compute_likelihood(self):
         self.peel, self.blens = peeler.nj(self.dists["dists"], tau=self.temp)
+        if sum(sum(self.peel == 0)) > 1:
+            return torch.tensor(-math.inf, requires_grad=True)
         self.lnP = self.compute_LL(self.peel, self.blens)
         return self.lnP
 

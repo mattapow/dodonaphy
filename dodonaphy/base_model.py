@@ -388,10 +388,14 @@ class BaseModel(object):
         leaf_r = leaf_r_prop.repeat(self.S)
         if self.connect_method in ("geodesics", "incentre"):
             leaf_locs = leaf_r_prop * leaf_dir_prop
-            peel, int_locs = peeler.make_peel_tips(
-                leaf_locs, connect_method=self.connect_method
-            )
+            if self.connect_method == "geodesics":
+                peel, int_locs, blens = peeler.make_soft_peel_tips(leaf_locs, connect_method="geodesics", curvature=-torch.ones(1))
+            elif self.connect_method == 'incentre':
+                peel, int_locs = peeler.make_peel_tips(
+                    leaf_locs, connect_method=self.connect_method
+                )
             int_r_prop, int_dir_prop = utils.cart_to_dir(int_locs)
+        
 
         # get peels
         if self.connect_method == "nj":

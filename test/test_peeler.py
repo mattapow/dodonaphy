@@ -1,7 +1,12 @@
+import dendropy
 import numpy as np
 import pytest
 import torch
-from dodonaphy import peeler, poincare, utils, Cutils
+from dendropy.model.discrete import simulate_discrete_chars
+from dendropy.simulate import treesim
+from dodonaphy import Cutils, peeler, poincare, utils, tree
+from dodonaphy.phylo import compress_alignment
+from dodonaphy.vi import DodonaphyVI
 
 
 def test_make_peel_simple():
@@ -262,10 +267,8 @@ def test_nj_soft():
         peel_check.append(np.allclose(peel, [[2, 3, 4], [0, 4, 5], [1, 5, 6]]))
         peel_check.append(np.allclose(peel, [[2, 3, 4], [0, 1, 5], [5, 4, 6]]))
         peel_check.append(np.allclose(peel, [[0, 1, 4], [4, 3, 5], [2, 5, 6]]))
-        
-        assert sum(
-            peel_check
-        ), f"Possibly an incorrect tree topology:\n{peel}"
+
+        assert sum(peel_check), f"Possibly an incorrect tree topology:\n{peel}"
         assert torch.isclose(
             sum(blens).float(), torch.tensor(2.0318).float(), atol=0.05
         ), "Incorrect total branch length"
@@ -289,13 +292,27 @@ def test_soft_nj_knownQ():
     for _ in range(1000):
         peel, blens = peeler.nj(pdm, 0.0001)
         peel_check = []
-        peel_check.append(np.allclose(peel, [[0, 1, 5], [3, 4, 6], [5, 2, 7], [7, 6, 8]]))
-        peel_check.append(np.allclose(peel, [[0, 1, 5], [3, 4, 6], [2, 6, 7], [5, 7, 8]]))
-        peel_check.append(np.allclose(peel, [[0, 1, 5], [5, 2, 6], [6, 3, 7], [7, 4, 8]]))
-        peel_check.append(np.allclose(peel, [[0, 1, 5], [3, 4, 6], [5, 6, 7], [2, 7, 8]]))
-        peel_check.append(np.allclose(peel, [[0, 1, 5], [5, 2, 6], [6, 4, 7], [3, 7, 8]]))
-        peel_check.append(np.allclose(peel, [[0, 1, 5], [5, 2, 6], [3, 4, 7], [6, 7, 8]]))
-        peel_check.append(np.allclose(peel, [[1, 0, 5], [2, 5, 6], [4, 3, 7], [7, 6, 8]]))
+        peel_check.append(
+            np.allclose(peel, [[0, 1, 5], [3, 4, 6], [5, 2, 7], [7, 6, 8]])
+        )
+        peel_check.append(
+            np.allclose(peel, [[0, 1, 5], [3, 4, 6], [2, 6, 7], [5, 7, 8]])
+        )
+        peel_check.append(
+            np.allclose(peel, [[0, 1, 5], [5, 2, 6], [6, 3, 7], [7, 4, 8]])
+        )
+        peel_check.append(
+            np.allclose(peel, [[0, 1, 5], [3, 4, 6], [5, 6, 7], [2, 7, 8]])
+        )
+        peel_check.append(
+            np.allclose(peel, [[0, 1, 5], [5, 2, 6], [6, 4, 7], [3, 7, 8]])
+        )
+        peel_check.append(
+            np.allclose(peel, [[0, 1, 5], [5, 2, 6], [3, 4, 7], [6, 7, 8]])
+        )
+        peel_check.append(
+            np.allclose(peel, [[1, 0, 5], [2, 5, 6], [4, 3, 7], [7, 6, 8]])
+        )
         assert sum(peel_check), f"Probable incorrect tree topology: {peel}"
         assert torch.isclose(
             sum(blens).double(), torch.tensor(17).double(), atol=0.1
@@ -332,3 +349,64 @@ def test_soft_argmin_one_hot():
     one_hot_i, one_hot_j = peeler.soft_argmin_one_hot(input_2d, tau=0.000001)
     assert torch.allclose(one_hot_i, torch.tensor([0.0, 0.0, 1.0])), "wrong i index"
     assert torch.allclose(one_hot_j, torch.tensor([0.0, 1.0, 0.0])), "wrong j index"
+
+
+def test_soft_geodesic():
+    leaf_r = torch.tensor([0.6, 0.6, 0.5, 0.5])
+    leaf_theta = torch.tensor([np.pi *.2, 0, np.pi, -np.pi * .9])
+    leaf_dir = utils.angle_to_directional(leaf_theta)
+    leaf_locs = utils.dir_to_cart(leaf_r, leaf_dir).requires_grad_(True)
+    for i in range(1000):
+        peel, int_locs, blens = peeler.make_soft_peel_tips(
+            leaf_locs, connect_method="geodesics", curvature=-torch.ones(1)
+        )
+
+        peel_check = []
+        peel_check.append(np.allclose(peel, [[1, 0, 4], [3, 2, 5], [4, 5, 6]]))
+        peel_check.append(np.allclose(peel, [[1, 0, 4], [3, 2, 5], [5, 4, 6]]))
+        peel_check.append(np.allclose(peel, [[1, 0, 4], [2, 3, 5], [4, 5, 6]]))
+        peel_check.append(np.allclose(peel, [[1, 0, 4], [2, 3, 5], [5, 4, 6]]))
+        peel_check.append(np.allclose(peel, [[0, 1, 4], [2, 3, 5], [5, 4, 6]]))
+        peel_check.append(np.allclose(peel, [[0, 1, 4], [2, 3, 5], [4, 5, 6]]))
+        peel_check.append(np.allclose(peel, [[0, 1, 4], [3, 2, 5], [5, 4, 6]]))
+        peel_check.append(np.allclose(peel, [[0, 1, 4], [3, 2, 5], [4, 5, 6]]))
+        peel_check.append(np.allclose(peel, [[0, 1, 4], [3, 2, 5], [4, 5, 6]]))
+        assert sum(peel_check), f"Iteration {i}. Possibly incorrect peel: {peel}"
+        assert int_locs.requires_grad == True
+        assert blens.requires_grad == True
+
+
+def test_soft_geodesic_optim():
+    leaf_r = torch.tensor([0.8, 0.8, 0.5, 0.5])
+    leaf_theta = torch.tensor([np.pi / 4, -np.pi / 7, np.pi * 7 / 10, -np.pi * 9 / 10])
+    leaf_dir = utils.angle_to_directional(leaf_theta)
+    params = {"leaf_locs": utils.dir_to_cart(leaf_r, leaf_dir).requires_grad_(True)}
+    simtree = treesim.birth_death_tree(
+        birth_rate=1.0, death_rate=0.5, num_extant_tips=4
+    )
+    dna = simulate_discrete_chars(
+        seq_len=100, tree_model=simtree, seq_model=dendropy.model.discrete.Jc69()
+    )
+    partials, weights = compress_alignment(dna)
+    mymod = DodonaphyVI(
+        partials, weights, dim=2, embed_method="simple", connect_method="geodesics"
+    )
+    optimizer = torch.optim.Adam(list(params.values()), lr=1)
+    optimizer.zero_grad()
+    loss = -mymod.elbo_normal(1)
+    loss.backward()
+    optimizer.step()
+
+
+def test_hyp_lca_grad():
+    from_loc = torch.tensor([0.1, 0.1], dtype=torch.double, requires_grad=True)
+    to_loc = torch.tensor([0.1, -0.1], dtype=torch.double, requires_grad=True)
+    params = {"from_loc": from_loc, "to_loc": to_loc}
+    optimizer = torch.optim.Adam(list(params.values()), lr=1)
+    optimizer.zero_grad()
+    loss = poincare.hyp_lca(from_loc, to_loc, return_coord=False)
+    loss.backward()
+    optimizer.step()
+    print(params)
+    print(optimizer)
+
