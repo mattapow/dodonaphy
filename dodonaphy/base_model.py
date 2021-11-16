@@ -387,9 +387,14 @@ class BaseModel(object):
         if self.connect_method in ("geodesics", "incentre"):
             leaf_locs = leaf_r_prop * leaf_dir_prop
             if self.connect_method == "geodesics":
-                peel, int_locs, blens = peeler.make_soft_peel_tips(
-                    leaf_locs, connect_method="geodesics", curvature=self.curvature
-                )
+                if leaf_locs.requires_grad:
+                    peel, int_locs, blens = peeler.make_soft_peel_tips(
+                        leaf_locs, connect_method="geodesics", curvature=self.curvature
+                    )
+                else:
+                    peel, int_locs = peeler.make_peel_geodesic(
+                        leaf_locs, curvature=self.curvature
+                    )
             elif self.connect_method == "incentre":
                 peel, int_locs = peeler.make_peel_tips(
                     leaf_locs, connect_method=self.connect_method

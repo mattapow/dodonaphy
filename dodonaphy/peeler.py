@@ -13,8 +13,8 @@ def make_peel_incentre(leaf_locs, curvature=-torch.ones(1)):
     return make_peel_tips(leaf_locs, connect_method="incentre", curvature=curvature)
 
 
-def make_peel_geodesic(leaf_locs):
-    return make_peel_tips(leaf_locs, connect_method="geodesics")
+def make_peel_geodesic(leaf_locs, curvature=-torch.ones(1)):
+    return make_peel_tips(leaf_locs, connect_method="geodesics", curvature=curvature)
 
 
 def make_soft_peel_tips(
