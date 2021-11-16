@@ -351,21 +351,44 @@ def test_soft_argmin_one_hot():
     assert torch.allclose(one_hot_j, torch.tensor([0.0, 1.0, 0.0])), "wrong j index"
 
 
-def test_soft_geodesic0():
-    leaf_locs = torch.tensor(
+def test_geodesic():
+    leaf_locs = 0.4 * torch.tensor(
         [
-            [-0.0181, -0.9082],
-            [-0.1272, -0.8406],
-            [-0.8246, 0.3809],
+            [np.cos(np.pi), np.sin(np.pi)],
+            [np.cos(0.9 * np.pi), np.sin(0.9 * np.pi)],
+            [np.cos(-0.5 * np.pi), np.sin(-0.5 * np.pi)],
+        ],
+        dtype=torch.float64,
+    )
+    peel, _ = peeler.make_peel_geodesic(leaf_locs)
+
+    peel_check = []
+    peel_check.append(np.allclose(peel, [[1, 0, 3], [3, 2, 4]]))
+    peel_check.append(np.allclose(peel, [[0, 1, 3], [3, 2, 4]]))
+    peel_check.append(np.allclose(peel, [[1, 0, 3], [2, 3, 4]]))
+    peel_check.append(np.allclose(peel, [[0, 1, 3], [2, 3, 4]]))
+    assert sum(peel_check), f"Incorrect geodesic peel: {peel}"
+
+
+def test_soft_geodesic0():
+    leaf_locs = 0.9 * torch.tensor(
+        [
+            [np.cos(np.pi), np.sin(np.pi)],
+            [np.cos(0.9 * np.pi), np.sin(0.9 * np.pi)],
+            [np.cos(-0.5 * np.pi), np.sin(-0.5 * np.pi)],
         ],
         dtype=torch.float64,
         requires_grad=True,
     )
-    peel, int_locs, blens = peeler.make_soft_peel_tips(
+    peel, int_locs, _ = peeler.make_soft_peel_tips(
         leaf_locs, connect_method="geodesics", curvature=-torch.ones(1)
     )
-    peel1, int_locs1 = peeler.make_peel_geodesic(leaf_locs)
-    assert np.allclose(peel, peel1), f"{peel} != {peel1}"
+    _, int_locs1 = peeler.make_peel_geodesic(leaf_locs)
+    peel_check = []
+    peel_check.append(np.allclose(peel, [[1, 0, 3], [3, 2, 4]]))
+    peel_check.append(np.allclose(peel, [[0, 1, 3], [3, 2, 4]]))
+    peel_check.append(np.allclose(peel, [[1, 0, 3], [2, 3, 4]]))
+    peel_check.append(np.allclose(peel, [[0, 1, 3], [2, 3, 4]]))
     assert torch.allclose(int_locs, int_locs1), f"{int_locs} != {int_locs1}"
 
 
@@ -425,5 +448,3 @@ def test_hyp_lca_grad():
     loss = poincare.hyp_lca(from_loc, to_loc, return_coord=False)
     loss.backward()
     optimizer.step()
-    print(params)
-    print(optimizer)

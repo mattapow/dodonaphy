@@ -49,14 +49,13 @@ def make_soft_peel_tips(
         pdm_tril = torch.tril(pdm_mask)
         local_inf = torch.max(pdm_mask) + 1.0
         pdm_nozero = torch.where(pdm_tril != 0, pdm_tril, -local_inf)
-
         hot_from, hot_to = soft_argmin_one_hot(
             -pdm_nozero, tau=0.00001, noise_ratio=100
         )
         f = torch.where(hot_to == torch.max(hot_to))[0]
         g = torch.where(hot_from == torch.max(hot_from))[0]
-        from_loc = hot_from @ leaf_locs.clone()
-        to_loc = hot_to @ leaf_locs.clone()
+        from_loc = hot_from @ leaf_locs
+        to_loc = hot_to @ leaf_locs
 
         cur_internal = int_i + leaf_node_count
         peel[int_i, 0] = node_map[f]
@@ -68,12 +67,14 @@ def make_soft_peel_tips(
         blens[node_map[g]] = poincare.hyp_lca(leaf_locs[g], new_loc, return_coord=False)
 
         # replace leaf_loc[g] by u
-        leaf_locs[g] = int_locs[int_i] = new_loc
+        # leaf_locs[g] = new_loc
+        leaf_locs = torch.cat(
+            (leaf_locs[:g, :], new_loc.unsqueeze(dim=-1).T, leaf_locs[g + 1 :, :]),
+            dim=0,
+        )
+        int_locs[int_i] = new_loc
         node_map[g] = cur_internal
         mask[f] = True
-    set1 = set(np.sort(np.unique(peel)))
-    set2 = set(np.arange(node_count+1))
-    assert set1 == set2, f"{set1} is not expected {set2}"
     return peel, int_locs, blens
 
 
@@ -93,6 +94,9 @@ def make_peel_tips(leaf_locs, connect_method="geodesics", curvature=-torch.ones(
 
     if connect_method == "geodesics":
         edge_list = utils.get_plca(leaf_locs)
+        for node in edge_list:
+            for edge in node:
+                edge.distance = -edge.distance
     elif connect_method == "incentre":
         leaf_r, leaf_dir = utils.cart_to_dir(leaf_locs)
         edge_list = utils.get_pdm_tips(leaf_r, leaf_dir, curvature=curvature)
