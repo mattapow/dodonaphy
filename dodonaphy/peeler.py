@@ -50,7 +50,7 @@ def make_soft_peel_tips(
         local_inf = torch.max(pdm_mask) + 1.0
         pdm_nozero = torch.where(pdm_tril != 0, pdm_tril, -local_inf)
         hot_from, hot_to = soft_argmin_one_hot(
-            -pdm_nozero, tau=0.00001, noise_ratio=100
+            -pdm_nozero, tau=1e-7, noise=1e-6, truncate=1e-5
         )
         f = torch.where(hot_to == torch.max(hot_to))[0]
         g = torch.where(hot_from == torch.max(hot_from))[0]
@@ -424,7 +424,7 @@ def is_valid_edge(
     return is_valid
 
 
-def nj(pdm, tau=None):
+def nj(pdm, tau=None, noise=None, truncate=None):
     """Generate Neighbour joining tree.
 
     Args:
@@ -435,6 +435,15 @@ def nj(pdm, tau=None):
     Returns:
         tuple: (peel, blens)
     """
+    if tau is not None:
+        assert noise is not None, "Can't provide tau without noise."
+        assert truncate is not None, "Can't provide tau without truncate."
+    if noise is not None:
+        assert tau is not None, "Can't provide noise without tau."
+        assert truncate is not None, "Can't provide noise without truncate."
+    if truncate is not None:
+        assert tau is not None, "Can't provide truncate without tau."
+        assert noise is not None, "Can't provide truncate without noise."
     leaf_node_count = len(pdm)
     int_node_count = leaf_node_count - 2
     node_count = leaf_node_count + int_node_count
@@ -456,7 +465,7 @@ def nj(pdm, tau=None):
             dist_fg = pdm[f][g]
         else:
             hot_g, hot_f = soft_argmin_one_hot(
-                torch.tril(Q), tau=0.000001, noise_ratio=1000
+                torch.tril(Q), tau=tau, noise=noise, truncate=truncate
             )
             dist_u, dist_uf, dist_fg = get_new_dist_soft(pdm, mask, hot_f, hot_g)
             f = torch.where(hot_f == torch.max(hot_f))[0]
@@ -519,14 +528,25 @@ def soft_sort(s, tau):
     return P_hat
 
 
-def soft_argmin_one_hot(input_2d, tau, noise_ratio=100):
-    """Returns one-hot vectors indexing the minimum of a 2D tensor."""
-    sigma = tau * noise_ratio
+def soft_argmin_one_hot(input_2d, tau, noise, truncate):
+    """Returns one-hot vectors indexing the minimum of a 2D tensor.
+
+    Args:
+        input_2d (tensor): 2D tensor
+        tau (float): Temperature. See soft_sort
+        noise (int, optional): Noise is introduced to break ties.
+        So it should be larger than tau, but not too large that it affects the chosen minimum. Defaults to 100.
+
+    Returns:
+        tuple(tensor, tensor): One-hot row and column indexes of minimum of input.
+    """
     n, m = input_2d.size()
-    input_2d = input_2d + torch.distributions.Normal(
-        torch.zeros(n * m), torch.ones(n * m) * sigma
-    ).rsample().view(n, m)
-    # TODO: consider truncating normal with fmod
+    input_2d = input_2d + torch.fmod(
+        torch.distributions.Normal(torch.zeros(n * m), torch.ones(n * m) * noise)
+        .rsample()
+        .view(n, m),
+        truncate,
+    )
     one_hot_i = soft_row_argmin(input_2d, tau)
     one_hot_j = soft_row_argmin(input_2d.T, tau)
     return one_hot_i, one_hot_j

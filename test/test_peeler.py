@@ -256,8 +256,8 @@ def test_nj_soft():
 
     pdm = Cutils.get_pdm_torch(leaf_r, leaf_dir)
     pdm.requires_grad = True
-    for _ in range(1000):
-        peel, blens = peeler.nj(pdm, tau=0.0001)
+    for i in range(1000):
+        peel, blens = peeler.nj(pdm, tau=1e-7, noise=1e-2, truncate=1e-1)
 
         peel_check = []
         peel_check.append(np.allclose(peel, [[1, 0, 4], [3, 2, 5], [5, 4, 6]]))
@@ -268,10 +268,10 @@ def test_nj_soft():
         peel_check.append(np.allclose(peel, [[2, 3, 4], [0, 1, 5], [5, 4, 6]]))
         peel_check.append(np.allclose(peel, [[0, 1, 4], [4, 3, 5], [2, 5, 6]]))
 
-        assert sum(peel_check), f"Possibly an incorrect tree topology:\n{peel}"
+        assert sum(peel_check), f"Iteration: {i}. Possibly an incorrect tree topology:\n{peel}"
         assert torch.isclose(
             sum(blens).float(), torch.tensor(2.0318).float(), atol=0.05
-        ), "Incorrect total branch length"
+        ), f"Iteration: {i}. Incorrect total branch length"
         assert blens.requires_grad == True, "Branch lengths must carry gradients."
 
 
@@ -289,8 +289,8 @@ def test_soft_nj_knownQ():
     pdm[3, 4] = 3.0
     pdm = pdm + pdm.T
 
-    for _ in range(1000):
-        peel, blens = peeler.nj(pdm, 0.0001)
+    for i in range(100):
+        peel, blens = peeler.nj(pdm, tau=1e-5, noise=1e-2, truncate=1e-1)
         peel_check = []
         peel_check.append(
             np.allclose(peel, [[0, 1, 5], [3, 4, 6], [5, 2, 7], [7, 6, 8]])
@@ -316,7 +316,7 @@ def test_soft_nj_knownQ():
         assert sum(peel_check), f"Probable incorrect tree topology: {peel}"
         assert torch.isclose(
             sum(blens).double(), torch.tensor(17).double(), atol=0.1
-        ), "Wrong sum of branch lengths."
+        ), f"Iteration{i}. Wrong sum of branch lengths: {sum(blens).double()} != 17"
 
 
 def test_soft_sort_1d():
@@ -346,7 +346,7 @@ def test_soft_sort_2d():
 
 def test_soft_argmin_one_hot():
     input_2d = torch.tensor(([4, 5, 10], [3, 4, 2.3], [20, 2, 8]))
-    one_hot_i, one_hot_j = peeler.soft_argmin_one_hot(input_2d, tau=0.000001)
+    one_hot_i, one_hot_j = peeler.soft_argmin_one_hot(input_2d, tau=1e-4, noise=1e-4, truncate=1e-4)
     assert torch.allclose(one_hot_i, torch.tensor([0.0, 0.0, 1.0])), "wrong i index"
     assert torch.allclose(one_hot_j, torch.tensor([0.0, 1.0, 0.0])), "wrong j index"
 
