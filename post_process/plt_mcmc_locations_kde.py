@@ -11,7 +11,7 @@ from numpy import genfromtxt
 Histogram of node locations from MCMC
 """
 
-dir = "../data/T17_hypGEO/"
+dir = "../data/T11_hypGeoDeep/"
 mthd = "mcmc/simple_geodesics/d2_c1"
 fp = dir + mthd + "/locations.csv"
 isGeodesics = True
@@ -21,14 +21,11 @@ n_trees = X.shape[0]
 D = 2  # dimension must be 2 to plot
 S = 11
 n_points = int(X.shape[1]/D)
-burnin = 900
+burnin = 800
 sampleEnd = 1000
 if sampleEnd > n_trees:
     print(n_trees)
     raise IndexError("requested more than nuber of trees.")
-# if not mthd == "mcmc":
-#     burnin = 0
-#     sampleEnd = 1000
 
 _, ax = plt.subplots(nrows=1, ncols=1)
 # circ = Circle((0, 0), radius=1, fill=False, edgecolor='k')
@@ -50,7 +47,7 @@ for i in range(S):
 
 # plot tree of mean points
 if isGeodesics:
-    peel, int_poin = peeler.make_peel_incentre(torch.from_numpy(leaf_poin))
+    peel, int_poin = peeler.make_peel_geodesic(torch.from_numpy(leaf_poin))
     X = np.concatenate((leaf_poin, int_poin))
 else:
     int_poin = np.zeros((S-2, D))

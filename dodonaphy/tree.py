@@ -91,7 +91,7 @@ def plot_tree(ax, peel, X_torch, color=(0, 0, 0), labels=True, radius=1):
     -------
 
     """
-    circ = Circle((0, 0), radius=radius, fill=False, edgecolor="k")
+    circ = Circle((0, 0), radius=radius, fill=False, edgecolor=(235/256, 237/256, 240/256))
     ax.add_patch(circ)
 
     # nodes
@@ -109,7 +109,6 @@ def plot_tree(ax, peel, X_torch, color=(0, 0, 0), labels=True, radius=1):
         ax.plot(points[:, 0], points[:, 1], linewidth=1, color=color)
         points = geodesic_fn(X[right], X[parent], nb_points=100)
         ax.plot(points[:, 0], points[:, 1], linewidth=1, color=color)
-
     if labels:
         n_points = X.shape[0] - 1
         for p in range(n_points):

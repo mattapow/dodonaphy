@@ -13,13 +13,13 @@ from numpy.random import multivariate_normal
 Node locations from VI
 """
 
-path_read = "./data/T6_2/vi/simple_mst_lr3_k10_init_inif"
+path_read = "./data/T17_long_tree/vi_noGrad/simple_nj_lr2_k2_d5"
 fn = os.path.join(path_read, "VI_params_init.csv")
-connect_method = 'mst'
-embed_method = 'simple'
+connect_method = 'geodesics'
+embed_method = 'wrap'
 D = 2
-var_params = read(fn, connect_method=connect_method)
-S = int(len(var_params['leaf_mu'])/D)
+var_params = read(fn, internals=False)
+S = int(len(var_params['leaf_mu'][0]))
 print('Ensure these values: D=%d, S=%d' % (D, S))
 
 N = 2*S - 2
@@ -37,8 +37,8 @@ n_samples = 100
 
 # plot tips
 for node in range(S):
-    loc = var_params['leaf_mu'][node*D:D*(node+1)]
-    cov = np.exp(var_params['leaf_sigma'][node*D:D*(node+1)])*np.eye(D)
+    loc = var_params['leaf_mu'][:, node]
+    cov = np.exp(var_params['leaf_sigma'][:, node])*np.eye(D)
 
     # sample from normal and convert to poincare ball
     data = multivariate_normal(loc, cov, n_samples)
@@ -48,8 +48,8 @@ for node in range(S):
         y = data_poin[:, 1]
         mu = (torch.mean(x), torch.mean(y))
     elif embed_method == 'wrap':
-        x = hyperboloid.t02p(torch.tensor(data[:, 0]), D)
-        y = hyperboloid.t02p(torch.tensor(data[:, 1]), D)
+        x = torch.tensor(data[:, 0])
+        y = torch.tensor(data[:, 1])
         mu = (torch.mean(x), torch.mean(y))
     # if node == 1 or node == 4:
     #    mu += np.array([.1, .1])
@@ -85,7 +85,7 @@ if connect_method == 'mst':
 
 elif connect_method == 'geodesics' or connect_method == "incentre":
     # make peel
-    peel, int_poin = peeler.make_peel_tips(torch.tensor(leaf_poin), method=connect_method)
+    peel, int_poin = peeler.make_peel_tips(torch.tensor(leaf_poin), connect_method=connect_method)
     leaf_r, leaf_dir = utils.cart_to_dir(leaf_poin)
     int_r, int_dir = utils.cart_to_dir(int_poin)
 
