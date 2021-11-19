@@ -26,7 +26,7 @@ def test_draws_different_vi_simple_geodesics():
         partials, weights, dim=2, embed_method="simple", connect_method="geodesics"
     )
 
-    mymod.learn(epochs=10, path_write=None)
+    mymod.learn(epochs=2, path_write=None)
 
     peels, blens, X, lp__ = mymod.draw_sample(3, lp=True)
     assert not torch.equal(blens[0], blens[1])
@@ -62,7 +62,7 @@ def test_draws_different_vi_simple_nj():
     )
 
     # learns
-    mymod.learn(epochs=1, path_write=None)
+    mymod.learn(epochs=2, path_write=None)
 
     # draw
     nsamples = 3

@@ -7,6 +7,7 @@ from dodonaphy import utils
 from dodonaphy.ml import ML
 from dodonaphy.phylo import compress_alignment
 
+
 def test_ml1():
     n_taxa = 6
     sim_tree = treesim.birth_death_tree(
@@ -18,6 +19,15 @@ def test_ml1():
     partials, weights = compress_alignment(dna)
     dists = utils.tip_distances(sim_tree, n_taxa)
     ML.run(
-        n_taxa, partials, weights, dists, path_write=None, epochs=10, lr=1, temp=0.0001
+        n_taxa,
+        partials,
+        weights,
+        dists,
+        path_write=None,
+        epochs=10,
+        lr=1,
+        temp=1e-4,
+        truncate=1e-2,
+        noise=1e-2,
     )
     return

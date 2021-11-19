@@ -107,9 +107,9 @@ class Chain(BaseModel):
             int_loc = self.int_dir * torch.tile(self.int_r, (2, 1)).transpose(
                 dim0=0, dim1=1
             )
-            proposal = self.sample(leaf_loc, self.step_scale, int_loc, self.step_scale)
+            proposal = self.sample(leaf_loc, self.step_scale, int_loc, self.step_scale, soft=False)
         else:
-            proposal = self.sample(leaf_loc, self.step_scale)
+            proposal = self.sample(leaf_loc, self.step_scale, soft=False)
 
         # Decide whether to accept proposal
         r = self.accept_ratio(proposal)

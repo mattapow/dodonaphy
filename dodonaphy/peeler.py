@@ -50,7 +50,7 @@ def make_soft_peel_tips(
         local_inf = torch.max(pdm_mask) + 1.0
         pdm_nozero = torch.where(pdm_tril != 0, pdm_tril, -local_inf)
         hot_from, hot_to = soft_argmin_one_hot(
-            -pdm_nozero, tau=1e-7, noise=1e-6, truncate=1e-5
+            -pdm_nozero, tau=1e-8, noise=1e-6, truncate=1e-5
         )
         f = torch.where(hot_to == torch.max(hot_to))[0]
         g = torch.where(hot_from == torch.max(hot_from))[0]

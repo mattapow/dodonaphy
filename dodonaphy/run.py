@@ -77,11 +77,17 @@ def run(args):
             connect_method=args.connect,
             curvature=args.curv,
             temp=args.temp,
+            noise=args.noise,
+            trunacte=args.truncate,
             **prior,
         )
 
     if args.infer == "ml":
         from dodonaphy.ml import ML
+        # mu = np.zeros_like(dists)
+        # cov = np.ones_like(dists)
+        # dists = np.abs(np.random.multivariate_normal(mu, cov))
+        # dists = dists + dists.T
 
         ML.run(
             args.taxa,
@@ -92,6 +98,8 @@ def run(args):
             epochs=args.epochs,
             lr=args.learn,
             temp=args.temp,
+            noise=args.noise,
+            truncate=args.truncate
         )
     end = time.time()
     seconds = end - start
@@ -140,7 +148,7 @@ def get_path(root_dir, args):
             implemented. Other methods depend on embedding locations."
         if args.doSave:
             lr = -int(np.log10(args.learn))
-            method_dir = os.path.join(root_dir, "ml", exp_method)
+            method_dir = os.path.join(root_dir, "ml", args.connect)
             path_write = os.path.join(
                 method_dir, "lr%d_n%d%s" % (lr, args.epochs, args.exp_ext)
             )
@@ -281,12 +289,6 @@ def init_parser():
     parser.add_argument(
         "--learn", "-r", default=1e-1, type=float, help="Learning rate."
     )
-    parser.add_argument(
-        "--temp",
-        default=0.0001,
-        type=float,
-        help="Temperature for soft neighbour joining",
-    )
 
     # MCMC parameters
     parser.add_argument(
@@ -323,6 +325,26 @@ def init_parser():
     )
     parser.add_argument(
         "--death", default=0.5, type=float, help="Death rate of simulated tree."
+    )
+    
+    # "soft" parameters
+    parser.add_argument(
+        "--temp",
+        default=None,
+        type=float,
+        help="Temperature for soft neighbour joining",
+    )
+    parser.add_argument(
+        "--noise",
+        default=None,
+        type=float,
+        help="Noise added to break ties and select one pair to join. Normal(0, noise)"
+    )
+    parser.add_argument(
+        "--truncate",
+        default=None,
+        type=float,
+        help="Truncate normal distribution of noise at +/- truncate."
     )
     return parser
 

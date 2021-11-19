@@ -285,7 +285,7 @@ class BaseModel(object):
             leaf_r, leaf_dir, int_r, int_dir, curvature=-torch.ones(1), start_node=leaf
         )
 
-    def sample(self, leaf_loc, leaf_cov, int_loc=None, int_cov=None):
+    def sample(self, leaf_loc, leaf_cov, int_loc=None, int_cov=None, soft=True):
         # reshape covariance if single number
         n_leaf_vars = self.S * self.D
         if torch.numel(leaf_cov) == 1:
@@ -406,7 +406,12 @@ class BaseModel(object):
             pdm = Cutils.get_pdm_torch(
                 leaf_r_prop.repeat(self.S), leaf_dir_prop, curvature=self.curvature
             )
-            peel, blens = peeler.nj(pdm, tau=self.temp)
+            if soft:
+                peel, blens = peeler.nj(
+                    pdm, tau=self.temp, noise=self.noise, truncate=self.truncate
+                )
+            else:
+                peel, blens = peeler.nj(pdm)
         elif self.connect_method == "mst":
             peel = peeler.make_peel_mst(leaf_r, leaf_dir_prop, int_r_prop, int_dir_prop)
         elif self.connect_method == "mst_choice":

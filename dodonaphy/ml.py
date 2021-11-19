@@ -2,6 +2,7 @@ import math
 import os
 
 import torch
+import numpy as np
 
 from dodonaphy import peeler, tree
 from dodonaphy.base_model import BaseModel
@@ -10,8 +11,10 @@ from dodonaphy.base_model import BaseModel
 class ML(BaseModel):
     """Maximum Likelihood class"""
 
-    def __init__(self, partials, weights, dists=None, temp=None):
+    def __init__(self, partials, weights, dists=None, temp=None, noise=None, truncate=None):
         self.temp = temp
+        self.noise = noise
+        self.truncate = truncate
         super().__init__(partials, weights, None, curvature=-1, dists=dists)
 
     def learn(self, epochs, lr, path_write):
@@ -21,6 +24,11 @@ class ML(BaseModel):
         optimizer = torch.optim.LBFGS(params=list(self.dists.values()), lr=lr)
         scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lr_lambda)
         like_hist = []
+
+        if path_write is not None:
+            like_fn = os.path.join(path_write, "list_hist.txt")
+            dist_path = os.path.join(path_write, "dists")
+            os.mkdir(dist_path)
 
         def closure():
             optimizer.zero_grad()
@@ -36,25 +44,38 @@ class ML(BaseModel):
 
             if path_write is not None:
                 tree.save_tree(path_write, "ml", self.peel, self.blens, i, self.lnP, -1)
-                like_fn = os.path.join(path_write, "list_hist.txt")
                 with open(like_fn, "a") as f:
                     f.write("%f\n" % like_hist[-1])
+                dists_fn = os.path.join(dist_path, f"dists_hist_{i}.txt")
+                np.savetxt(dists_fn, optimizer.param_groups[0]['params'][0].detach().numpy(), delimiter=', ')
 
         if epochs > 0 and path_write is not None:
             ML.trace(epochs, like_hist, path_write)
         return
 
-    def run(taxa, partials, weights, dists, path_write, epochs, lr, temp):
+    def run(taxa, partials, weights, dists, path_write, epochs, lr, temp, noise, truncate):
         dists_torch = torch.tensor(dists, requires_grad=True, dtype=torch.float64)
-        mymod = ML(partials, weights, dists=dists_torch, temp=temp)
+        mymod = ML(partials, weights, dists=dists_torch, temp=temp, noise=noise, truncate=truncate)
         mymod.learn(epochs=epochs, lr=lr, path_write=path_write)
         return
 
     def compute_likelihood(self):
-        self.peel, self.blens = peeler.nj(self.dists["dists"], tau=self.temp)
-        if sum(sum(self.peel == 0)) > 1:
-            return torch.tensor(-math.inf, requires_grad=True)
-        self.lnP = self.compute_LL(self.peel, self.blens)
+        self.peel, self.blens = peeler.nj(self.dists["dists"], tau=self.temp, noise=self.noise, truncate=self.truncate)
+        set1 = set(np.sort(np.unique(self.peel)))
+        set2 = set(np.arange(self.bcount+1))
+        print(self.peel)
+        if set1 != set2:
+            print(set1)
+            print(set2)
+            print(set1 == set2)
+            self.lnP = torch.tensor(-math.inf, requires_grad=True)
+        elif sum(sum(self.peel == 0)) > 1:
+            print(set1)
+            print(set2)
+            print(self.peel)
+            self.lnP = torch.tensor(-math.inf, requires_grad=True)
+        else:
+            self.lnP = self.compute_LL(self.peel, self.blens)
         return self.lnP
 
     def trace(epochs, like_hist, path_write):
