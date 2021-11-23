@@ -6,13 +6,13 @@ from . import hyperboloid, peeler, tree, utils
 from .vi import DodonaphyVI
 
 
-class vi_wrapper(DodonaphyVI):
+class brute(DodonaphyVI):
     def embedding_LL(self, int_loc_optim):
         leaf_loc = self.VariationalParams["leaf_mu"]
         int_loc = self.VariationalParams["int_mu"]
         with torch.no_grad():
             int_loc[0, :] = int_loc_optim
-        assert self.connect_method == "simple"
+        assert self.connector == "simple"
         leaf_poin = utils.real2ball(leaf_loc)
         leaf_r, leaf_dir = utils.cart_to_dir(leaf_poin)
 
@@ -57,7 +57,7 @@ class vi_wrapper(DodonaphyVI):
     #     # print('Grid seach give maximum LL: %f' % max_LL)
 
     def learn_ML_brute(
-        self, param_init=None, iter_per_param=500, rounds=20, path_write="./out", lr=0.1
+        self, param_init=None, iter_per_param=100, rounds=20, path_write="./out", lr=0.1
     ):
         """Learn a Maximum Likelihood embedding.
 
@@ -69,13 +69,13 @@ class vi_wrapper(DodonaphyVI):
             lr ([type], optional): [description]. Defaults to 1e-3.
         """
         print("Learning ML tree.", flush=True)
-        assert self.connect_method == "mst"
+        assert self.connector == "mst"
         LL = []
 
         if param_init is not None:
             self.VariationalParams["leaf_mu"] = param_init["leaf_mu"]
             self.VariationalParams["leaf_sigma"] = param_init["leaf_sigma"]
-            if self.connect_method == "mst":
+            if self.connector == "mst":
                 self.VariationalParams["int_mu"] = param_init["int_mu"]
                 self.VariationalParams["int_sigma"] = param_init["int_sigma"]
 
@@ -103,16 +103,16 @@ class vi_wrapper(DodonaphyVI):
         # plot final tree
         leaf_locs = self.VariationalParams["leaf_mu"]
         int_locs = self.VariationalParams["int_mu"]
-        if self.embed_method == "simple":
+        if self.embedder == "simple":
             leaf_poin = utils.real2ball(leaf_locs)
             int_poin = utils.real2ball(int_locs)
-        elif self.embed_method == "wrap":
+        elif self.embedder == "wrap":
             leaf_poin = hyperboloid.t02p(leaf_locs)
             int_poin = hyperboloid.t02p(int_locs)
         int_r, int_dir = utils.cart_to_dir(int_poin)
         leaf_r, leaf_dir = utils.cart_to_dir(leaf_poin)
         peel = peeler.make_peel_mst(leaf_r, leaf_dir, int_r, int_dir)
-        fig, ax = plt.subplots(1, 1)
+        _, ax = plt.subplots(1, 1)
         X = torch.cat((leaf_poin, int_poin, leaf_poin[0, :].reshape(1, self.D)))
         tree.plot_tree(ax, peel, X.detach().numpy())
         plt.show()
@@ -128,10 +128,10 @@ class vi_wrapper(DodonaphyVI):
         # int_locs = self.VariationalParams["int_mu"]
 
         # convert current nodes to poincare
-        if self.embed_method == "simple":
+        if self.embedder == "simple":
             leaf_poin = utils.real2ball(self.VariationalParams["leaf_mu"])
             int_poin = utils.real2ball(self.VariationalParams["int_mu"])
-        elif self.embed_method == "wrap":
+        elif self.embedder == "wrap":
             leaf_poin = hyperboloid.t02p(self.VariationalParams["leaf_mu"])
             int_poin = hyperboloid.t02p(self.VariationalParams["int_mu"])
         leaf_r, leaf_dir = utils.cart_to_dir(leaf_poin)
@@ -180,7 +180,7 @@ class vi_wrapper(DodonaphyVI):
 
         # contour plot of best positions
         if doPlot:
-            fig, ax = plt.subplots(1, 2)
+            _, ax = plt.subplots(1, 2)
             X, Y = np.meshgrid(X, Y)
             ax[0].contourf(X, Y, lnLike, cmap="hot", levels=200)
             # plt.colorbar()
@@ -202,13 +202,13 @@ class vi_wrapper(DodonaphyVI):
             plt.show()
 
         if isLeaf:
-            if self.embed_method == "simple":
+            if self.embedder == "simple":
                 self.VariationalParams["leaf_mu"][idx, :] = utils.ball2real(best_loc)
-            elif self.embed_method == "wrap":
+            elif self.embedder == "wrap":
                 self.VariationalParams["leaf_mu"][idx, :] = hyperboloid.p2t0(best_loc)
         else:
-            if self.embed_method == "simple":
+            if self.embedder == "simple":
                 self.VariationalParams["int_mu"][idx, :] = utils.ball2real(best_loc)
-            elif self.embed_method == "wrap":
+            elif self.embedder == "wrap":
                 self.VariationalParams["int_mu"][idx, :] = hyperboloid.p2t0(best_loc)
         return best_lnLike
