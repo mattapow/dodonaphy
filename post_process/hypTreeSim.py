@@ -12,21 +12,21 @@ dim = 2
 S = 17
 L = 1000
 radius = .2
-connect_method = 'geo'
+connector = 'geo'
 
 mu = np.zeros((dim))
 cov = np.eye(dim)
 leaf_locs = np.random.multivariate_normal(mu, cov, S)
 leaf_locs = radius * leaf_locs / np.sum(leaf_locs**2, axis=1, keepdims=True)**.5
 leaf_r, leaf_dir = utils.cart_to_dir(leaf_locs)
-if connect_method == 'nj':
+if connector == 'nj':
     pdm = utils.get_pdm(leaf_r, leaf_dir, astorch=True)
     peel, blens = peeler.nj(pdm)
-elif connect_method == 'hyp_hc':
+elif connector == 'hyp_hc':
     peel, int_locs = peeler.make_peel_geodesic(torch.tensor(leaf_locs))
     int_r, int_dir = utils.cart_to_dir(int_locs)
     blens = base_model.BaseModel.compute_branch_lengths(S, peel, leaf_r, leaf_dir, int_r, int_dir, useNP=False)
-elif connect_method == 'geo':
+elif connector == 'geo':
     peel, int_locs = peeler.make_peel_geodesic(torch.tensor(leaf_locs))
     int_r, int_dir = utils.cart_to_dir(int_locs)
     blens = base_model.BaseModel.compute_branch_lengths(S, peel, leaf_r, leaf_dir, int_r, int_dir, useNP=False)
@@ -52,7 +52,7 @@ simtree.write(path=tree_path, schema="nexus")
 dna.write_to_path(dest=dna_path, schema="nexus")
 
 # save simTree info log-likelihood
-with open(tree_info_path, 'w') as f:
+with open(tree_info_path, 'w', encoding="UTF-8") as f:
     # LL =
     # f.write('Log Likelihood: %f\n' % LL)
     simtree.write_ascii_plot(f)

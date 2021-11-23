@@ -1,4 +1,5 @@
 import os
+import warnings
 
 import matplotlib.pyplot as plt
 import pandas as pd
@@ -15,20 +16,19 @@ def stat_cmp():
     Prints the consensus tree and the Maximum Clade Credibility Tree
     """
 
-    dir = "./data/T17"
-
-    # TODO: burnin
+    root_dir = "./data/T17"
+    warnings.warn("burnin not implemented")
     # plot from outputs of TreeStat
     experiments = ("mrbayes", "simple_mst_c5_d5", "simple_nj_c5_d5", "simple_nj_c5_d10")
-    fn1 = os.path.join(dir, experiments[0], "treeStats.txt")
-    fn2 = os.path.join(dir, 'mcmc', experiments[1], "treeStats.txt")
-    fn3 = os.path.join(dir, 'mcmc', experiments[2], "treeStats.txt")
-    fn4 = os.path.join(dir, 'mcmc', experiments[3], "treeStats.txt")
+    fn1 = os.path.join(root_dir, experiments[0], "treeStats.txt")
+    fn2 = os.path.join(root_dir, "mcmc", experiments[1], "treeStats.txt")
+    fn3 = os.path.join(root_dir, "mcmc", experiments[2], "treeStats.txt")
+    fn4 = os.path.join(root_dir, "mcmc", experiments[3], "treeStats.txt")
 
-    df1 = pd.read_csv(fn1, delimiter='\t', header=0, index_col='state')
-    df2 = pd.read_csv(fn2, delimiter='\t', header=0, index_col='state')
-    df3 = pd.read_csv(fn3, delimiter='\t', header=0, index_col='state')
-    df4 = pd.read_csv(fn4, delimiter='\t', header=0, index_col='state')
+    df1 = pd.read_csv(fn1, delimiter="\t", header=0, index_col="state")
+    df2 = pd.read_csv(fn2, delimiter="\t", header=0, index_col="state")
+    df3 = pd.read_csv(fn3, delimiter="\t", header=0, index_col="state")
+    df4 = pd.read_csv(fn4, delimiter="\t", header=0, index_col="state")
 
     print(df1.columns)
     for name in df1.columns:

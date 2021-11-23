@@ -1,5 +1,9 @@
+"""
+Each draw from the sample should be different in likelihood.
+"""
 # from torch.functional import meshgrid
 import dendropy
+
 # from dendropy.simulate import treesim
 # from dendropy.model.discrete import simulate_discrete_chars
 import matplotlib.pyplot as plt
@@ -13,14 +17,10 @@ from dodonaphy.vi import DodonaphyVI
 # import seaborn as sns
 
 
-"""
-Each draw from the sample should be different in likelihood.
-
-"""
 dim = 2  # number of dimensions for embedding
 S = 6  # number of sequences to simulate
 seqlen = 1000  # length of sequences to simulate
-prior = {"birth_rate": 2., "death_rate": .5}
+prior = {"birth_rate": 2.0, "death_rate": 0.5}
 
 # read simulated a tree
 path_write = "./data/T%d_2" % (S)
@@ -31,23 +31,48 @@ dna = dendropy.DnaCharacterMatrix.get(path=dnaPath, schema="nexus")
 
 # Initialise model
 partials, weights = compress_alignment(dna)
-mymod = DodonaphyVI(partials, weights, dim, embed_method='wrap', connect_method='incentre')
+mymod = DodonaphyVI(partials, weights, dim, embedder="wrap", connector="incentre")
 
 # specify locations
-leaf_t0 = torch.tensor([-0.1804018, 0.06084276, -0.03132725, -0.01874877,
-                        -0.10155862, 0.12463426, -0.08097307, 0.09621198,
-                        -0.0098637, 0.04274979, -0.1147425, 0.12270321], dtype=torch.float64).reshape((S, dim))
-int_t0 = torch.tensor([-0.00433582, 0.45464002, 0.04688382, 0.02818116, -0.03721131, 0.01916582, -0.08877883,
-                      0.07997011], dtype=torch.float64).reshape((S-2, dim))
+leaf_t0 = torch.tensor(
+    [
+        -0.1804018,
+        0.06084276,
+        -0.03132725,
+        -0.01874877,
+        -0.10155862,
+        0.12463426,
+        -0.08097307,
+        0.09621198,
+        -0.0098637,
+        0.04274979,
+        -0.1147425,
+        0.12270321,
+    ],
+    dtype=torch.float64,
+).reshape((S, dim))
+int_t0 = torch.tensor(
+    [
+        -0.00433582,
+        0.45464002,
+        0.04688382,
+        0.02818116,
+        -0.03721131,
+        0.01916582,
+        -0.08877883,
+        0.07997011,
+    ],
+    dtype=torch.float64,
+).reshape((S - 2, dim))
 
 # convert to poincare ball
 leaf_poin = hyperboloid.t02p(leaf_t0, dim).reshape((S, dim))
-int_poin = hyperboloid.t02p(int_t0, dim).reshape((S-2, dim))
+int_poin = hyperboloid.t02p(int_t0, dim).reshape((S - 2, dim))
 
 # move one node and compute posterior
 steps = 100
-X = np.linspace(-.4, .4, steps)
-Y = np.linspace(-.4, .4, steps)
+X = np.linspace(-0.4, 0.4, steps)
+Y = np.linspace(-0.4, 0.4, steps)
 lnPost = np.zeros((steps, steps))
 idx = 0
 best_lnPost = -np.inf
@@ -61,7 +86,7 @@ for i, x in enumerate(X):
         peel = peeler.make_peel_mst(leaf_r, leaf_dir, int_r, int_dir)
         blen = mymod.compute_branch_lengths(S, peel, leaf_r, leaf_dir, int_r, int_dir)
         lnLike = mymod.compute_LL(peel, blen)
-        lnPrior = mymod.compute_prior(peel, blen, **prior)
+        lnPrior = mymod.compute_prior_gamma_dir(blen)
         lnPost_ = lnLike + lnPrior
         lnPost[j, i] = lnPost_
         if lnPost_ > best_lnPost:
@@ -86,6 +111,6 @@ tree.plot_tree(ax, peel, locs)
 
 # contour plot of best positions
 X, Y = np.meshgrid(X, Y)
-plt.contourf(X, Y, lnPost, cmap='hot', levels=200)
+plt.contourf(X, Y, lnPost, cmap="hot", levels=200)
 plt.colorbar()
 plt.show()
