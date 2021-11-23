@@ -1,5 +1,3 @@
-from os import path
-
 import dendropy
 from dendropy.model.discrete import simulate_discrete_chars
 from dendropy.simulate import treesim
@@ -26,8 +24,5 @@ def test_ml1():
         path_write=None,
         epochs=10,
         lr=1,
-        temp=1e-4,
-        truncate=1e-2,
-        noise=1e-2,
+        soft_temp=1e-4
     )
-    return

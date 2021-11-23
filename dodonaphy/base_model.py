@@ -18,7 +18,17 @@ from .utils import LogDirPrior
 class BaseModel(object):
     """Base Model for Inference"""
 
-    def __init__(self, partials, weights, dim, curvature=-1.0, dists=None, **prior):
+    def __init__(
+        self,
+        partials,
+        weights,
+        dim,
+        soft_temp,
+        curvature=-1.0,
+        embedder="simple",
+        connector="nj",
+        **prior
+    ):
         self.partials = partials.copy()
         self.weights = weights
         self.S = len(self.partials)
@@ -26,13 +36,19 @@ class BaseModel(object):
         self.D = dim
         self.bcount = 2 * self.S - 2
         self.prior = prior
+        self.soft_temp = soft_temp
         assert curvature <= 0
         self.curvature = torch.tensor(curvature)
         self.epoch = 0
-        self.dists = {"dists": dists}
+        assert embedder in ("wrap", "simple")
+        self.embedder = embedder
+        assert connector in ("mst", "geodesics", "incentre", "nj", "mst_choice")
+        self.connector = connector
+        self.peel = np.zeros((self.S - 1, 3), dtype=int)
+        self.blens = torch.zeros(self.bcount, dtype=torch.double)
 
         # make space for internal partials
-        for i in range(self.S - 1):
+        for _ in range(self.S - 1):
             self.partials.append(
                 torch.zeros((1, 4, self.L), dtype=torch.float64, requires_grad=False)
             )
@@ -52,13 +68,13 @@ class BaseModel(object):
         leaf_dir = torch.from_numpy(emm_tips["directional"])
         S = len(emm_tips["r"])
         scale = 0.5 * emm_tips["r"].min()
-        lnP = -math.inf
-        dir = np.random.normal(0, 1, (S - 2, self.D))
-        abs = np.sum(dir ** 2, axis=1) ** 0.5
+        ln_p = -math.inf
+        directional = np.random.normal(0, 1, (S - 2, self.D))
+        abs_dir = np.sum(directional ** 2, axis=1) ** 0.5
         # _int_r = np.random.exponential(scale=scale, size=(S-2))
         # _int_r = scale * np.random.beta(a=2, b=5, size=(S-2))
         _int_r = np.random.uniform(low=0, high=scale, size=(S - 2))
-        _int_dir = dir / abs.reshape(S - 2, 1)
+        _int_dir = directional / abs_dir.reshape(S - 2, 1)
         max_scale = max_scale * emm_tips["r"].min()
 
         for i in range(n_grids):
@@ -78,21 +94,21 @@ class BaseModel(object):
                     torch.from_numpy(_int_r),
                     torch.from_numpy(_int_dir),
                 )
-                _lnP = self.compute_LL(peel, blen)
+                _ln_p = self.compute_LL(peel, blen)
 
-                if _lnP > lnP:
+                if _ln_p > ln_p:
                     int_r = _int_r
                     int_dir = _int_dir
-                    lnP = _lnP
+                    ln_p = _ln_p
                     scale = _scale
 
-                dir = np.random.normal(0, 1, (S - 2, self.D))
-                abs = np.sum(dir ** 2, axis=1) ** 0.5
+                directional = np.random.normal(0, 1, (S - 2, self.D))
+                abs_dir = np.sum(directional ** 2, axis=1) ** 0.5
                 # _int_r = np.random.exponential(scale=_scale, size=(S-2))
                 _int_r[_int_r > emm_tips["r"].min()] = emm_tips["r"].max()
                 # _int_r = _scale * np.random.beta(a=2, b=5, size=(S-2))
                 _int_r = np.random.uniform(low=0, high=_scale, size=(S - 2))
-                _int_dir = dir / abs.reshape(S - 2, 1)
+                _int_dir = directional / abs_dir.reshape(S - 2, 1)
 
         print("done.\nBest internal node positions selected.")
         if scale > 0.9 * max_scale:
@@ -209,7 +225,7 @@ class BaseModel(object):
         L = torch.sum(self.weights)
         return torch.sum(P * self.weights) / L
 
-    def compute_hypHC(self, leaf_X, temperature=0.05, n_triplets=100):
+    def compute_hypHC(self, dists_data, leaf_X, temperature=0.05, n_triplets=100):
         """Computes log of HypHC loss
         "From Trees to Continuous Embeddings and Back: Hyperbolic Hierarchical Clustering"
 
@@ -225,7 +241,7 @@ class BaseModel(object):
             triplets[i, :] = torch.multinomial(torch.ones((self.S,)), 3)
             similarities[i, :] = torch.tensor(
                 self.get_similarities(
-                    triplets[i, [0, 0, 1]], triplets[i, [1, 2, 2]], self.dists_data
+                    triplets[i, [0, 0, 1]], triplets[i, [1, 2, 2]], dists_data
                 )
             )
 
@@ -242,9 +258,7 @@ class BaseModel(object):
         total = torch.sum(similarities, dim=-1, keepdim=True) - w_ord
         return torch.mean(total)
 
-    def get_similarities(
-        self, u, v, pdm_data, freqs=torch.full([4], 0.25, dtype=torch.float64)
-    ):
+    def get_similarities(self, u, v, pdm_data):
         """Similarities of taxa u and v.
         Take exp(-pdm)
 
@@ -259,12 +273,9 @@ class BaseModel(object):
         """
         return torch.exp(-pdm_data[u, v])
 
-    def select_peel_mst(
-        self, leaf_r, leaf_dir, int_r, int_dir, curvature=-torch.ones(1)
-    ):
+    def select_peel_mst(self, leaf_r, leaf_dir, int_r, int_dir):
         leaf_node_count = leaf_r.shape[0]
-        lnP = torch.zeros(leaf_node_count)
-        # TODO: Randomly select leaves if getting slow
+        ln_p = torch.zeros(leaf_node_count)
         for leaf in range(leaf_node_count):
             peel = peeler.make_peel_mst(
                 leaf_r,
@@ -277,9 +288,9 @@ class BaseModel(object):
             blens = self.compute_branch_lengths(
                 leaf_node_count, peel, leaf_r, leaf_dir, int_r, int_dir
             )
-            lnP[leaf] = self.compute_LL(peel, blens)
+            ln_p[leaf] = self.compute_LL(peel, blens)
         sftmx = torch.nn.Softmax(dim=0)
-        p = np.array(sftmx(lnP))
+        p = np.array(sftmx(ln_p))
         leaf = np.random.choice(leaf_node_count, p=p)
         return peeler.make_peel_mst(
             leaf_r, leaf_dir, int_r, int_dir, curvature=-torch.ones(1), start_node=leaf
@@ -294,7 +305,7 @@ class BaseModel(object):
         if int_cov is not None and torch.numel(int_cov) == 1:
             int_cov = torch.eye(n_int_vars, dtype=torch.double) * int_cov
 
-        if self.embed_method == "simple":
+        if self.embedder == "simple":
             # transform leaves to R^n
             leaf_loc_t0 = utils.ball2real(leaf_loc)
             log_abs_det_jacobian = -Cutils.real2ball_LADJ(leaf_loc_t0)
@@ -311,7 +322,7 @@ class BaseModel(object):
             # Convert to Ball
             leaf_loc_prop = utils.real2ball(leaf_loc_t0)
 
-        elif self.embed_method == "wrap":
+        elif self.embedder == "wrap":
             # transform leaves to R^n
             leaf_loc_t0, log_abs_det_jacobian = hyperboloid.p2t0(
                 leaf_loc.reshape(self.D, self.S), get_jacobian=True
@@ -337,8 +348,8 @@ class BaseModel(object):
         leaf_dir_prop = leaf_loc_prop / torch.norm(leaf_loc_prop, dim=-1, keepdim=True)
 
         # internal nodes for mst
-        if self.connect_method in ("mst", "mst_choice"):
-            if self.embed_method == "simple":
+        if self.connector in ("mst", "mst_choice"):
+            if self.embedder == "simple":
                 # transform internals to R^n
                 int_loc_t0 = utils.ball2real(int_loc)
                 log_abs_det_jacobian = log_abs_det_jacobian - Cutils.real2ball_LADJ(
@@ -357,7 +368,7 @@ class BaseModel(object):
                 # convert ints to poincare ball
                 int_loc_prop = utils.real2ball(int_loc_t0)
 
-            elif self.embed_method == "wrap":
+            elif self.embedder == "wrap":
                 # transform ints to R^n
                 int_loc_t0, int_jacobian = hyperboloid.p2t0(
                     int_loc, get_jacobian=True
@@ -384,44 +395,38 @@ class BaseModel(object):
 
         # internal nodes and peel for geodesics
         leaf_r = leaf_r_prop.repeat(self.S)
-        if self.connect_method in ("geodesics", "incentre"):
+        if self.connector in ("geodesics", "incentre"):
             leaf_locs = leaf_r_prop * leaf_dir_prop
-            if self.connect_method == "geodesics":
+            if self.connector == "geodesics":
                 if leaf_locs.requires_grad:
                     peel, int_locs, blens = peeler.make_soft_peel_tips(
-                        leaf_locs, connect_method="geodesics", curvature=self.curvature
+                        leaf_locs, connector="geodesics", curvature=self.curvature
                     )
                 else:
                     peel, int_locs = peeler.make_peel_geodesic(
                         leaf_locs, curvature=self.curvature
                     )
-            elif self.connect_method == "incentre":
+            elif self.connector == "incentre":
                 peel, int_locs = peeler.make_peel_tips(
-                    leaf_locs, connect_method=self.connect_method
+                    leaf_locs, connector=self.connector
                 )
             int_r_prop, int_dir_prop = utils.cart_to_dir(int_locs)
 
         # get peels
-        if self.connect_method == "nj":
+        if self.connector == "nj":
             pdm = Cutils.get_pdm_torch(
                 leaf_r_prop.repeat(self.S), leaf_dir_prop, curvature=self.curvature
             )
             if soft:
-                peel, blens = peeler.nj(
-                    pdm, tau=self.temp, noise=self.noise, truncate=self.truncate
-                )
+                peel, blens = peeler.nj(pdm, tau=self.soft_temp)
             else:
                 peel, blens = peeler.nj(pdm)
-        elif self.connect_method == "mst":
+        elif self.connector == "mst":
             peel = peeler.make_peel_mst(leaf_r, leaf_dir_prop, int_r_prop, int_dir_prop)
-        elif self.connect_method == "mst_choice":
+        elif self.connector == "mst_choice":
             peel = self.select_peel_mst(leaf_r, leaf_dir_prop, int_r_prop, int_dir_prop)
-        elif self.connect_method == "delaunay":
-            peel = peeler.make_peel_delaunay(
-                leaf_r, leaf_dir_prop, int_r_prop, int_dir_prop
-            )
         # get proposal branch lengths
-        if self.connect_method != "nj":
+        if self.connector != "nj":
             blens = self.compute_branch_lengths(
                 self.S,
                 peel,
@@ -433,16 +438,16 @@ class BaseModel(object):
             )
 
         # get log likelihood
-        lnP = self.compute_LL(peel, blens)
-        # lnP = self.compute_log_a_like(pdm)
+        ln_p = self.compute_LL(peel, blens)
+        # ln_p = self.compute_log_a_like(pdm)
         # leaf_X = utils.dir_to_cart(leaf_r_prop, leaf_dir_prop)
-        # lnP = self.compute_hypHC(leaf_X)
+        # ln_p = self.compute_hypHC(leaf_X)
 
         # get log prior
-        lnPrior = self.compute_prior_gamma_dir(blens)
-        # lnPrior = self.compute_prior_birthdeath(peel, blens, **self.prior)
+        ln_prior = self.compute_prior_gamma_dir(blens)
+        # ln_prior = self.compute_prior_birthdeath(peel, blens, **self.prior)
 
-        if self.connect_method in ("nj"):
+        if self.connector in ("nj"):
             proposal = {
                 "leaf_r": leaf_r_prop,
                 "leaf_dir": leaf_dir_prop,
@@ -450,10 +455,10 @@ class BaseModel(object):
                 "blens": blens,
                 "jacobian": log_abs_det_jacobian,
                 "logQ": logQ,
-                "lnP": lnP,
-                "lnPrior": lnPrior,
+                "ln_p": ln_p,
+                "ln_prior": ln_prior,
             }
-        elif self.connect_method in ("geodesics", "incentre", "mst", "mst_choice"):
+        elif self.connector in ("geodesics", "incentre", "mst", "mst_choice"):
             proposal = {
                 "leaf_r": leaf_r_prop,
                 "leaf_dir": leaf_dir_prop,
@@ -463,8 +468,8 @@ class BaseModel(object):
                 "blens": blens,
                 "jacobian": log_abs_det_jacobian,
                 "logQ": logQ,
-                "lnP": lnP,
-                "lnPrior": lnPrior,
+                "ln_p": ln_p,
+                "ln_prior": ln_prior,
             }
         return proposal
 
@@ -532,12 +537,12 @@ class BaseModel(object):
         n_leaf = int(n_branch / 2 + 1)
 
         # Dirichlet prior
-        lnPrior = LogDirPrior(blen, aT, bT, a, c)
+        ln_prior = LogDirPrior(blen, aT, bT, a, c)
 
         # with prefactor
         lgamma = torch.lgamma
-        lnPrior = (
-            lnPrior
+        ln_prior = (
+            ln_prior
             + (aT) * torch.log(bT)
             - lgamma(aT)
             + lgamma(a * n_leaf + a * c * (n_leaf - 3))
@@ -546,6 +551,6 @@ class BaseModel(object):
         )
 
         # uniform prior on topologies
-        lnPrior = lnPrior - torch.sum(torch.log(torch.arange(n_leaf * 2 - 5, 0, -2)))
+        ln_prior = ln_prior - torch.sum(torch.log(torch.arange(n_leaf * 2 - 5, 0, -2)))
 
-        return lnPrior
+        return ln_prior

@@ -23,12 +23,12 @@ def test_draws_different_vi_simple_geodesics():
     )
     partials, weights = compress_alignment(dna)
     mymod = DodonaphyVI(
-        partials, weights, dim=2, embed_method="simple", connect_method="geodesics"
+        partials, weights, dim=2, embedder="simple", connector="geodesics"
     )
 
     mymod.learn(epochs=2, path_write=None)
 
-    peels, blens, X, lp__ = mymod.draw_sample(3, lp=True)
+    _, blens, _, lp__ = mymod.draw_sample(3, lp=True)
     assert not torch.equal(blens[0], blens[1])
     assert not torch.equal(blens[0], blens[2])
     assert not torch.equal(blens[1], blens[2])
@@ -57,16 +57,14 @@ def test_draws_different_vi_simple_nj():
 
     # Initialise model
     partials, weights = compress_alignment(dna)
-    mymod = DodonaphyVI(
-        partials, weights, dim, embed_method="simple", connect_method="nj"
-    )
+    mymod = DodonaphyVI(partials, weights, dim, embedder="simple", connector="nj")
 
     # learns
     mymod.learn(epochs=2, path_write=None)
 
     # draw
     nsamples = 3
-    peels, blens, X, lp__ = mymod.draw_sample(nsamples, lp=True)
+    _, blens, _, lp__ = mymod.draw_sample(nsamples, lp=True)
     assert not torch.equal(blens[0], blens[1])
     assert not torch.equal(blens[0], blens[2])
     assert not torch.equal(blens[1], blens[2])
@@ -84,9 +82,7 @@ def test_io():
         seq_len=1000, tree_model=simtree, seq_model=dendropy.model.discrete.Jc69()
     )
     partials, weights = compress_alignment(dna)
-    mymod = DodonaphyVI(
-        partials, weights, 2, embed_method="simple", connect_method="nj"
-    )
+    mymod = DodonaphyVI(partials, weights, 2, embedder="simple", connector="nj")
     tmp_dir = "./tmp"
     os.makedirs(tmp_dir, exist_ok=True)
     fp = os.path.join(tmp_dir, "test_data.csv")

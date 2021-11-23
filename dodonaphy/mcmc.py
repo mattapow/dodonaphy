@@ -19,16 +19,22 @@ class Chain(BaseModel):
         int_r=None,
         int_dir=None,
         step_scale=0.01,
-        temp=1,
+        chain_temp=1,
         target_acceptance=0.234,
-        connect_method="mst",
-        embed_method="simple",
+        connector="mst",
+        embedder="simple",
         curvature=-1,
-        dists=None,
         **prior,
     ):
         super().__init__(
-            partials, weights, dim, curvature=curvature, dists=None, **prior
+            partials,
+            weights,
+            dim,
+            soft_temp=None,
+            embedder=embedder,
+            connector=connector,
+            curvature=curvature,
+            **prior,
         )
         self.leaf_dir = leaf_dir  # S x D
         self.int_dir = int_dir  # S-2 x D
@@ -37,19 +43,15 @@ class Chain(BaseModel):
         self.jacobian = torch.zeros(1)
         if leaf_dir is not None:
             self.S = len(leaf_dir)
-
-        assert embed_method in ("simple", "wrap")
-        self.embed_method = embed_method
-        assert connect_method in ("incentre", "geodesics", "mst", "nj", "mst_choice")
-        self.connect_method = connect_method
-
         self.step_scale = torch.tensor(step_scale, requires_grad=True)
-        self.temp = temp
+        self.chain_temp = chain_temp
         self.accepted = 0
         self.iterations = 0
         self.target_acceptance = target_acceptance
         self.converged = [False] * 200
         self.moreTune = True
+        self.ln_p = self.compute_LL(self.peel, self.blens)
+        self.ln_prior = self.compute_prior_gamma_dir(self.blens)
 
     def set_probability(self):
         # initialise likelihood and prior values of embedding
@@ -58,29 +60,25 @@ class Chain(BaseModel):
         pdm = Cutils.get_pdm_torch(
             self.leaf_r.repeat(self.S), self.leaf_dir, curvature=self.curvature
         )
-        if self.connect_method in ("geodesics", "incentre"):
+        if self.connector in ("geodesics", "incentre"):
             loc_poin = self.leaf_dir * self.leaf_r
-            self.peel, int_locs = peeler.make_peel_tips(loc_poin, self.connect_method)
+            self.peel, int_locs = peeler.make_peel_tips(loc_poin, self.connector)
             self.int_r, self.int_dir = utils.cart_to_dir(int_locs)
             leaf_r_all, self.leaf_dir = utils.cart_to_dir(loc_poin)
             self.leaf_r = leaf_r_all[0]
-        elif self.connect_method == "nj":
+        elif self.connector == "nj":
             self.peel, self.blens = peeler.nj(pdm)
-        elif self.connect_method == "mst":
+        elif self.connector == "mst":
             self.peel = peeler.make_peel_mst(
                 self.leaf_r.repeat(self.S), self.leaf_dir, self.int_r, self.int_dir
             )
-        elif self.connect_method == "mst_choice":
+        elif self.connector == "mst_choice":
             self.peel = self.select_peel_mst(
-                self.leaf_r.repeat(self.S), self.leaf_dir, self.int_r, self.int_dir
-            )
-        elif self.connect_method == "delaunay":
-            self.peel = peeler.make_peel_delaunay(
                 self.leaf_r.repeat(self.S), self.leaf_dir, self.int_r, self.int_dir
             )
 
         # set blens
-        if self.connect_method != "nj":
+        if self.connector != "nj":
             self.blens = self.compute_branch_lengths(
                 self.S,
                 self.peel,
@@ -91,23 +89,25 @@ class Chain(BaseModel):
             )
 
         # current likelihood
-        # self.lnP = self.compute_log_a_like(pdm)
-        self.lnP = self.compute_LL(self.peel, self.blens)
+        # self.ln_p = self.compute_log_a_like(pdm)
+        self.ln_p = self.compute_LL(self.peel, self.blens)
         # leaf_X = utils.dir_to_cart(self.leaf_r, self.leaf_dir)
-        # self.lnP = self.compute_hypHC(leaf_X)
+        # self.ln_p = self.compute_hypHC(leaf_X)
 
         # current prior
-        # self.lnPrior = self.compute_prior_birthdeath(self.peel, self.blens, **self.prior)
-        self.lnPrior = self.compute_prior_gamma_dir(self.blens)
+        # self.ln_prior = self.compute_prior_birthdeath(self.peel, self.blens, **self.prior)
+        self.ln_prior = self.compute_prior_gamma_dir(self.blens)
 
     def evolve(self):
         # propose new embedding
         leaf_loc = self.leaf_r * self.leaf_dir
-        if self.connect_method == "mst":
+        if self.connector == "mst":
             int_loc = self.int_dir * torch.tile(self.int_r, (2, 1)).transpose(
                 dim0=0, dim1=1
             )
-            proposal = self.sample(leaf_loc, self.step_scale, int_loc, self.step_scale, soft=False)
+            proposal = self.sample(
+                leaf_loc, self.step_scale, int_loc, self.step_scale, soft=False
+            )
         else:
             proposal = self.sample(leaf_loc, self.step_scale, soft=False)
 
@@ -123,43 +123,16 @@ class Chain(BaseModel):
         if accept:
             self.leaf_r = proposal["leaf_r"]
             self.leaf_dir = proposal["leaf_dir"]
-            self.lnP = proposal["lnP"]
-            self.lnPrior = proposal["lnPrior"]
+            self.ln_p = proposal["ln_p"]
+            self.ln_prior = proposal["ln_prior"]
             self.peel = proposal["peel"]
             self.blens = proposal["blens"]
             self.jacobian = proposal["jacobian"]
-            if self.connect_method != "nj":
+            if self.connector != "nj":
                 self.int_r = proposal["int_r"]
                 self.int_dir = proposal["int_dir"]
             self.accepted += 1
         self.iterations += 1
-
-        # import matplotlib.pyplot as plt
-
-        # if not accept:
-        #     color = "r"
-        # else:
-        #     color = "g"
-        #     plt.cla()
-        # plt.xlim((-1, 1))
-        # plt.ylim((-1, 1))
-        # X_torch = utils.dir_to_cart_tree(
-        #     proposal["leaf_r"],
-        #     proposal["int_r"],
-        #     proposal["leaf_dir"],
-        #     proposal["int_dir"],
-        #     self.D,
-        # )
-        # tree.plot_tree(
-        #     plt.gca(),
-        #     proposal["peel"],
-        #     X_torch,
-        #     color=color,
-        #     labels=False,
-        #     radius=proposal["leaf_r"],
-        # )
-        # fname = f"./data/T11_hypGeoDeep/mcmc/simple_geodesics/visu_crv6/visu_{self.iterations}.png"
-        # plt.savefig(fname, format="png")
         return accept
 
     def accept_ratio(self, p):
@@ -173,10 +146,10 @@ class Chain(BaseModel):
             The acceptance ratio r and the likelihood of the proposal.
         """
         # likelihood ratio
-        like_ratio = p["lnP"] - self.lnP
+        like_ratio = p["ln_p"] - self.ln_p
 
         # prior ratio
-        prior_ratio = p["lnPrior"] - self.lnPrior
+        prior_ratio = p["ln_prior"] - self.ln_prior
 
         # Jacobian ratio
         jacob_ratio = p["jacobian"] - self.jacobian
@@ -188,7 +161,8 @@ class Chain(BaseModel):
         r = torch.minimum(
             torch.ones(1),
             torch.exp(
-                (prior_ratio + like_ratio + jacob_ratio) * self.temp + hastings_ratio
+                (prior_ratio + like_ratio + jacob_ratio) * self.chain_temp
+                + hastings_ratio
             ),
         )
 
@@ -224,41 +198,42 @@ class DodonaphyMCMC:
         partials,
         weights,
         dim,
-        connect_method="mst",
-        embed_method="simple",
+        connector="mst",
+        embedder="simple",
         step_scale=0.01,
         nChains=1,
         curvature=-1.0,
         dists_data=None,
+        save_period=1,
         **prior,
     ):
         self.nChains = nChains
         self.chain = []
         dTemp = 0.1
+        self.save_period = save_period
         for i in range(nChains):
-            temp = 1.0 / (1 + dTemp * i)
+            chain_temp = 1.0 / (1 + dTemp * i)
             self.chain.append(
                 Chain(
                     partials,
                     weights,
                     dim,
                     step_scale=step_scale,
-                    temp=temp,
-                    embed_method=embed_method,
-                    connect_method=connect_method,
+                    chain_temp=chain_temp,
+                    embedder=embedder,
+                    connector=connector,
                     curvature=curvature,
                     dists_data=dists_data,
                     **prior,
                 )
             )
 
-    def learn(self, epochs, burnin=0, path_write="./out", save_period=1):
+    def learn(self, epochs, burnin=0, path_write="./out"):
         print("Using 1 cold chain and %d hot chains." % int(self.nChains - 1))
-        self.save_period = save_period
 
         if path_write is not None:
             info_file = path_write + "/" + "mcmc.info"
-            self.save_info(info_file, epochs, burnin, save_period)
+            self.save_info(info_file, epochs, burnin, self.save_period)
             tree.save_tree_head(path_write, "mcmc", self.chain[0].S)
 
         # Initialise prior and likelihood
@@ -303,7 +278,7 @@ class DodonaphyMCMC:
                         "Iteration: %i LnL: %f Acceptance Rate: %5.3f"
                         % (
                             i,
-                            self.chain[0].lnP,
+                            self.chain[0].ln_p,
                             self.chain[0].accepted / self.chain[0].iterations,
                         ),
                         end="",
@@ -331,7 +306,7 @@ class DodonaphyMCMC:
 
         if path_write is not None:
             fn = path_write + "/" + "mcmc.info"
-            with open(fn, "a") as file:
+            with open(fn, "a", encoding='UTF-8') as file:
                 final_accept = np.average(
                     [
                         self.chain[c].accepted / self.chain[c].iterations
@@ -342,7 +317,7 @@ class DodonaphyMCMC:
                 file.write("%-12s: %d\n" % ("Swaps", swaps))
 
     def save_info(self, file, epochs, burnin, save_period):
-        with open(file, "w") as f:
+        with open(file, "w", encoding='UTF-8') as f:
             f.write("%-12s: %i\n" % ("# epochs", epochs))
             f.write("%-12s: %i\n" % ("Burnin", burnin))
             f.write("%-12s: %i\n" % ("Save period", save_period))
@@ -351,27 +326,27 @@ class DodonaphyMCMC:
             f.write("%-12s: %i\n" % ("Unique sites", self.chain[0].L))
             f.write("%-12s: %i\n" % ("Chains", self.nChains))
             for i in range(self.nChains):
-                f.write("%-12s: %f\n" % ("Chain temp", self.chain[i].temp))
+                f.write("%-12s: %f\n" % ("Chain temp", self.chain[i].chain_temp))
                 f.write("%-12s: %f\n" % ("Step Scale", self.chain[i].step_scale))
-                f.write("%-12s: %s\n" % ("Connect Mthd", self.chain[i].connect_method))
-                f.write("%-12s: %s\n" % ("Embed Mthd", self.chain[i].embed_method))
+                f.write("%-12s: %s\n" % ("Connect Mthd", self.chain[i].connector))
+                f.write("%-12s: %s\n" % ("Embed Mthd", self.chain[i].embedder))
             for key, value in self.chain[0].prior.items():
                 f.write("%-12s: %f\n" % (key, value))
 
     def save_iteration(self, path_write, iteration):
-        lnP = self.chain[0].compute_LL(self.chain[0].peel, self.chain[0].blens)
+        ln_p = self.chain[0].compute_LL(self.chain[0].peel, self.chain[0].blens)
         tree.save_tree(
             path_write,
             "mcmc",
             self.chain[0].peel,
             self.chain[0].blens,
             iteration,
-            float(lnP),
-            float(self.chain[0].lnPrior),
+            float(ln_p),
+            float(self.chain[0].ln_prior),
         )
         fn = path_write + "/locations.csv"
         if not os.path.isfile(fn):
-            with open(fn, "a") as file:
+            with open(fn, "a", encoding='UTF-8') as file:
                 file.write("leaf_r, ")
                 for i in range(len(self.chain[0].leaf_dir)):
                     for j in range(self.chain[0].D):
@@ -389,7 +364,7 @@ class DodonaphyMCMC:
                                 file.write(", ")
                 file.write("\n")
 
-        with open(fn, "a") as file:
+        with open(fn, "a", encoding='UTF-8') as file:
             file.write(
                 np.array2string(self.chain[0].leaf_r.data.numpy(), separator=", ")
                 .replace("\n", "")
@@ -404,7 +379,7 @@ class DodonaphyMCMC:
                 .replace("]", "")
             )
 
-            if self.chain[0].connect_method == "mst":
+            if self.chain[0].connector == "mst":
                 file.write(", ")
                 file.write(
                     np.array2string(self.chain[0].int_r.data.numpy(), separator=", ")
@@ -431,12 +406,12 @@ class DodonaphyMCMC:
         j = i + 1
 
         # get log posterior (unnormalised)
-        lnPost_i = self.chain[i].lnP + self.chain[i].lnPrior
-        lnPost_j = self.chain[j].lnP + self.chain[j].lnPrior
+        ln_post_i = self.chain[i].ln_p + self.chain[i].ln_prior
+        ln_post_j = self.chain[j].ln_p + self.chain[j].ln_prior
 
         # probability of exhanging these two chains
-        prob1 = (lnPost_i - lnPost_j) * self.chain[j].temp
-        prob2 = (lnPost_j - lnPost_i) * self.chain[i].temp
+        prob1 = (ln_post_i - ln_post_j) * self.chain[j].chain_temp
+        prob2 = (ln_post_j - ln_post_i) * self.chain[i].chain_temp
         r = torch.minimum(torch.ones(1), torch.exp(prob1 + prob2))
 
         # swap with probability r
@@ -458,10 +433,10 @@ class DodonaphyMCMC:
                 self.chain[j].int_dir,
                 self.chain[i].int_dir,
             )
-            self.chain[i].lnP, self.chain[j].lnP = self.chain[j].lnP, self.chain[i].lnP
-            self.chain[i].lnPrior, self.chain[j].lnPrior = (
-                self.chain[j].lnPrior,
-                self.chain[i].lnPrior,
+            self.chain[i].ln_p, self.chain[j].ln_p = self.chain[j].ln_p, self.chain[i].ln_p
+            self.chain[i].ln_prior, self.chain[j].ln_prior = (
+                self.chain[j].ln_prior,
+                self.chain[i].ln_prior,
             )
             return 1
         return 0
@@ -478,7 +453,7 @@ class DodonaphyMCMC:
             self.chain[i].int_r = None
             self.chain[i].int_dir = None
 
-            if self.chain[i].connect_method in ("mst", "mst_choice"):
+            if self.chain[i].connector in ("mst", "mst_choice"):
                 int_r, int_dir = self.chain[i].initialise_ints(
                     emm, n_grids=n_grids, n_trials=n_trials, max_scale=max_scale
                 )
@@ -500,13 +475,13 @@ class DodonaphyMCMC:
         n_trials=100,
         max_scale=1,
         nChains=1,
-        connect_method="mst",
-        embed_method="simple",
+        connector="mst",
+        embedder="simple",
         curvature=-1.0,
         **prior,
     ):
         print("\nRunning Dodonaphy MCMC")
-        assert connect_method in ["incentre", "mst", "geodesics", "nj", "mst_choice"]
+        assert connector in ["incentre", "mst", "geodesics", "nj", "mst_choice"]
 
         # embed tips with distances using Hydra
         emm_tips = hydra.hydra(
@@ -522,10 +497,11 @@ class DodonaphyMCMC:
                 dim,
                 step_scale=step_scale,
                 nChains=nChains,
-                connect_method=connect_method,
-                embed_method=embed_method,
+                connector=connector,
+                embedder=embedder,
                 curvature=curvature,
                 dists_data=dists_data,
+                save_period=save_period,
                 **prior,
             )
 
@@ -535,6 +511,4 @@ class DodonaphyMCMC:
             )
 
             # Learn
-            mymod.learn(
-                epochs, burnin=burnin, path_write=path_write, save_period=save_period
-            )
+            mymod.learn(epochs, burnin=burnin, path_write=path_write)

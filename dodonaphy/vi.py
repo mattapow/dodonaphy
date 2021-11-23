@@ -5,9 +5,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 
-from . import hydra, tree, utils, Cutils
+from . import hydra, tree, utils
 from .base_model import BaseModel
-from .hyperboloid import p2t0
 from .phylo import JC69_p_t, calculate_treelikelihood
 
 
@@ -17,11 +16,10 @@ class DodonaphyVI(BaseModel):
         partials,
         weights,
         dim,
-        embed_method="wrap",
-        connect_method="mst",
+        embedder="wrap",
+        connector="mst",
         curvature=-1.0,
-        dists=None,
-        temp=None,
+        soft_temp=None,
         noise=None,
         truncate=None,
         **prior,
@@ -30,9 +28,9 @@ class DodonaphyVI(BaseModel):
             partials,
             weights,
             dim,
-            connect_method=connect_method,
+            soft_temp=soft_temp,
+            connector=connector,
             curvature=curvature,
-            dists=dists,
             **prior,
         )
         print("Initialising variational model.\n")
@@ -43,15 +41,11 @@ class DodonaphyVI(BaseModel):
         eps = np.finfo(np.double).eps
         leaf_sigma = np.log(np.abs(np.random.randn(self.S, self.D)) + eps)
         int_sigma = np.log(np.abs(np.random.randn(self.S - 2, self.D)) + eps)
-        assert embed_method in ("wrap", "simple")
-        self.embed_method = embed_method
-        assert connect_method in ("mst", "geodesics", "incentre", "nj")
-        self.connect_method = connect_method
-        self.temp = temp
         self.noise = noise
         self.truncate = truncate
+        self.ln_p = self.compute_LL(self.peel, self.blens)
 
-        if self.connect_method in ("geodesics", "incentre", "nj"):
+        if self.connector in ("geodesics", "incentre", "nj"):
             self.VariationalParams = {
                 "leaf_mu": torch.randn(
                     (self.S, self.D), requires_grad=True, dtype=torch.float64
@@ -60,7 +54,7 @@ class DodonaphyVI(BaseModel):
                     leaf_sigma, requires_grad=True, dtype=torch.float64
                 ),
             }
-        elif self.connect_method == "mst":
+        elif self.connector == "mst":
             self.VariationalParams = {
                 "leaf_mu": torch.randn(
                     (self.S, self.D), requires_grad=True, dtype=torch.float64
@@ -85,14 +79,14 @@ class DodonaphyVI(BaseModel):
     # int_dir = int_dir / np.pow(np.sum(int_dir**2, dim=-1), .5).repeat(1, self.D)
     # int_dir_sigma = np.abs(np.random.randn(self.S - 2, self.D))
 
-    # if self.connect_method == 'geodesics' or self.connect_method == 'incentre':
+    # if self.connector == 'geodesics' or self.connector == 'incentre':
     #     self.VariationalParams = {
     #         "leaf_r": torch.randn((1), requires_grad=True, dtype=torch.float64),
     #         "leaf_r_sigma": torch.tensor(.1, requires_grad=True, dtype=torch.float64),
     #         "leaf_dir": torch.tensor(leaf_dir, requires_grad=True, dtype=torch.float64),
     #         "leaf_dir_sigma": torch.tensor(leaf_dir_sigma, requires_grad=True, dtype=torch.float64)
     #     }
-    # elif self.connect_method == 'mst':
+    # elif self.connector == 'mst':
     #     self.VariationalParams = {
     #         "leaf_r": torch.randn((1), requires_grad=True, dtype=torch.float64),
     #         "leaf_r_sigma": torch.tensor(.1, requires_grad=True, dtype=torch.float64),
@@ -129,7 +123,7 @@ class DodonaphyVI(BaseModel):
                 leaf_cov = torch.eye(
                     n_tip_params, dtype=torch.double
                 ) * self.VariationalParams["leaf_sigma"].exp().reshape(n_tip_params)
-                if self.connect_method == "mst":
+                if self.connector == "mst":
                     n_int_params = torch.numel(self.VariationalParams["int_mu"])
                     int_loc = self.VariationalParams["int_mu"].reshape(n_int_params)
                     int_cov = torch.eye(
@@ -141,7 +135,7 @@ class DodonaphyVI(BaseModel):
 
                 peel.append(sample["peel"])
                 blens.append(sample["blens"])
-                if self.connect_method == "mst":
+                if self.connector == "mst":
                     location.append(
                         utils.dir_to_cart_tree(
                             sample["leaf_r"].repeat(self.S),
@@ -189,7 +183,7 @@ class DodonaphyVI(BaseModel):
         leaf_cov = torch.eye(n_tip_params, dtype=torch.double) * self.VariationalParams[
             "leaf_sigma"
         ].exp().reshape(n_tip_params)
-        if self.connect_method == "mst":
+        if self.connector == "mst":
             n_int_params = torch.numel(self.VariationalParams["int_mu"])
             int_loc = self.VariationalParams["int_mu"].reshape(n_int_params)
             int_cov = torch.eye(
@@ -199,31 +193,29 @@ class DodonaphyVI(BaseModel):
         else:
             sample = self.sample(leaf_loc, leaf_cov)
 
-        if self.connect_method == "mst":
-            pdm = Cutils.get_pdm_torch(
-                sample["leaf_r"].repeat(self.S),
-                sample["leaf_dir"],
-                sample["int_r"],
-                sample["int_dir"],
-                curvature=self.curvature,
-            )
-        else:
-            pdm = Cutils.get_pdm_torch(
-                sample["leaf_r"].repeat(self.S),
-                sample["leaf_dir"],
-                curvature=self.curvature,
-            )
-
+        # if self.connector == "mst":
+        #     pdm = Cutils.get_pdm_torch(
+        #         sample["leaf_r"].repeat(self.S),
+        #         sample["leaf_dir"],
+        #         sample["int_r"],
+        #         sample["int_dir"],
+        #         curvature=self.curvature,
+        #     )
+        # else:
+        #     pdm = Cutils.get_pdm_torch(
+        #         sample["leaf_r"].repeat(self.S),
+        #         sample["leaf_dir"],
+        #         curvature=self.curvature,
+        #     )
         # logPrior = self.compute_prior_gamma_dir(sample['blens'])
         # logP = self.compute_LL(sample['peel'], sample['blens'])
         # logPrior = self.compute_prior_gamma_dir(pdm[:])
-
         # anneal_epoch = torch.tensor(100)
         # min_temp = torch.tensor(.1)
         # temp = torch.maximum(torch.exp(- self.epoch / anneal_epoch), min_temp)
         # logP = self.compute_log_a_like(pdm, temp=temp)
 
-        return sample["lnP"] + sample["lnPrior"] - sample["logQ"] + sample["jacobian"]
+        return sample["ln_p"] + sample["ln_prior"] - sample["logQ"] + sample["jacobian"]
 
     def learn(
         self, param_init=None, epochs=1000, k_samples=3, path_write="./out", lr=1e-3
@@ -241,21 +233,21 @@ class DodonaphyVI(BaseModel):
         if param_init is not None:
             self.VariationalParams["leaf_mu"] = param_init["leaf_mu"]
             self.VariationalParams["leaf_sigma"] = param_init["leaf_sigma"]
-            if self.connect_method == "mst":
+            if self.connector == "mst":
                 self.VariationalParams["int_mu"] = param_init["int_mu"]
                 self.VariationalParams["int_sigma"] = param_init["int_sigma"]
 
         if path_write is not None:
             fn = path_write + "/" + "vi.info"
-            with open(fn, "w") as file:
+            with open(fn, "w", encoding='UTF-8') as file:
                 file.write("%-12s: %i\n" % ("# epochs", epochs))
                 file.write("%-12s: %i\n" % ("k_samples", k_samples))
                 file.write("%-12s: %i\n" % ("Dimensions", self.D))
                 file.write("%-12s: %i\n" % ("# Taxa", self.S))
                 file.write("%-12s: %i\n" % ("Patterns", self.L))
                 file.write("%-12s: %f\n" % ("Learn Rate", lr))
-                file.write("%-12s: %s\n" % ("Embed Mthd", self.embed_method))
-                file.write("%-12s: %s\n" % ("Connect Mthd", self.connect_method))
+                file.write("%-12s: %s\n" % ("Embed Mthd", self.embedder))
+                file.write("%-12s: %s\n" % ("Connect Mthd", self.connector))
                 for key, value in self.prior.items():
                     file.write("%-12s: %s\n" % (key, str(value)))
 
@@ -291,33 +283,34 @@ class DodonaphyVI(BaseModel):
             hist_dat.append(elbo_hist[-1])
 
             if path_write is not None:
-                with open(elbo_fn, "a") as f:
+                with open(elbo_fn, "a", encoding='UTF-8') as f:
                     f.write("%f\n" % elbo_hist[-1])
                 fn = os.path.join(path_write, "vi_params", f"vi_{epoch+1}.csv")
                 self.save(fn)
 
         if epochs > 0 and path_write is not None:
-            try:
-                plt.figure()
-                plt.plot(range(1, epochs), elbo_hist[1:], "r", label="elbo")
-                plt.title("Elbo values")
-                plt.xlabel("Epochs")
-                plt.ylabel("elbo")
-                plt.legend()
-                plt.savefig(path_write + "/elbo_trace.png")
-
-                plt.clf()
-                plt.hist(hist_dat)
-                plt.savefig(path_write + "/elbo_hist.png")
-            except Exception:
-                print("Could not generate and save elbo figures.")
+            self.trace(epochs, path_write, hist_dat, elbo_hist)
 
         if path_write is not None:
             final_elbo = self.elbo_normal(100).item()
             print("Final ELBO: {}".format(final_elbo))
             fn = os.path.join(path_write, "vi.info")
-            with open(fn, "a") as file:
+            with open(fn, "a", encoding='UTF-8') as file:
                 file.write("%-12s: %i\n" % ("Final ELBO (100 samples)", final_elbo))
+
+    @staticmethod
+    def trace(epochs, path_write, hist_dat, elbo_hist):
+        plt.figure()
+        plt.plot(range(1, epochs), elbo_hist[1:], "r", label="elbo")
+        plt.title("Elbo values")
+        plt.xlabel("Epochs")
+        plt.ylabel("elbo")
+        plt.legend()
+        plt.savefig(path_write + "/elbo_trace.png")
+
+        plt.clf()
+        plt.hist(hist_dat)
+        plt.savefig(path_write + "/elbo_hist.png")
 
     def elbo_normal(self, size=1):
         """[summary]
@@ -348,10 +341,10 @@ class DodonaphyVI(BaseModel):
         n_grids=10,
         n_trials=100,
         max_scale=1,
-        embed_method="wrap",
+        embedder="wrap",
         lr=1e-3,
-        connect_method="nj",
-        temp=None,
+        connector="nj",
+        soft_temp=None,
         **prior,
     ):
         """Initialise and run Dodonaphy's variational inference
@@ -361,7 +354,7 @@ class DodonaphyVI(BaseModel):
 
         """
         print("\nRunning Dodonaphy Variational Inference.")
-        print("Using %s embedding with %s connections" % (embed_method, connect_method))
+        print("Using %s embedding with %s connections" % (embedder, connector))
 
         # embed tips with hydra
         emm_tips = hydra.hydra(D=dists_data, dim=dim, equi_adj=0.0, stress=True)
@@ -372,15 +365,15 @@ class DodonaphyVI(BaseModel):
             partials,
             weights,
             dim,
-            embed_method=embed_method,
-            connect_method=connect_method,
+            embedder=embedder,
+            connector=connector,
             dists_data=dists_data,
-            temp=temp,
+            soft_temp=soft_temp,
             **prior,
         )
 
         # Choose internal node locations from best random initialisation
-        if connect_method == "mst":
+        if connector == "mst":
             int_r, int_dir = mymod.initialise_ints(
                 emm_tips, n_grids=n_grids, n_trials=n_trials, max_scale=max_scale
             )
@@ -389,14 +382,14 @@ class DodonaphyVI(BaseModel):
         leaf_loc_poin = utils.dir_to_cart(
             torch.from_numpy(emm_tips["r"]), torch.from_numpy(emm_tips["directional"])
         )
-        if connect_method == "mst":
+        if connector == "mst":
             int_loc_poin = torch.from_numpy(utils.dir_to_cart(int_r, int_dir))
 
         # set variational parameters with small coefficient of variation
         cv = 1.0 / 100
         eps = np.finfo(np.double).eps
         # leaf_sigma = np.log(np.abs(np.array(leaf_loc_poin)) * cv + eps)
-        if connect_method == "mst":
+        if connector == "mst":
             int_sigma = np.log(np.abs(np.array(int_loc_poin)) * cv + eps)
 
         # set leaf variational sigma using closest neighbour
@@ -405,7 +398,7 @@ class DodonaphyVI(BaseModel):
         closest = np.repeat([closest], dim, axis=0).transpose()
         leaf_sigma = np.log(np.abs(closest) * cv + eps)
 
-        if connect_method == "mst":
+        if connector == "mst":
             param_init = {
                 "leaf_mu": leaf_loc_poin.clone().double().requires_grad_(True),
                 "leaf_sigma": torch.from_numpy(leaf_sigma)
@@ -414,7 +407,7 @@ class DodonaphyVI(BaseModel):
                 "int_mu": int_loc_poin.clone().double().requires_grad_(True),
                 "int_sigma": torch.from_numpy(int_sigma).double().requires_grad_(True),
             }
-        elif connect_method in ("geodesics", "incentre", "nj"):
+        elif connector in ("geodesics", "incentre", "nj"):
             param_init = {
                 "leaf_mu": leaf_loc_poin.clone().double().requires_grad_(True),
                 "leaf_sigma": torch.from_numpy(leaf_sigma)
@@ -439,14 +432,14 @@ class DodonaphyVI(BaseModel):
         if path_write is not None:
             tree.save_tree_head(path_write, "vi", S)
             for i in range(n_draws):
-                peels, blens, X, lp = mymod.draw_sample(1, lp=True)
-                lnPr = mymod.compute_prior_gamma_dir(blens[0])
+                peels, blens, _, lp = mymod.draw_sample(1, lp=True)
+                ln_prior = mymod.compute_prior_gamma_dir(blens[0])
                 tree.save_tree(
-                    path_write, "vi", peels[0], blens[0], i, lp[0].item(), lnPr.item()
+                    path_write, "vi", peels[0], blens[0], i, lp[0].item(), ln_prior.item()
                 )
 
     def save(self, fn):
-        with open(fn, "w") as f:
+        with open(fn, "w", encoding='UTF-8') as f:
             for i in range(self.S):
                 for d in range(self.D):
                     f.write("%f\t" % self.VariationalParams["leaf_mu"][i, d])
@@ -455,7 +448,7 @@ class DodonaphyVI(BaseModel):
                 f.write("\n")
             f.write("\n")
 
-            if self.connect_method == "mst":
+            if self.connector == "mst":
                 for i in range(self.S - 2):
                     for d in range(self.D):
                         f.write("%f\t" % self.VariationalParams["int_mu"][i, d])
@@ -466,7 +459,7 @@ class DodonaphyVI(BaseModel):
 
 
 def read(path_read, internals=True):
-    with open(path_read, "r") as f:
+    with open(path_read, "r", encoding='UTF-8') as f:
         lines = [line.rstrip("\n") for line in f]
     dim = int(len([float(i) for i in lines[0].rstrip().split("\t")]) / 2)
     n_lines = len(lines) - 1

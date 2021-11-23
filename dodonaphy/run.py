@@ -50,8 +50,8 @@ def run(args):
             max_scale=args.max_scale,
             nChains=args.chains,
             burnin=args.burn,
-            connect_method=args.connect,
-            embed_method=args.embed,
+            connector=args.connect,
+            embedder=args.embed,
             curvature=args.curv,
             **prior,
         )
@@ -73,21 +73,22 @@ def run(args):
             n_trials=args.trials,
             max_scale=args.max_scale,
             lr=args.learn,
-            embed_method=args.embed,
-            connect_method=args.connect,
+            embedder=args.embed,
+            connector=args.connect,
             curvature=args.curv,
-            temp=args.temp,
-            noise=args.noise,
-            trunacte=args.truncate,
+            soft_temp=args.temp,
             **prior,
         )
 
     if args.infer == "ml":
         from dodonaphy.ml import ML
+
         # mu = np.zeros_like(dists)
-        # cov = np.ones_like(dists)
+        # sigma = 1.
+        # cov = np.ones_like(dists) * sigma
         # dists = np.abs(np.random.multivariate_normal(mu, cov))
         # dists = dists + dists.T
+        # path_write = path_write + f"_cov{sigma}"
 
         ML.run(
             args.taxa,
@@ -97,9 +98,7 @@ def run(args):
             path_write,
             epochs=args.epochs,
             lr=args.learn,
-            temp=args.temp,
-            noise=args.noise,
-            truncate=args.truncate
+            soft_temp=args.temp,
         )
     end = time.time()
     seconds = end - start
@@ -147,10 +146,11 @@ def get_path(root_dir, args):
             it it the only purely distance-based connection method\n\
             implemented. Other methods depend on embedding locations."
         if args.doSave:
-            lr = -int(np.log10(args.learn))
+            ln_rate = -int(np.log10(args.learn))
+            ln_tau = -int(np.log10(args.temp))
             method_dir = os.path.join(root_dir, "ml", args.connect)
             path_write = os.path.join(
-                method_dir, "lr%d_n%d%s" % (lr, args.epochs, args.exp_ext)
+                method_dir, f"lr{ln_rate:%d}_tau{ln_tau:%d}{args.exp_ext:%s}"
             )
             print(f"Saving to {path_write}")
         else:
@@ -195,9 +195,9 @@ def get_dna(root_dir, prior, n_taxa, seq_len):
         LL = birth_death_likelihood(
             tree=simtree, birth_rate=prior["birth_rate"], death_rate=prior["death_rate"]
         )
-        with open(tree_info_path, "w") as f:
+        with open(tree_info_path, "w", encoding="utf_8") as f:
             f.write("Log Likelihood: %f\n" % LL)
-            simtree.write_ascii_p
+            simtree.write_ascii_plot(f)
     return dna, simtree
 
 
@@ -326,25 +326,13 @@ def init_parser():
     parser.add_argument(
         "--death", default=0.5, type=float, help="Death rate of simulated tree."
     )
-    
+
     # "soft" parameters
     parser.add_argument(
         "--temp",
         default=None,
         type=float,
         help="Temperature for soft neighbour joining",
-    )
-    parser.add_argument(
-        "--noise",
-        default=None,
-        type=float,
-        help="Noise added to break ties and select one pair to join. Normal(0, noise)"
-    )
-    parser.add_argument(
-        "--truncate",
-        default=None,
-        type=float,
-        help="Truncate normal distribution of noise at +/- truncate."
     )
     return parser
 

@@ -19,7 +19,7 @@ def test_mcmc_incentre():
     # MCMC parameters
     step_scale = 0.1
     nChains = 1
-    connect_method = "incentre"  # 'incentre', 'geodesics' or 'mst'
+    connector = "incentre"  # 'incentre', 'geodesics' or 'mst'
     burnin = 2
     epochs = 1
 
@@ -51,7 +51,7 @@ def test_mcmc_incentre():
         step_scale=step_scale,
         burnin=burnin,
         nChains=nChains,
-        connect_method=connect_method,
+        connector=connector,
         **prior
     )
 
@@ -66,7 +66,7 @@ def test_mcmc_mst():
     # MCMC parameters
     step_scale = 0.1
     nChains = 1
-    connect_method = "mst"  # 'incentre', 'geodesics' or 'mst'
+    connector = "mst"  # 'incentre', 'geodesics' or 'mst'
     burnin = 0
     epochs = 1
 
@@ -100,7 +100,7 @@ def test_mcmc_mst():
         n_grids=1,
         n_trials=1,
         nChains=nChains,
-        connect_method=connect_method,
+        connector=connector,
         **prior
     )
 
@@ -115,7 +115,7 @@ def test_mcmc_geodesics():
     # MCMC parameters
     step_scale = 0.1
     nChains = 1
-    connect_method = "geodesics"  # 'incentre', 'geodesics' or 'mst'
+    connector = "geodesics"  # 'incentre', 'geodesics' or 'mst'
     burnin = 0
     epochs = 1
 
@@ -147,7 +147,7 @@ def test_mcmc_geodesics():
         step_scale=step_scale,
         burnin=burnin,
         nChains=nChains,
-        connect_method=connect_method,
+        connector=connector,
         **prior
     )
 
@@ -184,8 +184,8 @@ def test_mcmc_geodesics_wrap():
         step_scale=0.1,
         burnin=0,
         nChains=1,
-        connect_method="geodesics",
-        embed_method="wrap",
+        connector="geodesics",
+        embedder="wrap",
         curvature=-2.,
         **prior
     )
@@ -201,8 +201,8 @@ def test_mcmc_simple_nj():
     # MCMC parameters
     step_scale = 0.1
     nChains = 1
-    connect_method = "nj"  # 'incentre', 'geodesics' or 'mst'
-    embed_method = "simple"
+    connector = "nj"  # 'incentre', 'geodesics' or 'mst'
+    embedder = "simple"
     burnin = 0
     epochs = 1
 
@@ -240,8 +240,8 @@ def test_mcmc_simple_nj():
         step_scale=step_scale,
         burnin=burnin,
         nChains=nChains,
-        connect_method=connect_method,
-        embed_method=embed_method,
+        connector=connector,
+        embedder=embedder,
         **prior
     )
 
@@ -256,8 +256,8 @@ def test_mcmc_wrap_nj():
     # MCMC parameters
     step_scale = 0.1
     nChains = 1
-    connect_method = "nj"  # 'incentre', 'geodesics' or 'mst'
-    embed_method = "wrap"
+    connector = "nj"  # 'incentre', 'geodesics' or 'mst'
+    embedder = "wrap"
     burnin = 0
     epochs = 1
 
@@ -295,7 +295,7 @@ def test_mcmc_wrap_nj():
         step_scale=step_scale,
         burnin=burnin,
         nChains=nChains,
-        connect_method=connect_method,
-        embed_method=embed_method,
+        connector=connector,
+        embedder=embedder,
         **prior
     )

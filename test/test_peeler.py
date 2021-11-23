@@ -4,9 +4,10 @@ import pytest
 import torch
 from dendropy.model.discrete import simulate_discrete_chars
 from dendropy.simulate import treesim
-from dodonaphy import Cutils, peeler, poincare, utils, tree
+from dodonaphy import Cutils, peeler, poincare, utils
 from dodonaphy.phylo import compress_alignment
 from dodonaphy.vi import DodonaphyVI
+from numpy import genfromtxt
 
 
 def test_make_peel_simple():
@@ -105,7 +106,7 @@ def test_make_peel_geodesic_dogbone():
     leaf_theta = torch.tensor([np.pi / 10, -np.pi / 10, np.pi * 6 / 8, -np.pi * 6 / 8])
     leaf_dir = utils.angle_to_directional(leaf_theta)
     leaf_locs = utils.dir_to_cart(leaf_r, leaf_dir)
-    peel, int_locs = peeler.make_peel_incentre(leaf_locs)
+    peel, _ = peeler.make_peel_incentre(leaf_locs)
     expected_peel = np.array([[1, 0, 4], [3, 2, 5], [4, 5, 6]])
 
     assert np.allclose(peel, expected_peel)
@@ -122,7 +123,7 @@ def test_make_peel_geodesic_example0():
             (0.11386343, -0.03121063, -0.18112418),
         ]
     )
-    peel, int_locs = peeler.make_peel_incentre(leaf_locs)
+    _, _ = peeler.make_peel_incentre(leaf_locs)
 
 
 def test_make_peel_geodesic_example1():
@@ -136,7 +137,7 @@ def test_make_peel_geodesic_example1():
             [-4.0814e-02, -3.1838e-01],
         ]
     )
-    peel, int_locs = peeler.make_peel_incentre(leaf_locs)
+    peel, _ = peeler.make_peel_incentre(leaf_locs)
     for i in range(5):
         assert int(peel[i][0]) is not int(peel[i][1])
         assert int(peel[i][0]) is not int(peel[i][2])
@@ -154,7 +155,7 @@ def test_make_peel_geodesic_example2():
             [-1.40397397e-02, 1.47278753e-01],
         ]
     )
-    peel, int_locs = peeler.make_peel_incentre(leaf_locs)
+    peel, _ = peeler.make_peel_incentre(leaf_locs)
     for i in range(5):
         assert int(peel[i][0]) is not int(peel[i][1])
         assert int(peel[i][0]) is not int(peel[i][2])
@@ -186,7 +187,7 @@ def test_nj_uneven():
     leaf_dir = utils.angle_to_directional(leaf_theta)
 
     pdm = Cutils.get_pdm_torch(leaf_r, leaf_dir)
-    peel, blens = peeler.nj(pdm)
+    peel, _ = peeler.nj(pdm)
     peel_check = []
     peel_check.append(np.allclose(peel, [[1, 0, 4], [3, 2, 5], [5, 4, 6]]))
     peel_check.append(np.allclose(peel, [[0, 1, 4], [2, 3, 5], [4, 5, 6]]))
@@ -211,8 +212,8 @@ def test_compute_Q():
     pdm[3, 4] = 3.0
     pdm = pdm + pdm.T
 
-    Q = peeler.compute_Q(pdm)
-    Q1 = torch.tensor(
+    Q_test = peeler.compute_Q(pdm)
+    Q_actual = torch.tensor(
         [
             [0, -50, -38, -34, -34],
             [-50, 0, -38, -34, -34],
@@ -221,7 +222,7 @@ def test_compute_Q():
             [-34, -34, -40, -48, 0],
         ]
     ).double()
-    assert torch.allclose(Q, Q1)
+    assert torch.allclose(Q_test, Q_actual)
 
 
 def test_nj_knownQ():
@@ -257,7 +258,7 @@ def test_nj_soft():
     pdm = Cutils.get_pdm_torch(leaf_r, leaf_dir)
     pdm.requires_grad = True
     for i in range(1000):
-        peel, blens = peeler.nj(pdm, tau=1e-7, noise=1e-2, truncate=1e-1)
+        peel, blens = peeler.nj(pdm, tau=1e-7)
 
         peel_check = []
         peel_check.append(np.allclose(peel, [[1, 0, 4], [3, 2, 5], [5, 4, 6]]))
@@ -268,11 +269,36 @@ def test_nj_soft():
         peel_check.append(np.allclose(peel, [[2, 3, 4], [0, 1, 5], [5, 4, 6]]))
         peel_check.append(np.allclose(peel, [[0, 1, 4], [4, 3, 5], [2, 5, 6]]))
 
-        assert sum(peel_check), f"Iteration: {i}. Possibly an incorrect tree topology:\n{peel}"
+        assert sum(
+            peel_check
+        ), f"Iteration: {i}. Possibly an incorrect tree topology:\n{peel}"
         assert torch.isclose(
             sum(blens).float(), torch.tensor(2.0318).float(), atol=0.05
         ), f"Iteration: {i}. Incorrect total branch length"
         assert blens.requires_grad == True, "Branch lengths must carry gradients."
+
+
+def test_nj_soft_all_even():
+    dists = torch.ones((6, 6), dtype=torch.double) - torch.eye(6, dtype=torch.double)
+    peel, _ = peeler.nj(dists, tau=1e-4)
+    set1 = set(np.sort(np.unique(peel)))
+    set2 = set(np.arange(11))
+    assert set1 == set2, f"Not all nodes in peel: {peel}"
+
+
+def test_nj_eg1():
+    dists_np = genfromtxt("./test/test_peel_data.txt", dtype=np.double, delimiter=", ")
+    dists_1d = torch.from_numpy(dists_np)
+    tril_idx = torch.tril_indices(17, 17, -1)
+    dist_2d = torch.zeros((17, 17), dtype=torch.double)
+    dist_2d[tril_idx[0], tril_idx[1]] = dists_1d
+    dist_2d[tril_idx[1], tril_idx[0]] = dists_1d
+
+    peel_hard, _ = peeler.nj(dist_2d)
+    peel_soft, _ = peeler.nj(dist_2d, tau=1e-18)
+    assert (
+        np.allclose(peel_soft, peel_hard)
+    ), f"Bad soft peel:\n{peel_soft}\nHard peel:\n{peel_hard}"
 
 
 def test_soft_nj_knownQ():
@@ -290,7 +316,7 @@ def test_soft_nj_knownQ():
     pdm = pdm + pdm.T
 
     for i in range(100):
-        peel, blens = peeler.nj(pdm, tau=1e-5, noise=1e-2, truncate=1e-1)
+        peel, blens = peeler.nj(pdm, tau=1e-5)
         peel_check = []
         peel_check.append(
             np.allclose(peel, [[0, 1, 5], [3, 4, 6], [5, 2, 7], [7, 6, 8]])
@@ -320,18 +346,20 @@ def test_soft_nj_knownQ():
 
 
 def test_soft_sort_1d():
-    input = torch.tensor([2, 5.5, 3, -1, 0])
-    permute = peeler.soft_sort(input.unsqueeze(-1).unsqueeze(0), tau=0.000001).squeeze()
-    output = permute @ input
+    input_arr = torch.tensor([2, 5.5, 3, -1, 0])
+    permute = peeler.soft_sort(
+        input_arr.unsqueeze(-1).unsqueeze(0), tau=0.000001
+    ).squeeze()
+    output = permute @ input_arr
     correct = torch.tensor([5.5, 3, 2, 0, -1])
     assert torch.allclose(output, correct)
 
 
 def test_soft_sort_2d():
-    input = torch.tensor(
+    input_arr = torch.tensor(
         [[0, 50, 38, 34], [50, 0, 38, 34], [38, 38, 0, 40], [34, 34, 40, 0]]
     )
-    permute = peeler.soft_sort(input.unsqueeze(-1), tau=0.000001)
+    permute = peeler.soft_sort(input_arr.unsqueeze(-1), tau=0.000001)
 
     row0_argmax = permute[0, 0]
     assert torch.allclose(row0_argmax[1], torch.ones(1))
@@ -345,8 +373,8 @@ def test_soft_sort_2d():
 
 
 def test_soft_argmin_one_hot():
-    input_2d = torch.tensor(([4, 5, 10], [3, 4, 2.3], [20, 2, 8]))
-    one_hot_i, one_hot_j = peeler.soft_argmin_one_hot(input_2d, tau=1e-4, noise=1e-4, truncate=1e-4)
+    input_arr_2d = torch.tensor(([4, 5, 10], [3, 4, 2.3], [20, 2, 8]))
+    one_hot_i, one_hot_j = peeler.soft_argmin_one_hot(input_arr_2d, tau=1e-4)
     assert torch.allclose(one_hot_i, torch.tensor([0.0, 0.0, 1.0])), "wrong i index"
     assert torch.allclose(one_hot_j, torch.tensor([0.0, 1.0, 0.0])), "wrong j index"
 
@@ -381,7 +409,7 @@ def test_soft_geodesic0():
         requires_grad=True,
     )
     peel, int_locs, _ = peeler.make_soft_peel_tips(
-        leaf_locs, connect_method="geodesics", curvature=-torch.ones(1)
+        leaf_locs, connector="geodesics", curvature=-torch.ones(1)
     )
     _, int_locs1 = peeler.make_peel_geodesic(leaf_locs)
     peel_check = []
@@ -389,6 +417,7 @@ def test_soft_geodesic0():
     peel_check.append(np.allclose(peel, [[0, 1, 3], [3, 2, 4]]))
     peel_check.append(np.allclose(peel, [[1, 0, 3], [2, 3, 4]]))
     peel_check.append(np.allclose(peel, [[0, 1, 3], [2, 3, 4]]))
+    assert sum(peel_check), f"Incorrect peel: {peel}"
     assert torch.allclose(int_locs, int_locs1), f"{int_locs} != {int_locs1}"
 
 
@@ -399,7 +428,7 @@ def test_soft_geodesic1():
     leaf_locs = utils.dir_to_cart(leaf_r, leaf_dir).requires_grad_(True)
     for i in range(100):
         peel, int_locs, blens = peeler.make_soft_peel_tips(
-            leaf_locs, connect_method="geodesics", curvature=-torch.ones(1)
+            leaf_locs, connector="geodesics", curvature=-torch.ones(1)
         )
 
         peel_check = []
@@ -430,7 +459,7 @@ def test_soft_geodesic_optim():
     )
     partials, weights = compress_alignment(dna)
     mymod = DodonaphyVI(
-        partials, weights, dim=2, embed_method="simple", connect_method="geodesics"
+        partials, weights, dim=2, embedder="simple", connector="geodesics"
     )
     optimizer = torch.optim.Adam(list(params.values()), lr=1)
     optimizer.zero_grad()

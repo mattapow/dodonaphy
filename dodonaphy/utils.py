@@ -4,7 +4,7 @@ import numpy as np
 import torch
 
 from . import poincare, Cutils
-from .edge import u_edge
+from .edge import Edge
 
 
 def angle_to_directional(theta):
@@ -78,8 +78,8 @@ def get_pdm(
             if astorch:
                 pdm[i, j] = pdm[j, i] = dist_ij
             else:
-                pdm[i].append(u_edge(dist_ij, i, j))
-                pdm[j].append(u_edge(dist_ij, j, i))
+                pdm[i].append(Edge(dist_ij, i, j))
+                pdm[j].append(Edge(dist_ij, j, i))
 
     return pdm
 
@@ -98,8 +98,8 @@ def get_pdm_tips(leaf_r, leaf_dir, curvature=-torch.ones(1)):
             # apply the inverse transform from Matsumoto et al 2020
             dist_ij = torch.log(torch.cosh(dist_ij))
 
-            edge_list[i].append(u_edge(dist_ij, i, j))
-            edge_list[j].append(u_edge(dist_ij, j, i))
+            edge_list[i].append(Edge(dist_ij, i, j))
+            edge_list[j].append(Edge(dist_ij, j, i))
 
     return edge_list
 
@@ -238,8 +238,8 @@ def get_plca(locs, as_torch=False):
                 edge_adj[i, j] = dist_ij
                 edge_adj[j, i] = dist_ij
             else:
-                edge_list[i].append(u_edge(dist_ij, i, j))
-                edge_list[j].append(u_edge(dist_ij, j, i))
+                edge_list[i].append(Edge(dist_ij, i, j))
+                edge_list[j].append(Edge(dist_ij, j, i))
 
     if as_torch:
         return edge_adj

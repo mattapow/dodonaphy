@@ -1,4 +1,4 @@
-class u_edge:
+class Edge:
     def __init__(self, distance, node_1, node_2):
         self.distance = distance
         self.from_ = node_1
