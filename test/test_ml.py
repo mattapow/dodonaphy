@@ -16,13 +16,12 @@ def test_ml1():
     )
     partials, weights = compress_alignment(dna)
     dists = utils.tip_distances(sim_tree, n_taxa)
-    ML.run(
-        n_taxa,
-        partials,
-        weights,
-        dists,
-        path_write=None,
-        epochs=10,
-        lr=1,
-        soft_temp=1e-4
-    )
+    import numpy as np
+    mu = np.zeros(n_taxa)
+    sigma = 0.01
+    cov = np.ones_like(dists) * sigma
+    threshold = min(dists[dists>0])
+    dists = dists + np.fmod(np.random.multivariate_normal(mu, cov, (6)), threshold)
+    dists = (dists + dists.T)/2
+    mymod = ML(partials[:], weights, dists=dists, soft_temp=1e-10)
+    mymod.learn(epochs=100, learn_rate=1, path_write=None)

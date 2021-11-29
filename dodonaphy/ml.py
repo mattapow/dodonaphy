@@ -1,4 +1,4 @@
-import math
+"""Maximum Likelihood Module"""
 import os
 
 import matplotlib.pyplot as plt
@@ -13,7 +13,6 @@ class ML(BaseModel):
     """Maximum Likelihood class"""
 
     def __init__(self, partials, weights, dists, soft_temp):
-        self.params = {"dists": dists}
         super().__init__(
             partials,
             weights,
@@ -22,18 +21,25 @@ class ML(BaseModel):
             connector="nj",
             curvature=-1,
         )
+        tril_idx = torch.tril_indices(self.S, self.S, -1)
+        dists_1d = dists[tril_idx[0], tril_idx[1]]
+        self.params = {
+            "dists": torch.tensor(dists_1d, requires_grad=True, dtype=torch.float64)
+        }
         self.ln_p = self.compute_likelihood()
 
-    def learn(self, epochs, lr, path_write):
+    def learn(self, epochs, learn_rate, path_write):
+        """Optimise params["dists"]"."""
+
         def lr_lambda(epoch):
             return 1.0 / (epoch + 1) ** 0.5
 
-        optimizer = torch.optim.LBFGS(params=list(self.params.values()), lr=lr)
+        optimizer = torch.optim.LBFGS(params=list(self.params.values()), lr=learn_rate)
         scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lr_lambda)
         like_hist = []
 
         if path_write is not None:
-            like_fn = os.path.join(path_write, "list_hist.txt")
+            like_fn = os.path.join(path_write, "likelihood.txt")
             dist_path = os.path.join(path_write, "dists")
             os.mkdir(dist_path)
 
@@ -54,8 +60,8 @@ class ML(BaseModel):
                 tree.save_tree(
                     path_write, "ml", self.peel, self.blens, i, self.ln_p, -1
                 )
-                with open(like_fn, "a", encoding='UTF-8') as f:
-                    f.write("%f\n" % like_hist[-1])
+                with open(like_fn, "a", encoding="UTF-8") as file:
+                    file.write(f"{like_hist[-1]}\n")
                 dists_fn = os.path.join(dist_path, f"dists_hist_{i}.txt")
                 np.savetxt(
                     dists_fn,
@@ -65,39 +71,31 @@ class ML(BaseModel):
 
         if epochs > 0 and path_write is not None:
             ML.trace(epochs, like_hist, path_write)
-        return
-
-    @staticmethod
-    def run(taxa, partials, weights, dists, path_write, epochs, lr, soft_temp):
-        tril_idx = torch.tril_indices(taxa, taxa, -1)
-        dists_1d = dists[tril_idx[0], tril_idx[1]]
-        dists_torch = torch.tensor(dists_1d, requires_grad=True, dtype=torch.float64)
-        mymod = ML(partials, weights, dists=dists_torch, soft_temp=soft_temp)
-        mymod.learn(epochs=epochs, lr=lr, path_write=path_write)
-        return
 
     def compute_likelihood(self):
+        """Compute likelihood of current tree, reducing soft_temp as required."""
         tril_idx = torch.tril_indices(self.S, self.S, -1)
         dist_2d = torch.zeros((self.S, self.S), dtype=torch.double)
         dist_2d[tril_idx[0], tril_idx[1]] = self.params["dists"]
         dist_2d[tril_idx[1], tril_idx[0]] = self.params["dists"]
 
-        good_peel=False
-        while ~good_peel:
+        good_peel = False
+        while not good_peel:
             self.peel, self.blens = peeler.nj(dist_2d, tau=self.soft_temp)
             set1 = set(np.sort(np.unique(self.peel)))
             set2 = set(np.arange(self.bcount + 1))
             if set1 != set2:
                 print("Decreasing temperature by half.")
-                self.soft_temp/=2
+                self.soft_temp /= 2
             else:
-                good_peel=True
-        
+                good_peel = True
+
         self.ln_p = self.compute_LL(self.peel, self.blens)
         return self.ln_p
 
     @staticmethod
     def trace(epochs, like_hist, path_write):
+        """Plot trace and histogram of likelihood."""
         plt.figure()
         plt.plot(range(epochs), like_hist, "r", label="likelihood")
         plt.xlabel("Epochs")

@@ -1,3 +1,4 @@
+"""Run Dodonaphy module"""
 import argparse
 import os
 import random
@@ -11,10 +12,16 @@ from dendropy.model.discrete import simulate_discrete_chars
 from dendropy.simulate import treesim
 
 from dodonaphy import utils
+from dodonaphy.mcmc import DodonaphyMCMC as mcmc
+from dodonaphy.ml import ML
 from dodonaphy.phylo import compress_alignment
+from dodonaphy.vi import DodonaphyVI
 
 
 def run(args):
+    """Run dodonaphy.
+    Using an embedding for MCMC, or embedding variational inference,
+    or using a distance matrix for maximum likelihood."""
     if args.root_ext != "":
         args.root_ext = "_" + args.root_ext
     root_dir = os.path.abspath(os.path.join("./data", f"T{args.taxa}{args.root_ext}"))
@@ -25,17 +32,15 @@ def run(args):
     partials, weights = compress_alignment(dna)
 
     if args.start == "RAxML":
-        rx = raxml.RaxmlRunner()
-        tree_init = rx.estimate_tree(char_matrix=dna, raxml_args=["--no-bfgs"])
-    else:
-        tree_init = simtree
-    dists = utils.tip_distances(tree_init, args.taxa)
+        rax = raxml.RaxmlRunner()
+        simtree = rax.estimate_tree(char_matrix=dna, raxml_args=["--no-bfgs"])
+    # print(rax)
+    # return
+    dists = utils.tip_distances(simtree, args.taxa)
     save_period = max(int(args.epochs / args.draws), 1)
 
     start = time.time()
     if args.infer == "mcmc":
-        from dodonaphy.mcmc import DodonaphyMCMC as mcmc
-
         mcmc.run(
             args.dim,
             partials[:],
@@ -55,10 +60,7 @@ def run(args):
             curvature=args.curv,
             **prior,
         )
-
-    if args.infer == "vi":
-        from dodonaphy.vi import DodonaphyVI
-
+    elif args.infer == "vi":
         DodonaphyVI.run(
             args.dim,
             args.taxa,
@@ -79,65 +81,46 @@ def run(args):
             soft_temp=args.temp,
             **prior,
         )
+    elif args.infer == "ml":
+        mu = np.zeros(args.taxa)
+        sigma = 0.1
+        cov = np.ones_like(dists) * sigma
+        threshold = sigma #  min(dists[dists>0])
+        dists = dists + np.fmod(np.random.multivariate_normal(mu, cov, (args.taxa)), threshold)
+        dists = np.abs((dists + dists.T)/2)
+        mymod = ML(partials[:], weights, dists=dists, soft_temp=args.temp)
+        mymod.learn(epochs=args.epochs, learn_rate=args.learn, path_write=path_write)
 
-    if args.infer == "ml":
-        from dodonaphy.ml import ML
-
-        # mu = np.zeros_like(dists)
-        # sigma = 1.
-        # cov = np.ones_like(dists) * sigma
-        # dists = np.abs(np.random.multivariate_normal(mu, cov))
-        # dists = dists + dists.T
-        # path_write = path_write + f"_cov{sigma}"
-
-        ML.run(
-            args.taxa,
-            partials[:],
-            weights,
-            dists,
-            path_write,
-            epochs=args.epochs,
-            lr=args.learn,
-            soft_temp=args.temp,
-        )
-    end = time.time()
-    seconds = end - start
-    m, s = divmod(seconds, 60)
+    mins, secs = divmod(time.time() - start, 60)
     print(
-        f"Time taken for {args.taxa} taxa with {args.epochs} epochs: {m}m {round(s)}s"
+        f"Time taken for {args.taxa} taxa with {args.epochs} epochs: {mins}m {round(secs)}s"
     )
 
 
 def get_path(root_dir, args):
-    if args.doSave == False:
+    """Generate and return experiment path"""
+    if args.doSave is False:
         return None
-    print(args.doSave)
 
     if args.exp_ext != "":
         args.exp_ext = "_" + args.exp_ext
-    exp_method = "%s_%s" % (args.embed, args.connect)
+    exp_method = f"{args.embed}_{args.connect}"
 
     if args.infer == "vi":
-        if args.doSave:
-            lnLr = -int(np.log10(args.learn))
-            method_dir = os.path.join(root_dir, "vi", exp_method)
-            path_write = os.path.join(
-                method_dir,
-                "d%i_lr%i_k%i%s" % (args.dim, lnLr, args.importance, args.exp_ext),
-            )
-            print(f"Saving to {path_write}")
-        else:
-            path_write = None
+        ln_lr = -int(np.log10(args.learn))
+        method_dir = os.path.join(root_dir, "vi", exp_method)
+        path_write = os.path.join(
+            method_dir,
+            f"d{args.dim}_lr{ln_lr}_k{args.importance}{args.exp_ext}",
+        )
+        print(f"Saving to {path_write}")
 
     elif args.infer == "mcmc":
-        if args.doSave:
-            method_dir = os.path.join(root_dir, "mcmc", exp_method)
-            path_write = os.path.join(
-                method_dir, "d%d_c%d%s" % (args.dim, args.chains, args.exp_ext)
-            )
-            print(f"Saving to {path_write}")
-        else:
-            path_write = None
+        method_dir = os.path.join(root_dir, "mcmc", exp_method)
+        path_write = os.path.join(
+            method_dir, f"d{args.dim}_c{args.chains}{args.exp_ext}"
+        )
+        print(f"Saving to {path_write}")
 
     elif args.infer == "ml":
         assert (
@@ -145,25 +128,26 @@ def get_path(root_dir, args):
         ), "Maximum likelihood only works on neighbour joining. This is since\n\
             it it the only purely distance-based connection method\n\
             implemented. Other methods depend on embedding locations."
-        if args.doSave:
-            ln_rate = -int(np.log10(args.learn))
-            ln_tau = -int(np.log10(args.temp))
-            method_dir = os.path.join(root_dir, "ml", args.connect)
-            path_write = os.path.join(
-                method_dir, f"lr{ln_rate:%d}_tau{ln_tau:%d}{args.exp_ext:%s}"
-            )
-            print(f"Saving to {path_write}")
-        else:
-            path_write = None
+        ln_rate = -int(np.log10(args.learn))
+        ln_tau = -int(np.log10(args.temp))
+        method_dir = os.path.join(root_dir, "ml", args.connect)
+        path_write = os.path.join(method_dir, f"lr{ln_rate}_tau{ln_tau}{args.exp_ext}")
+        print(f"Saving to {path_write}")
 
     if path_write is not None:
         if not os.path.exists(method_dir):
-            os.makedirs(method_dir, exist_ok=False)
+            try:
+                os.makedirs(method_dir, exist_ok=False)
+            finally:
+                print(
+                    f"Failed making directoy {method_dir}. Possibly array job on HPC."
+                )
         os.mkdir(path_write)
     return path_write
 
 
 def get_dna(root_dir, prior, n_taxa, seq_len):
+    """Get dna from a simulated tree."""
     tree_path = os.path.join(root_dir, "simtree.nex")
     tree_info_path = os.path.join(root_dir, "simtree.info")
     dna_path = os.path.join(root_dir, "dna.nex")
@@ -192,16 +176,17 @@ def get_dna(root_dir, prior, n_taxa, seq_len):
 
         simtree.write(path=tree_path, schema="nexus")
         dna.write_to_path(dest=dna_path, schema="nexus")
-        LL = birth_death_likelihood(
+        ln_like = birth_death_likelihood(
             tree=simtree, birth_rate=prior["birth_rate"], death_rate=prior["death_rate"]
         )
-        with open(tree_info_path, "w", encoding="utf_8") as f:
-            f.write("Log Likelihood: %f\n" % LL)
-            simtree.write_ascii_plot(f)
+        with open(tree_info_path, "w", encoding="utf_8") as file:
+            file.write(f"Log Likelihood: {ln_like}\n")
+            simtree.write_ascii_plot(file)
     return dna, simtree
 
 
 def init_parser():
+    """Initialise argument parser."""
     parser = argparse.ArgumentParser(
         prog="Dodonaphy",
         description="Compute a Bayesian phylogenetic posterior from a hyperbolic embedding.",
@@ -253,7 +238,8 @@ def init_parser():
         "-i",
         default="mcmc",
         choices=("mcmc", "vi", "ml"),
-        help="Inference method: MCMC or Variational Inference for Bayesian inference. Use ml to maximise the likelihod of a similarity matrix.",
+        help="Inference method: MCMC or Variational Inference for Bayesian inference.\
+        Use ml to maximise the likelihod of a similarity matrix.",
     )
     parser.add_argument(
         "--curv", "-c", default=-1.0, type=float, help="Hyperbolic curvature."
@@ -338,6 +324,7 @@ def init_parser():
 
 
 def main():
+    """Main entry point"""
     parser = init_parser()
     args = parser.parse_args()
     run(args)

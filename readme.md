@@ -7,15 +7,17 @@ This code is under active research & development and not intended for production
 ## Installing with Conda and Pip
 On Mac OS Catalina, CommandLineTools (possibly used in setuptools) has an error in python==3.8.2. Numpy does not yet support python>=3.10. So use 3.9
 
-```conda create --name dodo python=3.9```
-
-```conda activate dodo```
+```
+conda create --name dodo python=3.9
+conda activate dodo
+```
 
 Pip needs numpy and cython for the setup:
 
-```pip install cython```
-
-```pip install numpy```
+```
+pip install cython
+pip install numpy
+```
 
 Then install the Dodonaphy package using pip:
 ```
