@@ -8,6 +8,7 @@ dodonaphy.egg-info
 *.DS_Store
 
 .idea/*
+notes
 
 data/*
 ext
