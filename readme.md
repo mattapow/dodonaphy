@@ -44,7 +44,7 @@ See doc/notes.pdf for a description of the embedding models being used.
 ## Basic usage
 Run Dodonaphy using
 ```
-python dodonaphy/run.py [OPTIONS]
+dodo [OPTIONS]
 ```
 
 ## Help
