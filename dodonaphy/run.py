@@ -22,10 +22,16 @@ def run(args):
     """Run dodonaphy.
     Using an embedding for MCMC, or embedding variational inference,
     or using a distance matrix for maximum likelihood."""
-    if args.root_ext != "":
-        args.root_ext = "_" + args.root_ext
-    root_dir = os.path.abspath(os.path.join("./data", f"T{args.taxa}{args.root_ext}"))
-    path_write = get_path(root_dir, args)
+    if args.path_root == "":
+        root_dir = os.path.abspath(
+            os.path.join("./data", f"T{args.taxa}{args.root_ext}")
+        )
+    else:
+        root_dir = os.path.abspath(args.path_root)
+
+    if args.infer == "simulate":
+        simulate_tree(root_dir, args.birth, args.death, args.taxa, args.seq)
+        return
 
     path_write = get_path(root_dir, args)
     dna, simtree = get_dna(root_dir)
@@ -82,9 +88,11 @@ def run(args):
         mu = np.zeros(args.taxa)
         sigma = 0.1
         cov = np.ones_like(dists) * sigma
-        threshold = sigma #  min(dists[dists>0])
-        dists = dists + np.fmod(np.random.multivariate_normal(mu, cov, (args.taxa)), threshold)
-        dists = np.abs((dists + dists.T)/2)
+        threshold = sigma  #  min(dists[dists>0])
+        dists = dists + np.fmod(
+            np.random.multivariate_normal(mu, cov, (args.taxa)), threshold
+        )
+        dists = np.abs((dists + dists.T) / 2)
         mymod = ML(partials[:], weights, dists=dists, soft_temp=args.temp)
         mymod.learn(epochs=args.epochs, learn_rate=args.learn, path_write=path_write)
 
@@ -135,50 +143,51 @@ def get_path(root_dir, args):
         if not os.path.exists(method_dir):
             try:
                 os.makedirs(method_dir, exist_ok=False)
-            finally:
+            except (OSError):
                 print(
-                    f"Failed making directoy {method_dir}. Possibly array job on HPC."
+                    f"Failed making directoy {method_dir}. Possibly an array job on HPC."
                 )
         os.mkdir(path_write)
     return path_write
 
 
-def get_dna(root_dir, prior, n_taxa, seq_len):
-    """Get dna from a simulated tree."""
-    tree_path = os.path.join(root_dir, "simtree.nex")
+def simulate_tree(root_dir, birth_rate, death_rate, n_taxa, seq_len):
+    os.makedirs(root_dir, exist_ok=False)
+
+    rng = random.Random(1)
+    simtree = treesim.birth_death_tree(
+        birth_rate=birth_rate,
+        death_rate=death_rate,
+        num_extant_tips=n_taxa,
+        rng=rng,
+    )
+    dna = simulate_discrete_chars(
+        seq_len=seq_len,
+        tree_model=simtree,
+        seq_model=dendropy.model.discrete.Jc69(),
+        rng=rng,
+    )
+
     tree_info_path = os.path.join(root_dir, "simtree.info")
+    tree_path = os.path.join(root_dir, "simtree.nex")
     dna_path = os.path.join(root_dir, "dna.nex")
-    try:
-        # Try loading in the simTree and dna
-        simtree = dendropy.Tree.get(path=tree_path, schema="nexus")
-        dna = dendropy.DnaCharacterMatrix.get(path=dna_path, schema="nexus")
-    except (FileExistsError, FileNotFoundError):
-        # Make experiment folder
-        os.makedirs(root_dir, exist_ok=False)
 
-        # simulate a tree
-        rng = random.Random(1)
-        simtree = treesim.birth_death_tree(
-            birth_rate=prior["birth_rate"],
-            death_rate=prior["death_rate"],
-            num_extant_tips=n_taxa,
-            rng=rng,
-        )
-        dna = simulate_discrete_chars(
-            seq_len=seq_len,
-            tree_model=simtree,
-            seq_model=dendropy.model.discrete.Jc69(),
-            rng=rng,
-        )
+    simtree.write(path=tree_path, schema="nexus")
+    dna.write_to_path(dest=dna_path, schema="nexus")
+    ln_like = birth_death_likelihood(
+        tree=simtree, birth_rate=birth_rate, death_rate=death_rate
+    )
+    with open(tree_info_path, "w", encoding="utf_8") as file:
+        file.write(f"Log Likelihood: {ln_like}\n")
+        simtree.write_ascii_plot(file)
 
-        simtree.write(path=tree_path, schema="nexus")
-        dna.write_to_path(dest=dna_path, schema="nexus")
-        ln_like = birth_death_likelihood(
-            tree=simtree, birth_rate=prior["birth_rate"], death_rate=prior["death_rate"]
-        )
-        with open(tree_info_path, "w", encoding="utf_8") as file:
-            file.write(f"Log Likelihood: {ln_like}\n")
-            simtree.write_ascii_plot(file)
+
+def get_dna(root_dir):
+    """Get dna from a saved simulated tree."""
+    tree_path = os.path.join(root_dir, "simtree.nex")
+    dna_path = os.path.join(root_dir, "dna.nex")
+    simtree = dendropy.Tree.get(path=tree_path, schema="nexus")
+    dna = dendropy.DnaCharacterMatrix.get(path=dna_path, schema="nexus")
     return dna, simtree
 
 
@@ -234,9 +243,10 @@ def init_parser():
         "--infer",
         "-i",
         default="mcmc",
-        choices=("mcmc", "vi", "ml"),
-        help="Inference method: MCMC or Variational Inference for Bayesian inference.\
-        Use ml to maximise the likelihod of a similarity matrix.",
+        choices=("mcmc", "vi", "ml", "simulate"),
+        help="Inference method: MCMC or Variational Inference for Bayesian\
+        inference. Use ml to maximise the likelihod of a similarity matrix.\
+        Use [simulate] to simulate dna from a birth death tree.",
     )
     parser.add_argument(
         "--curv", "-c", default=-1.0, type=float, help="Hyperbolic curvature."
@@ -249,16 +259,17 @@ def init_parser():
         help="Starting tree to embed.",
     )
     parser.add_argument(
-        "--root_ext",
+        "--path_root",
         default="",
         type=str,
-        help="Add a suffix to the root directory data/T[S]_[root_ext]",
+        help="Specify the root directory, which should contain a nexus file.\
+        If empty uses default ./data/T[taxa]",
     )
     parser.add_argument(
         "--exp_ext",
         default="",
         type=str,
-        help="Add a suffix to the experimental directory data/T[S]/*/d*_c*_crv*_[exp_ext]",
+        help="Add a suffix to the experimental directory path_root/*/d*_c*_[exp_ext]",
     )
 
     # VI parameters

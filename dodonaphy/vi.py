@@ -28,6 +28,7 @@ class DodonaphyVI(BaseModel):
             weights,
             dim,
             soft_temp=soft_temp,
+            embedder=embedder,
             connector=connector,
             curvature=curvature,
         )
@@ -237,7 +238,7 @@ class DodonaphyVI(BaseModel):
 
         if path_write is not None:
             fn = path_write + "/" + "vi.info"
-            with open(fn, "w", encoding='UTF-8') as file:
+            with open(fn, "w", encoding="UTF-8") as file:
                 file.write("%-12s: %i\n" % ("# epochs", epochs))
                 file.write("%-12s: %i\n" % ("k_samples", k_samples))
                 file.write("%-12s: %i\n" % ("Dimensions", self.D))
@@ -246,8 +247,6 @@ class DodonaphyVI(BaseModel):
                 file.write("%-12s: %f\n" % ("Learn Rate", lr))
                 file.write("%-12s: %s\n" % ("Embed Mthd", self.embedder))
                 file.write("%-12s: %s\n" % ("Connect Mthd", self.connector))
-                for key, value in self.prior.items():
-                    file.write("%-12s: %s\n" % (key, str(value)))
 
             vi_path = os.path.join(path_write, "vi_params")
             os.mkdir(vi_path)
@@ -281,7 +280,7 @@ class DodonaphyVI(BaseModel):
             hist_dat.append(elbo_hist[-1])
 
             if path_write is not None:
-                with open(elbo_fn, "a", encoding='UTF-8') as f:
+                with open(elbo_fn, "a", encoding="UTF-8") as f:
                     f.write("%f\n" % elbo_hist[-1])
                 fn = os.path.join(path_write, "vi_params", f"vi_{epoch+1}.csv")
                 self.save(fn)
@@ -293,7 +292,7 @@ class DodonaphyVI(BaseModel):
             final_elbo = self.elbo_normal(100).item()
             print("Final ELBO: {}".format(final_elbo))
             fn = os.path.join(path_write, "vi.info")
-            with open(fn, "a", encoding='UTF-8') as file:
+            with open(fn, "a", encoding="UTF-8") as file:
                 file.write("%-12s: %i\n" % ("Final ELBO (100 samples)", final_elbo))
 
     @staticmethod
@@ -341,6 +340,7 @@ class DodonaphyVI(BaseModel):
         max_scale=1,
         embedder="wrap",
         lr=1e-3,
+        curvature=-1.0,
         connector="nj",
         soft_temp=None,
     ):
@@ -354,7 +354,9 @@ class DodonaphyVI(BaseModel):
         print("Using %s embedding with %s connections" % (embedder, connector))
 
         # embed tips with hydra
-        emm_tips = hydra.hydra(D=dists_data, dim=dim, equi_adj=0.0, stress=True)
+        emm_tips = hydra.hydra(
+            D=dists_data, dim=dim, equi_adj=0.0, curvature=curvature, stress=True
+        )
         print("Embedding Stress (tips only) = {:.4}".format(emm_tips["stress"].item()))
 
         # Initialise model
@@ -364,7 +366,6 @@ class DodonaphyVI(BaseModel):
             dim,
             embedder=embedder,
             connector=connector,
-            dists_data=dists_data,
             soft_temp=soft_temp,
             curvature=curvature
         )
@@ -432,11 +433,17 @@ class DodonaphyVI(BaseModel):
                 peels, blens, _, lp = mymod.draw_sample(1, lp=True)
                 ln_prior = mymod.compute_prior_gamma_dir(blens[0])
                 tree.save_tree(
-                    path_write, "vi", peels[0], blens[0], i, lp[0].item(), ln_prior.item()
+                    path_write,
+                    "vi",
+                    peels[0],
+                    blens[0],
+                    i,
+                    lp[0].item(),
+                    ln_prior.item(),
                 )
 
     def save(self, fn):
-        with open(fn, "w", encoding='UTF-8') as f:
+        with open(fn, "w", encoding="UTF-8") as f:
             for i in range(self.S):
                 for d in range(self.D):
                     f.write("%f\t" % self.VariationalParams["leaf_mu"][i, d])
@@ -456,7 +463,7 @@ class DodonaphyVI(BaseModel):
 
 
 def read(path_read, internals=True):
-    with open(path_read, "r", encoding='UTF-8') as f:
+    with open(path_read, "r", encoding="UTF-8") as f:
         lines = [line.rstrip("\n") for line in f]
     dim = int(len([float(i) for i in lines[0].rstrip().split("\t")]) / 2)
     n_lines = len(lines) - 1
