@@ -22,7 +22,6 @@ class DodonaphyVI(BaseModel):
         soft_temp=None,
         noise=None,
         truncate=None,
-        **prior,
     ):
         super().__init__(
             partials,
@@ -31,7 +30,6 @@ class DodonaphyVI(BaseModel):
             soft_temp=soft_temp,
             connector=connector,
             curvature=curvature,
-            **prior,
         )
         print("Initialising variational model.\n")
 
@@ -345,7 +343,6 @@ class DodonaphyVI(BaseModel):
         lr=1e-3,
         connector="nj",
         soft_temp=None,
-        **prior,
     ):
         """Initialise and run Dodonaphy's variational inference
 
@@ -369,7 +366,7 @@ class DodonaphyVI(BaseModel):
             connector=connector,
             dists_data=dists_data,
             soft_temp=soft_temp,
-            **prior,
+            curvature=curvature
         )
 
         # Choose internal node locations from best random initialisation

@@ -52,7 +52,6 @@ def test_mcmc_incentre():
         burnin=burnin,
         nChains=nChains,
         connector=connector,
-        **prior
     )
 
 
@@ -101,7 +100,6 @@ def test_mcmc_mst():
         n_trials=1,
         nChains=nChains,
         connector=connector,
-        **prior
     )
 
 
@@ -148,7 +146,6 @@ def test_mcmc_geodesics():
         burnin=burnin,
         nChains=nChains,
         connector=connector,
-        **prior
     )
 
 
@@ -187,7 +184,6 @@ def test_mcmc_geodesics_wrap():
         connector="geodesics",
         embedder="wrap",
         curvature=-2.,
-        **prior
     )
 
 
@@ -242,7 +238,6 @@ def test_mcmc_simple_nj():
         nChains=nChains,
         connector=connector,
         embedder=embedder,
-        **prior
     )
 
 
@@ -297,5 +292,4 @@ def test_mcmc_wrap_nj():
         nChains=nChains,
         connector=connector,
         embedder=embedder,
-        **prior
     )

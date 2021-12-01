@@ -27,7 +27,6 @@ class BaseModel(object):
         curvature=-1.0,
         embedder="simple",
         connector="nj",
-        **prior
     ):
         self.partials = partials.copy()
         self.weights = weights
@@ -35,7 +34,6 @@ class BaseModel(object):
         self.L = self.partials[0].shape[1]
         self.D = dim
         self.bcount = 2 * self.S - 2
-        self.prior = prior
         self.soft_temp = soft_temp
         assert curvature <= 0
         self.curvature = torch.tensor(curvature)
@@ -445,7 +443,6 @@ class BaseModel(object):
 
         # get log prior
         ln_prior = self.compute_prior_gamma_dir(blens)
-        # ln_prior = self.compute_prior_birthdeath(peel, blens, **self.prior)
 
         if self.connector in ("nj"):
             proposal = {

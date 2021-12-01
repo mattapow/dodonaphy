@@ -24,7 +24,6 @@ class Chain(BaseModel):
         connector="mst",
         embedder="simple",
         curvature=-1,
-        **prior,
     ):
         super().__init__(
             partials,
@@ -34,7 +33,6 @@ class Chain(BaseModel):
             embedder=embedder,
             connector=connector,
             curvature=curvature,
-            **prior,
         )
         self.leaf_dir = leaf_dir  # S x D
         self.int_dir = int_dir  # S-2 x D
@@ -203,9 +201,7 @@ class DodonaphyMCMC:
         step_scale=0.01,
         nChains=1,
         curvature=-1.0,
-        dists_data=None,
         save_period=1,
-        **prior,
     ):
         self.nChains = nChains
         self.chain = []
@@ -223,8 +219,6 @@ class DodonaphyMCMC:
                     embedder=embedder,
                     connector=connector,
                     curvature=curvature,
-                    dists_data=dists_data,
-                    **prior,
                 )
             )
 
@@ -330,8 +324,6 @@ class DodonaphyMCMC:
                 f.write("%-12s: %f\n" % ("Step Scale", self.chain[i].step_scale))
                 f.write("%-12s: %s\n" % ("Connect Mthd", self.chain[i].connector))
                 f.write("%-12s: %s\n" % ("Embed Mthd", self.chain[i].embedder))
-            for key, value in self.chain[0].prior.items():
-                f.write("%-12s: %f\n" % (key, value))
 
     def save_iteration(self, path_write, iteration):
         ln_p = self.chain[0].compute_LL(self.chain[0].peel, self.chain[0].blens)
@@ -478,7 +470,6 @@ class DodonaphyMCMC:
         connector="mst",
         embedder="simple",
         curvature=-1.0,
-        **prior,
     ):
         print("\nRunning Dodonaphy MCMC")
         assert connector in ["incentre", "mst", "geodesics", "nj", "mst_choice"]
@@ -500,9 +491,7 @@ class DodonaphyMCMC:
                 connector=connector,
                 embedder=embedder,
                 curvature=curvature,
-                dists_data=dists_data,
                 save_period=save_period,
-                **prior,
             )
 
             # Choose internal node locations from best random initialisation

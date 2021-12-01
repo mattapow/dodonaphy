@@ -27,15 +27,14 @@ def run(args):
     root_dir = os.path.abspath(os.path.join("./data", f"T{args.taxa}{args.root_ext}"))
     path_write = get_path(root_dir, args)
 
-    prior = {"birth_rate": args.birth, "death_rate": args.death}
-    dna, simtree = get_dna(root_dir, prior, args.taxa, args.seq)
+    path_write = get_path(root_dir, args)
+    dna, simtree = get_dna(root_dir)
     partials, weights = compress_alignment(dna)
 
     if args.start == "RAxML":
         rax = raxml.RaxmlRunner()
         simtree = rax.estimate_tree(char_matrix=dna, raxml_args=["--no-bfgs"])
-    # print(rax)
-    # return
+
     dists = utils.tip_distances(simtree, args.taxa)
     save_period = max(int(args.epochs / args.draws), 1)
 
@@ -58,7 +57,6 @@ def run(args):
             connector=args.connect,
             embedder=args.embed,
             curvature=args.curv,
-            **prior,
         )
     elif args.infer == "vi":
         DodonaphyVI.run(
@@ -79,7 +77,6 @@ def run(args):
             connector=args.connect,
             curvature=args.curv,
             soft_temp=args.temp,
-            **prior,
         )
     elif args.infer == "ml":
         mu = np.zeros(args.taxa)

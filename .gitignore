@@ -2,7 +2,7 @@ dodonaphy.code-workspace
 
 __pycache__/
 
-.vscode/*
+*.vscode*
 dodonaphy.egg-info
 
 *.DS_Store
