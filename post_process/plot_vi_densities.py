@@ -22,7 +22,7 @@ S = int(len(var_params["leaf_mu"][0]))
 print("Ensure these values: D=%d, S=%d" % (D, S))
 
 N = 2 * S - 2
-if connector == "geodesics" or connector == "incentre":
+if connector == "geodesics":
     N = S
 
 nodes = [i for i in range(N)]
@@ -82,7 +82,7 @@ if connector == "mst":
     int_r, int_dir = utils.cart_to_dir(int_poin)
     peel = peeler.make_peel_mst(leaf_r, leaf_dir, int_r, int_dir)
 
-elif connector == "geodesics" or connector == "incentre":
+elif connector == "geodesics":
     # make peel
     peel, int_poin = peeler.make_peel_tips(torch.tensor(leaf_poin), connector=connector)
     leaf_r, leaf_dir = utils.cart_to_dir(leaf_poin)

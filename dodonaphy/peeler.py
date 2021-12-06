@@ -8,14 +8,6 @@ from . import poincare, tree, utils, Cutils
 from .edge import Edge
 
 
-def make_peel_incentre(leaf_locs, curvature=-torch.ones(1)):
-    return make_peel_tips(leaf_locs, connector="incentre", curvature=curvature)
-
-
-def make_peel_geodesic(leaf_locs, curvature=-torch.ones(1)):
-    return make_peel_tips(leaf_locs, connector="geodesics", curvature=curvature)
-
-
 def make_soft_peel_tips(leaf_locs, connector="geodesics", curvature=-torch.ones(1)):
     """Recursively generate a tree with gradients
     Args:
@@ -73,8 +65,9 @@ def make_soft_peel_tips(leaf_locs, connector="geodesics", curvature=-torch.ones(
     return peel, int_locs, blens
 
 
-def make_peel_tips(leaf_locs, connector="geodesics", curvature=-torch.ones(1)):
-    """Generate a tree recursively using the incentre of the closest two points.
+def make_peel_geodesic(leaf_locs):
+    """Generate a tree recursively using th closest two points.
+    Curvature must be -1.0
 
     Args:
         leaf_locs (array): Location in of the tips in the Poincare disk
@@ -87,23 +80,16 @@ def make_peel_tips(leaf_locs, connector="geodesics", curvature=-torch.ones(1)):
     int_node_count = leaf_locs.shape[0] - 2
     node_count = leaf_locs.shape[0] * 2 - 2
 
-    if connector == "geodesics":
-        edge_list = utils.get_plca(leaf_locs)
-        for node in edge_list:
-            for edge in node:
-                edge.distance = -edge.distance
-    elif connector == "incentre":
-        leaf_r, leaf_dir = utils.cart_to_dir(leaf_locs)
-        edge_list = utils.get_pdm_tips(leaf_r, leaf_dir, curvature=curvature)
-    else:
-        raise ValueError("connector must be geodesics or incentre")
+    edge_list = utils.get_plca(leaf_locs)
+    for node in edge_list:
+        for edge in node:
+            edge.distance = -edge.distance
 
     int_locs = torch.zeros(int_node_count + 1, dims, dtype=torch.double)
     leaf_locs = leaf_locs.double()
     peel = np.zeros((int_node_count + 1, 3), dtype=np.int16)
     visited = node_count * [False]
 
-    # queue = [edges for neighbours in edge_list for edges in neighbours]
     queue = []
     heapify(queue)
     for i in range(len(edge_list)):
@@ -128,10 +114,7 @@ def make_peel_tips(leaf_locs, connector="geodesics", curvature=-torch.ones(1)):
         else:
             to_point = int_locs[e.to_ - leaf_node_count]
 
-        if connector == "geodesics":
-            int_locs[int_i] = poincare.hyp_lca(from_point, to_point)
-        elif connector == "incentre":
-            int_locs[int_i] = poincare.incentre(from_point, to_point)
+        int_locs[int_i] = poincare.hyp_lca(from_point, to_point)
 
         peel[int_i][0] = e.from_
         peel[int_i][1] = e.to_
@@ -143,31 +126,20 @@ def make_peel_tips(leaf_locs, connector="geodesics", curvature=-torch.ones(1)):
         for i in range(cur_internal):
             if visited[i]:
                 continue
-            if connector == "geodesics":
-                if i < leaf_node_count:
-                    dist_ij = -poincare.hyp_lca(
-                        leaf_locs[i], int_locs[int_i], return_coord=False
-                    )
-                else:
-                    dist_ij = -poincare.hyp_lca(
-                        int_locs[i - leaf_node_count],
-                        int_locs[int_i],
-                        return_coord=False,
-                    )
-            elif connector == "incentre":
-                if i < leaf_node_count:
-                    dist_ij = Cutils.hyperbolic_distance_lorentz(
-                        leaf_locs[i], int_locs[int_i]
-                    )
-                else:
-                    dist_ij = Cutils.hyperbolic_distance_lorentz(
-                        int_locs[i - leaf_node_count], int_locs[int_i]
-                    )
-                # apply the inverse transform from Matsumoto et al 2020
-                dist_ij = torch.log(torch.cosh(dist_ij))
+            if i < leaf_node_count:
+                dist_ij = -poincare.hyp_lca(
+                    leaf_locs[i], int_locs[int_i], return_coord=False
+                )
+            else:
+                dist_ij = -poincare.hyp_lca(
+                    int_locs[i - leaf_node_count],
+                    int_locs[int_i],
+                    return_coord=False,
+                )
+            # apply the inverse transform from Matsumoto et al 2020
+            dist_ij = torch.log(torch.cosh(dist_ij))
             heappush(queue, Edge(dist_ij, i, cur_internal))
         int_i += 1
-
     return peel, int_locs
 
 

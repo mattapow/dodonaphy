@@ -9,52 +9,6 @@ from dodonaphy.phylo import compress_alignment
 from dodonaphy.utils import tip_distances
 
 
-def test_mcmc_incentre():
-    # Simulation parameters
-    dim = 2  # number of dimensions for embedding
-    S = 6  # number of sequences to simulate
-    L = 1000  # length of sequences to simulate
-    prior = {"birth_rate": 2.0, "death_rate": 0.5}
-
-    # MCMC parameters
-    step_scale = 0.1
-    nChains = 1
-    connector = "incentre"  # 'incentre', 'geodesics' or 'mst'
-    burnin = 2
-    epochs = 1
-
-    # simulate a tree
-    rng = random.Random(1)
-    simtree = treesim.birth_death_tree(
-        birth_rate=prior["birth_rate"],
-        death_rate=prior["death_rate"],
-        num_extant_tips=S,
-        rng=rng,
-    )
-    dna = simulate_discrete_chars(
-        seq_len=L, tree_model=simtree, seq_model=dendropy.model.discrete.Jc69(), rng=rng
-    )
-
-    partials, weights = compress_alignment(dna)
-
-    dists = tip_distances(simtree, S)
-
-    # Run Dodoanphy MCMC
-    path_write_mcmc = None
-    mcmc.run(
-        dim,
-        partials[:],
-        weights,
-        dists,
-        path_write_mcmc,
-        epochs=epochs,
-        step_scale=step_scale,
-        burnin=burnin,
-        nChains=nChains,
-        connector=connector,
-    )
-
-
 def test_mcmc_mst():
     # Simulation parameters
     dim = 2  # number of dimensions for embedding
@@ -64,8 +18,8 @@ def test_mcmc_mst():
 
     # MCMC parameters
     step_scale = 0.1
-    nChains = 1
-    connector = "mst"  # 'incentre', 'geodesics' or 'mst'
+    n_chains = 1
+    connector = "mst"  # 'geodesics' or 'mst'
     burnin = 0
     epochs = 1
 
@@ -98,7 +52,7 @@ def test_mcmc_mst():
         burnin=burnin,
         n_grids=1,
         n_trials=1,
-        nChains=nChains,
+        n_chains=n_chains,
         connector=connector,
     )
 
@@ -112,8 +66,8 @@ def test_mcmc_geodesics():
 
     # MCMC parameters
     step_scale = 0.1
-    nChains = 1
-    connector = "geodesics"  # 'incentre', 'geodesics' or 'mst'
+    n_chains = 1
+    connector = "geodesics"  # 'geodesics' or 'mst'
     burnin = 0
     epochs = 1
 
@@ -144,7 +98,7 @@ def test_mcmc_geodesics():
         epochs=epochs,
         step_scale=step_scale,
         burnin=burnin,
-        nChains=nChains,
+        n_chains=n_chains,
         connector=connector,
     )
 
@@ -180,7 +134,7 @@ def test_mcmc_geodesics_wrap():
         epochs=3,
         step_scale=0.1,
         burnin=0,
-        nChains=1,
+        n_chains=1,
         connector="geodesics",
         embedder="wrap",
         curvature=-2.,
@@ -196,8 +150,8 @@ def test_mcmc_simple_nj():
 
     # MCMC parameters
     step_scale = 0.1
-    nChains = 1
-    connector = "nj"  # 'incentre', 'geodesics' or 'mst'
+    n_chains = 1
+    connector = "nj"  # 'geodesics' or 'mst'
     embedder = "simple"
     burnin = 0
     epochs = 1
@@ -235,7 +189,7 @@ def test_mcmc_simple_nj():
         epochs=epochs,
         step_scale=step_scale,
         burnin=burnin,
-        nChains=nChains,
+        n_chains=n_chains,
         connector=connector,
         embedder=embedder,
     )
@@ -250,8 +204,8 @@ def test_mcmc_wrap_nj():
 
     # MCMC parameters
     step_scale = 0.1
-    nChains = 1
-    connector = "nj"  # 'incentre', 'geodesics' or 'mst'
+    n_chains = 1
+    connector = "nj"
     embedder = "wrap"
     burnin = 0
     epochs = 1
@@ -289,7 +243,7 @@ def test_mcmc_wrap_nj():
         epochs=epochs,
         step_scale=step_scale,
         burnin=burnin,
-        nChains=nChains,
+        n_chains=n_chains,
         connector=connector,
         embedder=embedder,
     )

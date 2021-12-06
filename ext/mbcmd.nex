@@ -1,6 +1,6 @@
 #NEXUS
 Begin mrbayes;
-    exe ../data/T17/dna.nex;
+    exe ./data/hohna/DS1/DS1.nex;
     lset nst = 1;
     prset statefreqpr=fixed(equal);
     prset brlenspr = unconstrained:gammadir(1.,.1,1.,1.);

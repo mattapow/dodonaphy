@@ -1,6 +1,5 @@
 import dendropy
 import numpy as np
-import pytest
 import torch
 from dendropy.model.discrete import simulate_discrete_chars
 from dendropy.simulate import treesim
@@ -89,24 +88,12 @@ def test_make_peel_example1():
     _ = peeler.make_peel_mst(leaf_r, leaf_dir, int_r, int_dir)
 
 
-def test_make_peel_incentre():
-    leaf_locs = torch.tensor(
-        [[0.06644704, 0.18495312, -0.03839615], [-0.12724270, -0.02395994, 0.20075329]]
-    )
-    lca = poincare.hyp_lca(leaf_locs[0], leaf_locs[1])
-    d0_1 = Cutils.hyperbolic_distance_lorentz(leaf_locs[0], leaf_locs[1])
-    d0_lca = Cutils.hyperbolic_distance_lorentz(leaf_locs[0], lca)
-    d1_lca = Cutils.hyperbolic_distance_lorentz(leaf_locs[1], lca)
-    d0_lca_d1 = d0_lca + d1_lca
-    assert pytest.approx(d0_1, d0_lca_d1)
-
-
 def test_make_peel_geodesic_dogbone():
     leaf_r = torch.tensor([0.5, 0.5, 0.5, 0.5])
     leaf_theta = torch.tensor([np.pi / 10, -np.pi / 10, np.pi * 6 / 8, -np.pi * 6 / 8])
     leaf_dir = utils.angle_to_directional(leaf_theta)
     leaf_locs = utils.dir_to_cart(leaf_r, leaf_dir)
-    peel, _ = peeler.make_peel_incentre(leaf_locs)
+    peel, _ = peeler.make_peel_geodesic(leaf_locs)
     expected_peel = np.array([[1, 0, 4], [3, 2, 5], [4, 5, 6]])
 
     assert np.allclose(peel, expected_peel)
@@ -123,7 +110,7 @@ def test_make_peel_geodesic_example0():
             (0.11386343, -0.03121063, -0.18112418),
         ]
     )
-    _, _ = peeler.make_peel_incentre(leaf_locs)
+    _, _ = peeler.make_peel_geodesic(leaf_locs)
 
 
 def test_make_peel_geodesic_example1():
@@ -137,7 +124,7 @@ def test_make_peel_geodesic_example1():
             [-4.0814e-02, -3.1838e-01],
         ]
     )
-    peel, _ = peeler.make_peel_incentre(leaf_locs)
+    peel, _ = peeler.make_peel_geodesic(leaf_locs)
     for i in range(5):
         assert int(peel[i][0]) is not int(peel[i][1])
         assert int(peel[i][0]) is not int(peel[i][2])
@@ -155,7 +142,7 @@ def test_make_peel_geodesic_example2():
             [-1.40397397e-02, 1.47278753e-01],
         ]
     )
-    peel, _ = peeler.make_peel_incentre(leaf_locs)
+    peel, _ = peeler.make_peel_geodesic(leaf_locs)
     for i in range(5):
         assert int(peel[i][0]) is not int(peel[i][1])
         assert int(peel[i][0]) is not int(peel[i][2])
@@ -296,8 +283,8 @@ def test_nj_eg1():
 
     peel_hard, _ = peeler.nj(dist_2d)
     peel_soft, _ = peeler.nj(dist_2d, tau=1e-18)
-    assert (
-        np.allclose(peel_soft, peel_hard)
+    assert np.allclose(
+        peel_soft, peel_hard
     ), f"Bad soft peel:\n{peel_soft}\nHard peel:\n{peel_hard}"
 
 

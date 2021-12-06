@@ -40,7 +40,7 @@ class BaseModel(object):
         self.epoch = 0
         assert embedder in ("wrap", "simple")
         self.embedder = embedder
-        assert connector in ("mst", "geodesics", "incentre", "nj", "mst_choice")
+        assert connector in ("mst", "geodesics", "nj", "mst_choice")
         self.connector = connector
         self.peel = np.zeros((self.S - 1, 3), dtype=int)
         self.blens = torch.zeros(self.bcount, dtype=torch.double)
@@ -393,21 +393,14 @@ class BaseModel(object):
 
         # internal nodes and peel for geodesics
         leaf_r = leaf_r_prop.repeat(self.S)
-        if self.connector in ("geodesics", "incentre"):
+        if self.connector == "geodesics":
             leaf_locs = leaf_r_prop * leaf_dir_prop
-            if self.connector == "geodesics":
-                if leaf_locs.requires_grad:
-                    peel, int_locs, blens = peeler.make_soft_peel_tips(
-                        leaf_locs, connector="geodesics", curvature=self.curvature
-                    )
-                else:
-                    peel, int_locs = peeler.make_peel_geodesic(
-                        leaf_locs, curvature=self.curvature
-                    )
-            elif self.connector == "incentre":
-                peel, int_locs = peeler.make_peel_tips(
-                    leaf_locs, connector=self.connector
+            if leaf_locs.requires_grad:
+                peel, int_locs, blens = peeler.make_soft_peel_tips(
+                    leaf_locs, connector="geodesics", curvature=self.curvature
                 )
+            else:
+                peel, int_locs = peeler.make_peel_geodesic(leaf_locs)
             int_r_prop, int_dir_prop = utils.cart_to_dir(int_locs)
 
         # get peels
@@ -455,7 +448,7 @@ class BaseModel(object):
                 "ln_p": ln_p,
                 "ln_prior": ln_prior,
             }
-        elif self.connector in ("geodesics", "incentre", "mst", "mst_choice"):
+        elif self.connector in ("geodesics", "mst", "mst_choice"):
             proposal = {
                 "leaf_r": leaf_r_prop,
                 "leaf_dir": leaf_dir_prop,

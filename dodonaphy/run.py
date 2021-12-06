@@ -23,9 +23,7 @@ def run(args):
     Using an embedding for MCMC, or embedding variational inference,
     or using a distance matrix for maximum likelihood."""
     if args.path_root == "":
-        root_dir = os.path.abspath(
-            os.path.join("./data", f"T{args.taxa}{args.root_ext}")
-        )
+        root_dir = os.path.abspath(os.path.join("./data", f"T{args.taxa}"))
     else:
         root_dir = os.path.abspath(args.path_root)
 
@@ -34,14 +32,20 @@ def run(args):
         return
 
     path_write = get_path(root_dir, args)
-    dna, simtree = get_dna(root_dir)
+    dna = read_dna(root_dir, args.dna_path)
     partials, weights = compress_alignment(dna)
 
     if args.start == "RAxML":
+        print("Finding RAxML tree.")
         rax = raxml.RaxmlRunner()
-        simtree = rax.estimate_tree(char_matrix=dna, raxml_args=["--no-bfgs"])
+        start_tree = rax.estimate_tree(char_matrix=dna, raxml_args=["--no-bfgs"])
+        tree_path = os.path.join(root_dir, "start_tree.nex")
+        start_tree.write(path=tree_path, schema="nexus")
 
-    dists = utils.tip_distances(simtree, args.taxa)
+    elif args.start == "given":
+        start_tree = read_tree(root_dir, file_name="start_tree.nex")
+
+    dists = utils.tip_distances(start_tree, args.taxa)
     save_period = max(int(args.epochs / args.draws), 1)
 
     start = time.time()
@@ -58,7 +62,7 @@ def run(args):
             n_grids=args.grids,
             n_trials=args.trials,
             max_scale=args.max_scale,
-            nChains=args.chains,
+            n_chains=args.chains,
             burnin=args.burn,
             connector=args.connect,
             embedder=args.embed,
@@ -85,12 +89,12 @@ def run(args):
             soft_temp=args.temp,
         )
     elif args.infer == "ml":
-        mu = np.zeros(args.taxa)
+        mean = np.zeros(args.taxa)
         sigma = 0.1
         cov = np.ones_like(dists) * sigma
         threshold = sigma  #  min(dists[dists>0])
         dists = dists + np.fmod(
-            np.random.multivariate_normal(mu, cov, (args.taxa)), threshold
+            np.random.multivariate_normal(mean, cov, (args.taxa)), threshold
         )
         dists = np.abs((dists + dists.T) / 2)
         mymod = ML(partials[:], weights, dists=dists, soft_temp=args.temp)
@@ -143,7 +147,7 @@ def get_path(root_dir, args):
         if not os.path.exists(method_dir):
             try:
                 os.makedirs(method_dir, exist_ok=False)
-            except (OSError):
+            except OSError:
                 print(
                     f"Failed making directoy {method_dir}. Possibly an array job on HPC."
                 )
@@ -152,8 +156,16 @@ def get_path(root_dir, args):
 
 
 def simulate_tree(root_dir, birth_rate, death_rate, n_taxa, seq_len):
-    os.makedirs(root_dir, exist_ok=False)
+    """Simulate a birth death tree and save it.
 
+    Args:
+        root_dir ([type]): [description]
+        birth_rate ([type]): [description]
+        death_rate ([type]): [description]
+        n_taxa ([type]): [description]
+        seq_len ([type]): [description]
+    """
+    os.makedirs(root_dir, exist_ok=False)
     rng = random.Random(1)
     simtree = treesim.birth_death_tree(
         birth_rate=birth_rate,
@@ -168,8 +180,8 @@ def simulate_tree(root_dir, birth_rate, death_rate, n_taxa, seq_len):
         rng=rng,
     )
 
-    tree_info_path = os.path.join(root_dir, "simtree.info")
-    tree_path = os.path.join(root_dir, "simtree.nex")
+    tree_info_path = os.path.join(root_dir, "start_tree.info")
+    tree_path = os.path.join(root_dir, "start_tree.nex")
     dna_path = os.path.join(root_dir, "dna.nex")
 
     simtree.write(path=tree_path, schema="nexus")
@@ -182,13 +194,17 @@ def simulate_tree(root_dir, birth_rate, death_rate, n_taxa, seq_len):
         simtree.write_ascii_plot(file)
 
 
-def get_dna(root_dir):
+def read_tree(root_dir, file_name="start_tree.nex"):
+    """Read a saved nexus tree using dendropy."""
+    tree_path = os.path.join(root_dir, file_name)
+    return dendropy.Tree.get(path=tree_path, schema="nexus")
+
+
+def read_dna(root_dir, file_name="dna.nex"):
     """Get dna from a saved simulated tree."""
-    tree_path = os.path.join(root_dir, "simtree.nex")
-    dna_path = os.path.join(root_dir, "dna.nex")
-    simtree = dendropy.Tree.get(path=tree_path, schema="nexus")
+    dna_path = os.path.join(root_dir, file_name)
     dna = dendropy.DnaCharacterMatrix.get(path=dna_path, schema="nexus")
-    return dna, simtree
+    return dna
 
 
 def init_parser():
@@ -199,8 +215,8 @@ def init_parser():
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     parser.add_argument("--dim", "-D", default=5, type=int, help="Embedding dimensions")
-    parser.add_argument("--taxa", "-S", default=17, type=int, help="Number of taxa.")
-    parser.add_argument("--seq", "-L", default=100, type=int, help="Sequence length.")
+    parser.add_argument("--taxa", "-S", type=int, required=True, help="Number of taxa.")
+    parser.add_argument("--seq", "-L", type=int, help="Sequence length.")
     parser.add_argument(
         "--epochs", "-n", default=1000, type=int, help="Epochs (iterations)."
     )
@@ -215,7 +231,7 @@ def init_parser():
         "--connect",
         "-C",
         default="nj",
-        choices=("nj", "mst", "geodesics", "incentre", "mst_choice"),
+        choices=("nj", "mst", "geodesics", "mst_choice"),
         help="Connection method to form a tree from embedded points.",
     )
     parser.add_argument(
@@ -225,20 +241,6 @@ def init_parser():
         choices=("simple", "wrap"),
         help="Embedded method from Euclidean to Hyperbolic space.",
     )
-    parser.add_argument(
-        "--save",
-        dest="doSave",
-        action="store_true",
-        help="Whether to save the simulation.",
-    )
-    parser.add_argument(
-        "--no-save",
-        dest="doSave",
-        action="store_false",
-        help="Whether to save the simulation.",
-    )
-    parser.set_defaults(doSave=True)
-
     parser.add_argument(
         "--infer",
         "-i",
@@ -254,10 +256,12 @@ def init_parser():
     parser.add_argument(
         "--start",
         "-t",
-        default="true",
-        choices=("true", "RAxML"),
+        default="given",
+        choices=("given", "RAxML"),
         help="Starting tree to embed.",
     )
+
+    # i/o
     parser.add_argument(
         "--path_root",
         default="",
@@ -271,6 +275,25 @@ def init_parser():
         type=str,
         help="Add a suffix to the experimental directory path_root/*/d*_c*_[exp_ext]",
     )
+    parser.add_argument(
+        "--dna_path",
+        default="dna.nex",
+        type=str,
+        help="File name of dna nexus file in contained in root directory.",
+    )
+    parser.add_argument(
+        "--save",
+        dest="doSave",
+        action="store_true",
+        help="Whether to save the simulation.",
+    )
+    parser.add_argument(
+        "--no-save",
+        dest="doSave",
+        action="store_false",
+        help="Whether to save the simulation.",
+    )
+    parser.set_defaults(doSave=True)
 
     # VI parameters
     parser.add_argument(

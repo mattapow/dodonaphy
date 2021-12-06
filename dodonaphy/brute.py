@@ -56,9 +56,7 @@ class brute(DodonaphyVI):
     #     # compare to grid search
     #     # print('Grid seach give maximum LL: %f' % max_LL)
 
-    def learn_ML_brute(
-        self, param_init=None, iter_per_param=100, rounds=20, path_write="./out", lr=0.1
-    ):
+    def learn_ML_brute(self, param_init=None, rounds=20):
         """Learn a Maximum Likelihood embedding.
 
         Args:
@@ -79,7 +77,7 @@ class brute(DodonaphyVI):
                 self.VariationalParams["int_mu"] = param_init["int_mu"]
                 self.VariationalParams["int_sigma"] = param_init["int_sigma"]
 
-        iter = 0
+        iteration = 0
         for _ in range(rounds):
             isLeaf = False
             for i in range(self.S - 2):
@@ -87,14 +85,13 @@ class brute(DodonaphyVI):
                 with torch.no_grad():
                     max_LL = self.grid_search_LL(i, isLeaf=isLeaf, doPlot=True)
                 LL.append(max_LL)
-                print("iteration %-12i Likelihood: %10.3f" % (iter, max_LL))
-                iter += 1
+                print("iteration %-12i Likelihood: %10.3f" % (iteration, max_LL))
+                iteration += 1
 
             # isLeaf = True
             # for i in range(self.S):
             #     # optimise one leaf node at a time
             #     with torch.no_grad():
-            #         # TODO: sometimes max_LL goes down??
             #         max_LL = self.grid_search_LL(i, isLeaf=isLeaf)
             #     LL.append(max_LL)
             #     print('iteration %-12i Likelihood: %10.3f' % (iter, max_LL))
@@ -119,7 +116,6 @@ class brute(DodonaphyVI):
 
     def grid_search_LL(self, idx, isLeaf=False, doPlot=False):
         """Find Maximum likelihood tree by only move one internal node.
-        # TODO: consider unnormalised posterior surface
         Args:
             int_idx ([type]): [description]
         """

@@ -31,7 +31,7 @@ dna = dendropy.DnaCharacterMatrix.get(path=dnaPath, schema="nexus")
 
 # Initialise model
 partials, weights = compress_alignment(dna)
-mymod = DodonaphyVI(partials, weights, dim, embedder="wrap", connector="incentre")
+mymod = DodonaphyVI(partials, weights, dim, embedder="wrap", connector="geodesics")
 
 # specify locations
 leaf_t0 = torch.tensor(

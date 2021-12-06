@@ -44,7 +44,7 @@ class DodonaphyVI(BaseModel):
         self.truncate = truncate
         self.ln_p = self.compute_LL(self.peel, self.blens)
 
-        if self.connector in ("geodesics", "incentre", "nj"):
+        if self.connector in ("geodesics", "nj"):
             self.VariationalParams = {
                 "leaf_mu": torch.randn(
                     (self.S, self.D), requires_grad=True, dtype=torch.float64
@@ -68,35 +68,6 @@ class DodonaphyVI(BaseModel):
                     int_sigma, requires_grad=True, dtype=torch.float64
                 ),
             }
-
-    # leaf_dir = np.randn((self.S, self.D))
-    # leaf_dir = leaf_dir / np.pow(np.sum(leaf_dir**2, dim=-1), .5).repeat(1, self.D)
-    # leaf_dir_sigma = np.abs(np.random.randn(self.S, self.D))
-
-    # int_r_sigma = np.abs(np.random.randn(self.S))
-    # int_dir = np.randn((self.S - 2, self.D))
-    # int_dir = int_dir / np.pow(np.sum(int_dir**2, dim=-1), .5).repeat(1, self.D)
-    # int_dir_sigma = np.abs(np.random.randn(self.S - 2, self.D))
-
-    # if self.connector == 'geodesics' or self.connector == 'incentre':
-    #     self.VariationalParams = {
-    #         "leaf_r": torch.randn((1), requires_grad=True, dtype=torch.float64),
-    #         "leaf_r_sigma": torch.tensor(.1, requires_grad=True, dtype=torch.float64),
-    #         "leaf_dir": torch.tensor(leaf_dir, requires_grad=True, dtype=torch.float64),
-    #         "leaf_dir_sigma": torch.tensor(leaf_dir_sigma, requires_grad=True, dtype=torch.float64)
-    #     }
-    # elif self.connector == 'mst':
-    #     self.VariationalParams = {
-    #         "leaf_r": torch.randn((1), requires_grad=True, dtype=torch.float64),
-    #         "leaf_r_sigma": torch.tensor(.1, requires_grad=True, dtype=torch.float64),
-    #         "leaf_dir": torch.tensor(leaf_dir, requires_grad=True, dtype=torch.float64),
-    #         "leaf_dir_sigma": torch.tensor(leaf_dir_sigma, requires_grad=True, dtype=torch.float64),
-
-    #         "int_r_mu": torch.full((self.S-2), .1, requires_grad=True, dtype=torch.float64),
-    #         "int_r_sigma": torch.tensor(int_r_sigma, requires_grad=True, dtype=torch.float64),
-    #         "int_dir_mu": torch.tensor(int_dir, requires_grad=True, dtype=torch.float64),
-    #         "int_dir_sigma": torch.tensor(int_dir_sigma, requires_grad=True, dtype=torch.float64),
-    #     }
 
     def draw_sample(self, nSample=100, **kwargs):
         """Draw samples from the variational posterior distribution
@@ -405,7 +376,7 @@ class DodonaphyVI(BaseModel):
                 "int_mu": int_loc_poin.clone().double().requires_grad_(True),
                 "int_sigma": torch.from_numpy(int_sigma).double().requires_grad_(True),
             }
-        elif connector in ("geodesics", "incentre", "nj"):
+        elif connector in ("geodesics", "nj"):
             param_init = {
                 "leaf_mu": leaf_loc_poin.clone().double().requires_grad_(True),
                 "leaf_sigma": torch.from_numpy(leaf_sigma)

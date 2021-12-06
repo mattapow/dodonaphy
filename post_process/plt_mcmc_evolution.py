@@ -49,7 +49,7 @@ for j in range(burnin, sampleEnd):
         leaf_dir = X[j, 2 * i + 1 : 2 * i + 3]
         leaf_poin[i, :] = leaf_r * leaf_dir
 
-    if connector in ("incentre", "geodesics"):
+    if connector == "geodesics":
         peel, int_poin = peeler.make_peel_tips(torch.from_numpy(leaf_poin), connector)
         leaf_r, leaf_dir = utils.cart_to_dir(leaf_poin)
         int_r, int_dir = utils.cart_to_dir(int_poin)

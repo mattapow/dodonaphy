@@ -1,4 +1,5 @@
 import dendropy
+import numpy as np
 from dendropy.model.discrete import simulate_discrete_chars
 from dendropy.simulate import treesim
 from dodonaphy import utils
@@ -16,7 +17,6 @@ def test_ml1():
     )
     partials, weights = compress_alignment(dna)
     dists = utils.tip_distances(sim_tree, n_taxa)
-    import numpy as np
     mu = np.zeros(n_taxa)
     sigma = 0.01
     cov = np.ones_like(dists) * sigma

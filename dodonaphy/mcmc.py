@@ -1,3 +1,4 @@
+"""Markov Chain Monte Calo Module"""
 import os
 
 import numpy as np
@@ -9,6 +10,8 @@ from .base_model import BaseModel
 
 
 class Chain(BaseModel):
+    """A Markov Chain"""
+
     def __init__(
         self,
         partials,
@@ -47,20 +50,18 @@ class Chain(BaseModel):
         self.iterations = 0
         self.target_acceptance = target_acceptance
         self.converged = [False] * 200
-        self.moreTune = True
+        self.more_tune = True
         self.ln_p = self.compute_LL(self.peel, self.blens)
         self.ln_prior = self.compute_prior_gamma_dir(self.blens)
 
     def set_probability(self):
-        # initialise likelihood and prior values of embedding
-
-        # set peel + poincare locations
+        """Initialise likelihood and prior values of embedding"""
         pdm = Cutils.get_pdm_torch(
             self.leaf_r.repeat(self.S), self.leaf_dir, curvature=self.curvature
         )
-        if self.connector in ("geodesics", "incentre"):
+        if self.connector == "geodesics":
             loc_poin = self.leaf_dir * self.leaf_r
-            self.peel, int_locs = peeler.make_peel_tips(loc_poin, self.connector)
+            self.peel, int_locs = peeler.make_peel_geodesic(loc_poin)
             self.int_r, self.int_dir = utils.cart_to_dir(int_locs)
             leaf_r_all, self.leaf_dir = utils.cart_to_dir(loc_poin)
             self.leaf_r = leaf_r_all[0]
@@ -75,7 +76,6 @@ class Chain(BaseModel):
                 self.leaf_r.repeat(self.S), self.leaf_dir, self.int_r, self.int_dir
             )
 
-        # set blens
         if self.connector != "nj":
             self.blens = self.compute_branch_lengths(
                 self.S,
@@ -97,7 +97,7 @@ class Chain(BaseModel):
         self.ln_prior = self.compute_prior_gamma_dir(self.blens)
 
     def evolve(self):
-        # propose new embedding
+        """Propose new embedding"""
         leaf_loc = self.leaf_r * self.leaf_dir
         if self.connector == "mst":
             int_loc = self.int_dir * torch.tile(self.int_r, (2, 1)).transpose(
@@ -109,13 +109,12 @@ class Chain(BaseModel):
         else:
             proposal = self.sample(leaf_loc, self.step_scale, soft=False)
 
-        # Decide whether to accept proposal
-        r = self.accept_ratio(proposal)
+        r_accept = self.accept_ratio(proposal)
 
         accept = False
-        if r >= 1:
+        if r_accept >= 1:
             accept = True
-        elif Uniform(torch.zeros(1), torch.ones(1)).sample() < r:
+        elif Uniform(torch.zeros(1), torch.ones(1)).sample() < r_accept:
             accept = True
 
         if accept:
@@ -133,30 +132,30 @@ class Chain(BaseModel):
         self.iterations += 1
         return accept
 
-    def accept_ratio(self, p):
+    def accept_ratio(self, prop):
         """Acceptance critereon for Metropolis-Hastings
 
         Args:
-            p ([type]): Proposal dictionary
+            prop ([type]): Proposal dictionary
 
         Returns:
             tuple: (r, prop_like)
             The acceptance ratio r and the likelihood of the proposal.
         """
         # likelihood ratio
-        like_ratio = p["ln_p"] - self.ln_p
+        like_ratio = prop["ln_p"] - self.ln_p
 
         # prior ratio
-        prior_ratio = p["ln_prior"] - self.ln_prior
+        prior_ratio = prop["ln_prior"] - self.ln_prior
 
         # Jacobian ratio
-        jacob_ratio = p["jacobian"] - self.jacobian
+        jacob_ratio = prop["jacobian"] - self.jacobian
 
         # Proposals are symmetric Guassians
         hastings_ratio = 1
 
         # acceptance ratio
-        r = torch.minimum(
+        r_accept = torch.minimum(
             torch.ones(1),
             torch.exp(
                 (prior_ratio + like_ratio + jacob_ratio) * self.chain_temp
@@ -164,7 +163,7 @@ class Chain(BaseModel):
             ),
         )
 
-        return r
+        return r_accept
 
     def tune_step(self, tol=0.01):
         """Tune the acceptance rate. Simple Euler method.
@@ -172,25 +171,26 @@ class Chain(BaseModel):
         Args:
             tol (float, optional): Tolerance. Defaults to 0.01.
         """
-        if not self.moreTune or self.iterations == 0:
+        if not self.more_tune or self.iterations == 0:
             return
 
-        lr = torch.tensor(0.001)
+        learn_rate = torch.tensor(0.001)
         eps = torch.tensor(torch.finfo(torch.double).eps)
         acceptance = self.accepted / self.iterations
-        dy = acceptance - self.target_acceptance
-        # print(f"new step={self.step_scale + lr * dy}")
-        self.step_scale = torch.maximum(self.step_scale + lr * dy, eps)
+        d_accept = acceptance - self.target_acceptance
+        self.step_scale = torch.maximum(self.step_scale + learn_rate * d_accept, eps)
 
         # check convegence
         self.converged.pop()
-        self.converged.insert(0, np.abs(dy) < tol)
+        self.converged.insert(0, np.abs(d_accept) < tol)
         if all(self.converged):
-            self.moreTune = False
-            print("Step tuned to %f." % self.step_scale)
+            self.more_tune = False
+            print(f"Step tuned to {self.step_scale}.")
 
 
 class DodonaphyMCMC:
+    """Markov Chain Monte Carlo"""
+
     def __init__(
         self,
         partials,
@@ -199,16 +199,22 @@ class DodonaphyMCMC:
         connector="mst",
         embedder="simple",
         step_scale=0.01,
-        nChains=1,
+        n_chains=1,
         curvature=-1.0,
         save_period=1,
+        n_grids=10,
+        n_trials=10,
+        max_scale=1
     ):
-        self.nChains = nChains
+        self.n_chains = n_chains
         self.chain = []
-        dTemp = 0.1
+        d_temp = 0.1
+        self.n_grids=n_grids
+        self.n_trials=n_trials
+        self.max_scale=max_scale
         self.save_period = save_period
-        for i in range(nChains):
-            chain_temp = 1.0 / (1 + dTemp * i)
+        for i in range(n_chains):
+            chain_temp = 1.0 / (1 + d_temp * i)
             self.chain.append(
                 Chain(
                     partials,
@@ -222,110 +228,106 @@ class DodonaphyMCMC:
                 )
             )
 
+    def run_burnin(self, burnin):
+        """Run burn in iterations without saving."""
+        print(f"Burning in for {burnin} iterations.")
+        deceile = 1
+        for i in range(burnin):
+            if i / burnin * 10 > deceile:
+                print(f"{deceile * 10:d}%% ", end="", flush=True)
+                deceile += 1
+            for chain in self.chain:
+                chain.evolve()
+                chain.tune_step()
+            if self.n_chains > 1:
+                _ = self.swap()
+        print("100%")
+
+    def print_iter(self, iteration):
+        """Print current state."""
+        print(
+            f"Iteration: {iteration} LnL: {self.chain[0].ln_p:.3f}",
+            end="",
+        )
+        if self.n_chains > 1:
+            print(" (", end="")
+            for chain in self.chain[1:]:
+                print(
+                    f" {chain.ln_p:.3f}",
+                    end="",
+                )
+            print(")", end="")
+        if iteration > 0:
+            print(" Acceptance Rate: ", end="")
+            for chain in self.chain:
+                print(
+                    f" {chain.accepted / chain.iterations:5.3f}, ",
+                    end="",
+                    flush=True,
+                )
+        print("")
+
     def learn(self, epochs, burnin=0, path_write="./out"):
-        print("Using 1 cold chain and %d hot chains." % int(self.nChains - 1))
+        """Run the markov chains."""
+        print(f"Using 1 cold chain and {int(self.n_chains - 1)} hot chains.")
 
         if path_write is not None:
             info_file = path_write + "/" + "mcmc.info"
             self.save_info(info_file, epochs, burnin, self.save_period)
             tree.save_tree_head(path_write, "mcmc", self.chain[0].S)
 
-        # Initialise prior and likelihood
-        for c in range(self.nChains):
-            self.chain[c].set_probability()
+        for chain in self.chain:
+            chain.set_probability()
 
         if burnin > 0:
-            print("Burning in for %d iterations." % burnin)
-            deceile = 1
-            for i in range(burnin):
-                if i / burnin * 10 > deceile:
-                    print("%d%% " % (deceile * 10), end="", flush=True)
-                    deceile += 1
-                for c in range(self.nChains):
-                    # step
-                    self.chain[c].evolve()
-                    # tune step
-                    self.chain[c].tune_step()
-
-                # swap 2 chains
-                if self.nChains > 1:
-                    _ = self.swap()
-            print("100%")
+            self.run_burnin(burnin)
 
         swaps = 0
-        print("Running for %d iterations.\n" % epochs)
-        for i in range(epochs):
-            for c in range(self.nChains):
-                # step
-                self.chain[c].evolve()
-                # tune step if not converged
-                self.chain[c].tune_step()
+        print(f"Running for {epochs} iterations.\n")
+        for epoch in range(epochs):
+            for chain in self.chain:
+                chain.evolve()
+                chain.tune_step()
 
-            # save
-            doSave = self.save_period > 0 and i % self.save_period == 0
-            if doSave:
+            do_save = self.save_period > 0 and epoch % self.save_period == 0
+            if do_save:
+                self.print_iter(epoch)
                 if path_write is not None:
-                    self.save_iteration(path_write, i)
+                    self.save_iteration(path_write, epoch)
 
-                if i > 0:
-                    print(
-                        "Iteration: %i LnL: %f Acceptance Rate: %5.3f"
-                        % (
-                            i,
-                            self.chain[0].ln_p,
-                            self.chain[0].accepted / self.chain[0].iterations,
-                        ),
-                        end="",
-                        flush=True,
-                    )
-
-                    if self.nChains > 1:
-                        print(" (", end="")
-                        for c in range(self.nChains - 1):
-                            print(
-                                " %5.3f"
-                                % (
-                                    self.chain[c + 1].accepted
-                                    / self.chain[c + 1].iterations
-                                ),
-                                end="",
-                            )
-                        print(")")
-                    else:
-                        print("")
-
-            # swap 2 chains
-            if self.nChains > 1:
+            if self.n_chains > 1:
                 swaps += self.swap()
 
         if path_write is not None:
-            fn = path_write + "/" + "mcmc.info"
-            with open(fn, "a", encoding='UTF-8') as file:
+            file_name = path_write + "/" + "mcmc.info"
+            with open(file_name, "a", encoding="UTF-8") as file:
                 final_accept = np.average(
                     [
                         self.chain[c].accepted / self.chain[c].iterations
-                        for c in range(self.nChains)
+                        for c in range(self.n_chains)
                     ]
                 )
-                file.write("%-12s: %f\n" % ("Acceptance", final_accept))
-                file.write("%-12s: %d\n" % ("Swaps", swaps))
+                file.write(f"Acceptance: {final_accept}\n")
+                file.write(f"Swaps: {swaps}\n")
 
     def save_info(self, file, epochs, burnin, save_period):
-        with open(file, "w", encoding='UTF-8') as f:
-            f.write("%-12s: %i\n" % ("# epochs", epochs))
-            f.write("%-12s: %i\n" % ("Burnin", burnin))
-            f.write("%-12s: %i\n" % ("Save period", save_period))
-            f.write("%-12s: %i\n" % ("Dimensions", self.chain[0].D))
-            f.write("%-12s: %i\n" % ("# Taxa", self.chain[0].S))
-            f.write("%-12s: %i\n" % ("Unique sites", self.chain[0].L))
-            f.write("%-12s: %i\n" % ("Chains", self.nChains))
-            for i in range(self.nChains):
-                f.write("%-12s: %f\n" % ("Chain temp", self.chain[i].chain_temp))
-                f.write("%-12s: %f\n" % ("Step Scale", self.chain[i].step_scale))
-                f.write("%-12s: %s\n" % ("Connect Mthd", self.chain[i].connector))
-                f.write("%-12s: %s\n" % ("Embed Mthd", self.chain[i].embedder))
+        """Save information about this simulation."""
+        with open(file, "w", encoding="UTF-8") as file:
+            file.write(f"# epochs:  {epochs}")
+            file.write(f"Burnin: {burnin}")
+            file.write(f"Save period: {save_period}")
+            file.write(f"Dimensions: {self.chain[0].D}")
+            file.write(f"# Taxa:  {self.chain[0].S}")
+            file.write(f"Unique sites:  {self.chain[0].L}")
+            file.write(f"Chains:  {self.n_chains}")
+            for chain in self.chain:
+                file.write(f"Chain temp:  {chain.chain_temp}")
+                file.write(f"Step Scale:  {chain.step_scale}")
+                file.write(f"Connect Mthd:  {chain.connector}")
+                file.write(f"Embed Mthd:  {chain.embedder}")
 
     def save_iteration(self, path_write, iteration):
+        """Save the current state to file."""
         ln_p = self.chain[0].compute_LL(self.chain[0].peel, self.chain[0].blens)
         tree.save_tree(
             path_write,
@@ -336,19 +338,19 @@ class DodonaphyMCMC:
             float(ln_p),
             float(self.chain[0].ln_prior),
         )
-        fn = path_write + "/locations.csv"
-        if not os.path.isfile(fn):
-            with open(fn, "a", encoding='UTF-8') as file:
+        file_name = path_write + "/locations.csv"
+        if not os.path.isfile(file_name):
+            with open(file_name, "a", encoding="UTF-8") as file:
                 file.write("leaf_r, ")
                 for i in range(len(self.chain[0].leaf_dir)):
                     for j in range(self.chain[0].D):
-                        file.write("leaf_%d_dir_%d, " % (i, j))
+                        file.write(f"leaf_{i}_dir_{j}, ")
                 if self.chain[0].int_r is not None:
                     for i in range(len(self.chain[0].int_r)):
-                        file.write("int_%d_r, " % (i))
+                        file.write(f"int_{i}_r, ")
                     for i in range(len(self.chain[0].int_dir)):
                         for j in range(self.chain[0].D):
-                            file.write("int_%d_dir_%d" % (i, j))
+                            file.write(f"int_{i}_dir_{j}")
                             if not (
                                 j == self.chain[0].D - 1
                                 and i == len(self.chain[0].int_dir)
@@ -356,16 +358,16 @@ class DodonaphyMCMC:
                                 file.write(", ")
                 file.write("\n")
 
-        with open(fn, "a", encoding='UTF-8') as file:
+        with open(file_name, "a", encoding="UTF-8") as file:
             file.write(
-                np.array2string(self.chain[0].leaf_r.data.numpy(), separator=", ")
+                np.array2string(self.chain[0].leaf_r.data.numpy(), separator=",")
                 .replace("\n", "")
                 .replace("[", "")
                 .replace("]", "")
             )
             file.write(", ")
             file.write(
-                np.array2string(self.chain[0].leaf_dir.data.numpy(), separator=", ")
+                np.array2string(self.chain[0].leaf_dir.data.numpy(), separator=",")
                 .replace("\n", "")
                 .replace("[", "")
                 .replace("]", "")
@@ -389,12 +391,10 @@ class DodonaphyMCMC:
             file.write("\n")
 
     def swap(self):
-        """
-        randomly swap states in 2 chains according to MCMCMC
-        """
+        """randomly swap states in 2 chains according to MCMCMC"""
 
         # Pick two adjacent chains
-        i = torch.multinomial(torch.ones(self.nChains - 1), 1, replacement=False)
+        i = torch.multinomial(torch.ones(self.n_chains - 1), 1, replacement=False)
         j = i + 1
 
         # get log posterior (unnormalised)
@@ -404,10 +404,10 @@ class DodonaphyMCMC:
         # probability of exhanging these two chains
         prob1 = (ln_post_i - ln_post_j) * self.chain[j].chain_temp
         prob2 = (ln_post_j - ln_post_i) * self.chain[i].chain_temp
-        r = torch.minimum(torch.ones(1), torch.exp(prob1 + prob2))
+        r_accept = torch.minimum(torch.ones(1), torch.exp(prob1 + prob2))
 
         # swap with probability r
-        if r > Uniform(torch.zeros(1), torch.ones(1)).rsample():
+        if r_accept > Uniform(torch.zeros(1), torch.ones(1)).rsample():
             # swap the locations and current probability
             self.chain[i].leaf_r, self.chain[j].leaf_r = (
                 self.chain[j].leaf_r,
@@ -425,7 +425,10 @@ class DodonaphyMCMC:
                 self.chain[j].int_dir,
                 self.chain[i].int_dir,
             )
-            self.chain[i].ln_p, self.chain[j].ln_p = self.chain[j].ln_p, self.chain[i].ln_p
+            self.chain[i].ln_p, self.chain[j].ln_p = (
+                self.chain[j].ln_p,
+                self.chain[i].ln_p,
+            )
             self.chain[i].ln_prior, self.chain[j].ln_prior = (
                 self.chain[j].ln_prior,
                 self.chain[i].ln_prior,
@@ -433,9 +436,9 @@ class DodonaphyMCMC:
             return 1
         return 0
 
-    def initialise_chains(self, emm, n_grids=10, n_trials=10, max_scale=2):
-        # initialise each chain
-        for i in range(self.nChains):
+    def initialise_chains(self, emm):
+        """initialise each chain"""
+        for i in range(self.n_chains):
             # put leaves on a sphere
             self.chain[i].leaf_r = torch.tensor(np.mean(emm["r"], dtype=np.double))
             self.chain[i].leaf_dir = torch.from_numpy(
@@ -447,7 +450,10 @@ class DodonaphyMCMC:
 
             if self.chain[i].connector in ("mst", "mst_choice"):
                 int_r, int_dir = self.chain[i].initialise_ints(
-                    emm, n_grids=n_grids, n_trials=n_trials, max_scale=max_scale
+                    emm,
+                    n_grids=self.n_grids,
+                    n_trials=self.n_trials,
+                    max_scale=self.max_scale,
                 )
                 self.chain[i].int_r = torch.from_numpy(int_r.astype(np.double))
                 self.chain[i].int_dir = torch.from_numpy(int_dir.astype(np.double))
@@ -464,40 +470,38 @@ class DodonaphyMCMC:
         save_period=1,
         burnin=0,
         n_grids=10,
-        n_trials=100,
+        n_trials=10,
         max_scale=1,
-        nChains=1,
+        n_chains=1,
         connector="mst",
         embedder="simple",
         curvature=-1.0,
     ):
+        """Run Dodonaphy's MCMC."""
         print("\nRunning Dodonaphy MCMC")
-        assert connector in ["incentre", "mst", "geodesics", "nj", "mst_choice"]
+        assert connector in ["mst", "geodesics", "nj", "mst_choice"]
 
         # embed tips with distances using Hydra
         emm_tips = hydra.hydra(
             dists_data, dim=dim, curvature=curvature, stress=True, equi_adj=0.0
         )
-        print("Embedding Stress (tips only) = {:.4}".format(emm_tips["stress"].item()))
+        print(f"Embedding Stress (tips only) = {emm_tips['stress'].item():.4}")
 
         with torch.no_grad():
-            # Initialise model
             mymod = DodonaphyMCMC(
                 partials,
                 weights,
                 dim,
                 step_scale=step_scale,
-                nChains=nChains,
+                n_chains=n_chains,
                 connector=connector,
                 embedder=embedder,
                 curvature=curvature,
                 save_period=save_period,
+                n_grids=n_grids,
+                n_trials=n_trials,
+                max_scale=max_scale
             )
 
-            # Choose internal node locations from best random initialisation
-            mymod.initialise_chains(
-                emm_tips, n_grids=n_grids, n_trials=n_trials, max_scale=max_scale
-            )
-
-            # Learn
+            mymod.initialise_chains(emm_tips)
             mymod.learn(epochs, burnin=burnin, path_write=path_write)

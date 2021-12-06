@@ -2,8 +2,6 @@
 import numpy as np
 import torch
 
-from . import hyperboloid
-
 
 def isometric_transform(a, x):
     """Reflection (circle inversion of x through orthogonal circle centered at a)."""
@@ -56,23 +54,6 @@ def hyp_lca(a, b, return_coord=True):
         return proj
 
 
-def incentre(a, b, return_coord=True):
-    """
-    Copmute incentre of the triangle formed by o, a and b
-    """
-    # TODO: use hyperbolic centre. Possibly in https://arxiv.org/pdf/1410.6735.pdf
-    w_a = hyp_dist_o(b)
-    w_b = hyp_dist_o(a)
-    ab = torch.stack((a, b))
-    w_c = hyperboloid.hyperboloid_dists(hyperboloid.poincare_to_hyper(ab))[0][1]
-    proj = (w_a * a + w_b * b) / (w_a + w_b + w_c)
-
-    if not return_coord:
-        return hyp_dist_o(proj)
-    else:
-        return proj
-
-
 def hyp_dist_o(x):
     """
     Computes hyperbolic distance between x and the origin.
@@ -105,41 +86,3 @@ def geodesic_fn(x, y, nb_points=100):
     t1 = mobius_add(-x_rep, y_rep)
     t2 = mobius_mul(t1, t.reshape((-1, 1)))
     return mobius_add(x_rep, t2)
-
-
-# def get_theta(x, y):
-#     """
-#     Computes the angle between two vectors
-#     """
-#     return torch.acos(torch.dot(x, y) / torch.norm(x) / torch.norm(y))
-
-
-# def get_alpha(x, y):
-#     """Angle between x and y
-#     Using eq. 8 from https://arxiv.org/abs/2010.00402
-
-#     Args:
-#         x (tensor): first point
-#         y (tensor): second point
-
-#     Returns:
-#         Scalar tensor: Angle between x and y
-#     """
-#     theta = get_theta(x, y)
-#     x_norm = x.norm(dim=-1, p=2, keepdim=True)
-#     y_norm = y.norm(dim=-1, p=2, keepdim=True)
-
-#     alpha = (x_norm * (y_norm)**2 + 1) / (y_norm * (x_norm)**2 + 1) - torch.cosh(theta)
-#     return torch.atan(alpha / torch.sin(theta))
-
-
-# def min_norm(a, b):
-#     """Return whichever input has the minimum norm
-
-#     Args:
-#         a (tensor): First tensor
-#         b (tensor): Second tensor
-#     """
-#     if torch.norm(a) < torch.norm(b):
-#         return a
-#     return b

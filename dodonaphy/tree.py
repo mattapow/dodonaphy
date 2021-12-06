@@ -126,7 +126,7 @@ def save_tree(root_dir, filename, peel, blens, iteration, lnL, lnPr):
     tree = tree_to_newick(tipnames, peel, blens)
 
     fn = os.path.join(root_dir, filename + ".trees")
-    with open(fn, "a+") as file:
+    with open(fn, "a+", encoding="UTF-8") as file:
         file.write("tree STATE_" + str(iteration))
         file.write(" [&lnL=%f, &lnPr=%f] = [&R] " % (lnL, lnPr))
         file.write(tree + "\n")
@@ -173,7 +173,7 @@ def save_tree_head(path_write, filename, S):
     if path_write is None:
         return
     fn = path_write + "/" + filename + ".trees"
-    with open(fn, "w") as file:
+    with open(fn, "w", encoding="UTF-8") as file:
         file.write("#NEXUS\n\n")
         file.write("Begin taxa;\n\tDimensions ntax=" + str(S) + ";\n")
         file.write("\tTaxlabels\n")
