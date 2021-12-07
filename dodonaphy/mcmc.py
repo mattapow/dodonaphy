@@ -27,6 +27,7 @@ class Chain(BaseModel):
         connector="mst",
         embedder="simple",
         curvature=-1,
+        converge_length=500
     ):
         super().__init__(
             partials,
@@ -49,7 +50,7 @@ class Chain(BaseModel):
         self.accepted = 0
         self.iterations = 0
         self.target_acceptance = target_acceptance
-        self.converged = [False] * 200
+        self.converged = [False] * converge_length
         self.more_tune = True
         self.ln_p = self.compute_LL(self.peel, self.blens)
         self.ln_prior = self.compute_prior_gamma_dir(self.blens)
@@ -204,14 +205,14 @@ class DodonaphyMCMC:
         save_period=1,
         n_grids=10,
         n_trials=10,
-        max_scale=1
+        max_scale=1,
     ):
         self.n_chains = n_chains
         self.chain = []
         d_temp = 0.1
-        self.n_grids=n_grids
-        self.n_trials=n_trials
-        self.max_scale=max_scale
+        self.n_grids = n_grids
+        self.n_trials = n_trials
+        self.max_scale = max_scale
         self.save_period = save_period
         for i in range(n_chains):
             chain_temp = 1.0 / (1 + d_temp * i)
@@ -311,7 +312,12 @@ class DodonaphyMCMC:
                     ]
                 )
                 file.write(f"Acceptance: {final_accept}\n")
-                file.write(f"Swaps: {swaps}\n")
+                file.write(f"Swaps: {swaps}\n\n")
+                for c_id, chain in enumerate(self.chain):
+                    if chain.more_tune:
+                        file.write(
+                            f"Chain {c_id} did not converge to taget acceptance.\n"
+                        )
 
     def save_info(self, file, epochs, burnin, save_period):
         """Save information about this simulation."""
@@ -503,7 +509,7 @@ class DodonaphyMCMC:
                 save_period=save_period,
                 n_grids=n_grids,
                 n_trials=n_trials,
-                max_scale=max_scale
+                max_scale=max_scale,
             )
 
             mymod.initialise_chains(emm_tips)
