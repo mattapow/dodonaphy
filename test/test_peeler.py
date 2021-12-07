@@ -199,7 +199,7 @@ def test_compute_Q():
     pdm[3, 4] = 3.0
     pdm = pdm + pdm.T
 
-    Q_test = peeler.compute_Q(pdm)
+    Q_test = peeler.compute_Q(pdm, fill_value=0)
     Q_actual = torch.tensor(
         [
             [0, -50, -38, -34, -34],
@@ -209,7 +209,7 @@ def test_compute_Q():
             [-34, -34, -40, -48, 0],
         ]
     ).double()
-    assert torch.allclose(Q_test, Q_actual)
+    assert torch.allclose(Q_test, Q_actual), f"Q_test: {Q_test}\n Q_actual: {Q_actual}"
 
 
 def test_nj_knownQ():

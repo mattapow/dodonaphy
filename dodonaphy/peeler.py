@@ -446,7 +446,7 @@ def nj(pdm, tau=None):
     return peel, blens
 
 
-def compute_Q(pdm, mask=False):
+def compute_Q(pdm, mask=False, fill_value=None):
     """Compute the Q matrix for Neighbour joining.
 
     Args:
@@ -466,8 +466,11 @@ def compute_Q(pdm, mask=False):
     sum_i = torch.repeat_interleave(sum_pdm, n_pdm, dim=1)
     sum_j = torch.repeat_interleave(sum_pdm.T, n_pdm, dim=0)
     Q = (n_active - 2) * pdm - sum_i - sum_j
-    Q = Q * ~mask_2d
-    Q.fill_diagonal_(0)
+
+    if fill_value is None:
+        fill_value = torch.finfo(torch.double).max / 2.0
+    Q.masked_fill_(mask_2d, fill_value)
+    Q.fill_diagonal_(fill_value)
     Q = 0.5 * (Q + Q.T)
     return Q
 
