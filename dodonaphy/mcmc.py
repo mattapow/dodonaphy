@@ -284,7 +284,10 @@ class DodonaphyMCMC:
 
         swaps = 0
         print(f"Running for {epochs} iterations.\n")
-        for epoch in range(epochs):
+        self.print_iter(0)
+        if path_write is not None:
+            self.save_iteration(path_write, 0)
+        for epoch in range(1, epochs):
             for chain in self.chain:
                 chain.evolve()
                 chain.tune_step()
