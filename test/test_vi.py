@@ -11,10 +11,7 @@ from dodonaphy.vi import DodonaphyVI
 
 
 def test_draws_different_vi_simple_geodesics():
-    """
-    Each draw from the sample should be different in likelihood.
-
-    """
+    """Each draw from the sample should be different in likelihood."""
     simtree = treesim.birth_death_tree(
         birth_rate=1.0, death_rate=0.5, num_extant_tips=6
     )
@@ -39,15 +36,11 @@ def test_draws_different_vi_simple_geodesics():
 
 
 def test_draws_different_vi_simple_nj():
-    """
-    Each draw from the sample should be different in likelihood.
-
-    """
+    """Each draw from the sample should be different in likelihood."""
     dim = 2  # number of dimensions for embedding
     nseqs = 6  # number of sequences to simulate
     seqlen = 1000  # length of sequences to simulate
 
-    # # simulate a tree
     simtree = treesim.birth_death_tree(
         birth_rate=1.0, death_rate=0.5, num_extant_tips=nseqs
     )
@@ -55,11 +48,8 @@ def test_draws_different_vi_simple_nj():
         seq_len=seqlen, tree_model=simtree, seq_model=dendropy.model.discrete.Jc69()
     )
 
-    # Initialise model
     partials, weights = compress_alignment(dna)
     mymod = DodonaphyVI(partials, weights, dim, embedder="simple", connector="nj")
-
-    # learns
     mymod.learn(epochs=2, path_write=None)
 
     # draw

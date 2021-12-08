@@ -108,7 +108,7 @@ class DodonaphyVI(BaseModel):
                 if self.connector == "mst":
                     location.append(
                         utils.dir_to_cart_tree(
-                            sample["leaf_r"].repeat(self.S),
+                            sample["leaf_r"],
                             sample["int_r"],
                             sample["leaf_dir"],
                             sample["int_dir"],
@@ -118,7 +118,7 @@ class DodonaphyVI(BaseModel):
                 else:
                     location.append(
                         utils.dir_to_cart(
-                            sample["leaf_r"].repeat(self.S), sample["leaf_dir"]
+                            sample["leaf_r"], sample["leaf_dir"]
                         )
                     )
                 if kwargs.get("lp"):

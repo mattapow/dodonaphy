@@ -29,7 +29,7 @@ cpdef get_pdm_torch(leaf_r, leaf_dir, int_r=None, int_dir=None, curvature=-torch
         curvature (double): curvature
 
     Returns:
-        ndarray: distance between point 1 and point 2
+        ndarray: pairwise distance between point
     """
     cdef int leaf_node_count = leaf_r.shape[0]
     cdef int int_node_count = 0
@@ -40,7 +40,6 @@ cpdef get_pdm_torch(leaf_r, leaf_dir, int_r=None, int_dir=None, curvature=-torch
         int_node_count = int_r.shape[0]
     cdef int node_count = leaf_node_count + int_node_count
     
-    # return tensor
     cdef pdm = torch.zeros((node_count, node_count)).double()
 
     cdef int i_node

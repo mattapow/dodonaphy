@@ -27,7 +27,7 @@ class Chain(BaseModel):
         connector="mst",
         embedder="simple",
         curvature=-1,
-        converge_length=500
+        converge_length=500,
     ):
         super().__init__(
             partials,
@@ -41,7 +41,7 @@ class Chain(BaseModel):
         self.leaf_dir = leaf_dir  # S x D
         self.int_dir = int_dir  # S-2 x D
         self.int_r = int_r  # S-2
-        self.leaf_r = leaf_r  # single scalar
+        self.leaf_r = leaf_r  # S
         self.jacobian = torch.zeros(1)
         if leaf_dir is not None:
             self.S = len(leaf_dir)
@@ -57,31 +57,28 @@ class Chain(BaseModel):
 
     def set_probability(self):
         """Initialise likelihood and prior values of embedding"""
-        pdm = Cutils.get_pdm_torch(
-            self.leaf_r.repeat(self.S), self.leaf_dir, curvature=self.curvature
-        )
+        pdm = Cutils.get_pdm_torch(self.leaf_r, self.leaf_dir, curvature=self.curvature)
         if self.connector == "geodesics":
-            loc_poin = self.leaf_dir * self.leaf_r
+            loc_poin = self.leaf_dir * self.leaf_r.repeat((self.D, 1)).T
             self.peel, int_locs = peeler.make_peel_geodesic(loc_poin)
             self.int_r, self.int_dir = utils.cart_to_dir(int_locs)
-            leaf_r_all, self.leaf_dir = utils.cart_to_dir(loc_poin)
-            self.leaf_r = leaf_r_all[0]
+            self.leaf_r, self.leaf_dir = utils.cart_to_dir(loc_poin)
         elif self.connector == "nj":
             self.peel, self.blens = peeler.nj(pdm)
         elif self.connector == "mst":
             self.peel = peeler.make_peel_mst(
-                self.leaf_r.repeat(self.S), self.leaf_dir, self.int_r, self.int_dir
+                self.leaf_r, self.leaf_dir, self.int_r, self.int_dir
             )
         elif self.connector == "mst_choice":
             self.peel = self.select_peel_mst(
-                self.leaf_r.repeat(self.S), self.leaf_dir, self.int_r, self.int_dir
+                self.leaf_r, self.leaf_dir, self.int_r, self.int_dir
             )
 
         if self.connector != "nj":
             self.blens = self.compute_branch_lengths(
                 self.S,
                 self.peel,
-                self.leaf_r.repeat(self.S),
+                self.leaf_r,
                 self.leaf_dir,
                 self.int_r,
                 self.int_dir,
@@ -99,7 +96,7 @@ class Chain(BaseModel):
 
     def evolve(self):
         """Propose new embedding"""
-        leaf_loc = self.leaf_r * self.leaf_dir
+        leaf_loc = self.leaf_dir * self.leaf_r.repeat((self.D, 1)).T
         if self.connector == "mst":
             int_loc = self.int_dir * torch.tile(self.int_r, (2, 1)).transpose(
                 dim0=0, dim1=1
@@ -288,7 +285,7 @@ class DodonaphyMCMC:
         self.print_iter(0)
         if path_write is not None:
             self.save_iteration(path_write, 0)
-        for epoch in range(1, epochs):
+        for epoch in range(1, epochs+1):
             for chain in self.chain:
                 chain.evolve()
                 chain.tune_step()
@@ -350,11 +347,13 @@ class DodonaphyMCMC:
         file_name = path_write + "/locations.csv"
         if not os.path.isfile(file_name):
             with open(file_name, "a", encoding="UTF-8") as file:
-                file.write("leaf_r, ")
+                for i in range(len(self.chain[0].leaf_r)):
+                    file.write(f"leaf_{i}_r, ")
                 for i in range(len(self.chain[0].leaf_dir)):
                     for j in range(self.chain[0].D):
                         file.write(f"leaf_{i}_dir_{j}, ")
-                if self.chain[0].int_r is not None:
+
+                if self.chain[0].internals_exist:
                     for i in range(len(self.chain[0].int_r)):
                         file.write(f"int_{i}_r, ")
                     for i in range(len(self.chain[0].int_dir)):
@@ -382,7 +381,7 @@ class DodonaphyMCMC:
                 .replace("]", "")
             )
 
-            if self.chain[0].connector == "mst":
+            if self.chain[0].internals_exist:
                 file.write(", ")
                 file.write(
                     np.array2string(self.chain[0].int_r.data.numpy(), separator=", ")
@@ -405,67 +404,71 @@ class DodonaphyMCMC:
         # Pick two adjacent chains
         i = torch.multinomial(torch.ones(self.n_chains - 1), 1, replacement=False)
         j = i + 1
+        chain_i = self.chain[i]
+        chain_j = self.chain[j]
 
         # get log posterior (unnormalised)
-        ln_post_i = self.chain[i].ln_p + self.chain[i].ln_prior
-        ln_post_j = self.chain[j].ln_p + self.chain[j].ln_prior
+        ln_post_i = chain_i.ln_p + chain_i.ln_prior
+        ln_post_j = chain_j.ln_p + chain_j.ln_prior
 
         # probability of exhanging these two chains
-        prob1 = (ln_post_i - ln_post_j) * self.chain[j].chain_temp
-        prob2 = (ln_post_j - ln_post_i) * self.chain[i].chain_temp
+        prob1 = (ln_post_i - ln_post_j) * chain_j.chain_temp
+        prob2 = (ln_post_j - ln_post_i) * chain_i.chain_temp
         r_accept = torch.minimum(torch.ones(1), torch.exp(prob1 + prob2))
 
         # swap with probability r
         if r_accept > Uniform(torch.zeros(1), torch.ones(1)).rsample():
             # swap the locations and current probability
-            self.chain[i].leaf_r, self.chain[j].leaf_r = (
-                self.chain[j].leaf_r,
-                self.chain[i].leaf_r,
+            chain_i.leaf_r, chain_j.leaf_r = (
+                chain_j.leaf_r,
+                chain_i.leaf_r,
             )
-            self.chain[i].leaf_dir, self.chain[j].leaf_dir = (
-                self.chain[j].leaf_dir,
-                self.chain[i].leaf_dir,
+            chain_i.leaf_dir, chain_j.leaf_dir = (
+                chain_j.leaf_dir,
+                chain_i.leaf_dir,
             )
-            self.chain[i].int_r, self.chain[j].int_r = (
-                self.chain[j].int_r,
-                self.chain[i].int_r,
+            chain_i.int_r, chain_j.int_r = (
+                chain_j.int_r,
+                chain_i.int_r,
             )
-            self.chain[i].int_dir, self.chain[j].int_dir = (
-                self.chain[j].int_dir,
-                self.chain[i].int_dir,
+            chain_i.int_dir, chain_j.int_dir = (
+                chain_j.int_dir,
+                chain_i.int_dir,
             )
-            self.chain[i].ln_p, self.chain[j].ln_p = (
-                self.chain[j].ln_p,
-                self.chain[i].ln_p,
+            chain_i.ln_p, chain_j.ln_p = (
+                chain_j.ln_p,
+                chain_i.ln_p,
             )
-            self.chain[i].ln_prior, self.chain[j].ln_prior = (
-                self.chain[j].ln_prior,
-                self.chain[i].ln_prior,
+            chain_i.ln_prior, chain_j.ln_prior = (
+                chain_j.ln_prior,
+                chain_i.ln_prior,
             )
             return 1
         return 0
 
-    def initialise_chains(self, emm):
+    def initialise_chains(self, emm, normalise=True):
         """initialise each chain"""
-        for i in range(self.n_chains):
-            # put leaves on a sphere
-            self.chain[i].leaf_r = torch.tensor(np.mean(emm["r"], dtype=np.double))
-            self.chain[i].leaf_dir = torch.from_numpy(
-                emm["directional"].astype(np.double)
-            )
-            self.chain[i].n_points = len(self.chain[i].leaf_dir)
-            self.chain[i].int_r = None
-            self.chain[i].int_dir = None
+        for chain in self.chain:
+            if normalise:
+                chain.leaf_r = torch.tensor(emm["r"], dtype=torch.double)
+            else:
+                chain.leaf_r = torch.tensor(
+                    np.mean(emm["r"]), dtype=torch.double
+                ).repeat(self.S)
+            chain.leaf_dir = torch.from_numpy(emm["directional"].astype(np.double))
+            chain.n_points = len(chain.leaf_dir)
+            chain.int_r = None
+            chain.int_dir = None
 
-            if self.chain[i].connector in ("mst", "mst_choice"):
-                int_r, int_dir = self.chain[i].initialise_ints(
+            if chain.connector in ("mst", "mst_choice"):
+                int_r, int_dir = chain.initialise_ints(
                     emm,
                     n_grids=self.n_grids,
                     n_trials=self.n_trials,
                     max_scale=self.max_scale,
                 )
-                self.chain[i].int_r = torch.from_numpy(int_r.astype(np.double))
-                self.chain[i].int_dir = torch.from_numpy(int_dir.astype(np.double))
+                chain.int_r = torch.from_numpy(int_r.astype(np.double))
+                chain.int_dir = torch.from_numpy(int_dir.astype(np.double))
 
     @staticmethod
     def run(

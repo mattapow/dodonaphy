@@ -137,7 +137,7 @@ def test_mcmc_geodesics_wrap():
         n_chains=1,
         connector="geodesics",
         embedder="wrap",
-        curvature=-2.,
+        curvature=-2.0,
     )
 
 
