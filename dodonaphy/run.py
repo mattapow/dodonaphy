@@ -67,6 +67,7 @@ def run(args):
             connector=args.connect,
             embedder=args.embed,
             curvature=args.curv,
+            normalise_leaf=args.normalise_leaves,
         )
     elif args.infer == "vi":
         DodonaphyVI.run(
@@ -260,6 +261,21 @@ def init_parser():
         choices=("given", "RAxML"),
         help="Starting tree to embed.",
     )
+    parser.add_argument(
+        "--normalise_leaf",
+        dest="normalise_leaves",
+        action="store_true",
+        help="Whether to normalise the leaves to a single raduis. Currently\
+        only implemented in MCMC."
+    )
+    parser.add_argument(
+        "--free_leaf",
+        dest="normalise_leaves",
+        action="store_false",
+        help="Whether to normalise the leaves to a single raduis. Currently\
+        only implemented in MCMC."
+    )
+    parser.set_defaults(normalise_leaves=False)
 
     # i/o
     parser.add_argument(

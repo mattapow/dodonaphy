@@ -27,6 +27,7 @@ class BaseModel(object):
         curvature=-1.0,
         embedder="simple",
         connector="nj",
+        normalise_leaf=False
     ):
         self.partials = partials.copy()
         self.weights = weights
@@ -47,6 +48,7 @@ class BaseModel(object):
             self.internals_exist = True
         self.peel = np.zeros((self.S - 1, 3), dtype=int)
         self.blens = torch.zeros(self.bcount, dtype=torch.double)
+        self.normalise_leaf = normalise_leaf
 
         # make space for internal partials
         for _ in range(self.S - 1):
@@ -297,7 +299,7 @@ class BaseModel(object):
             leaf_r, leaf_dir, int_r, int_dir, curvature=-torch.ones(1), start_node=leaf
         )
 
-    def sample(self, leaf_loc, leaf_cov, int_loc=None, int_cov=None, soft=True):
+    def sample(self, leaf_loc, leaf_cov, int_loc=None, int_cov=None, soft=True, normalise_leaf=False):
         """Sample a nearby tree embedding.
         
         Each point is transformed R^n (using the self.embedding method), then
@@ -313,9 +315,8 @@ class BaseModel(object):
             int_cov = torch.eye((self.S - 2) * self.D, dtype=torch.double) * int_cov
 
         leaf_r_prop, leaf_dir_prop, log_abs_det_jacobian, log_Q = self.sample_loc(
-            leaf_loc, leaf_cov, is_internal=False, normalise=False
+            leaf_loc, leaf_cov, is_internal=False, normalise_leaf=normalise_leaf
         )
-        # TODO see if normalise False vs true
 
         if self.internals_exist:
             (
@@ -323,7 +324,7 @@ class BaseModel(object):
                 int_dir_prop,
                 log_abs_det_jacobian_int,
                 log_Q_int,
-            ) = self.sample_loc(int_loc, int_cov, is_internal=True, normalise=False)
+            ) = self.sample_loc(int_loc, int_cov, is_internal=True, normalise_leaf=False)
             min_leaf_r = min(leaf_r_prop)
             int_r_prop[int_r_prop > min_leaf_r] = min_leaf_r
             log_abs_det_jacobian = log_abs_det_jacobian + log_abs_det_jacobian_int
@@ -405,7 +406,7 @@ class BaseModel(object):
             }
         return proposal
 
-    def sample_loc(self, loc, cov, is_internal, normalise=False):
+    def sample_loc(self, loc, cov, is_internal, normalise_leaf=False):
         """Given locations in poincare ball, transform them to Euclidean
         space, sample from a Normal and transform sample back."""
         if is_internal:
@@ -447,10 +448,10 @@ class BaseModel(object):
                 loc_t0.reshape(n_locs, self.D),
             )
 
-        if normalise:
+        if normalise_leaf:
             # TODO: do we need normalise jacobian? The positions are inside the integral... so yes
             r_prop = torch.norm(loc_prop[0, :]).repeat(self.S)
-            loc_prop = utils.normalise(loc_prop) * r_prop
+            loc_prop = utils.normalise(loc_prop) * r_prop.repeat((self.D, 1)).T
         else:
             r_prop = torch.norm(loc_prop, dim=-1)
         dir_prop = loc_prop / torch.norm(loc_prop, dim=-1, keepdim=True)

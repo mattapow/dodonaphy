@@ -28,6 +28,7 @@ class Chain(BaseModel):
         embedder="simple",
         curvature=-1,
         converge_length=500,
+        normalise_leaf=False,
     ):
         super().__init__(
             partials,
@@ -37,6 +38,7 @@ class Chain(BaseModel):
             embedder=embedder,
             connector=connector,
             curvature=curvature,
+            normalise_leaf=normalise_leaf,
         )
         self.leaf_dir = leaf_dir  # S x D
         self.int_dir = int_dir  # S-2 x D
@@ -102,10 +104,17 @@ class Chain(BaseModel):
                 dim0=0, dim1=1
             )
             proposal = self.sample(
-                leaf_loc, self.step_scale, int_loc, self.step_scale, soft=False
+                leaf_loc,
+                self.step_scale,
+                int_loc,
+                self.step_scale,
+                soft=False,
+                normalise_leaf=self.normalise_leaf,
             )
         else:
-            proposal = self.sample(leaf_loc, self.step_scale, soft=False)
+            proposal = self.sample(
+                leaf_loc, self.step_scale, soft=False, normalise_leaf=self.normalise_leaf
+            )
 
         r_accept = self.accept_ratio(proposal)
 
@@ -203,6 +212,7 @@ class DodonaphyMCMC:
         n_grids=10,
         n_trials=10,
         max_scale=1,
+        normalise_leaf=False,
     ):
         self.n_chains = n_chains
         self.chain = []
@@ -223,6 +233,7 @@ class DodonaphyMCMC:
                     embedder=embedder,
                     connector=connector,
                     curvature=curvature,
+                    normalise_leaf=normalise_leaf,
                 )
             )
 
@@ -285,7 +296,7 @@ class DodonaphyMCMC:
         self.print_iter(0)
         if path_write is not None:
             self.save_iteration(path_write, 0)
-        for epoch in range(1, epochs+1):
+        for epoch in range(1, epochs + 1):
             for chain in self.chain:
                 chain.evolve()
                 chain.tune_step()
@@ -454,7 +465,7 @@ class DodonaphyMCMC:
             else:
                 chain.leaf_r = torch.tensor(
                     np.mean(emm["r"]), dtype=torch.double
-                ).repeat(self.S)
+                ).repeat(self.chain[0].S)
             chain.leaf_dir = torch.from_numpy(emm["directional"].astype(np.double))
             chain.n_points = len(chain.leaf_dir)
             chain.int_r = None
@@ -488,6 +499,7 @@ class DodonaphyMCMC:
         connector="mst",
         embedder="simple",
         curvature=-1.0,
+        normalise_leaf=True,
     ):
         """Run Dodonaphy's MCMC."""
         print("\nRunning Dodonaphy MCMC")
@@ -513,7 +525,8 @@ class DodonaphyMCMC:
                 n_grids=n_grids,
                 n_trials=n_trials,
                 max_scale=max_scale,
+                normalise_leaf=normalise_leaf
             )
 
-            mymod.initialise_chains(emm_tips)
+            mymod.initialise_chains(emm_tips, normalise=normalise_leaf)
             mymod.learn(epochs, burnin=burnin, path_write=path_write)
