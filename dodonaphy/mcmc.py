@@ -113,7 +113,10 @@ class Chain(BaseModel):
             )
         else:
             proposal = self.sample(
-                leaf_loc, self.step_scale, soft=False, normalise_leaf=self.normalise_leaf
+                leaf_loc,
+                self.step_scale,
+                soft=False,
+                normalise_leaf=self.normalise_leaf,
             )
 
         r_accept = self.accept_ratio(proposal)
@@ -311,37 +314,33 @@ class DodonaphyMCMC:
                 swaps += self.swap()
 
         if path_write is not None:
-            file_name = path_write + "/" + "mcmc.info"
-            with open(file_name, "a", encoding="UTF-8") as file:
-                final_accept = np.average(
-                    [
-                        self.chain[c].accepted / self.chain[c].iterations
-                        for c in range(self.n_chains)
-                    ]
-                )
-                file.write(f"Acceptance: {final_accept}\n")
-                file.write(f"Swaps: {swaps}\n\n")
-                for c_id, chain in enumerate(self.chain):
-                    if chain.more_tune:
-                        file.write(
-                            f"Chain {c_id} did not converge to taget acceptance.\n"
-                        )
+            self.save_final_info(path_write, swaps)
 
     def save_info(self, file, epochs, burnin, save_period):
         """Save information about this simulation."""
         with open(file, "w", encoding="UTF-8") as file:
-            file.write(f"# epochs:  {epochs}")
-            file.write(f"Burnin: {burnin}")
-            file.write(f"Save period: {save_period}")
-            file.write(f"Dimensions: {self.chain[0].D}")
-            file.write(f"# Taxa:  {self.chain[0].S}")
-            file.write(f"Unique sites:  {self.chain[0].L}")
-            file.write(f"Chains:  {self.n_chains}")
+            file.write(f"# epochs:  {epochs}\n")
+            file.write(f"Burnin: {burnin}\n")
+            file.write(f"Save period: {save_period}\n")
+            file.write(f"Dimensions: {self.chain[0].D}\n")
+            file.write(f"# Taxa:  {self.chain[0].S}\n")
+            file.write(f"Unique sites:  {self.chain[0].L}\n")
+            file.write(f"\nChains:  {self.n_chains}\n")
             for chain in self.chain:
-                file.write(f"Chain temp:  {chain.chain_temp}")
-                file.write(f"Step Scale:  {chain.step_scale}")
-                file.write(f"Connect Mthd:  {chain.connector}")
-                file.write(f"Embed Mthd:  {chain.embedder}")
+                file.write(f"\nChain temp:  {chain.chain_temp}\n")
+                file.write(f"Step Scale:  {chain.step_scale}\n")
+                file.write(f"Connect Mthd:  {chain.connector}\n")
+                file.write(f"Embed Mthd:  {chain.embedder}\n")
+
+    def save_final_info(self, path_write, swaps):
+        file_name = path_write + "/" + "mcmc.info"
+        with open(file_name, "a", encoding="UTF-8") as file:
+            file.write(f"\nTotal chain swaps: {swaps}\n")
+            for c_id, chain in enumerate(self.chain):
+                final_accept = chain.accepted / chain.iterations
+                file.write(f"Chain {c_id} acceptance: {final_accept}\n")
+                if chain.more_tune:
+                    file.write(f"Chain {c_id} did not converge to target acceptance.\n")
 
     def save_iteration(self, path_write, iteration):
         """Save the current state to file."""
@@ -525,7 +524,7 @@ class DodonaphyMCMC:
                 n_grids=n_grids,
                 n_trials=n_trials,
                 max_scale=max_scale,
-                normalise_leaf=normalise_leaf
+                normalise_leaf=normalise_leaf,
             )
 
             mymod.initialise_chains(emm_tips, normalise=normalise_leaf)
