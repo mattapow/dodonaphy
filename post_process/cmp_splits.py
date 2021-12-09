@@ -4,23 +4,22 @@ import matplotlib.pyplot as plt
 from matplotlib import cm
 from numpy import arange, argsort, flip, genfromtxt, power
 
-dir = "./data/T17"
-resultsDir = os.path.join(dir, "results")
+ds_index = 2
+dir = "../data/hohna/DS" + str(ds_index)
+resultsDir = os.path.join(dir, "splits")
 LODfile = os.path.join(resultsDir, "LOD-table")
 BSfile = os.path.join(resultsDir, "partitions.bs")
 outfile = os.path.join(resultsDir, "compare-SF")
 
-experiments = ["simple_nj_c5_d5",
-               "simple_nj_c5_d10",
-               "simple_mst_c5_d5"]
+experiments = ["simple_nj/d5_c4"]
 n = len(experiments)
 
-cmd = "./ext/trees-bootstrap "
+cmd = "../ext/trees-bootstrap "
 for i in range(n):
     tree_str = os.path.join(dir, 'mcmc', experiments[i], "mcmc.trees")
     cmd += tree_str + " "
-cmd += os.path.join(dir, "mrbayes", "dna.nex.run1.t") + " "
-cmd += os.path.join(dir, "mrbayes", "dna.nex.run2.t")
+cmd += os.path.join(dir, "mb", f"DS{str(ds_index)}.nex.run1.t") + " "
+cmd += os.path.join(dir, "mb", f"DS{str(ds_index)}.nex.run2.t")
 cmd += " --skip=300 --LOD-table=" + LODfile + " > " + BSfile
 
 # call trees-bootstrap from bali-phy
