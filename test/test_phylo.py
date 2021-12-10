@@ -1,8 +1,124 @@
 import dendropy
 import torch
-from pytest import approx
+from dodonaphy import phylo
 from dodonaphy import tree as treeFunc
 from dodonaphy.base_model import BaseModel
+from pytest import approx
+
+
+def test_dna_alphabet():
+    dna = dendropy.DnaCharacterMatrix.get(
+        data=">T1\nACGTRYMWSKBDHVN?-\n\n", schema="fasta"
+    )
+
+    partials, weights = phylo.compress_alignment(dna)
+    sorted_partials = torch.tensor(
+        [
+            [
+                1.0,
+                1.0,
+                1.0,
+                0.0,
+                0.0,
+                1.0,
+                0.0,
+                1.0,
+                0.0,
+                1.0,
+                1.0,
+                1.0,
+                0.0,
+                0.0,
+                1.0,
+                1.0,
+                0.0,
+            ],
+            [
+                1.0,
+                1.0,
+                0.0,
+                1.0,
+                1.0,
+                0.0,
+                0.0,
+                1.0,
+                0.0,
+                1.0,
+                1.0,
+                0.0,
+                1.0,
+                0.0,
+                1.0,
+                0.0,
+                1.0,
+            ],
+            [
+                1.0,
+                1.0,
+                0.0,
+                1.0,
+                0.0,
+                1.0,
+                1.0,
+                0.0,
+                1.0,
+                0.0,
+                1.0,
+                1.0,
+                1.0,
+                0.0,
+                1.0,
+                0.0,
+                0.0,
+            ],
+            [
+                1.0,
+                1.0,
+                0.0,
+                1.0,
+                0.0,
+                1.0,
+                0.0,
+                1.0,
+                1.0,
+                0.0,
+                1.0,
+                0.0,
+                0.0,
+                1.0,
+                0.0,
+                1.0,
+                1.0,
+            ],
+        ],
+        dtype=torch.float64,
+    )
+    assert torch.allclose(
+        partials[0], sorted_partials
+    ), "Partials incorrectly read alphabet."
+    assert (sum(weights) / len(weights)) == 1, "Weights incorrectly read alphabet."
+
+
+def test_likelihood_alphabet():
+    blen = torch.ones(3, dtype=torch.double) / 10
+    post_indexing = [[0, 1, 2]]
+    mats = phylo.JC69_p_t(blen)
+    freqs = torch.full([4], 0.25, dtype=torch.float64)
+
+    dna = dendropy.DnaCharacterMatrix.get(
+        data=">T1\nAAAAAAAAA\n>T2\nAAAAAAAAD\n\n", schema="fasta"
+    )
+    partials, weights = phylo.compress_alignment(dna)
+    partials.append(torch.zeros((1, 4, 9), dtype=torch.float64))
+    LL = phylo.calculate_treelikelihood(partials, weights, post_indexing, mats, freqs)
+
+    dna = dendropy.DnaCharacterMatrix.get(
+        data=">T1\nAAAAAAAAA\n>T2\nAAAAAAAA-\n\n", schema="fasta"
+    )
+    partials, weights = phylo.compress_alignment(dna)
+    partials.append(torch.zeros((1, 4, 9), dtype=torch.float64))
+    LL_1 = phylo.calculate_treelikelihood(partials, weights, post_indexing, mats, freqs)
+    assert LL != LL_1, "Likelihoods should be different."
 
 
 def test_prior_mrbayes_0():
