@@ -102,8 +102,9 @@ def run(args):
         mymod.learn(epochs=args.epochs, learn_rate=args.learn, path_write=path_write)
 
     mins, secs = divmod(time.time() - start, 60)
+    hrs, mins = divmod(mins, 60)
     print(
-        f"Time taken for {args.taxa} taxa with {args.epochs} epochs: {mins}m {round(secs)}s"
+        f"Time taken for {args.taxa} taxa with {args.epochs} epochs: {int(hrs)}:{int(mins)}:{int(secs)}\n"
     )
 
 

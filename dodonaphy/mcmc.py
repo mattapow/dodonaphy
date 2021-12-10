@@ -1,5 +1,6 @@
 """Markov Chain Monte Calo Module"""
 import os
+import time
 
 import numpy as np
 import torch
@@ -257,8 +258,10 @@ class DodonaphyMCMC:
 
     def print_iter(self, iteration):
         """Print current state."""
+        if iteration > 0 and (iteration / self.save_period) % 10 == 0:
+            print("")
         print(
-            f"Iteration: {iteration} LnL: {self.chain[0].ln_p:.3f}",
+            f"{iteration:9d} --- {self.chain[0].ln_p:.3f}",
             end="",
         )
         if self.n_chains > 1:
@@ -270,19 +273,20 @@ class DodonaphyMCMC:
                 )
             print(")", end="")
         if iteration > 0:
-            print(" Acceptance Rate: ", end="")
+            print(" --- ", end="")
             for chain in self.chain:
                 print(
                     f" {chain.accepted / chain.iterations:5.3f}, ",
                     end="",
                     flush=True,
-                )
+                    )
         print("")
 
     def learn(self, epochs, burnin=0, path_write="./out"):
         """Run the markov chains."""
         print(f"Using 1 cold chain and {int(self.n_chains - 1)} hot chains.")
 
+        start = time.time()
         if path_write is not None:
             info_file = path_write + "/" + "mcmc.info"
             self.save_info(info_file, epochs, burnin, self.save_period)
@@ -296,6 +300,7 @@ class DodonaphyMCMC:
 
         swaps = 0
         print(f"Running for {epochs} iterations.\n")
+        print("Iteration --- Log Likelihood (hot chains) --- Acceptance Rates")
         self.print_iter(0)
         if path_write is not None:
             self.save_iteration(path_write, 0)
@@ -314,7 +319,7 @@ class DodonaphyMCMC:
                 swaps += self.swap()
 
         if path_write is not None:
-            self.save_final_info(path_write, swaps)
+            self.save_final_info(path_write, swaps, time.time()-start)
 
     def save_info(self, file, epochs, burnin, save_period):
         """Save information about this simulation."""
@@ -332,7 +337,7 @@ class DodonaphyMCMC:
                 file.write(f"Connect Mthd:  {chain.connector}\n")
                 file.write(f"Embed Mthd:  {chain.embedder}\n")
 
-    def save_final_info(self, path_write, swaps):
+    def save_final_info(self, path_write, swaps, seconds):
         file_name = path_write + "/" + "mcmc.info"
         with open(file_name, "a", encoding="UTF-8") as file:
             file.write(f"\nTotal chain swaps: {swaps}\n")
@@ -341,6 +346,9 @@ class DodonaphyMCMC:
                 file.write(f"Chain {c_id} acceptance: {final_accept}\n")
                 if chain.more_tune:
                     file.write(f"Chain {c_id} did not converge to target acceptance.\n")
+            mins, secs = divmod(seconds, 60)
+            hrs, mins = divmod(mins, 60)
+            file.write(f"Total time: {int(hrs)}:{int(mins)}:{int(secs)}\n")    
 
     def save_iteration(self, path_write, iteration):
         """Save the current state to file."""
