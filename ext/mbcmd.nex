@@ -1,8 +1,10 @@
 #NEXUS
 Begin mrbayes;
-    exe ./data/hohna/DS1/DS1.nex;
-    lset nst = 1;
-    prset statefreqpr=fixed(equal);
+    exe ./DS1.nex;
+    set autoclose=yes nowarn=yes;
+    lset nst=1 rates=equal;
+    mcmcp ngen=1000000;
+    prset statefreqpr=fixed(equal) topologypr=uniform;
     prset brlenspr = unconstrained:gammadir(1.,.1,1.,1.);
     mcmc;
 end;
