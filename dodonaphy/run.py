@@ -90,14 +90,6 @@ def run(args):
             soft_temp=args.temp,
         )
     elif args.infer == "ml":
-        mean = np.zeros(args.taxa)
-        sigma = 0.1
-        cov = np.ones_like(dists) * sigma
-        threshold = sigma  #  min(dists[dists>0])
-        dists = dists + np.fmod(
-            np.random.multivariate_normal(mean, cov, (args.taxa)), threshold
-        )
-        dists = np.abs((dists + dists.T) / 2)
         mymod = ML(partials[:], weights, dists=dists, soft_temp=args.temp)
         mymod.learn(epochs=args.epochs, learn_rate=args.learn, path_write=path_write)
 
