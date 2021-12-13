@@ -27,7 +27,8 @@ class BaseModel(object):
         curvature=-1.0,
         embedder="simple",
         connector="nj",
-        normalise_leaf=False
+        normalise_leaf=False,
+        loss_fn="likelihood",
     ):
         self.partials = partials.copy()
         self.weights = weights
@@ -49,6 +50,8 @@ class BaseModel(object):
         self.peel = np.zeros((self.S - 1, 3), dtype=int)
         self.blens = torch.zeros(self.bcount, dtype=torch.double)
         self.normalise_leaf = normalise_leaf
+        assert loss_fn in ("likelihood", "pair_likelihood", "hypHC")
+        self.loss_fn = loss_fn
 
         # make space for internal partials
         for _ in range(self.S - 1):
@@ -299,13 +302,21 @@ class BaseModel(object):
             leaf_r, leaf_dir, int_r, int_dir, curvature=-torch.ones(1), start_node=leaf
         )
 
-    def sample(self, leaf_loc, leaf_cov, int_loc=None, int_cov=None, soft=True, normalise_leaf=False):
+    def sample(
+        self,
+        leaf_loc,
+        leaf_cov,
+        int_loc=None,
+        int_cov=None,
+        soft=True,
+        normalise_leaf=False,
+    ):
         """Sample a nearby tree embedding.
-        
+
         Each point is transformed R^n (using the self.embedding method), then
         a normal is sampled and transformed back to H^n. A tree is formed using
         the self.connect method.
-        
+
         A dictionary is  returned containing information about this sampled tree.
         """
         # reshape covariance if single number
@@ -324,7 +335,9 @@ class BaseModel(object):
                 int_dir_prop,
                 log_abs_det_jacobian_int,
                 log_Q_int,
-            ) = self.sample_loc(int_loc, int_cov, is_internal=True, normalise_leaf=False)
+            ) = self.sample_loc(
+                int_loc, int_cov, is_internal=True, normalise_leaf=False
+            )
             min_leaf_r = min(leaf_r_prop)
             int_r_prop[int_r_prop > min_leaf_r] = min_leaf_r
             log_abs_det_jacobian = log_abs_det_jacobian + log_abs_det_jacobian_int
@@ -372,10 +385,13 @@ class BaseModel(object):
             )
 
         # get log likelihood
-        ln_p = self.compute_LL(peel, blens)
-        # ln_p = self.compute_log_a_like(pdm)
-        # leaf_X = utils.dir_to_cart(leaf_r_prop, leaf_dir_prop)
-        # ln_p = self.compute_hypHC(leaf_X)
+        if self.loss_fn == "likelihood":
+            ln_p = self.compute_LL(peel, blens)
+        elif self.loss_fn == "pair_likelihood":
+            ln_p = self.compute_log_a_like(pdm)
+        elif self.loss_fn == "hypHC":
+            leaf_X = utils.dir_to_cart(leaf_r_prop, leaf_dir_prop)
+            ln_p = self.compute_hypHC(pdm, leaf_X)
 
         # get log prior
         ln_prior = self.compute_prior_gamma_dir(blens)

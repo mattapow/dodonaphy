@@ -68,6 +68,7 @@ def run(args):
             embedder=args.embed,
             curvature=args.curv,
             normalise_leaf=args.normalise_leaves,
+            loss_fn=args.loss_fn,
         )
     elif args.infer == "vi":
         DodonaphyVI.run(
@@ -90,7 +91,7 @@ def run(args):
             soft_temp=args.temp,
         )
     elif args.infer == "ml":
-        mymod = ML(partials[:], weights, dists=dists, soft_temp=args.temp)
+        mymod = ML(partials[:], weights, dists=dists, soft_temp=args.temp, loss_fn=args.loss_fn)
         mymod.learn(epochs=args.epochs, learn_rate=args.learn, path_write=path_write)
 
     mins, secs = divmod(time.time() - start, 60)
@@ -325,6 +326,12 @@ def init_parser():
     )
     parser.add_argument(
         "--burn", "-b", default=0, type=int, help="Number of burn in iterations."
+    )
+    parser.add_argument(
+        "--loss_fn",
+        default="likelihood",
+        choices=("likelihood", "pair_likelihood", "hypHC"),
+        help="Loss function for MCMC and ML. Not implemented in VI."
     )
 
     # MST parameters

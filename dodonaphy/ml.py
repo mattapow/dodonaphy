@@ -12,7 +12,7 @@ from dodonaphy.base_model import BaseModel
 class ML(BaseModel):
     """Maximum Likelihood class"""
 
-    def __init__(self, partials, weights, dists, soft_temp):
+    def __init__(self, partials, weights, dists, soft_temp, loss_fn):
         super().__init__(
             partials,
             weights,
@@ -20,6 +20,7 @@ class ML(BaseModel):
             soft_temp=soft_temp,
             connector="nj",
             curvature=-1,
+            loss_fn=loss_fn,
         )
         tril_idx = torch.tril_indices(self.S, self.S, -1)
         dists_1d = dists[tril_idx[0], tril_idx[1]]
@@ -54,7 +55,7 @@ class ML(BaseModel):
             optimizer.step(closure)
             scheduler.step()
             like_hist.append(self.ln_p.item())
-            print(f"epoch {i+1} Likelihood: {like_hist[-1]:.3f}")
+            print(f"epoch {i+1} Likelihood: {like_hist[-1]:.20f}")
 
             if path_write is not None:
                 tree.save_tree(
@@ -79,18 +80,14 @@ class ML(BaseModel):
         dist_2d[tril_idx[0], tril_idx[1]] = self.params["dists"]
         dist_2d[tril_idx[1], tril_idx[0]] = self.params["dists"]
 
-        good_peel = False
-        while not good_peel:
+        if self.loss_fn == "likelihood":
             self.peel, self.blens = peeler.nj(dist_2d, tau=self.soft_temp)
-            set1 = set(np.sort(np.unique(self.peel)))
-            set2 = set(np.arange(self.bcount + 1))
-            if set1 != set2:
-                print("Decreasing temperature by half.")
-                self.soft_temp /= 2
-            else:
-                good_peel = True
+            self.ln_p = self.compute_LL(self.peel, self.blens)
+        elif self.loss_fn == "pair_likelihood":
+            self.ln_p = self.compute_log_a_like(dist_2d)
+        elif self.loss_fn == "hypHC":
+            raise ValueError("hypHC requires embedding, not available with ML.")
 
-        self.ln_p = self.compute_LL(self.peel, self.blens)
         return self.ln_p
 
     @staticmethod

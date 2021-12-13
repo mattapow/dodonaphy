@@ -30,6 +30,7 @@ class Chain(BaseModel):
         curvature=-1,
         converge_length=500,
         normalise_leaf=False,
+        loss_fn="likelihood",
     ):
         super().__init__(
             partials,
@@ -40,6 +41,7 @@ class Chain(BaseModel):
             connector=connector,
             curvature=curvature,
             normalise_leaf=normalise_leaf,
+            loss_fn=loss_fn,
         )
         self.leaf_dir = leaf_dir  # S x D
         self.int_dir = int_dir  # S-2 x D
@@ -55,7 +57,22 @@ class Chain(BaseModel):
         self.target_acceptance = target_acceptance
         self.converged = [False] * converge_length
         self.more_tune = True
-        self.ln_p = self.compute_LL(self.peel, self.blens)
+
+        if self.loss_fn == "likelihood":
+            self.ln_p = self.compute_LL(self.peel, self.blens)
+        elif self.loss_fn == "pair_likelihood" and self.leaf_r is not None:
+            pdm = Cutils.get_pdm_torch(
+                self.leaf_r, self.leaf_dir, curvature=self.curvature
+            )
+            self.ln_p = self.compute_log_a_like(pdm)
+        elif self.loss_fn == "hypHC" and self.leaf_r is not None:
+            pdm = Cutils.get_pdm_torch(
+                self.leaf_r, self.leaf_dir, curvature=self.curvature
+            )
+            leaf_X = utils.dir_to_cart(self.leaf_r, self.leaf_dir)
+            self.ln_p = self.compute_hypHC(pdm, leaf_X)
+        else:
+            self.ln_p = -torch.finfo(torch.double).max
         self.ln_prior = self.compute_prior_gamma_dir(self.blens)
 
     def set_probability(self):
@@ -88,10 +105,13 @@ class Chain(BaseModel):
             )
 
         # current likelihood
-        # self.ln_p = self.compute_log_a_like(pdm)
-        self.ln_p = self.compute_LL(self.peel, self.blens)
-        # leaf_X = utils.dir_to_cart(self.leaf_r, self.leaf_dir)
-        # self.ln_p = self.compute_hypHC(leaf_X)
+        if self.loss_fn == "likelihood":
+            self.ln_p = self.compute_LL(self.peel, self.blens)
+        elif self.loss_fn == "pair_likelihood":
+            self.ln_p = self.compute_log_a_like(pdm)
+        elif self.loss_fn == "hypHC":
+            leaf_X = utils.dir_to_cart(self.leaf_r, self.leaf_dir)
+            self.ln_p = self.compute_hypHC(pdm, leaf_X)
 
         # current prior
         # self.ln_prior = self.compute_prior_birthdeath(self.peel, self.blens, **self.prior)
@@ -217,6 +237,7 @@ class DodonaphyMCMC:
         n_trials=10,
         max_scale=1,
         normalise_leaf=False,
+        loss_fn="likelihood",
     ):
         self.n_chains = n_chains
         self.chain = []
@@ -238,6 +259,7 @@ class DodonaphyMCMC:
                     connector=connector,
                     curvature=curvature,
                     normalise_leaf=normalise_leaf,
+                    loss_fn=loss_fn,
                 )
             )
 
@@ -279,7 +301,7 @@ class DodonaphyMCMC:
                     f" {chain.accepted / chain.iterations:5.3f}, ",
                     end="",
                     flush=True,
-                    )
+                )
         print("")
 
     def learn(self, epochs, burnin=0, path_write="./out"):
@@ -319,7 +341,7 @@ class DodonaphyMCMC:
                 swaps += self.swap()
 
         if path_write is not None:
-            self.save_final_info(path_write, swaps, time.time()-start)
+            self.save_final_info(path_write, swaps, time.time() - start)
 
     def save_info(self, file, epochs, burnin, save_period):
         """Save information about this simulation."""
@@ -348,7 +370,7 @@ class DodonaphyMCMC:
                     file.write(f"Chain {c_id} did not converge to target acceptance.\n")
             mins, secs = divmod(seconds, 60)
             hrs, mins = divmod(mins, 60)
-            file.write(f"Total time: {int(hrs)}:{int(mins)}:{int(secs)}\n")    
+            file.write(f"Total time: {int(hrs)}:{int(mins)}:{int(secs)}\n")
 
     def save_iteration(self, path_write, iteration):
         """Save the current state to file."""
@@ -507,6 +529,7 @@ class DodonaphyMCMC:
         embedder="simple",
         curvature=-1.0,
         normalise_leaf=True,
+        loss_fn="likelihood",
     ):
         """Run Dodonaphy's MCMC."""
         print("\nRunning Dodonaphy MCMC")
@@ -533,6 +556,7 @@ class DodonaphyMCMC:
                 n_trials=n_trials,
                 max_scale=max_scale,
                 normalise_leaf=normalise_leaf,
+                loss_fn=loss_fn,
             )
 
             mymod.initialise_chains(emm_tips, normalise=normalise_leaf)
