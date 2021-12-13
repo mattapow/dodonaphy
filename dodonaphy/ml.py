@@ -28,6 +28,10 @@ class ML(BaseModel):
             "dists": torch.tensor(dists_1d, requires_grad=True, dtype=torch.float64)
         }
         self.ln_p = self.compute_likelihood()
+        self.current_epoch = 0
+
+    def update_epoch(self, epoch):
+        self.current_epoch = epoch
 
     def learn(self, epochs, learn_rate, path_write):
         """Optimise params["dists"]"."""
@@ -46,12 +50,14 @@ class ML(BaseModel):
 
         def closure():
             optimizer.zero_grad()
-            loss = -self.compute_likelihood()
+            temp = 2 * lr_lambda(self.current_epoch) + 1
+            loss = -temp * self.compute_likelihood()
             loss.backward()
             return loss
 
         print(f"Running for {epochs} iterations.")
         for i in range(epochs):
+            self.update_epoch(i)
             optimizer.step(closure)
             scheduler.step()
             like_hist.append(self.ln_p.item())
