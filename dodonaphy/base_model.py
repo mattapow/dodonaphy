@@ -208,7 +208,7 @@ class BaseModel(object):
             torch.full([4], 0.25, dtype=torch.float64),
         )
 
-    def compute_log_a_like(self, pdm, temp=1.0):
+    def compute_log_a_like(self, pdm):
         """Compute the log-a-like function of the embedding.
 
         The log-probability of all the pairwise taxa.
@@ -216,15 +216,10 @@ class BaseModel(object):
         eps = torch.finfo(torch.double).eps
         P = torch.zeros((4, 4, self.L))
 
-        Q = peeler.compute_Q(pdm)
-        weight = torch.softmax(Q / temp, dim=1)
-
-        # For each node
         for i in range(self.S):
-            # compute the probability matrix to each other node
             mats = JC69_p_t(pdm[i])
             for j in range(i - 1):
-                P = P + weight[i, j] * torch.log(
+                P = P + torch.log(
                     torch.clamp(torch.matmul(mats[j], self.partials[i]), min=eps)
                 )
 
