@@ -20,5 +20,6 @@ taxa=(27 29 36 41 50 50 59 64)
 
 # dodo --infer ml --taxa ${taxa[$((PBS_ARRAY_INDEX - 1))]} --connect nj --embed simple --save --path_root ./data/hohna/DS${PBS_ARRAY_INDEX} --dna_path DS${PBS_ARRAY_INDEX}.nex --learn 0.01 --temp 1e-6  --epochs 10000 --loss_fn likelihood --exp_ext likelihood
 dodo --infer mcmc --taxa ${taxa[$((PBS_ARRAY_INDEX - 1))]} --connect nj --embed simple --save --path_root ./data/hohna/DS${PBS_ARRAY_INDEX} --dna_path DS${PBS_ARRAY_INDEX}.nex --epochs 1000000 --start given --chains 4 --exp_ext free_r_million_pair --loss_fn pair_likelihood
+# dodo --infer mcmc --taxa ${taxa[$((PBS_ARRAY_INDEX - 1))]} --connect nj --embed simple --save --path_root ./analysis/DS${PBS_ARRAY_INDEX} --dna_path data/DS.nex --epochs 1000000 --start data/start_tree.nex --chains 4 --exp_ext free_r_million_hypHC --loss_fn hypHC
 
 conda deactivate
