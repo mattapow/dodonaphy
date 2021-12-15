@@ -41,9 +41,8 @@ def run(args):
         start_tree = rax.estimate_tree(char_matrix=dna, raxml_args=["--no-bfgs"])
         tree_path = os.path.join(root_dir, "start_tree.nex")
         start_tree.write(path=tree_path, schema="nexus")
-
-    elif args.start == "given":
-        start_tree = read_tree(root_dir, file_name="start_tree.nex")
+    else:
+        start_tree = read_tree(root_dir, file_name=args.start)
 
     dists = utils.tip_distances(start_tree, args.taxa)
     save_period = max(int(args.epochs / args.draws), 1)
@@ -251,9 +250,9 @@ def init_parser():
     parser.add_argument(
         "--start",
         "-t",
-        default="given",
-        choices=("given", "RAxML"),
-        help="Starting tree to embed.",
+        default="data/start_tree.nex",
+        help="Path to starting tree in nexus format. If set to RAxML, a RAxML\
+        tree will be found and used.",
     )
     parser.add_argument(
         "--normalise_leaf",

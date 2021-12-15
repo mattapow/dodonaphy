@@ -1,0 +1,10 @@
+#NEXUS
+Begin mrbayes;
+    exe ../data/DS.nex;
+    set autoclose=yes nowarn=yes;
+    lset nst=1 rates=equal;
+    mcmcp ngen=1000000000 samplefreq=1000000 printfreq=1000000 diagnfreq=1000000 file=../mb/gold;
+    prset statefreqpr=fixed(equal) topologypr=uniform;
+    prset brlenspr = unconstrained:gammadir(1.,.1,1.,1.);
+    mcmc;
+end;

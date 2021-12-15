@@ -31,3 +31,5 @@ dodonaphy/cython/Cutils.c
 
 *.prof
 build
+analysis
+sim_data
