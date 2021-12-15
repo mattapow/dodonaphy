@@ -1,0 +1,24 @@
+#!/bin/bash
+
+#PBS -N dodo_NJS_ML
+#PBS -l ncpus=1
+#PBS -l mem=1gb
+#PBS -l walltime=24:00:00
+#PBS -e dodo_ml.e
+#PBS -o dodo_ml.o
+#PBS -J 1-8
+#PBS -m ae
+#PBS -M matthew.macaulay@uts.edu.au
+
+cd ${PBS_O_WORKDIR}
+source miniconda3/bin/activate
+source activate dodo
+
+taxa=(27 29 36 41 50 50 59 64)
+#learn=(1e-6 1e-6 1e-6 1e-3 1e-3 1e-3 1e0 1e0  1e0)
+#temp=(1e-8 1e-6 1e-4 1e-8 1e-6 1e-4 1e-8 1e-6 1e-4)
+
+# dodo --infer ml --taxa ${taxa[$((PBS_ARRAY_INDEX - 1))]} --connect nj --embed simple --save --path_root ./data/hohna/DS${PBS_ARRAY_INDEX} --dna_path DS${PBS_ARRAY_INDEX}.nex --learn 0.01 --temp 1e-6  --epochs 10000 --loss_fn likelihood --exp_ext likelihood
+dodo --infer mcmc --taxa ${taxa[$((PBS_ARRAY_INDEX - 1))]} --connect nj --embed simple --save --path_root ./data/hohna/DS${PBS_ARRAY_INDEX} --dna_path DS${PBS_ARRAY_INDEX}.nex --epochs 1000000 --start given --chains 4 --exp_ext free_r_million_pair --loss_fn pair_likelihood
+
+conda deactivate
