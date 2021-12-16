@@ -50,12 +50,14 @@ class Chain(BaseModel):
         self.jacobian = torch.zeros(1)
         if leaf_dir is not None:
             self.S = len(leaf_dir)
-        self.step_scale = torch.tensor(step_scale, requires_grad=True)
+        self.step_scale = torch.tensor(step_scale, requires_grad=False)
         self.chain_temp = chain_temp
         self.accepted = 0
         self.iterations = 0
         self.target_acceptance = target_acceptance
-        self.converged = [False] * converge_length
+        self.converge_length = converge_length
+        if converge_length is not None:
+            self.converged = [False] * converge_length
         self.more_tune = True
 
         if self.loss_fn == "likelihood":
@@ -212,6 +214,8 @@ class Chain(BaseModel):
         self.step_scale = torch.maximum(self.step_scale + learn_rate * d_accept, eps)
 
         # check convegence
+        if self.converge_length is None:
+            return
         self.converged.pop()
         self.converged.insert(0, np.abs(d_accept) < tol)
         if all(self.converged):
@@ -260,6 +264,7 @@ class DodonaphyMCMC:
                     curvature=curvature,
                     normalise_leaf=normalise_leaf,
                     loss_fn=loss_fn,
+                    converge_length=None,
                 )
             )
 
@@ -355,19 +360,20 @@ class DodonaphyMCMC:
             file.write(f"\nChains:  {self.n_chains}\n")
             for chain in self.chain:
                 file.write(f"\nChain temp:  {chain.chain_temp}\n")
-                file.write(f"Step Scale:  {chain.step_scale}\n")
+                file.write(f"Convergence length: {chain.converge_length}\n")
                 file.write(f"Connect Mthd:  {chain.connector}\n")
                 file.write(f"Embed Mthd:  {chain.embedder}\n")
 
     def save_final_info(self, path_write, swaps, seconds):
         file_name = path_write + "/" + "mcmc.info"
         with open(file_name, "a", encoding="UTF-8") as file:
-            file.write(f"\nTotal chain swaps: {swaps}\n")
             for c_id, chain in enumerate(self.chain):
                 final_accept = chain.accepted / chain.iterations
                 file.write(f"Chain {c_id} acceptance: {final_accept}\n")
-                if chain.more_tune:
+                file.write(f"Step Scale tuned to:  {chain.step_scale}\n\n")
+                if chain.more_tune and chain.converge_length is not None:
                     file.write(f"Chain {c_id} did not converge to target acceptance.\n")
+            file.write(f"\nTotal chain swaps: {swaps}\n")
             mins, secs = divmod(seconds, 60)
             hrs, mins = divmod(mins, 60)
             file.write(f"Total time: {int(hrs)}:{int(mins)}:{int(secs)}\n")
