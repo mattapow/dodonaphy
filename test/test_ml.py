@@ -23,5 +23,5 @@ def test_ml1():
     threshold = min(dists[dists > 0])
     dists = dists + np.fmod(np.random.multivariate_normal(mu, cov, (6)), threshold)
     dists = (dists + dists.T) / 2
-    mymod = ML(partials[:], weights, dists=dists, soft_temp=1e-10)
+    mymod = ML(partials[:], weights, dists=dists, soft_temp=1e-10, loss_fn="likelihood")
     mymod.learn(epochs=3, learn_rate=1, path_write=None)

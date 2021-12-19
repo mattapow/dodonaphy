@@ -5,9 +5,11 @@ Created on Sat Mar 20 07:55:22 2021
 
 @author: 151569
 """
-import dodonaphy.hyperboloid as hyp
+import dodonaphy.Chyperboloid as hyp
 import torch
+from dodonaphy import utils
 from pytest import approx
+import numpy as np
 
 
 def test_poincare_to_hyper():
@@ -27,15 +29,15 @@ def test_tangent_to_hyper():
 
 
 def test_p2t02p():
-    input = torch.tensor([[0.1, 0.3, 0.4]]).double()
-    output = hyp.t02p(hyp.p2t0(input))
-    assert approx(input.data, output.data)
+    input_data = torch.tensor([[0.1, 0.3, 0.4]]).double()
+    output = hyp.t02p(hyp.p2t0(input_data))
+    assert approx(input_data.data, output.data)
 
 
 def test_t02p2t0():
-    input = torch.tensor([[10.0, 0.3, -0.44]]).double()
-    output = hyp.p2t0(hyp.t02p(input))
-    assert approx(input.data, output.data)
+    input_data = torch.tensor([[10.0, 0.3, -0.44]]).double()
+    output = hyp.p2t0(hyp.t02p(input_data))
+    assert approx(input_data.data, output.data)
 
 
 def test_jacobian_default_mu():
@@ -64,3 +66,97 @@ def test_jacobian_mu_1():
     x_t0_2, jacobian_2 = hyp.p2t0(x_poin, mu_2, get_jacobian=True)
     assert torch.allclose(x_t0, x_t0_2, atol=0.00001)
     assert torch.allclose(jacobian_0, -jacobian_2)
+
+
+def test_hyperbolic_distance():
+    r1 = torch.tensor([0.3])
+    r2 = torch.tensor([0.6])
+    dir1 = torch.tensor(
+        [torch.as_tensor(1.0 / np.sqrt(2)), torch.as_tensor(1.0 / np.sqrt(2))]
+    )
+    dir2 = torch.tensor([torch.as_tensor(-0.5), torch.as_tensor(np.sqrt(0.75))])
+    dist = hyp.hyperbolic_distance(r1, r2, dir1, dir2, -torch.tensor([1.0]))
+    x1 = utils.dir_to_cart(r1, dir1)
+    x2 = utils.dir_to_cart(r2, dir2)
+    dist2 = hyp.hyperbolic_distance_lorentz(x1, x2, -torch.tensor([1.0]))
+    assert dist2.item() == approx(dist.item(), 0.0001)
+
+
+def test_hyperbolic_distance_boundary1():
+    r1 = torch.tensor([0.99999997])
+    r2 = torch.tensor([0.99999997])
+    dir1 = torch.tensor(
+        [torch.as_tensor(-1.0 / np.sqrt(2)), torch.as_tensor(1.0 / np.sqrt(2))],
+        dtype=torch.double,
+    )
+    dir2 = torch.tensor(
+        [torch.as_tensor(0.0), torch.as_tensor(1.0)], dtype=torch.double
+    )
+    dist = hyp.hyperbolic_distance(r1, r2, dir1, dir2, -torch.tensor([1.0]))
+    x1 = utils.dir_to_cart(r1, dir1)
+    x2 = utils.dir_to_cart(r2, dir2)
+    dist2 = hyp.hyperbolic_distance_lorentz(x1, x2, -torch.tensor([1.0]))
+    assert dist2.item() == approx(dist.item(), 0.0001)
+
+
+def test_hyperbolic_distance_boundary2():
+    r1 = torch.tensor([0.99999997])
+    r2 = torch.tensor([0.99999997])
+    dir1 = torch.tensor(
+        [torch.as_tensor(-0.0), torch.as_tensor(-1.0)], dtype=torch.double
+    )
+    dir2 = torch.tensor(
+        [torch.as_tensor(0.0), torch.as_tensor(1.0)], dtype=torch.double
+    )
+    dist = hyp.hyperbolic_distance(r1, r2, dir1, dir2, -torch.tensor([1.0]))
+    x1 = utils.dir_to_cart(r1, dir1)
+    x2 = utils.dir_to_cart(r2, dir2)
+    dist2 = hyp.hyperbolic_distance_lorentz(x1, x2, -torch.tensor([1.0]))
+    assert dist2.item() == approx(dist.item(), 0.0001)
+
+
+def test_hyperbolic_distance_boundary3():
+    r1 = torch.tensor([0.99999999])
+    r2 = torch.tensor([0.99999999])
+    dir1 = torch.tensor(
+        [torch.as_tensor(-1.0 / np.sqrt(2)), torch.as_tensor(1.0 / np.sqrt(2))],
+        dtype=torch.double,
+    )
+    dir2 = torch.tensor(
+        [torch.as_tensor(0.0), torch.as_tensor(1.0)], dtype=torch.double
+    )
+    dist = hyp.hyperbolic_distance(r1, r2, dir1, dir2, -torch.tensor([1.0]))
+    x1 = utils.dir_to_cart(r1, dir1)
+    x2 = utils.dir_to_cart(r2, dir2)
+    dist2 = hyp.hyperbolic_distance_lorentz(x1, x2, -torch.tensor([1.0]))
+    assert dist2.item() == approx(dist.item(), 0.0001)
+
+
+def test_hyperbolic_distance_boundary_close():
+    r1 = torch.tensor([0.9999999999])
+    r2 = torch.tensor([0.99999999991])
+    dir1 = torch.tensor(
+        [torch.as_tensor(0.0), torch.as_tensor(1.0)], dtype=torch.double
+    )
+    dir2 = torch.tensor(
+        [torch.as_tensor(0.0), torch.as_tensor(1.0)], dtype=torch.double
+    )
+    dist = hyp.hyperbolic_distance(r1, r2, dir1, dir2, -torch.tensor([1.0]))
+    x1 = utils.dir_to_cart(r1, dir1)
+    x2 = utils.dir_to_cart(r2, dir2)
+    dist2 = hyp.hyperbolic_distance_lorentz(x1, x2, -torch.tensor([1.0]))
+    assert dist2.item() == approx(dist.item(), 0.0001)
+
+
+def test_hyperbolic_distance_zero():
+    dir1 = torch.tensor(
+        [torch.as_tensor(1.0 / np.sqrt(2)), torch.as_tensor(1.0 / np.sqrt(2))]
+    )
+    dir2 = torch.tensor(
+        [torch.as_tensor(1.0 / np.sqrt(2)), torch.as_tensor(1.0 / np.sqrt(2))]
+    )
+    dist = hyp.hyperbolic_distance(
+        torch.tensor([0.5]), torch.tensor([0.5]), dir1, dir2, -torch.tensor([1.0])
+    )
+    assert 0.0 == approx(dist.item(), abs=0.05)
+

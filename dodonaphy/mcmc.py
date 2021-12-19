@@ -3,10 +3,9 @@ import os
 import time
 
 import numpy as np
-import torch
-from torch.distributions.uniform import Uniform
 
-from . import Cutils, hydra, peeler, tree, utils
+from . import hydra, peeler, tree, utils
+from . import Cutils, Cpeeler, Cphylo, Cmcmc, Chyperboloid_np
 from .base_model import BaseModel
 
 
@@ -27,7 +26,7 @@ class Chain(BaseModel):
         target_acceptance=0.234,
         connector="mst",
         embedder="simple",
-        curvature=-1,
+        curvature=-1.0,
         converge_length=500,
         normalise_leaf=False,
         loss_fn="likelihood",
@@ -42,15 +41,16 @@ class Chain(BaseModel):
             curvature=curvature,
             normalise_leaf=normalise_leaf,
             loss_fn=loss_fn,
+            require_grad=False,
         )
         self.leaf_dir = leaf_dir  # S x D
         self.int_dir = int_dir  # S-2 x D
         self.int_r = int_r  # S-2
         self.leaf_r = leaf_r  # S
-        self.jacobian = torch.zeros(1)
+        self.jacobian = np.zeros(1)
         if leaf_dir is not None:
             self.S = len(leaf_dir)
-        self.step_scale = torch.tensor(step_scale, requires_grad=False)
+        self.step_scale = step_scale
         self.chain_temp = chain_temp
         self.accepted = 0
         self.iterations = 0
@@ -61,32 +61,36 @@ class Chain(BaseModel):
         self.more_tune = True
 
         if self.loss_fn == "likelihood":
-            self.ln_p = self.compute_LL(self.peel, self.blens)
+            self.ln_p = Cphylo.compute_LL_np(
+                self.partials, self.weights, self.peel, self.blens
+            )
         elif self.loss_fn == "pair_likelihood" and self.leaf_r is not None:
-            pdm = Cutils.get_pdm_torch(
-                self.leaf_r, self.leaf_dir, curvature=self.curvature
+            pdm = Chyperboloid_np.get_pdm(
+                self.leaf_r, self.leaf_dir, curvature=self.curvature, dtype="numpy"
             )
             self.ln_p = self.compute_log_a_like(pdm)
         elif self.loss_fn == "hypHC" and self.leaf_r is not None:
-            pdm = Cutils.get_pdm_torch(
-                self.leaf_r, self.leaf_dir, curvature=self.curvature
+            pdm = Chyperboloid_np.get_pdm(
+                self.leaf_r, self.leaf_dir, curvature=self.curvature, dtype="numpy"
             )
             leaf_X = utils.dir_to_cart(self.leaf_r, self.leaf_dir)
             self.ln_p = self.compute_hypHC(pdm, leaf_X)
         else:
-            self.ln_p = -torch.finfo(torch.double).max
-        self.ln_prior = self.compute_prior_gamma_dir(self.blens)
+            self.ln_p = -np.finfo(np.double).max
+        self.ln_prior = Cphylo.compute_prior_gamma_dir_np(self.blens)
 
     def set_probability(self):
         """Initialise likelihood and prior values of embedding"""
-        pdm = Cutils.get_pdm_torch(self.leaf_r, self.leaf_dir, curvature=self.curvature)
+        pdm = Chyperboloid_np.get_pdm(
+            self.leaf_r, self.leaf_dir, curvature=self.curvature, dtype="numpy"
+        )
         if self.connector == "geodesics":
-            loc_poin = self.leaf_dir * self.leaf_r.repeat((self.D, 1)).T
-            self.peel, int_locs = peeler.make_peel_geodesic(loc_poin)
-            self.int_r, self.int_dir = utils.cart_to_dir(int_locs)
-            self.leaf_r, self.leaf_dir = utils.cart_to_dir(loc_poin)
+            loc_poin = self.leaf_dir * np.tile(self.leaf_r, (self.D, 1)).T
+            self.peel, int_locs = peeler.make_hard_peel_geodesic(loc_poin)
+            self.int_r, self.int_dir = Cutils.cart_to_dir_np(int_locs)
+            self.leaf_r, self.leaf_dir = Cutils.cart_to_dir_np(loc_poin)
         elif self.connector == "nj":
-            self.peel, self.blens = peeler.nj(pdm)
+            self.peel, self.blens = Cpeeler.nj_np(pdm)
         elif self.connector == "mst":
             self.peel = peeler.make_peel_mst(
                 self.leaf_r, self.leaf_dir, self.int_r, self.int_dir
@@ -97,18 +101,21 @@ class Chain(BaseModel):
             )
 
         if self.connector != "nj":
-            self.blens = self.compute_branch_lengths(
+            self.blens = Cphylo.compute_branch_lengths_np(
                 self.S,
                 self.peel,
                 self.leaf_r,
                 self.leaf_dir,
                 self.int_r,
                 self.int_dir,
+                curvature=self.curvature,
             )
 
         # current likelihood
         if self.loss_fn == "likelihood":
-            self.ln_p = self.compute_LL(self.peel, self.blens)
+            self.ln_p = Cphylo.compute_LL_np(
+                self.partials, self.weights, self.peel, self.blens
+            )
         elif self.loss_fn == "pair_likelihood":
             self.ln_p = self.compute_log_a_like(pdm)
         elif self.loss_fn == "hypHC":
@@ -117,15 +124,13 @@ class Chain(BaseModel):
 
         # current prior
         # self.ln_prior = self.compute_prior_birthdeath(self.peel, self.blens, **self.prior)
-        self.ln_prior = self.compute_prior_gamma_dir(self.blens)
+        self.ln_prior = Cphylo.compute_prior_gamma_dir_np(self.blens)
 
     def evolve(self):
         """Propose new embedding"""
-        leaf_loc = self.leaf_dir * self.leaf_r.repeat((self.D, 1)).T
+        leaf_loc = self.leaf_dir * np.tile(self.leaf_r, (self.D, 1)).T
         if self.connector == "mst":
-            int_loc = self.int_dir * torch.tile(self.int_r, (2, 1)).transpose(
-                dim0=0, dim1=1
-            )
+            int_loc = self.int_dir * np.tile(self.int_r, (2, 1)).T
             proposal = self.sample(
                 leaf_loc,
                 self.step_scale,
@@ -135,10 +140,16 @@ class Chain(BaseModel):
                 normalise_leaf=self.normalise_leaf,
             )
         else:
-            proposal = self.sample(
+            proposal = self.sample_leaf_np(
                 leaf_loc,
                 self.step_scale,
-                soft=False,
+                self.connector,
+                self.embedder,
+                self.partials,
+                self.weights,
+                self.S,
+                self.D,
+                self.curvature,
                 normalise_leaf=self.normalise_leaf,
             )
 
@@ -147,7 +158,8 @@ class Chain(BaseModel):
         accept = False
         if r_accept >= 1:
             accept = True
-        elif Uniform(torch.zeros(1), torch.ones(1)).sample() < r_accept:
+
+        elif np.random.uniform(low=0.0, high=1.0) < r_accept:
             accept = True
 
         if accept:
@@ -188,9 +200,9 @@ class Chain(BaseModel):
         hastings_ratio = 1
 
         # acceptance ratio
-        r_accept = torch.minimum(
-            torch.ones(1),
-            torch.exp(
+        r_accept = np.minimum(
+            np.ones(1),
+            np.exp(
                 (prior_ratio + like_ratio + jacob_ratio) * self.chain_temp
                 + hastings_ratio
             ),
@@ -207,11 +219,11 @@ class Chain(BaseModel):
         if not self.more_tune or self.iterations == 0:
             return
 
-        learn_rate = torch.tensor(0.001)
-        eps = torch.tensor(torch.finfo(torch.double).eps)
+        learn_rate = 0.001
+        eps = 2.220446049250313e-16
         acceptance = self.accepted / self.iterations
         d_accept = acceptance - self.target_acceptance
-        self.step_scale = torch.maximum(self.step_scale + learn_rate * d_accept, eps)
+        self.step_scale = max(self.step_scale + learn_rate * d_accept, eps)
 
         # check convegence
         if self.converge_length is None:
@@ -221,6 +233,95 @@ class Chain(BaseModel):
         if all(self.converged):
             self.more_tune = False
             print(f"Step tuned to {self.step_scale}.")
+
+    @staticmethod
+    def sample_leaf_np(
+        leaf_loc,
+        leaf_cov_single,
+        connector,
+        embedder,
+        partials,
+        weights,
+        taxa,
+        dim,
+        curvature,
+        normalise_leaf=False,
+    ):
+        """Sample a nearby tree embedding.
+
+        Each point is transformed R^n (using the self.embedding method), then
+        a normal is sampled and transformed back to H^n. A tree is formed using
+        the self.connect method.
+
+        A dictionary is  returned containing information about this sampled tree.
+        """
+        leaf_cov = np.eye(taxa * dim, dtype=np.double) * leaf_cov_single
+
+        leaf_r_prop, leaf_dir_prop, log_abs_det_jacobian = Cmcmc.sample_loc_np(
+            taxa,
+            dim,
+            leaf_loc,
+            leaf_cov,
+            embedder,
+            is_internal=False,
+            normalise_leaf=normalise_leaf,
+        )
+
+        if connector == "nj":
+            pdm = Chyperboloid_np.get_pdm(
+                leaf_r_prop, leaf_dir_prop, curvature=curvature, dtype="numpy"
+            )
+            peel, blens = Cpeeler.nj_np(pdm)
+        elif connector == "geodesics":
+            leaf_locs = np.tile(leaf_r_prop, (dim, 1)).T * leaf_dir_prop
+            peel, int_locs = peeler.make_hard_peel_geodesic(leaf_locs)
+            int_r_prop, int_dir_prop = Cutils.cart_to_dir_np(int_locs)
+            blens = Cphylo.compute_branch_lengths_np(
+                taxa,
+                peel,
+                leaf_r_prop,
+                leaf_dir_prop,
+                int_r_prop,
+                int_dir_prop,
+                curvature,
+            )
+
+        # get log likelihood
+        # if self.loss_fn == "likelihood":
+        # TODO: allow other loss functions
+        ln_p = Cphylo.compute_LL_np(partials, weights, peel, blens)
+        # elif self.loss_fn == "pair_likelihood":
+        #     ln_p = self.compute_log_a_like(pdm)
+        # elif self.loss_fn == "hypHC":
+        #     leaf_X = Cutils.dir_to_cart(leaf_r_prop, leaf_dir_prop)
+        #     ln_p = self.compute_hypHC(pdm, leaf_X)
+
+        # get log prior
+        ln_prior = Cphylo.compute_prior_gamma_dir_np(blens)
+
+        if connector in ("nj"):
+            proposal = {
+                "leaf_r": leaf_r_prop,
+                "leaf_dir": leaf_dir_prop,
+                "peel": peel,
+                "blens": blens,
+                "jacobian": log_abs_det_jacobian,
+                "ln_p": ln_p,
+                "ln_prior": ln_prior,
+            }
+        elif connector in ("geodesics"):
+            proposal = {
+                "leaf_r": leaf_r_prop,
+                "leaf_dir": leaf_dir_prop,
+                "int_r": int_r_prop,
+                "int_dir": int_dir_prop,
+                "peel": peel,
+                "blens": blens,
+                "jacobian": log_abs_det_jacobian,
+                "ln_p": ln_p,
+                "ln_prior": ln_prior,
+            }
+        return proposal
 
 
 class DodonaphyMCMC:
@@ -380,7 +481,12 @@ class DodonaphyMCMC:
 
     def save_iteration(self, path_write, iteration):
         """Save the current state to file."""
-        ln_p = self.chain[0].compute_LL(self.chain[0].peel, self.chain[0].blens)
+        ln_p = Cphylo.compute_LL_np(
+            self.chain[0].partials,
+            self.chain[0].weights,
+            self.chain[0].peel,
+            self.chain[0].blens,
+        )
         tree.save_tree(
             path_write,
             "mcmc",
@@ -448,7 +554,8 @@ class DodonaphyMCMC:
         """randomly swap states in 2 chains according to MCMCMC"""
 
         # Pick two adjacent chains
-        i = torch.multinomial(torch.ones(self.n_chains - 1), 1, replacement=False)
+        rng = np.random.default_rng()
+        i = rng.multinomial(1, np.ones(self.n_chains - 1) / (self.n_chains - 1))[0] - 1
         j = i + 1
         chain_i = self.chain[i]
         chain_j = self.chain[j]
@@ -460,10 +567,10 @@ class DodonaphyMCMC:
         # probability of exhanging these two chains
         prob1 = (ln_post_i - ln_post_j) * chain_j.chain_temp
         prob2 = (ln_post_j - ln_post_i) * chain_i.chain_temp
-        r_accept = torch.minimum(torch.ones(1), torch.exp(prob1 + prob2))
+        r_accept = np.minimum(1, np.exp(prob1 + prob2))
 
         # swap with probability r
-        if r_accept > Uniform(torch.zeros(1), torch.ones(1)).rsample():
+        if r_accept > np.random.uniform(low=0.0, high=1.0):
             # swap the locations and current probability
             chain_i.leaf_r, chain_j.leaf_r = (
                 chain_j.leaf_r,
@@ -496,12 +603,10 @@ class DodonaphyMCMC:
         """initialise each chain"""
         for chain in self.chain:
             if normalise:
-                chain.leaf_r = torch.tensor(emm["r"], dtype=torch.double)
+                chain.leaf_r = emm["r"]
             else:
-                chain.leaf_r = torch.tensor(
-                    np.mean(emm["r"]), dtype=torch.double
-                ).repeat(self.chain[0].S)
-            chain.leaf_dir = torch.from_numpy(emm["directional"].astype(np.double))
+                chain.leaf_r = np.mean(emm["r"]).repeat(self.chain[0].S)
+            chain.leaf_dir = emm["directional"]
             chain.n_points = len(chain.leaf_dir)
             chain.int_r = None
             chain.int_dir = None
@@ -513,8 +618,8 @@ class DodonaphyMCMC:
                     n_trials=self.n_trials,
                     max_scale=self.max_scale,
                 )
-                chain.int_r = torch.from_numpy(int_r.astype(np.double))
-                chain.int_dir = torch.from_numpy(int_dir.astype(np.double))
+                chain.int_r = int_r.astype(np.double)
+                chain.int_dir = int_dir.astype(np.double)
 
     @staticmethod
     def run(
@@ -547,23 +652,22 @@ class DodonaphyMCMC:
         )
         print(f"Embedding Stress (tips only) = {emm_tips['stress'].item():.4}")
 
-        with torch.no_grad():
-            mymod = DodonaphyMCMC(
-                partials,
-                weights,
-                dim,
-                step_scale=step_scale,
-                n_chains=n_chains,
-                connector=connector,
-                embedder=embedder,
-                curvature=curvature,
-                save_period=save_period,
-                n_grids=n_grids,
-                n_trials=n_trials,
-                max_scale=max_scale,
-                normalise_leaf=normalise_leaf,
-                loss_fn=loss_fn,
-            )
+        mymod = DodonaphyMCMC(
+            partials,
+            weights,
+            dim,
+            step_scale=step_scale,
+            n_chains=n_chains,
+            connector=connector,
+            embedder=embedder,
+            curvature=curvature,
+            save_period=save_period,
+            n_grids=n_grids,
+            n_trials=n_trials,
+            max_scale=max_scale,
+            normalise_leaf=normalise_leaf,
+            loss_fn=loss_fn,
+        )
 
-            mymod.initialise_chains(emm_tips, normalise=normalise_leaf)
-            mymod.learn(epochs, burnin=burnin, path_write=path_write)
+        mymod.initialise_chains(emm_tips, normalise=normalise_leaf)
+        mymod.learn(epochs, burnin=burnin, path_write=path_write)

@@ -5,7 +5,7 @@ import numpy as np
 from dendropy.model.discrete import simulate_discrete_chars
 from dendropy.simulate import treesim
 from dodonaphy.mcmc import DodonaphyMCMC as mcmc
-from dodonaphy.phylo import compress_alignment
+from dodonaphy.Cphylo import compress_alignment_np
 from dodonaphy.utils import tip_distances
 
 
@@ -35,7 +35,7 @@ def test_mcmc_mst():
         seq_len=L, tree_model=simtree, seq_model=dendropy.model.discrete.Jc69(), rng=rng
     )
 
-    partials, weights = compress_alignment(dna)
+    partials, weights = compress_alignment_np(dna)
 
     dists = tip_distances(simtree, S)
 
@@ -83,7 +83,7 @@ def test_mcmc_geodesics():
         seq_len=L, tree_model=simtree, seq_model=dendropy.model.discrete.Jc69(), rng=rng
     )
 
-    partials, weights = compress_alignment(dna)
+    partials, weights = compress_alignment_np(dna)
 
     dists = tip_distances(simtree, S)
 
@@ -119,7 +119,7 @@ def test_mcmc_geodesics_wrap():
     dna = simulate_discrete_chars(
         seq_len=L, tree_model=simtree, seq_model=dendropy.model.discrete.Jc69()
     )
-    partials, weights = compress_alignment(dna)
+    partials, weights = compress_alignment_np(dna)
 
     dists = tip_distances(simtree, S)
 
@@ -168,7 +168,7 @@ def test_mcmc_simple_nj():
         seq_len=L, tree_model=simtree, seq_model=dendropy.model.discrete.Jc69(), rng=rng
     )
 
-    partials, weights = compress_alignment(dna)
+    partials, weights = compress_alignment_np(dna)
 
     # Get tip pair-wise distance
     dists = np.zeros((S, S))
@@ -222,7 +222,7 @@ def test_mcmc_wrap_nj():
         seq_len=L, tree_model=simtree, seq_model=dendropy.model.discrete.Jc69(), rng=rng
     )
 
-    partials, weights = compress_alignment(dna)
+    partials, weights = compress_alignment_np(dna)
 
     # Get tip pair-wise distance
     dists = np.zeros((S, S))

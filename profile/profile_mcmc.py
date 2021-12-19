@@ -1,3 +1,6 @@
+# To profile run using:
+# python3 -m cProfile -o profile/mcmc.profile ./profile/profile_mcmc.py
+
 import random
 
 import dendropy
@@ -5,7 +8,7 @@ import numpy as np
 from dendropy.model.discrete import simulate_discrete_chars
 from dendropy.simulate import treesim
 from dodonaphy.mcmc import DodonaphyMCMC as mcmc
-from dodonaphy.phylo import compress_alignment
+from dodonaphy.Cphylo import compress_alignment_np
 
 
 def test_mcmc_simple_nj():
@@ -35,7 +38,7 @@ def test_mcmc_simple_nj():
         seq_len=L, tree_model=simtree, seq_model=dendropy.model.discrete.Jc69(), rng=rng
     )
 
-    partials, weights = compress_alignment(dna)
+    partials, weights = compress_alignment_np(dna)
 
     # Get tip pair-wise distance
     dists = np.zeros((S, S))

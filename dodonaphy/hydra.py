@@ -1,7 +1,7 @@
 import math
 import warnings
 
-from dodonaphy import Cutils
+from dodonaphy import Chyperboloid_np
 import numpy as np
 import torch
 
@@ -199,7 +199,7 @@ def stress(r, directional, curvature, D):
     for i in range(n):
         for j in range(n):
             if i != j:
-                dist[i][j] = Cutils.hyperbolic_distance_np(
+                dist[i][j] = Chyperboloid_np.hyperbolic_distance(
                     r[i],
                     r[j],
                     directional[

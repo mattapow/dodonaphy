@@ -8,9 +8,8 @@ from torch.distributions.multivariate_normal import MultivariateNormal
 
 from dodonaphy import poincare
 
-from . import hyperboloid, peeler, Cutils
+from . import Chyperboloid, Chyperboloid_np, peeler, utils, Cphylo
 from . import tree as treeFunc
-from . import utils
 from .phylo import JC69_p_t, calculate_treelikelihood
 from .utils import LogDirPrior
 
@@ -29,6 +28,7 @@ class BaseModel(object):
         connector="nj",
         normalise_leaf=False,
         loss_fn="likelihood",
+        require_grad=True,
     ):
         self.partials = partials.copy()
         self.weights = weights
@@ -38,7 +38,10 @@ class BaseModel(object):
         self.bcount = 2 * self.S - 2
         self.soft_temp = soft_temp
         assert curvature <= 0
-        self.curvature = torch.tensor(curvature)
+        if require_grad:
+            self.curvature = torch.tensor(curvature)
+        else:
+            self.curvature = curvature
         self.epoch = 0
         assert embedder in ("wrap", "simple")
         self.embedder = embedder
@@ -48,16 +51,24 @@ class BaseModel(object):
         if self.connector in ("mst", "mst_choice"):
             self.internals_exist = True
         self.peel = np.zeros((self.S - 1, 3), dtype=int)
-        self.blens = torch.zeros(self.bcount, dtype=torch.double)
+        if require_grad:
+            self.blens = torch.zeros(self.bcount, dtype=torch.double)
+        else:
+            self.blens = np.zeros(self.bcount, dtype=np.double)
         self.normalise_leaf = normalise_leaf
         assert loss_fn in ("likelihood", "pair_likelihood", "hypHC")
         self.loss_fn = loss_fn
 
         # make space for internal partials
         for _ in range(self.S - 1):
-            self.partials.append(
-                torch.zeros((1, 4, self.L), dtype=torch.float64, requires_grad=False)
-            )
+            if require_grad:
+                self.partials.append(
+                    torch.zeros((1, 4, self.L), dtype=torch.float64, requires_grad=False)
+                )
+            else:
+                self.partials.append(
+                    torch.zeros((1, 4, self.L), dtype=torch.float64, requires_grad=False)
+                )
 
     def initialise_ints(self, emm_tips, n_grids=10, n_trials=10, max_scale=2):
         # try out some inner node positions and pick the best
@@ -70,8 +81,8 @@ class BaseModel(object):
             flush=True,
         )
 
-        leaf_r = torch.from_numpy(emm_tips["r"])
-        leaf_dir = torch.from_numpy(emm_tips["directional"])
+        leaf_r = emm_tips["r"]
+        leaf_dir = emm_tips["directional"]
         S = len(emm_tips["r"])
         scale = 0.5 * emm_tips["r"].min()
         ln_p = -math.inf
@@ -89,18 +100,18 @@ class BaseModel(object):
                 peel = peeler.make_peel_mst(
                     leaf_r,
                     leaf_dir,
-                    torch.from_numpy(_int_r),
-                    torch.from_numpy(_int_dir),
+                    _int_r,
+                    _int_dir,
                 )
-                blen = self.compute_branch_lengths(
+                blen = Cphylo.compute_branch_lengths_np(
                     self.S,
                     peel,
                     leaf_r,
                     leaf_dir,
-                    torch.from_numpy(_int_r),
-                    torch.from_numpy(_int_dir),
+                    _int_r,
+                    _int_dir,
                 )
-                _ln_p = self.compute_LL(peel, blen)
+                _ln_p = Cphylo.compute_LL_np(self.partials, self.weights, peel, blen)
 
                 if _ln_p > ln_p:
                     int_r = _int_r
@@ -172,12 +183,12 @@ class BaseModel(object):
 
                 if useNP:
                     hd = torch.tensor(
-                        Cutils.hyperbolic_distance_np(
+                        Chyperboloid_np.hyperbolic_distance(
                             r1, r2, directional1, directional2, curvature
                         )
                     )
                 else:
-                    hd = Cutils.hyperbolic_distance(
+                    hd = Chyperboloid.hyperbolic_distance(
                         r1, r2, directional1, directional2, curvature
                     )
 
@@ -341,17 +352,17 @@ class BaseModel(object):
         # internal nodes and peel for geodesics
         if self.connector == "geodesics":
             leaf_locs = leaf_r_prop.repeat((self.D, 1)).T * leaf_dir_prop
-            if leaf_locs.requires_grad:
+            if isinstance(leaf_locs, torch.Tensor):
                 peel, int_locs, blens = peeler.make_soft_peel_tips(
                     leaf_locs, connector="geodesics", curvature=self.curvature
                 )
             else:
-                peel, int_locs = peeler.make_peel_geodesic(leaf_locs)
+                peel, int_locs = peeler.make_hard_peel_geodesic(leaf_locs)
             int_r_prop, int_dir_prop = utils.cart_to_dir(int_locs)
 
         # get peels
         if self.connector == "nj":
-            pdm = Cutils.get_pdm_torch(
+            pdm = Chyperboloid.get_pdm_torch(
                 leaf_r_prop, leaf_dir_prop, curvature=self.curvature
             )
             if soft:
@@ -427,8 +438,8 @@ class BaseModel(object):
         n_vars = n_locs * self.D
         if self.embedder == "simple":
             # transform internals to R^n
-            loc_t0 = utils.ball2real(loc)
-            log_abs_det_jacobian = -Cutils.real2ball_LADJ(loc_t0)
+            loc_t0 = Chyperboloid.ball2real(loc)
+            log_abs_det_jacobian = -Chyperboloid.real2ball_LADJ(loc_t0)
 
             # flatten data to sample
             loc_t0 = loc_t0.reshape(n_vars)
@@ -440,11 +451,11 @@ class BaseModel(object):
             loc_t0 = sample.reshape((n_locs, self.D))
 
             # convert ints to poincare ball
-            loc_prop = utils.real2ball(loc_t0)
+            loc_prop = Chyperboloid.real2ball(loc_t0)
 
         elif self.embedder == "wrap":
             # transform ints to R^n
-            loc_t0, jacobian = hyperboloid.p2t0(loc, get_jacobian=True)
+            loc_t0, jacobian = Chyperboloid.p2t0(loc, get_jacobian=True)
             loc_t0 = loc_t0.clone()
             log_abs_det_jacobian = -jacobian
 
@@ -454,7 +465,7 @@ class BaseModel(object):
             )
             sample = normal_dist.rsample()
             log_Q = normal_dist.log_prob(sample)
-            loc_prop = hyperboloid.t02p(
+            loc_prop = Chyperboloid.t02p(
                 sample.reshape(n_locs, self.D),
                 loc_t0.reshape(n_locs, self.D),
             )
