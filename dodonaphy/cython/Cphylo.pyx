@@ -95,11 +95,11 @@ cpdef JC69_p_t(np.ndarray[np.double_t, ndim=1] branch_lengths):
     )
 
 cpdef compute_prior_gamma_dir_np(
-        blen,
-        aT=1.0,
-        bT=0.1,
-        a=1.0,
-        c=1.0,
+        np.ndarray[np.double_t, ndim=1] blen,
+        np.double_t aT=1.0,
+        np.double_t bT=0.1,
+        np.double_t a=1.0,
+        np.double_t c=1.0,
     ):
         """Compute prior under a gamma-Dirichlet(αT , βT , α, c) prior.
 
@@ -121,11 +121,11 @@ cpdef compute_prior_gamma_dir_np(
         Returns:
             tensor: The log probability of the branch lengths under the prior.
         """
-        n_branch = int(len(blen))
-        n_leaf = int(n_branch / 2 + 1)
+        cdef int n_branch = int(len(blen))
+        cdef int n_leaf = int(n_branch / 2 + 1)
 
         # Dirichlet prior
-        ln_prior = LogDirPrior(blen, aT, bT, a, c)
+        cdef np.double_t ln_prior = LogDirPrior(blen, aT, bT, a, c)
 
         # with prefactor
         lgamma = math.lgamma
@@ -139,29 +139,23 @@ cpdef compute_prior_gamma_dir_np(
         )
 
         # uniform prior on topologies
-        ln_prior = ln_prior - sum(np.log(np.arange(n_leaf * 2 - 5, 0, -2)))
+        ln_prior = ln_prior - np.sum(np.log(np.arange(n_leaf * 2 - 5, 0, -2)))
 
         return ln_prior
 
-cdef LogDirPrior(blen, aT, bT, a, c):
-
-    n_branch = int(len(blen))
-    n_leaf = int(n_branch / 2 + 1)
-
-    treeL = np.sum(blen)
-
-    blen[np.isclose(blen, 1.0)] = 1
-
-    tipb = sum(np.log(blen[:n_leaf]))
-    intb = sum(np.log(blen[n_leaf:]))
-
+cdef LogDirPrior(np.ndarray[np.double_t, ndim=1] blen, np.double_t aT, np.double_t bT, np.double_t a, np.double_t c):
+    cdef int n_branch = int(len(blen))
+    cdef int n_leaf = int(n_branch / 2 + 1)
+    cdef np.double_t eps = np.finfo(np.double).eps
+    cdef np.double_t treeL = np.maximum(np.sum(blen), eps)
+    cdef np.double_t tipb = np.sum(np.log(np.maximum(blen[:n_leaf], eps)))
+    cdef np.double_t intb = np.sum(np.log(np.maximum(blen[n_leaf:], eps)))
     lnPrior = (a - 1) * tipb + (a * c - 1) * intb
     lnPrior = (
         lnPrior
         + (aT - a * n_leaf - a * c * (n_leaf - 3)) * np.log(treeL)
         - bT * treeL
     )
-
     return lnPrior
 
 cpdef compute_branch_lengths_np(
