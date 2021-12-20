@@ -18,6 +18,8 @@ cimport numpy as np
 from dodonaphy import utils, Cutils
 from dodonaphy.edge import Edge
 
+cdef np.double_t eps = np.finfo(np.double).eps
+
 cdef class Cu_edge:
     
     cdef readonly double distance
@@ -32,7 +34,10 @@ cdef class Cu_edge:
     def __lt__(self, other):
         return self.distance < other.distance
 
-cpdef parallel_transport(xi, x, y):
+cpdef parallel_transport(
+    np.ndarray[np.double_t, ndim=1] xi,
+    np.ndarray[np.double_t, ndim=1] x,
+    np.ndarray[np.double_t, ndim=1] y):
     """Transport a vector from the tangent space at the x
     to the tangent space at y
 
@@ -53,12 +58,14 @@ cpdef parallel_transport(xi, x, y):
         1D tensor in tangent space at T_y.
 
     """
-    alpha = -lorentz_product(x, y)
-    coef = lorentz_product(y, xi) / (alpha + 1)
+    cdef np.double_t alpha = -lorentz_product(x, y)
+    cdef np.double_t coef = lorentz_product(y, xi) / (alpha + 1)
     return xi + coef * (x + y)
 
 
-cpdef exponential_map(np.ndarray[np.double_t, ndim=1] x, np.ndarray[np.double_t, ndim=1] v):
+cpdef exponential_map(
+    np.ndarray[np.double_t, ndim=1] x,
+    np.ndarray[np.double_t, ndim=1] v):
     """Exponential map
 
     Map a vector v on the tangent space T_x H^n onto the hyperboloid
@@ -93,8 +100,7 @@ cpdef exponential_map(np.ndarray[np.double_t, ndim=1] x, np.ndarray[np.double_t,
         Projection of v onto the hyperboloid.
 
     """
-    eps = np.finfo(np.double).eps
-    vnorm = np.sqrt(np.maximum(lorentz_product(v, v), eps))
+    cdef np.double_t vnorm = np.sqrt(np.maximum(lorentz_product(v, v), eps))
     return np.cosh(vnorm) * x + np.sinh(vnorm) * v / vnorm
 
 
@@ -109,10 +115,9 @@ cpdef exp_map_inverse(np.ndarray[np.double_t, ndim=1] z, np.ndarray[np.double_t,
         [type]: [description]
     """
 
-    eps = 1e-15
-    alpha = np.maximum(-lorentz_product(mu, z), 1+eps)
-    denom = np.sqrt(np.maximum(alpha ** 2 - 1, eps))
-    factor = np.arccosh(alpha) / (denom)
+    cdef np.double_t alpha = np.maximum(-lorentz_product(mu, z), 1+eps)
+    cdef np.double_t denom = np.sqrt(np.maximum(alpha ** 2 - 1, eps))
+    cdef np.double_t factor = np.arccosh(alpha) / (denom)
     return factor * (z - alpha * mu)
 
 
@@ -132,15 +137,15 @@ cpdef p2t0(np.ndarray[np.double_t, ndim=2] loc, mu=None, get_jacobian=False):
     Projection of location into the tangent space T_0H^n, which is R^n
 
     """
-    vec_hyp = poincare_to_hyper_2d(loc)
+    cdef np.ndarray[np.double_t, ndim=2] vec_hyp = poincare_to_hyper_2d(loc)
     if mu is None:
         mu = np.zeros_like(loc)
         mu = up_to_hyper(mu)
     n_loc, dim = np.shape(loc)
-    zero = np.zeros((dim + 1), dtype=np.double)
+    cdef np.ndarray[np.double_t, ndim=1] zero = np.zeros((dim + 1), dtype=np.double)
     zero[0] = 1
 
-    out = np.zeros_like(loc)
+    cdef np.ndarray[np.double_t, ndim=2] out = np.zeros_like(loc)
     for i in range(n_loc):
         vec_t0_mu = exp_map_inverse(vec_hyp[i, :], mu[i, :])
         vec_t0_0 = parallel_transport(vec_t0_mu, mu[i, :], zero)
@@ -152,7 +157,7 @@ cpdef p2t0(np.ndarray[np.double_t, ndim=2] loc, mu=None, get_jacobian=False):
     return out
 
 
-cpdef t02p(x, mu=None, get_jacobian=False):
+cpdef t02p(np.ndarray[np.double_t, ndim=2] x, mu=None, get_jacobian=False):
     """Transform a vector x in Euclidean space to the Poincare disk.
 
     Take a vector in the tangent space of a hyperboloid at the origin, project it
@@ -173,14 +178,15 @@ cpdef t02p(x, mu=None, get_jacobian=False):
     Transformed vector x, from tangent plane to Poincare ball
 
     """
-    n_loc, dim = x.shape
+    n_loc = x.shape[0]
+    dim = x.shape[1]
 
     if mu is None:
         mu = np.zeros_like(x)
 
-    x_poin = np.zeros_like(x)
-    mu_hyp = up_to_hyper(mu)
-    jacobian = np.zeros(1)
+    cdef np.ndarray[np.double_t, ndim=2] x_poin = np.zeros_like(x)
+    cdef np.ndarray[np.double_t, ndim=2] mu_hyp = up_to_hyper(mu)
+    cdef np.double_t jacobian = np.zeros(1)
     for i in range(n_loc):
         x_hyp = tangent_to_hyper(mu_hyp[i, :], x[i, :], dim)
         x_poin[i, :] = hyper_to_poincare(x_hyp)
@@ -194,7 +200,7 @@ cpdef t02p(x, mu=None, get_jacobian=False):
         return x_poin
 
 
-cpdef tangent_to_hyper(mu, v_tilde, dim):
+cpdef tangent_to_hyper(np.ndarray[np.double_t, ndim=1] mu, np.ndarray[np.double_t, ndim=1] v_tilde, np.int_t dim):
     """Project a vector onto the hyperboloid
 
     Project a vector from the origin, v_tilde, in the tangent space at the origin T_0 H^n
@@ -211,15 +217,14 @@ cpdef tangent_to_hyper(mu, v_tilde, dim):
     A point in R^dim+1 on the hyperboloid
 
     """
-    mu_dbl = mu.astype(np.double)
-    mu0_dbl = np.concatenate(([1.0], np.zeros(dim, dtype=np.double)))
-    v = np.concatenate(([1.0], np.squeeze(v_tilde))).astype(np.double)
-    u = parallel_transport(v, mu0_dbl, mu_dbl)
-    z = exponential_map(mu_dbl, u)
+    cdef np.ndarray[np.double_t, ndim=1] mu0 = np.concatenate(([1.0], np.zeros(dim, dtype=np.double)))
+    cdef np.ndarray[np.double_t, ndim=1] v = np.concatenate(([1.0], np.squeeze(v_tilde))).astype(np.double)
+    cdef np.ndarray[np.double_t, ndim=1] u = parallel_transport(v, mu0, mu)
+    cdef np.ndarray[np.double_t, ndim=1] z = exponential_map(mu, u)
     return z
 
 
-cpdef tangent_to_hyper_jacobian(mu, v_tilde, dim):
+cpdef tangent_to_hyper_jacobian(np.ndarray[np.double_t, ndim=1] mu, np.ndarray[np.double_t, ndim=1] v_tilde, np.int_t dim):
     """Return log absolute of determinate of jacobian for tangent_to_hyper
 
     Args:
@@ -230,11 +235,11 @@ cpdef tangent_to_hyper_jacobian(mu, v_tilde, dim):
     Returns:
         Scalar tensor: [description]
     """
-    r = np.linalg.norm(v_tilde)
+    cdef np.double_t r = np.linalg.norm(v_tilde)
     return np.log(np.power(np.divide(np.sinh(r), r), dim - 1))
 
 
-cpdef hyper_to_poincare(location):
+cpdef hyper_to_poincare(np.ndarray[np.double_t, ndim=1] location):
     """
     Take stereographic projection from H^n Hyperboloid in R^n+1 onto the
     Poincare ball H^n in R^n
@@ -250,19 +255,19 @@ cpdef hyper_to_poincare(location):
         A 1D tensor corresponding to a point in the Poincare ball in R^n.
 
     """
-    dim = location.shape[0] - 1
-    out = np.zeros(dim)
+    cdef np.int_t dim = location.shape[0] - 1
+    cdef np.ndarray[np.double_t, ndim=1] out = np.zeros(dim)
     for i in range(dim):
         out[i] = location[i + 1] / (1 + location[0])
     return out
 
 
-cpdef hyper_to_poincare_jacobian(location):
-    dim = location.shape[0]
+cpdef hyper_to_poincare_jacobian(np.ndarray[np.double_t, ndim=1] location):
+    cdef np.int_t dim = location.shape[0]
 
-    a = 1 + location[0]
-    norm = np.sum(np.power(location[1:], 2))
-    det = np.divide(np.power(a, 2) + norm, np.power(a, 2 * (dim + 1)))
+    cdef np.double_t a = 1 + location[0]
+    cdef np.double_t norm = np.sum(np.power(location[1:], 2))
+    cdef np.double_t det = np.divide(np.power(a, 2) + norm, np.power(a, 2 * (dim + 1)))
 
     # compute Jacobian matrix then get determinant
     # J = np.zeros((dim-1, dim))
@@ -296,8 +301,12 @@ cpdef up_to_hyper(loc):
         return np.concatenate((z, loc), axis=1)
 
 
-cpdef hyperbolic_distance(double r1, double r2, np.ndarray[np.double_t, ndim=1] directional1,
-                            np.ndarray[np.double_t, ndim=1] directional2, double curvature):
+cpdef hyperbolic_distance(
+    double r1,
+    double r2,
+    np.ndarray[np.double_t, ndim=1] directional1,
+    np.ndarray[np.double_t, ndim=1] directional2,
+    np.double_t curvature):
     """Generates hyperbolic distance between two points in poincoire ball
 
     Args:
@@ -313,14 +322,16 @@ cpdef hyperbolic_distance(double r1, double r2, np.ndarray[np.double_t, ndim=1] 
     assert curvature < 0
 
     # Use lorentz distance for numerical stability
-    cdef double eps = 0.0000000000000003
     cdef np.ndarray[np.double_t, ndim=1] z1 = poincare_to_hyper(Cutils.dir_to_cart_np(r1, directional1))
     cdef np.ndarray[np.double_t, ndim=1] z2 = poincare_to_hyper(Cutils.dir_to_cart_np(r2, directional2))
     cdef double inner = np.maximum(-lorentz_product(z1, z2), 1+eps)
     return 1. / np.sqrt(-curvature) * np.arccosh(inner)
 
 
-cpdef hyperbolic_distance_lorentz(x1, x2, curvature=-1.0):
+cpdef hyperbolic_distance_lorentz(
+    np.ndarray[np.double_t, ndim=1] x1,
+    np.ndarray[np.double_t, ndim=1]x2,
+    np.double_t curvature=-1.0):
     """Generates hyperbolic distance between two points in poincare ball.
     Project onto hyperboloid and compute using Lorentz product.
 
@@ -331,13 +342,14 @@ cpdef hyperbolic_distance_lorentz(x1, x2, curvature=-1.0):
     if np.isclose(curvature, 0.0):
         return np.linalg.norm(x2-x1)
 
-    z1 = poincare_to_hyper(x1)
-    z2 = poincare_to_hyper(x2)
-    eps = np.finfo(np.float64).eps
-    inner = np.maximum(-lorentz_product(z1, z2), 1.+eps)
+    cdef np.ndarray[np.double_t, ndim=1] z1 = poincare_to_hyper(x1)
+    cdef np.ndarray[np.double_t, ndim=1] z2 = poincare_to_hyper(x2)
+    cdef np.double_t inner = np.maximum(-lorentz_product(z1, z2), 1.+eps)
     return 1. / np.sqrt(-curvature) * np.arccosh(inner)
 
-cdef lorentz_product(np.ndarray[np.double_t, ndim=1] x, np.ndarray[np.double_t, ndim=1] y):
+cdef lorentz_product(
+    np.ndarray[np.double_t, ndim=1] x,
+    np.ndarray[np.double_t, ndim=1] y):
     """
     The lorentzian product of x and y
 
@@ -371,7 +383,6 @@ cdef poincare_to_hyper_2d(np.ndarray[np.double_t, ndim=2] location):
     -------
 
     """
-    cdef np.double_t eps = 0.0000000000000003
     cdef np.int_t n_points = location.shape[0]
     cdef np.int_t dim = location.shape[1]
     cdef np.ndarray[np.double_t, ndim=2] out = np.zeros((n_points, dim + 1))
@@ -393,7 +404,6 @@ cdef poincare_to_hyper(np.ndarray[np.double_t, ndim=1] location):
     -------
 
     """
-    cdef np.double_t eps = 0.0000000000000003
     cdef np.int_t dim = location.shape[0]
     cdef np.ndarray[np.double_t, ndim=1] out = np.zeros(dim + 1)
     cdef np.ndarray[np.double_t, ndim=1] a = np.power(location[:], 2)
@@ -501,22 +511,21 @@ cpdef get_pdm(
     Returns:
         ndarray: distance between point 1 and point 2
     """
-    DTYPE=np.double
-    cdef int leaf_node_count = leaf_r.shape[0]
-    cdef int int_node_count = 0
+    cdef np.int_t leaf_node_count = leaf_r.shape[0]
+    cdef np.int_t int_node_count = 0
     if int_r is None:
         int_r = np.ndarray((0))
         int_dir = np.ndarray((0, 0))
     else:
         int_node_count = int_r.shape[0]
 
-    cdef int node_count = leaf_node_count + int_node_count
+    cdef np.int_t node_count = leaf_node_count + int_node_count
 
     # return array if pairwise distance if asNumpy
     cdef asNumpy = dtype == 'numpy'
     cdef np.ndarray[np.double_t, ndim=2] pdm_np = np.zeros((node_count*asNumpy, node_count*asNumpy))
 
-    if np.isclose(curvature, np.zeros(1).astype(DTYPE)):
+    if np.isclose(curvature, np.zeros(1, dtype=np.double)):
         # Euclidean distance
         X = leaf_r[0] * leaf_dir
         for i in range(X.shape[0]):
@@ -532,8 +541,10 @@ cpdef get_pdm(
         for i in range(node_count):
             pdm_dict[i] = list()
 
-    cdef double dist_ij = 0
-    cdef int i_node
+    cdef np.double_t dist_ij = 0
+    cdef np.int_t i_node
+    cdef np.int_t j_node
+
     for i in range(node_count):
         for j in range(i + 1, node_count):
             if i < leaf_node_count and j >= leaf_node_count and int_r is not None:

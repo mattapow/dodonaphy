@@ -187,9 +187,10 @@ def test_nj_uneven():
     peel_check = []
     peel_check.append(np.allclose(peel, [[2, 3, 4], [0, 4, 5], [1, 5, 6]]))
     peel_check.append(np.allclose(peel, [[3, 2, 4], [0, 4, 5], [1, 5, 6]]))
+    peel_check.append(np.allclose(peel, [[0, 1, 4], [4, 2, 5], [5, 3, 6]]))
     assert sum(
         peel_check
-    ), "Wrong topology. NB. non-exhaustive check of correct topologies."
+    ), f"Wrong topology. NB. non-exhaustive check of correct topologies. Peel: {peel}"
 
 
 def test_compute_Q():

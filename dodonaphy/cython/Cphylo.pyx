@@ -4,6 +4,8 @@ cimport numpy as np
 from .Chyperboloid_np import hyperbolic_distance
 from collections import Counter
 
+cdef double eps = np.finfo(np.double).eps
+
 def compress_alignment_np(alignment):
     sequences = [str(sequence) for sequence in alignment.sequences()]
     taxa = alignment.taxon_namespace.labels()
@@ -87,9 +89,9 @@ cpdef calculate_treelikelihood(
 
 
 cpdef JC69_p_t(np.ndarray[np.double_t, ndim=1] branch_lengths):
-    d = np.expand_dims(branch_lengths, axis=1)
-    a = 0.25 + 3.0 / 4.0 * np.exp(-4.0 / 3.0 * d)
-    b = 0.25 - 0.25 * np.exp(-4.0 / 3.0 * d)
+    cdef np.ndarray[np.double_t, ndim=2] d = np.expand_dims(branch_lengths, axis=1)
+    cdef np.ndarray[np.double_t, ndim=2] a = 0.25 + 3.0 / 4.0 * np.exp(-4.0 / 3.0 * d)
+    cdef np.ndarray[np.double_t, ndim=2] b = 0.25 - 0.25 * np.exp(-4.0 / 3.0 * d)
     return np.concatenate((a, b, b, b, b, a, b, b, b, b, a, b, b, b, b, a), -1).reshape(
         d.shape[0], d.shape[1], 4, 4
     )
@@ -146,7 +148,6 @@ cpdef compute_prior_gamma_dir_np(
 cdef LogDirPrior(np.ndarray[np.double_t, ndim=1] blen, np.double_t aT, np.double_t bT, np.double_t a, np.double_t c):
     cdef int n_branch = int(len(blen))
     cdef int n_leaf = int(n_branch / 2 + 1)
-    cdef np.double_t eps = np.finfo(np.double).eps
     cdef np.double_t treeL = np.maximum(np.sum(blen), eps)
     cdef np.double_t tipb = np.sum(np.log(np.maximum(blen[:n_leaf], eps)))
     cdef np.double_t intb = np.sum(np.log(np.maximum(blen[n_leaf:], eps)))
@@ -159,7 +160,13 @@ cdef LogDirPrior(np.ndarray[np.double_t, ndim=1] blen, np.double_t aT, np.double
     return lnPrior
 
 cpdef compute_branch_lengths_np(
-        S, peel, leaf_r, leaf_dir, int_r, int_dir, curvature=-1.0
+        np.int_t S,
+        np.ndarray[np.int_t, ndim=2] peel,
+        np.ndarray[np.double_t, ndim=1] leaf_r,
+        np.ndarray[np.double_t, ndim=2] leaf_dir,
+        int_r,
+        int_dir,
+        np.double_t curvature=-1.0
     ):
         """Computes the hyperbolic distance of two points given in radial/directional coordinates in the Poincare ball
 
@@ -175,10 +182,8 @@ cpdef compute_branch_lengths_np(
         Returns:
             [type]: [description]
         """
-        DTYPE = np.double
-        bcount = 2 * S - 2
-        blens = np.empty(bcount, dtype=np.float64)
-        cdef double eps = np.finfo(np.double).eps
+        cdef np.int_t bcount = 2 * S - 2
+        cdef np.ndarray[np.double_t, ndim=1] blens = np.empty(bcount, dtype=np.double)
 
         for b in range(S - 1):
             directional2 = int_dir[

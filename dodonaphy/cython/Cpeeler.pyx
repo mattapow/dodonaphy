@@ -62,10 +62,10 @@ cdef compute_Q(
     Returns:
         [type]: [description]
     """
-    n_pdm = len(pdm)
+    cdef np.int_t n_pdm = len(pdm)
     if mask is False:
         mask = np.full((n_pdm,), False)
-    n_active = sum(~mask)
+    cdef np.int_t n_active = np.sum(~mask)
 
     cdef np.ndarray[np.uint8_t, ndim=1] mask_invert = np.invert(mask)
     cdef np.ndarray[np.uint8_t, ndim=2] mask_2d = np.invert(np.outer(mask_invert, mask_invert))
