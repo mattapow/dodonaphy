@@ -489,6 +489,27 @@ cpdef get_pdm_tips(leaf_r, leaf_dir, curvature=-1.0):
             edge_list[j].append(Edge(dist_ij, j, i))
 
     return edge_list
+  
+cpdef get_pdm_tips_np(
+    np.ndarray[np.double_t, ndim=1] leaf_r,
+    np.ndarray[np.double_t, ndim=2] leaf_dir,
+    np.double_t curvature=-1.0):
+    
+    cdef np.int_t leaf_node_count = leaf_r.shape[0]
+    cdef np.ndarray[np.double_t, ndim=2] edge_adj = np.zeros((leaf_node_count, leaf_node_count))
+    cdef np.double_t dist_ij
+
+    for i in range(leaf_node_count):
+        for j in range(i):
+            dist_ij = hyperbolic_distance(leaf_r[i], leaf_r[j], leaf_dir[i], leaf_dir[j], curvature)
+
+            # apply the inverse transform from Matsumoto et al 2020
+            dist_ij = np.log(np.cosh(dist_ij))
+
+            edge_adj[i, j] = dist_ij
+            edge_adj[i, j] = dist_ij
+
+    return edge_adj
 
 cpdef get_pdm(
     np.ndarray[np.double_t, ndim=1] leaf_r,
@@ -541,7 +562,7 @@ cpdef get_pdm(
         for i in range(node_count):
             pdm_dict[i] = list()
 
-    cdef np.double_t dist_ij = 0
+    cdef np.double_t dist_ij = 0.0
     cdef np.int_t i_node
     cdef np.int_t j_node
 

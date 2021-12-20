@@ -39,9 +39,9 @@ cpdef nj_np(np.ndarray[np.double_t, ndim=2] pdm):
         blens[node_map[right]] = np.maximum(dist_lr - dist_pl, eps)
 
         # replace right by dist_p in the pdm
-        pdm = np.vstack((pdm[:right, :], dist_p, pdm[right + 1 :, :]))
-        pdm = np.hstack(
-            (pdm[:, :right], np.expand_dims(dist_p, -1), pdm[:, right + 1 :])
+        pdm = np.concatenate((pdm[:right, :], np.expand_dims(dist_p, 0), pdm[right + 1 :, :]), axis=0)
+        pdm = np.concatenate(
+            (pdm[:, :right], np.expand_dims(dist_p, -1), pdm[:, right + 1 :]), axis=1
         )
         node_map[right] = parent
         mask[left] = True

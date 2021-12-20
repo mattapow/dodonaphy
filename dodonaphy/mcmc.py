@@ -268,8 +268,8 @@ class Chain(BaseModel):
         )
 
         if connector == "nj":
-            pdm = Chyperboloid_np.get_pdm(
-                leaf_r_prop, leaf_dir_prop, curvature=curvature, dtype="numpy"
+            pdm = Chyperboloid_np.get_pdm_tips_np(
+                leaf_r_prop, leaf_dir_prop, curvature=curvature
             )
             peel, blens = Cpeeler.nj_np(pdm)
         elif connector == "geodesics":

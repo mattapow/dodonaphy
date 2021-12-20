@@ -227,7 +227,7 @@ def test_nj_soft():
 
     pdm = Chyperboloid.get_pdm_torch(leaf_r, leaf_dir)
     pdm.requires_grad = True
-    for i in range(100):
+    for i in range(10):
         peel, blens = peeler.nj(pdm, tau=1e-7)
 
         peel_check = []
@@ -284,7 +284,7 @@ def test_soft_nj_knownQ():
     pdm[3, 4] = 3.0
     pdm = pdm + pdm.T
 
-    for i in range(100):
+    for i in range(10):
         peel, blens = peeler.nj(pdm, tau=1e-5)
         peel_check = []
         peel_check.append(
@@ -396,7 +396,7 @@ def test_soft_geodesic1():
     leaf_theta = torch.tensor([np.pi * 0.2, 0, np.pi, -np.pi * 0.9])
     leaf_dir = utils.angle_to_directional(leaf_theta)
     leaf_locs = utils.dir_to_cart(leaf_r, leaf_dir).requires_grad_(True)
-    for i in range(100):
+    for i in range(10):
         peel, int_locs, blens = peeler.make_soft_peel_tips(
             leaf_locs, connector="geodesics", curvature=-torch.ones(1)
         )

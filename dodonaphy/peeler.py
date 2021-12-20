@@ -159,9 +159,13 @@ def make_peel_mst(
     node_count = leaf_r.shape[0] + int_r.shape[0]
     if isinstance(leaf_r, torch.Tensor):
         leaf_r = leaf_r.detach().numpy().astype(np.double),
+        leaf_r = leaf_r[0]
         leaf_dir = leaf_dir.detach().numpy().astype(np.double),
+        leaf_dir = leaf_dir[0]
         int_r = int_r.detach().numpy().astype(np.double),
+        int_r = int_r[0]
         int_dir = int_dir.detach().numpy().astype(np.double),
+        int_dir = int_dir[0]
     edge_list = Chyperboloid_np.get_pdm(
         leaf_r,
         leaf_dir,
