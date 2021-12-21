@@ -506,8 +506,7 @@ cpdef get_pdm_tips_np(
             # apply the inverse transform from Matsumoto et al 2020
             dist_ij = np.log(np.cosh(dist_ij))
 
-            edge_adj[i, j] = dist_ij
-            edge_adj[i, j] = dist_ij
+            edge_adj[i, j] = edge_adj[j, i] = dist_ij
 
     return edge_adj
 
