@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import seaborn as sns
 import torch
-from dodonaphy import hyperboloid, peeler, tree, utils
+from dodonaphy import Chyperboloid, peeler, tree, utils
 from dodonaphy.vi import read
 from numpy.random import multivariate_normal
 
@@ -70,8 +70,8 @@ if connector == "mst":
             y = data_poin[:, 1]
             mu = utils.real2ball(torch.from_numpy(loc), D)
         elif embedder == "wrap":
-            x = hyperboloid.t02p(torch.tensor(data[:, 0]), D)
-            y = hyperboloid.t02p(torch.tensor(data[:, 1]), D)
+            x = Chyperboloid.t02p(torch.tensor(data[:, 0]), D)
+            y = Chyperboloid.t02p(torch.tensor(data[:, 1]), D)
 
         sns.kdeplot(x=x, y=y, ax=ax, color=cmap((S + node) / N))
         # ax.annotate('%s' % str(S+node+1), xy=(float(np.mean(x)), float(np.mean(y))), xycoords='data')

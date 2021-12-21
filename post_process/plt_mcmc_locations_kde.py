@@ -47,7 +47,7 @@ for i in range(S):
 
 # plot tree of mean points
 if isGeodesics:
-    peel, int_poin = peeler.make_peel_geodesic(torch.from_numpy(leaf_poin))
+    peel, int_poin = peeler.make_hard_peel_geodesic(torch.from_numpy(leaf_poin))
     X = np.concatenate((leaf_poin, int_poin))
 else:
     int_poin = np.zeros((S-2, D))

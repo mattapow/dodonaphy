@@ -4,7 +4,7 @@ from heapq import heapify, heappop, heappush
 import numpy as np
 import torch
 
-from . import poincare, tree, utils, Cutils
+from . import poincare, tree, utils, Cpeeler, Chyperboloid_np
 from .edge import Edge
 
 
@@ -27,7 +27,7 @@ def make_soft_peel_tips(leaf_locs, connector="geodesics", curvature=-torch.ones(
 
     int_locs = torch.zeros(int_node_count + 1, dims, dtype=torch.double)
     leaf_locs = leaf_locs.double()
-    peel = np.zeros((int_node_count + 1, 3), dtype=np.int16)
+    peel = np.zeros((int_node_count + 1, 3), dtype=int)
     blens = torch.zeros(node_count, dtype=torch.double)
     mask = torch.tensor(leaf_node_count * [False])
     node_map = torch.arange(leaf_node_count)
@@ -65,7 +65,7 @@ def make_soft_peel_tips(leaf_locs, connector="geodesics", curvature=-torch.ones(
     return peel, int_locs, blens
 
 
-def make_peel_geodesic(leaf_locs):
+def make_hard_peel_geodesic(leaf_locs):
     """Generate a tree recursively using th closest two points.
     Curvature must be -1.0
 
@@ -80,14 +80,15 @@ def make_peel_geodesic(leaf_locs):
     int_node_count = leaf_locs.shape[0] - 2
     node_count = leaf_locs.shape[0] * 2 - 2
 
-    edge_list = utils.get_plca(leaf_locs)
+    print(type(leaf_locs))
+    edge_list = utils.get_plca_np(leaf_locs, as_numpy=False)
+    print(type(edge_list))
     for node in edge_list:
         for edge in node:
             edge.distance = -edge.distance
 
-    int_locs = torch.zeros(int_node_count + 1, dims, dtype=torch.double)
-    leaf_locs = leaf_locs.double()
-    peel = np.zeros((int_node_count + 1, 3), dtype=np.int16)
+    int_locs = np.zeros((int_node_count + 1, dims), dtype=np.double)
+    peel = np.zeros((int_node_count + 1, 3), dtype=int)
     visited = node_count * [False]
 
     queue = []
@@ -114,7 +115,7 @@ def make_peel_geodesic(leaf_locs):
         else:
             to_point = int_locs[e.to_ - leaf_node_count]
 
-        int_locs[int_i] = poincare.hyp_lca(from_point, to_point)
+        int_locs[int_i] = poincare.hyp_lca_np(from_point, to_point)
 
         peel[int_i][0] = e.from_
         peel[int_i][1] = e.to_
@@ -127,17 +128,17 @@ def make_peel_geodesic(leaf_locs):
             if visited[i]:
                 continue
             if i < leaf_node_count:
-                dist_ij = -poincare.hyp_lca(
+                dist_ij = -poincare.hyp_lca_np(
                     leaf_locs[i], int_locs[int_i], return_coord=False
                 )
             else:
-                dist_ij = -poincare.hyp_lca(
+                dist_ij = -poincare.hyp_lca_np(
                     int_locs[i - leaf_node_count],
                     int_locs[int_i],
                     return_coord=False,
                 )
             # apply the inverse transform from Matsumoto et al 2020
-            dist_ij = torch.log(torch.cosh(dist_ij))
+            dist_ij = np.log(np.cosh(dist_ij))
             heappush(queue, Edge(dist_ij, i, cur_internal))
         int_i += 1
     return peel, int_locs
@@ -156,8 +157,22 @@ def make_peel_mst(
     """
     leaf_node_count = leaf_r.shape[0]
     node_count = leaf_r.shape[0] + int_r.shape[0]
-    edge_list = Cutils.get_pdm_np(
-        leaf_r, leaf_dir, int_r, int_dir, curvature=curvature, dtype="dict"
+    if isinstance(leaf_r, torch.Tensor):
+        leaf_r = leaf_r.detach().numpy().astype(np.double),
+        leaf_r = leaf_r[0]
+        leaf_dir = leaf_dir.detach().numpy().astype(np.double),
+        leaf_dir = leaf_dir[0]
+        int_r = int_r.detach().numpy().astype(np.double),
+        int_r = int_r[0]
+        int_dir = int_dir.detach().numpy().astype(np.double),
+        int_dir = int_dir[0]
+    edge_list = Chyperboloid_np.get_pdm(
+        leaf_r,
+        leaf_dir,
+        int_r,
+        int_dir,
+        curvature=curvature,
+        dtype="dict",
     )
 
     # queue here is a min-heap
@@ -225,7 +240,7 @@ def make_peel_mst(
     visited = (node_count + 1) * [False]  # all nodes + the fake root
     tree.post_order_traversal(adjacency, fake_root, peel, visited)
 
-    return np.array(peel, dtype=np.intc)
+    return np.array(peel, dtype=int)
 
 
 def get_start_edge(start_node, edge_list, node_count, leaf_node_count):
@@ -402,6 +417,8 @@ def nj(pdm, tau=None):
     Returns:
         tuple: (peel, blens)
     """
+    if tau is None:
+        return Cpeeler.nj_np(pdm)
     leaf_node_count = len(pdm)
     node_count = 2 * leaf_node_count - 2
     eps = torch.finfo(torch.double).eps

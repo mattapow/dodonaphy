@@ -3,7 +3,7 @@
 import matplotlib.pyplot as plt
 import seaborn as sns
 import torch
-from dodonaphy import hyperboloid, utils
+from dodonaphy import Chyperboloid, utils
 from matplotlib.patches import Circle
 from torch.distributions.multivariate_normal import MultivariateNormal
 
@@ -16,20 +16,20 @@ sample_shape = torch.Size([n_sample])
 _, ax = plt.subplots(1, 2, sharey=True, sharex=True)
 
 # simple
-loc = utils.ball2real(loc_og, radius=2.).squeeze()
+loc = Chyperboloid.ball2real(loc_og, radius=2.).squeeze()
 normal_dist = MultivariateNormal(loc, cov)
 sample = normal_dist.sample(sample_shape)
-loc_poin_simple = utils.real2ball(sample, radius=2.)
+loc_poin_simple = Chyperboloid.real2ball(sample, radius=2.)
 sns.kdeplot(ax=ax[0], x=loc_poin_simple[:, 0], y=loc_poin_simple[:, 1],
             fill=True, levels=100)
 # ax[0].plot(loc_poin_simple[:, 0], loc_poin_simple[:, 1], 'r.', ms=.3)
 ax[0].set_title("Simple")
 
 # wrap
-loc = hyperboloid.p2t0(loc_og)
+loc = Chyperboloid.p2t0(loc_og)
 normal_dist = MultivariateNormal(zero, cov)
 sample = normal_dist.sample(sample_shape)
-loc_poin_wrap = hyperboloid.t02p(sample, mu=loc.T.repeat((n_sample, 1)))
+loc_poin_wrap = Chyperboloid.t02p(sample, mu=loc.T.repeat((n_sample, 1)))
 sns.kdeplot(ax=ax[1], x=loc_poin_wrap[:, 0], y=loc_poin_wrap[:, 1],
             fill=True, levels=100)
 # ax[1].plot(loc_poin_wrap[:, 0], loc_poin_wrap[:, 1], 'r.', ms=.3)

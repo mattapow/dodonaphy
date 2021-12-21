@@ -20,7 +20,7 @@ def test_draws_different_vi_simple_geodesics():
     )
     partials, weights = compress_alignment(dna)
     mymod = DodonaphyVI(
-        partials, weights, dim=2, embedder="simple", connector="geodesics"
+        partials, weights, dim=2, embedder="simple", connector="geodesics", soft_temp=1e-8
     )
 
     mymod.learn(epochs=2, path_write=None)
@@ -49,7 +49,7 @@ def test_draws_different_vi_simple_nj():
     )
 
     partials, weights = compress_alignment(dna)
-    mymod = DodonaphyVI(partials, weights, dim, embedder="simple", connector="nj")
+    mymod = DodonaphyVI(partials, weights, dim, embedder="simple", connector="nj", soft_temp=1e-8)
     mymod.learn(epochs=2, path_write=None)
 
     # draw

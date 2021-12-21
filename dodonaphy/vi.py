@@ -164,7 +164,7 @@ class DodonaphyVI(BaseModel):
             sample = self.sample(leaf_loc, leaf_cov)
 
         # if self.connector == "mst":
-        #     pdm = Cutils.get_pdm_torch(
+        #     pdm = Chyperboloid.get_pdm_torch(
         #         sample["leaf_r"].repeat(self.S),
         #         sample["leaf_dir"],
         #         sample["int_r"],
@@ -172,7 +172,7 @@ class DodonaphyVI(BaseModel):
         #         curvature=self.curvature,
         #     )
         # else:
-        #     pdm = Cutils.get_pdm_torch(
+        #     pdm = Chyperboloid.get_pdm_torch(
         #         sample["leaf_r"].repeat(self.S),
         #         sample["leaf_dir"],
         #         curvature=self.curvature,
