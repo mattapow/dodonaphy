@@ -81,8 +81,8 @@ class Chain(BaseModel):
 
     def set_probability(self):
         """Initialise likelihood and prior values of embedding"""
-        pdm = Chyperboloid_np.get_pdm(
-            self.leaf_r, self.leaf_dir, curvature=self.curvature, dtype="numpy"
+        pdm = Chyperboloid_np.get_pdm_tips_np(
+            self.leaf_r, self.leaf_dir, curvature=self.curvature
         )
         if self.connector == "geodesics":
             loc_poin = self.leaf_dir * np.tile(self.leaf_r, (self.D, 1)).T
