@@ -5,56 +5,56 @@ import numpy as np
 from dendropy.model.discrete import simulate_discrete_chars
 from dendropy.simulate import treesim
 from dodonaphy.mcmc import DodonaphyMCMC as mcmc
-from dodonaphy.Cphylo import compress_alignment_np
+from dodonaphy.phylo import compress_alignment
 from dodonaphy.utils import tip_distances
 
 
-# def test_mcmc_mst():
-#     # Simulation parameters
-#     dim = 2  # number of dimensions for embedding
-#     S = 6  # number of sequences to simulate
-#     L = 1000  # length of sequences to simulate
-#     prior = {"birth_rate": 2.0, "death_rate": 0.5}
+def test_mcmc_mst():
+    # Simulation parameters
+    dim = 2  # number of dimensions for embedding
+    S = 6  # number of sequences to simulate
+    L = 1000  # length of sequences to simulate
+    prior = {"birth_rate": 2.0, "death_rate": 0.5}
 
-#     # MCMC parameters
-#     step_scale = 0.1
-#     n_chains = 1
-#     connector = "mst"  # 'geodesics' or 'mst'
-#     burnin = 0
-#     epochs = 1
+    # MCMC parameters
+    step_scale = 0.1
+    n_chains = 1
+    connector = "mst"  # 'geodesics' or 'mst'
+    burnin = 0
+    epochs = 1
 
-#     # simulate a tree
-#     rng = random.Random(1)
-#     simtree = treesim.birth_death_tree(
-#         birth_rate=prior["birth_rate"],
-#         death_rate=prior["death_rate"],
-#         num_extant_tips=S,
-#         rng=rng,
-#     )
-#     dna = simulate_discrete_chars(
-#         seq_len=L, tree_model=simtree, seq_model=dendropy.model.discrete.Jc69(), rng=rng
-#     )
+    # simulate a tree
+    rng = random.Random(1)
+    simtree = treesim.birth_death_tree(
+        birth_rate=prior["birth_rate"],
+        death_rate=prior["death_rate"],
+        num_extant_tips=S,
+        rng=rng,
+    )
+    dna = simulate_discrete_chars(
+        seq_len=L, tree_model=simtree, seq_model=dendropy.model.discrete.Jc69(), rng=rng
+    )
 
-#     partials, weights = compress_alignment_np(dna)
+    partials, weights = compress_alignment(dna)
 
-#     dists = tip_distances(simtree, S)
+    dists = tip_distances(simtree, S)
 
-#     # Run Dodoanphy MCMC
-#     path_write_mcmc = None
-#     mcmc.run(
-#         dim,
-#         partials[:],
-#         weights,
-#         dists,
-#         path_write_mcmc,
-#         epochs=epochs,
-#         step_scale=step_scale,
-#         burnin=burnin,
-#         n_grids=1,
-#         n_trials=1,
-#         n_chains=n_chains,
-#         connector=connector,
-#     )
+    # Run Dodoanphy MCMC
+    path_write_mcmc = None
+    mcmc.run(
+        dim,
+        partials[:],
+        weights,
+        dists,
+        path_write_mcmc,
+        epochs=epochs,
+        step_scale=step_scale,
+        burnin=burnin,
+        n_grids=1,
+        n_trials=1,
+        n_chains=n_chains,
+        connector=connector,
+    )
 
 
 def test_mcmc_geodesics():
@@ -83,7 +83,7 @@ def test_mcmc_geodesics():
         seq_len=L, tree_model=simtree, seq_model=dendropy.model.discrete.Jc69(), rng=rng
     )
 
-    partials, weights = compress_alignment_np(dna)
+    partials, weights = compress_alignment(dna)
 
     dists = tip_distances(simtree, S)
 
@@ -119,7 +119,7 @@ def test_mcmc_geodesics_wrap():
     dna = simulate_discrete_chars(
         seq_len=L, tree_model=simtree, seq_model=dendropy.model.discrete.Jc69()
     )
-    partials, weights = compress_alignment_np(dna)
+    partials, weights = compress_alignment(dna)
 
     dists = tip_distances(simtree, S)
 
@@ -168,7 +168,7 @@ def test_mcmc_simple_nj():
         seq_len=L, tree_model=simtree, seq_model=dendropy.model.discrete.Jc69(), rng=rng
     )
 
-    partials, weights = compress_alignment_np(dna)
+    partials, weights = compress_alignment(dna)
 
     # Get tip pair-wise distance
     dists = np.zeros((S, S))
@@ -222,7 +222,7 @@ def test_mcmc_wrap_nj():
         seq_len=L, tree_model=simtree, seq_model=dendropy.model.discrete.Jc69(), rng=rng
     )
 
-    partials, weights = compress_alignment_np(dna)
+    partials, weights = compress_alignment(dna)
 
     # Get tip pair-wise distance
     dists = np.zeros((S, S))

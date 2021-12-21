@@ -9,7 +9,7 @@ import dendropy
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
-from dodonaphy import Chyperboloid, peeler, tree, utils
+from dodonaphy import hyperboloid, peeler, tree, utils
 from dodonaphy.phylo import compress_alignment
 from dodonaphy.vi import DodonaphyVI
 
@@ -66,8 +66,8 @@ int_t0 = torch.tensor(
 ).reshape((S - 2, dim))
 
 # convert to poincare ball
-leaf_poin = Chyperboloid.t02p(leaf_t0, dim).reshape((S, dim))
-int_poin = Chyperboloid.t02p(int_t0, dim).reshape((S - 2, dim))
+leaf_poin = hyperboloid.t02p(leaf_t0, dim).reshape((S, dim))
+int_poin = hyperboloid.t02p(int_t0, dim).reshape((S - 2, dim))
 
 # move one node and compute posterior
 steps = 100

@@ -23,11 +23,11 @@ if connector == 'nj':
     pdm = utils.get_pdm(leaf_r, leaf_dir, astorch=True)
     peel, blens = peeler.nj(pdm)
 elif connector == 'hyp_hc':
-    peel, int_locs = peeler.make__hard_peel_geodesic(torch.tensor(leaf_locs))
+    peel, int_locs = peeler.make_peel_geodesic(torch.tensor(leaf_locs))
     int_r, int_dir = utils.cart_to_dir(int_locs)
     blens = base_model.BaseModel.compute_branch_lengths(S, peel, leaf_r, leaf_dir, int_r, int_dir, useNP=False)
 elif connector == 'geo':
-    peel, int_locs = peeler.make_hard_peel_geodesic(torch.tensor(leaf_locs))
+    peel, int_locs = peeler.make_peel_geodesic(torch.tensor(leaf_locs))
     int_r, int_dir = utils.cart_to_dir(int_locs)
     blens = base_model.BaseModel.compute_branch_lengths(S, peel, leaf_r, leaf_dir, int_r, int_dir, useNP=False)
 

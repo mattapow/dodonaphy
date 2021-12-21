@@ -9,7 +9,7 @@ dim = 4
 taxa = 17
 
 leaf_locs = torch.tensor(VariationalParams['leaf_mu']).view((taxa, dim))
-peel, int_locs = peeler.make_soft_peel_tips(leaf_locs, connector="geodesics")
+peel, int_locs = peeler.make_peel_geodesic(leaf_locs)
 leaf_r, leaf_dir = utils.cart_to_dir(leaf_locs)
 int_r, int_dir = utils.cart_to_dir(int_locs)
 

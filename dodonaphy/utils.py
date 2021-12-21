@@ -1,7 +1,9 @@
+from collections import defaultdict
+
 import numpy as np
 import torch
 
-from . import poincare
+from . import poincare, Cutils
 from .edge import Edge
 
 
@@ -26,6 +28,80 @@ def angle_to_directional(theta):
     directional[:, 0] = torch.cos(theta)
     directional[:, 1] = torch.sin(theta)
     return directional
+
+
+def get_pdm(
+    leaf_r, leaf_dir, int_r=None, int_dir=None, curvature=-torch.ones(1), astorch=False
+):
+    leaf_node_count = leaf_r.shape[0]
+    node_count = leaf_r.shape[0]
+    if int_r is not None:
+        node_count = node_count + int_r.shape[0]
+
+    if astorch:
+        pdm = torch.zeros((node_count, node_count)).double()
+    else:
+        pdm = defaultdict(list)
+
+    for i in range(node_count):
+        for j in range(i + 1, node_count):
+            dist_ij = 0
+
+            if (i < leaf_node_count) and (j < leaf_node_count):
+                # leaf to leaf
+                dist_ij = Cutils.hyperbolic_distance(
+                    leaf_r[i], leaf_r[j], leaf_dir[i], leaf_dir[j], curvature
+                )
+            elif i < leaf_node_count:
+                # leaf to internal
+                dist_ij = Cutils.hyperbolic_distance(
+                    leaf_r[i],
+                    int_r[j - leaf_node_count],
+                    leaf_dir[i],
+                    int_dir[j - leaf_node_count],
+                    curvature,
+                )
+            else:
+                # internal to internal
+                i_node = i - leaf_node_count
+                dist_ij = Cutils.hyperbolic_distance(
+                    int_r[i_node],
+                    int_r[j - leaf_node_count],
+                    int_dir[i_node],
+                    int_dir[j - leaf_node_count],
+                    curvature,
+                )
+
+            # apply the inverse transform from Matsumoto et al 2020
+            dist_ij = torch.log(torch.cosh(dist_ij))
+
+            if astorch:
+                pdm[i, j] = pdm[j, i] = dist_ij
+            else:
+                pdm[i].append(Edge(dist_ij, i, j))
+                pdm[j].append(Edge(dist_ij, j, i))
+
+    return pdm
+
+
+def get_pdm_tips(leaf_r, leaf_dir, curvature=-torch.ones(1)):
+    leaf_node_count = leaf_r.shape[0]
+    edge_list = [[] for _ in range(leaf_node_count)]
+
+    for i in range(leaf_node_count):
+        for j in range(i):
+            dist_ij = 0
+            dist_ij = Cutils.hyperbolic_distance(
+                leaf_r[i], leaf_r[j], leaf_dir[i], leaf_dir[j], curvature
+            )
+
+            # apply the inverse transform from Matsumoto et al 2020
+            dist_ij = torch.log(torch.cosh(dist_ij))
+
+            edge_list[i].append(Edge(dist_ij, i, j))
+            edge_list[j].append(Edge(dist_ij, j, i))
+
+    return edge_list
 
 
 def dir_to_cart(r, directional):
@@ -170,36 +246,43 @@ def get_plca(locs, as_torch=False):
     return edge_list
 
 
-def get_plca_np(locs, as_numpy=False):
-    """Return a pair-wise least common ancestor matrix based.
+def ball2real(loc_ball, radius=1):
+    """A map from the unit ball B^n to real R^n.
+    Inverse of real2ball.
 
     Args:
-        locs ([type]): Coordinates in the Poincare ball
+        loc_ball (tensor): [description]
+        radius (tensor): [description]
 
     Returns:
-        [type]: A list of lists containing the edges.
-        The "distance" of each edge is the negative of the distance
-        of the LCA to the origin.
+        tensor: [description]
     """
-    node_count = locs.shape[0]
-    if as_numpy:
-        edge_adj = np.zeros((node_count, node_count), dtype=np.double)
-    else:
-        edge_list = [[] for _ in range(node_count)]
+    if loc_ball.ndim == 1:
+        loc_ball = loc_ball.unsqueeze(dim=-1)
+    dim = loc_ball.shape[1]
+    norm_loc_ball = torch.norm(loc_ball, dim=-1, keepdim=True).repeat(1, dim)
+    loc_real = loc_ball / (radius - norm_loc_ball)
+    return loc_real
 
-    for i in range(node_count):
-        for j in range(i):
-            dist_ij = poincare.hyp_lca_np(locs[i], locs[j], return_coord=False)
-            if as_numpy:
-                edge_adj[i, j] = dist_ij
-                edge_adj[j, i] = dist_ij
-            else:
-                edge_list[i].append(Edge(dist_ij, i, j))
-                edge_list[j].append(Edge(dist_ij, j, i))
 
-    if as_numpy:
-        return edge_adj
-    return edge_list
+def real2ball(loc_real, radius=1):
+    """A map from the reals R^n to unit ball B^n.
+    Inverse of ball2real.
+
+    Args:
+        loc_real (tensor): Point in R^n with size [1, dim]
+        radius (float): Radius of ball
+
+    Returns:
+        tensor: [description]
+    """
+    if loc_real.ndim == 1:
+        loc_real = loc_real.unsqueeze(dim=-1)
+    dim = loc_real.shape[1]
+
+    norm_loc_real = torch.norm(loc_real, dim=-1, keepdim=True).repeat(1, dim)
+    loc_ball = torch.div(radius * loc_real, (1 + norm_loc_real))
+    return loc_ball
 
 
 def normalise(y):

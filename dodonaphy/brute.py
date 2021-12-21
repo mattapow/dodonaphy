@@ -2,7 +2,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 
-from . import Chyperboloid, peeler, tree, utils
+from . import hyperboloid, peeler, tree, utils
 from .vi import DodonaphyVI
 
 
@@ -104,8 +104,8 @@ class brute(DodonaphyVI):
             leaf_poin = utils.real2ball(leaf_locs)
             int_poin = utils.real2ball(int_locs)
         elif self.embedder == "wrap":
-            leaf_poin = Chyperboloid.t02p(leaf_locs)
-            int_poin = Chyperboloid.t02p(int_locs)
+            leaf_poin = hyperboloid.t02p(leaf_locs)
+            int_poin = hyperboloid.t02p(int_locs)
         int_r, int_dir = utils.cart_to_dir(int_poin)
         leaf_r, leaf_dir = utils.cart_to_dir(leaf_poin)
         peel = peeler.make_peel_mst(leaf_r, leaf_dir, int_r, int_dir)
@@ -128,8 +128,8 @@ class brute(DodonaphyVI):
             leaf_poin = utils.real2ball(self.VariationalParams["leaf_mu"])
             int_poin = utils.real2ball(self.VariationalParams["int_mu"])
         elif self.embedder == "wrap":
-            leaf_poin = Chyperboloid.t02p(self.VariationalParams["leaf_mu"])
-            int_poin = Chyperboloid.t02p(self.VariationalParams["int_mu"])
+            leaf_poin = hyperboloid.t02p(self.VariationalParams["leaf_mu"])
+            int_poin = hyperboloid.t02p(self.VariationalParams["int_mu"])
         leaf_r, leaf_dir = utils.cart_to_dir(leaf_poin)
         int_r, int_dir = utils.cart_to_dir(int_poin)
 
@@ -199,12 +199,12 @@ class brute(DodonaphyVI):
 
         if isLeaf:
             if self.embedder == "simple":
-                self.VariationalParams["leaf_mu"][idx, :] = Chyperboloid.ball2real(best_loc)
+                self.VariationalParams["leaf_mu"][idx, :] = utils.ball2real(best_loc)
             elif self.embedder == "wrap":
-                self.VariationalParams["leaf_mu"][idx, :] = Chyperboloid.p2t0(best_loc)
+                self.VariationalParams["leaf_mu"][idx, :] = hyperboloid.p2t0(best_loc)
         else:
             if self.embedder == "simple":
-                self.VariationalParams["int_mu"][idx, :] = Chyperboloid.ball2real(best_loc)
+                self.VariationalParams["int_mu"][idx, :] = utils.ball2real(best_loc)
             elif self.embedder == "wrap":
-                self.VariationalParams["int_mu"][idx, :] = Chyperboloid.p2t0(best_loc)
+                self.VariationalParams["int_mu"][idx, :] = hyperboloid.p2t0(best_loc)
         return best_lnLike

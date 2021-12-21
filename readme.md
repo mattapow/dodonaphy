@@ -32,7 +32,7 @@ pip install -e .
 ## Running tests
 Once the package is installed, tests are run using pytest:
 ```
-pytest -o "testpaths=test"
+pytest
 ```
 
 ## Model

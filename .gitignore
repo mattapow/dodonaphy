@@ -33,5 +33,3 @@ dodonaphy/cython/Cutils.c
 build
 analysis
 sim_data
-*.html
-*.c

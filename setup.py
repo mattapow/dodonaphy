@@ -21,24 +21,8 @@ setup(
         [
             Extension(
                 "dodonaphy.Cutils", ["dodonaphy/cython/Cutils.pyx"], include_dirs=[np.get_include()]
-            ),
-            Extension(
-                "dodonaphy.Cphylo", ["dodonaphy/cython/Cphylo.pyx"], include_dirs=[np.get_include()]
-            ),
-            Extension(
-                "dodonaphy.Chyperboloid", ["dodonaphy/cython/Chyperboloid.pyx"], include_dirs=[np.get_include()]
-            ),
-            Extension(
-                "dodonaphy.Chyperboloid_np", ["dodonaphy/cython/Chyperboloid_np.pyx"], include_dirs=[np.get_include()]
-            ),
-            Extension(
-                "dodonaphy.Cmcmc", ["dodonaphy/cython/Cmcmc.pyx"], include_dirs=[np.get_include()]
-            ),
-            Extension(
-                "dodonaphy.Cpeeler", ["dodonaphy/cython/Cpeeler.pyx"], include_dirs=[np.get_include()]
-            ),
-        ],
-        annotate=True
+            )
+        ]
     ),
     entry_points={"console_scripts": ["dodo = dodonaphy.run:main"]},
 )
