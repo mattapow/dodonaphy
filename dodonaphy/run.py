@@ -15,6 +15,7 @@ from dodonaphy import utils
 from dodonaphy.mcmc import DodonaphyMCMC as mcmc
 from dodonaphy.ml import ML
 from dodonaphy.phylo import compress_alignment
+from dodonaphy.Cphylo import compress_alignment_np
 from dodonaphy.vi import DodonaphyVI
 
 
@@ -33,7 +34,6 @@ def run(args):
 
     path_write = get_path(root_dir, args)
     dna = read_dna(root_dir, args.dna_path)
-    partials, weights = compress_alignment(dna)
 
     if args.start == "RAxML":
         print("Finding RAxML tree.")
@@ -49,6 +49,7 @@ def run(args):
 
     start = time.time()
     if args.infer == "mcmc":
+        partials, weights = compress_alignment_np(dna)
         mcmc.run(
             args.dim,
             partials[:],
@@ -70,6 +71,7 @@ def run(args):
             loss_fn=args.loss_fn,
         )
     elif args.infer == "vi":
+        partials, weights = compress_alignment(dna)
         DodonaphyVI.run(
             args.dim,
             args.taxa,
@@ -90,6 +92,7 @@ def run(args):
             soft_temp=args.temp,
         )
     elif args.infer == "ml":
+        partials, weights = compress_alignment(dna)
         mymod = ML(partials[:], weights, dists=dists, soft_temp=args.temp, loss_fn=args.loss_fn)
         mymod.learn(epochs=args.epochs, learn_rate=args.learn, path_write=path_write)
 
