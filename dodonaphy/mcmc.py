@@ -59,6 +59,7 @@ class Chain(BaseModel):
         if converge_length is not None:
             self.converged = [False] * converge_length
         self.more_tune = True
+        self.last_acceptance = 0.5
 
         if self.loss_fn == "likelihood":
             self.ln_p = Cphylo.compute_LL_np(
@@ -210,6 +211,13 @@ class Chain(BaseModel):
 
         return r_accept
 
+    def acceptance(self):
+        accepance = self.accepted / self.iterations
+        return accepance - self.target_acceptance
+    
+    def d_acceptance(self, acceptance):
+        return acceptance - self.last_acceptance
+
     def tune_step(self, tol=0.01):
         """Tune the acceptance rate. Simple Euler method.
 
@@ -219,17 +227,16 @@ class Chain(BaseModel):
         if not self.more_tune or self.iterations == 0:
             return
 
-        learn_rate = 0.001
-        eps = 2.220446049250313e-16
-        acceptance = self.accepted / self.iterations
-        d_accept = acceptance - self.target_acceptance
-        self.step_scale = max(self.step_scale + learn_rate * d_accept, eps)
+        f = self.acceptance()
+        df = self.d_acceptance(f)        
+        self.step_scale = self.step_scale - f/df
+        self.step_scale = max(self.step_scale, 2.220446049250313e-16)
 
         # check convegence
         if self.converge_length is None:
             return
         self.converged.pop()
-        self.converged.insert(0, np.abs(d_accept) < tol)
+        self.converged.insert(0, np.abs(f) < tol)
         if all(self.converged):
             self.more_tune = False
             print(f"Step tuned to {self.step_scale}.")
