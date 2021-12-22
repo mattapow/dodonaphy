@@ -4,19 +4,20 @@ import matplotlib.pyplot as plt
 from matplotlib import cm
 from numpy import arange, argsort, flip, genfromtxt, power
 
-ds_index = 2
-dir = "../data/hohna/DS" + str(ds_index)
-resultsDir = os.path.join(dir, "splits")
-LODfile = os.path.join(resultsDir, "LOD-table")
-BSfile = os.path.join(resultsDir, "partitions.bs")
-outfile = os.path.join(resultsDir, "compare-SF")
+ds_index = 1
+dir = "../analysis/DS" + str(ds_index)
 
-experiments = ["simple_nj/d5_c4"]
+experiments = ["simple_nj/d5_c4_free_r_million"]
 n = len(experiments)
 
 cmd = "../ext/trees-bootstrap "
 for i in range(n):
     tree_str = os.path.join(dir, 'mcmc', experiments[i], "mcmc.trees")
+    path_split = os.path.join(dir, "mcmc", experiments[i], "results", "splits")
+    os.mkdir(path_split)
+    LODfile = os.path.join(path_split, "LOD-table")
+    BSfile = os.path.join(path_split, "partitions.bs")
+    outfile = os.path.join(path_split, "compare-SF")
     cmd += tree_str + " "
 cmd += os.path.join(dir, "mb", f"DS{str(ds_index)}.nex.run1.t") + " "
 cmd += os.path.join(dir, "mb", f"DS{str(ds_index)}.nex.run2.t")

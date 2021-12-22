@@ -6,11 +6,11 @@ import seaborn as sns
 from numpy import genfromtxt
 
 experiments_mcmc = ["simple_nj"]
-burnin = 500
+burnin = 600
 experiments_vi = []
-ds_index = 2
-dir = "../data/hohna/DS" + str(ds_index)
-paths = [os.path.join(dir, 'mcmc', e, "d5_c4", 'mcmc.trees') for e in experiments_mcmc]
+ds_index = 1
+dir = "../analysis/DS" + str(ds_index)
+paths = [os.path.join(dir, 'mcmc', e, "d5_c4_free_r", 'mcmc.trees') for e in experiments_mcmc]
 for e in experiments_vi:
     paths.append("%s/vi/%s/vi.trees" % (dir, e))
 
