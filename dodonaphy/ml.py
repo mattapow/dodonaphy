@@ -89,12 +89,15 @@ class ML(BaseModel):
         if self.loss_fn == "likelihood":
             self.peel, self.blens = peeler.nj(dist_2d, tau=self.soft_temp)
             self.ln_p = self.compute_LL(self.peel, self.blens)
+            loss = self.ln_p
         elif self.loss_fn == "pair_likelihood":
-            self.ln_p = self.compute_log_a_like(dist_2d)
+            self.peel, self.blens = peeler.nj(dist_2d, tau=None)
+            self.ln_p = self.compute_LL(self.peel, self.blens)
+            loss = self.compute_log_a_like(dist_2d)
         elif self.loss_fn == "hypHC":
             raise ValueError("hypHC requires embedding, not available with ML.")
 
-        return self.ln_p
+        return loss
 
     @staticmethod
     def trace(epochs, like_hist, path_write):

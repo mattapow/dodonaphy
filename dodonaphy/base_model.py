@@ -237,6 +237,22 @@ class BaseModel(object):
         L = torch.sum(self.weights)
         return torch.sum(P * self.weights) / L
 
+    def compute_likelihood_hypHC(self, dists_data, leaf_X, temperature=0.05, n_triplets=100):
+        eps = torch.finfo(torch.double).eps
+        likelihood_dist = torch.zeros_like(dists_data)
+        for i in range(self.S):
+            mats = JC69_p_t(dists_data[i])
+            for j in range(i - 1):
+                P_ij = torch.log(
+                    torch.clamp(torch.matmul(mats[j], self.partials[i]), min=eps)
+                )
+                dist_ij = -torch.sum(P_ij * self.weights)
+                likelihood_dist[i, j] = dist_ij
+                likelihood_dist[j, i] = dist_ij
+
+        return self.compute_hypHC(likelihood_dist, leaf_X, temperature=temperature, n_triplets=n_triplets)
+
+
     def compute_hypHC(self, dists_data, leaf_X, temperature=0.05, n_triplets=100):
         """Computes log of HypHC loss
         "From Trees to Continuous Embeddings and Back: Hyperbolic Hierarchical Clustering"
