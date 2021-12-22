@@ -81,8 +81,8 @@ class Chain(BaseModel):
 
     def set_probability(self):
         """Initialise likelihood and prior values of embedding"""
-        pdm = Chyperboloid_np.get_pdm(
-            self.leaf_r, self.leaf_dir, curvature=self.curvature, dtype="numpy"
+        pdm = Chyperboloid_np.get_pdm_tips_np(
+            self.leaf_r, self.leaf_dir, curvature=self.curvature
         )
         if self.connector == "geodesics":
             loc_poin = self.leaf_dir * np.tile(self.leaf_r, (self.D, 1)).T
@@ -503,12 +503,15 @@ class DodonaphyMCMC:
 
     def save_iteration(self, path_write, iteration):
         """Save the current state to file."""
-        ln_p = Cphylo.compute_LL_np(
-            self.chain[0].partials,
-            self.chain[0].weights,
-            self.chain[0].peel,
-            self.chain[0].blens,
-        )
+        if self.loss != "likelihood":
+            ln_p = Cphylo.compute_LL_np(
+                self.chain[0].partials,
+                self.chain[0].weights,
+                self.chain[0].peel,
+                self.chain[0].blens,
+            )
+        else:
+            ln_p = self.likelihood
         tree.save_tree(
             path_write,
             "mcmc",
