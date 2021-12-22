@@ -59,7 +59,6 @@ class Chain(BaseModel):
         if converge_length is not None:
             self.converged = [False] * converge_length
         self.more_tune = True
-        self.last_accept_diff = target_acceptance
 
         if self.loss_fn == "likelihood":
             self.ln_p = Cphylo.compute_LL_np(
@@ -247,7 +246,6 @@ class Chain(BaseModel):
         else:
             self.step_scale = self.scale_step(sign=accept_diff / np.abs(accept_diff), learn_rate=10.0)
         self.step_scale = np.maximum(self.step_scale, 2.220446049250313e-16)
-        self.last_accept_diff = accept_diff
 
         # check convegence
         if self.converge_length is None:
