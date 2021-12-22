@@ -13,14 +13,14 @@ n = len(experiments)
 cmd = "../ext/trees-bootstrap "
 for i in range(n):
     tree_str = os.path.join(dir, 'mcmc', experiments[i], "mcmc.trees")
-    path_split = os.path.join(dir, "mcmc", experiments[i], "results", "splits")
+    path_split = os.path.join(dir, "mcmc", experiments[i], "results", "splits1")
     os.mkdir(path_split)
     LODfile = os.path.join(path_split, "LOD-table")
     BSfile = os.path.join(path_split, "partitions.bs")
     outfile = os.path.join(path_split, "compare-SF")
     cmd += tree_str + " "
-cmd += os.path.join(dir, "mb", f"DS{str(ds_index)}.nex.run1.t") + " "
-cmd += os.path.join(dir, "mb", f"DS{str(ds_index)}.nex.run2.t")
+cmd += os.path.join(dir, "mb", "gold.run1.t") + " "
+cmd += os.path.join(dir, "mb", "gold.run2.t")
 cmd += " --skip=300 --LOD-table=" + LODfile + " > " + BSfile
 
 # call trees-bootstrap from bali-phy

@@ -5,12 +5,12 @@ import numpy as np
 import seaborn as sns
 from numpy import genfromtxt
 
-experiments_mcmc = ["simple_nj"]
+experiments_mcmc = ["d5_c4", "d10_c4", "d15_c4", "d20_c4", "d25_c4"]
 burnin = 600
 experiments_vi = []
 ds_index = 1
 dir = "../analysis/DS" + str(ds_index)
-paths = [os.path.join(dir, 'mcmc', e, "d5_c4_free_r", 'mcmc.trees') for e in experiments_mcmc]
+paths = [os.path.join(dir, 'mcmc', "simple_nj", e, 'mcmc.trees') for e in experiments_mcmc]
 for e in experiments_vi:
     paths.append("%s/vi/%s/vi.trees" % (dir, e))
 
@@ -26,7 +26,7 @@ for i in range(3):
 # sns.kdeplot(data[burnin:1000, 1], ax=ax[1])
 
 for i in range(2):
-    fn = "DS" + str(ds_index) + ".nex.run" + str(i+1) + ".p"
+    fn = "gold.run" + str(i+1) + ".p"
     path = os.path.join(dir, "mb", fn)
     print(os.path.abspath(path))
     data = genfromtxt(path, skip_header=2)
