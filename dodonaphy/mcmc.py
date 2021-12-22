@@ -59,7 +59,7 @@ class Chain(BaseModel):
         if converge_length is not None:
             self.converged = [False] * converge_length
         self.more_tune = True
-        self.last_acceptance = 0.5
+        self.last_accept_diff = target_acceptance
 
         if self.loss_fn == "likelihood":
             self.ln_p = Cphylo.compute_LL_np(
@@ -211,15 +211,26 @@ class Chain(BaseModel):
 
         return r_accept
 
-    def acceptance(self):
-        accepance = self.accepted / self.iterations
-        return accepance - self.target_acceptance
-    
-    def d_acceptance(self, acceptance):
-        return acceptance - self.last_acceptance
+    def euler_step(self, f, learn_rate=0.01):
+        return self.step_scale + learn_rate * f
+
+    def scale_step(self, sign, learn_rate=2.0):
+        return np.power(learn_rate, sign) * self.step_scale
 
     def tune_step(self, tol=0.01):
-        """Tune the acceptance rate. Simple Euler method.
+        """Tune the acceptance rate.
+        
+        Use Euler method if acceptance rate is within 0.5 of target acceptance
+        and is greater than 0.1. Solves:
+            d(step)/d(acceptance) = acceptance - target_acceptance.
+        Learning rate 0.01 and refined to 0.001 when acceptance within 0.05 of
+        target.
+        
+        Otherwise scale the step by a factor of 10 (or 1/10 if step too big).
+        
+
+        Convergence is decalred once the acceptance rate has been within tol
+        of the target acceptance for self.converge_length consecutive iterations.
 
         Args:
             tol (float, optional): Tolerance. Defaults to 0.01.
@@ -227,16 +238,22 @@ class Chain(BaseModel):
         if not self.more_tune or self.iterations == 0:
             return
 
-        f = self.acceptance()
-        df = self.d_acceptance(f)        
-        self.step_scale = self.step_scale - f/df
-        self.step_scale = max(self.step_scale, 2.220446049250313e-16)
+        acceptance = self.accepted / self.iterations
+        accept_diff = acceptance - self.target_acceptance
+        if np.abs(acceptance - self.target_acceptance) < 0.1:
+            self.step_scale = self.euler_step(accept_diff, learn_rate=0.001)
+        elif np.abs(acceptance - self.target_acceptance) < 0.5 and acceptance > 0.1:
+            self.step_scale = self.euler_step(accept_diff, learn_rate=0.01)
+        else:
+            self.step_scale = self.scale_step(sign=accept_diff / np.abs(accept_diff), learn_rate=10.0)
+        self.step_scale = np.maximum(self.step_scale, 2.220446049250313e-16)
+        self.last_accept_diff = accept_diff
 
         # check convegence
         if self.converge_length is None:
             return
         self.converged.pop()
-        self.converged.insert(0, np.abs(f) < tol)
+        self.converged.insert(0, np.abs(accept_diff) < tol)
         if all(self.converged):
             self.more_tune = False
             print(f"Step tuned to {self.step_scale}.")
