@@ -49,12 +49,5 @@ dodo [OPTIONS]
 
 ## Help
 At the command line, type 
-```python dodonaphy/run.py --help```
+```dodo --help```
 to see the options.
-
-## Post-processing
-Several pre-processing and post-processing functions are in the post_process folder.
-To install the additional packages used for this, run:
-```
-python3 -m pip install -r requirements/post_processing.txt
-```
