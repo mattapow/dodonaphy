@@ -80,9 +80,7 @@ def make_hard_peel_geodesic(leaf_locs):
     int_node_count = leaf_locs.shape[0] - 2
     node_count = leaf_locs.shape[0] * 2 - 2
 
-    print(type(leaf_locs))
     edge_list = utils.get_plca_np(leaf_locs, as_numpy=False)
-    print(type(edge_list))
     for node in edge_list:
         for edge in node:
             edge.distance = -edge.distance

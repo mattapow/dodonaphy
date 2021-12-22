@@ -210,8 +210,26 @@ class Chain(BaseModel):
 
         return r_accept
 
+    def euler_step(self, f, learn_rate=0.01):
+        return self.step_scale + learn_rate * f
+
+    def scale_step(self, sign, learn_rate=2.0):
+        return np.power(learn_rate, sign) * self.step_scale
+
     def tune_step(self, tol=0.01):
-        """Tune the acceptance rate. Simple Euler method.
+        """Tune the acceptance rate.
+        
+        Use Euler method if acceptance rate is within 0.5 of target acceptance
+        and is greater than 0.1. Solves:
+            d(step)/d(acceptance) = acceptance - target_acceptance.
+        Learning rate 0.01 and refined to 0.001 when acceptance within 0.1 of
+        target.
+        
+        Otherwise scale the step by a factor of 10 (or 1/10 if step too big).
+        
+
+        Convergence is decalred once the acceptance rate has been within tol
+        of the target acceptance for self.converge_length consecutive iterations.
 
         Args:
             tol (float, optional): Tolerance. Defaults to 0.01.
@@ -219,17 +237,21 @@ class Chain(BaseModel):
         if not self.more_tune or self.iterations == 0:
             return
 
-        learn_rate = 0.001
-        eps = 2.220446049250313e-16
         acceptance = self.accepted / self.iterations
-        d_accept = acceptance - self.target_acceptance
-        self.step_scale = max(self.step_scale + learn_rate * d_accept, eps)
+        accept_diff = acceptance - self.target_acceptance
+        if np.abs(acceptance - self.target_acceptance) < 0.1:
+            self.step_scale = self.euler_step(accept_diff, learn_rate=0.001)
+        elif np.abs(acceptance - self.target_acceptance) < 0.5 and acceptance > 0.1:
+            self.step_scale = self.euler_step(accept_diff, learn_rate=0.01)
+        else:
+            self.step_scale = self.scale_step(sign=accept_diff / np.abs(accept_diff), learn_rate=10.0)
+        self.step_scale = np.maximum(self.step_scale, 2.220446049250313e-16)
 
         # check convegence
         if self.converge_length is None:
             return
         self.converged.pop()
-        self.converged.insert(0, np.abs(d_accept) < tol)
+        self.converged.insert(0, np.abs(accept_diff) < tol)
         if all(self.converged):
             self.more_tune = False
             print(f"Step tuned to {self.step_scale}.")
