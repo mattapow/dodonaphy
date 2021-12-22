@@ -44,7 +44,8 @@ def run(args):
     else:
         start_tree = read_tree(root_dir, file_name=args.start)
 
-    dists = utils.tip_distances(start_tree, args.taxa)
+    dists_phylo = utils.tip_distances(start_tree, args.taxa)
+    dists_matsumoto = np.arccosh(np.exp(dists_phylo))
     save_period = max(int(args.epochs / args.draws), 1)
 
     start = time.time()
@@ -54,7 +55,7 @@ def run(args):
             args.dim,
             partials[:],
             weights,
-            dists,
+            dists_matsumoto,
             path_write,
             epochs=args.epochs,
             step_scale=args.step,
@@ -77,7 +78,7 @@ def run(args):
             args.taxa,
             partials[:],
             weights,
-            dists,
+            dists_matsumoto,
             path_write,
             epochs=args.epochs,
             k_samples=args.importance,
@@ -93,7 +94,13 @@ def run(args):
         )
     elif args.infer == "ml":
         partials, weights = compress_alignment(dna)
-        mymod = ML(partials[:], weights, dists=dists, soft_temp=args.temp, loss_fn=args.loss_fn)
+        mymod = ML(
+            partials[:],
+            weights,
+            dists=dists_matsumoto,
+            soft_temp=args.temp,
+            loss_fn=args.loss_fn,
+        )
         mymod.learn(epochs=args.epochs, learn_rate=args.learn, path_write=path_write)
 
     mins, secs = divmod(time.time() - start, 60)
@@ -262,14 +269,14 @@ def init_parser():
         dest="normalise_leaves",
         action="store_true",
         help="Whether to normalise the leaves to a single raduis. Currently\
-        only implemented in MCMC."
+        only implemented in MCMC.",
     )
     parser.add_argument(
         "--free_leaf",
         dest="normalise_leaves",
         action="store_false",
         help="Whether to normalise the leaves to a single raduis. Currently\
-        only implemented in MCMC."
+        only implemented in MCMC.",
     )
     parser.set_defaults(normalise_leaves=False)
 
@@ -333,7 +340,7 @@ def init_parser():
         "--loss_fn",
         default="likelihood",
         choices=("likelihood", "pair_likelihood", "hypHC"),
-        help="Loss function for MCMC and ML. Not implemented in VI."
+        help="Loss function for MCMC and ML. Not implemented in VI.",
     )
 
     # MST parameters
