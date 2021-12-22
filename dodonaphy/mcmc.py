@@ -222,7 +222,7 @@ class Chain(BaseModel):
         Use Euler method if acceptance rate is within 0.5 of target acceptance
         and is greater than 0.1. Solves:
             d(step)/d(acceptance) = acceptance - target_acceptance.
-        Learning rate 0.01 and refined to 0.001 when acceptance within 0.05 of
+        Learning rate 0.01 and refined to 0.001 when acceptance within 0.1 of
         target.
         
         Otherwise scale the step by a factor of 10 (or 1/10 if step too big).
