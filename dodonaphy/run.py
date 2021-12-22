@@ -321,7 +321,7 @@ def init_parser():
 
     # MCMC parameters
     parser.add_argument(
-        "--step", "-x", default=0.001, type=float, help="Initial step scale for MCMC."
+        "--step", "-x", default=0.1, type=float, help="Initial step scale for MCMC."
     )
     parser.add_argument(
         "--chains", "-N", default=5, type=int, help="Number of MCMC chains."
