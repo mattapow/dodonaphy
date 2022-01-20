@@ -1,8 +1,9 @@
+"Base model for MCMC and VI inference"
 import math
 
 import numpy as np
 import torch
-from dendropy import Tree as Tree
+from dendropy import Tree
 from dendropy.model.birthdeath import birth_death_likelihood as birth_death_likelihood
 from torch.distributions.multivariate_normal import MultivariateNormal
 
@@ -63,11 +64,15 @@ class BaseModel(object):
         for _ in range(self.S - 1):
             if require_grad:
                 self.partials.append(
-                    torch.zeros((1, 4, self.L), dtype=torch.float64, requires_grad=False)
+                    torch.zeros(
+                        (1, 4, self.L), dtype=torch.float64, requires_grad=False
+                    )
                 )
             else:
                 self.partials.append(
-                    torch.zeros((1, 4, self.L), dtype=torch.float64, requires_grad=False)
+                    torch.zeros(
+                        (1, 4, self.L), dtype=torch.float64, requires_grad=False
+                    )
                 )
 
     def initialise_ints(self, emm_tips, n_grids=10, n_trials=10, max_scale=2):
@@ -138,12 +143,19 @@ class BaseModel(object):
 
     @staticmethod
     def compute_branch_lengths(
-        S, peel, leaf_r, leaf_dir, int_r, int_dir, curvature=-torch.ones(1), useNP=True
+        n_taxa,
+        peel,
+        leaf_r,
+        leaf_dir,
+        int_r,
+        int_dir,
+        curvature=-torch.ones(1),
+        useNP=True,
     ):
         """Computes the hyperbolic distance of two points given in radial/directional coordinates in the Poincare ball
 
         Args:
-            S (integer): [description]
+            n_taxa (integer): [description]
             D ([type]): [description]
             peel ([type]): [description]
             leaf_r ([type]): [description]
@@ -161,24 +173,24 @@ class BaseModel(object):
             leaf_dir = leaf_dir.detach().numpy().astype(DTYPE)
             int_r = int_r.detach().numpy().astype(DTYPE)
             int_dir = int_dir.detach().numpy().astype(DTYPE)
-        bcount = 2 * S - 2
+        bcount = 2 * n_taxa - 2
         blens = torch.empty(bcount, dtype=torch.float64)
-        for b in range(S - 1):
+        for b in range(n_taxa - 1):
             directional2 = int_dir[
-                peel[b][2] - S - 1,
+                peel[b][2] - n_taxa - 1,
             ]
-            r2 = int_r[peel[b][2] - S - 1]
+            r2 = int_r[peel[b][2] - n_taxa - 1]
 
             for i in range(2):
-                if peel[b][i] < S:
+                if peel[b][i] < n_taxa:
                     # leaf to internal
                     r1 = leaf_r[peel[b][i]]
                     directional1 = leaf_dir[peel[b][i], :]
                 else:
                     # internal to internal
-                    r1 = int_r[peel[b][i] - S - 1]
+                    r1 = int_r[peel[b][i] - n_taxa - 1]
                     directional1 = int_dir[
-                        peel[b][i] - S - 1,
+                        peel[b][i] - n_taxa - 1,
                     ]
 
                 if useNP:
@@ -237,7 +249,9 @@ class BaseModel(object):
         L = torch.sum(self.weights)
         return torch.sum(P * self.weights) / L
 
-    def compute_likelihood_hypHC(self, dists_data, leaf_X, temperature=0.05, n_triplets=100):
+    def compute_likelihood_hypHC(
+        self, dists_data, leaf_X, temperature=0.05, n_triplets=100
+    ):
         eps = torch.finfo(torch.double).eps
         likelihood_dist = torch.zeros_like(dists_data)
         for i in range(self.S):
@@ -250,8 +264,9 @@ class BaseModel(object):
                 likelihood_dist[i, j] = dist_ij
                 likelihood_dist[j, i] = dist_ij
 
-        return self.compute_hypHC(likelihood_dist, leaf_X, temperature=temperature, n_triplets=n_triplets)
-
+        return self.compute_hypHC(
+            likelihood_dist, leaf_X, temperature=temperature, n_triplets=n_triplets
+        )
 
     def compute_hypHC(self, dists_data, leaf_X, temperature=0.05, n_triplets=100):
         """Computes log of HypHC loss
