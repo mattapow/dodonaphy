@@ -3,6 +3,8 @@ import os
 import time
 
 import numpy as np
+from . import tree, Cphylo, hydraPlus
+from .chain import Chain
 
 
 class DodonaphyMCMC:
@@ -147,8 +149,7 @@ class DodonaphyMCMC:
                 file.write(f"Embed Mthd:  {chain.embedder}\n")
 
     def save_final_info(self, path_write, swaps, seconds):
-        """Save tail of info file with acceptance and time taken.
-        """
+        """Save tail of info file with acceptance and time taken."""
         file_name = path_write + "/" + "mcmc.info"
         with open(file_name, "a", encoding="UTF-8") as file:
             for c_id, chain in enumerate(self.chain):
