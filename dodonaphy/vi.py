@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 
-from . import hydra, tree, utils
+from . import hydraPlus, tree, utils
 from .base_model import BaseModel
 from .phylo import JC69_p_t, calculate_treelikelihood
 
@@ -117,9 +117,7 @@ class DodonaphyVI(BaseModel):
                     )
                 else:
                     location.append(
-                        utils.dir_to_cart(
-                            sample["leaf_r"], sample["leaf_dir"]
-                        )
+                        utils.dir_to_cart(sample["leaf_r"], sample["leaf_dir"])
                     )
                 if kwargs.get("lp"):
                     LL = calculate_treelikelihood(
@@ -317,17 +315,16 @@ class DodonaphyVI(BaseModel):
     ):
         """Initialise and run Dodonaphy's variational inference
 
-        Initialise the emebedding with tips distances given to hydra.
+        Initialise the emebedding with tips distances given to hydra+.
         Internal nodes are in distributions at origin.
 
         """
         print("\nRunning Dodonaphy Variational Inference.")
         print("Using %s embedding with %s connections" % (embedder, connector))
 
-        # embed tips with hydra
-        emm_tips = hydra.hydra(
-            D=dists_data, dim=dim, equi_adj=0.0, curvature=curvature, stress=True
-        )
+        # embed tips with distances using HydraPlus
+        hp_obj = hydraPlus.HydraPlus(dists_data, dim=dim, curvature=curvature)
+        emm_tips = hp_obj.embed(equi_adj=0.0, stress=True)
         print("Embedding Stress (tips only) = {:.4}".format(emm_tips["stress"].item()))
 
         # Initialise model
@@ -338,7 +335,7 @@ class DodonaphyVI(BaseModel):
             embedder=embedder,
             connector=connector,
             soft_temp=soft_temp,
-            curvature=curvature
+            curvature=curvature,
         )
 
         # Choose internal node locations from best random initialisation
