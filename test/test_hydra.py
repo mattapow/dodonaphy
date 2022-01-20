@@ -16,12 +16,9 @@ def test_hydraPlus():
         ]
     )
     dim = 2
-    # strain_emm = dodonaphy.hydra.hydra(dists, dim, equi_adj=0, stress=True)
-    # strain_emm_stress = strain_emm["stress"]
-    strain_emm_stress = 0.6110537077268345
     hp_obj = dodonaphy.hydraPlus.HydraPlus(dists, dim)
-    stress_emm = hp_obj.embed(equi_adj=0.0)
-    assert stress_emm["stress"] < strain_emm_stress
+    stress_emm = hp_obj.embed(equi_adj=0.0, stress=True)
+    assert stress_emm["stress_hydraPlus"] < stress_emm["stress_hydra"]
 
 
 def test_stress_gradient():
