@@ -1,6 +1,83 @@
+import dodonaphy.hydra
+import dodonaphy.hydraPlus
 import numpy as np
 from pytest import approx
-from dodonaphy import hydra
+
+
+def test_hydraPlus():
+    # dists from birth (2.0) death (0.5) tree
+    dists = np.array(
+        [
+            [0.0, 0.82291866, 0.82291866, 0.99150298, 0.82291866],
+            [0.82291866, 0.0, 0.0, 0.99150298, 0.1656876],
+            [0.82291866, 0.0, 0.0, 0.99150298, 0.1656876],
+            [0.99150298, 0.99150298, 0.99150298, 0.0, 0.99150298],
+            [0.82291866, 0.1656876, 0.1656876, 0.99150298, 0.0],
+        ]
+    )
+    dim = 2
+    hp_obj = dodonaphy.hydraPlus.HydraPlus(dists, dim)
+    stress_emm = hp_obj.embed(equi_adj=0.0, stress=True)
+    assert stress_emm["stress_hydraPlus"] < stress_emm["stress_hydra"]
+
+
+def test_stress_gradient():
+    dists = np.array(
+        [
+            [0.0, 0.82291866, 0.82291866, 0.99150298, 0.82291866],
+            [0.82291866, 0.0, 0.0, 0.99150298, 0.1656876],
+            [0.82291866, 0.0, 0.0, 0.99150298, 0.1656876],
+            [0.99150298, 0.99150298, 0.99150298, 0.0, 0.99150298],
+            [0.82291866, 0.1656876, 0.1656876, 0.99150298, 0.0],
+        ]
+    )
+    loc = np.array(
+        [
+            [-0.30701093, -0.05559487],
+            [0.08942463, 0.19905347],
+            [0.08942463, 0.19905347],
+            [0.16894449, -0.31915586],
+            [0.0893763, 0.20177165],
+        ]
+    )
+    dim = 2
+    hp_obj = dodonaphy.hydraPlus.HydraPlus(dists, dim, curvature=-1.0)
+    stress_grad = hp_obj.get_stress_gradient(loc.flatten())
+    stress_grad_true = np.array(
+        [
+            [2.4939401, 0.6992880],
+            [-0.4659294, -0.9865152],
+            [-0.4659294, -0.9865152],
+            [-1.1476661, 3.0800397],
+            [-0.4282155, -1.9410802],
+        ]
+    ).flatten()
+    assert stress_grad == approx(stress_grad_true)
+
+
+def test_get_stress():
+    dists = np.array(
+        [
+            [0.0, 0.82291866, 0.82291866, 0.99150298, 0.82291866],
+            [0.82291866, 0.0, 0.0, 0.99150298, 0.1656876],
+            [0.82291866, 0.0, 0.0, 0.99150298, 0.1656876],
+            [0.99150298, 0.99150298, 0.99150298, 0.0, 0.99150298],
+            [0.82291866, 0.1656876, 0.1656876, 0.99150298, 0.0],
+        ]
+    )
+    loc = np.array(
+        [
+            [-0.30701093, -0.05559487],
+            [0.08942463, 0.19905347],
+            [0.08942463, 0.19905347],
+            [0.16894449, -0.31915586],
+            [0.0893763, 0.20177165],
+        ]
+    )
+    hp_obj = dodonaphy.hydraPlus.HydraPlus(dists, dim=2)
+    stress = hp_obj.get_stress(loc)
+    stress_true = 1.31283560338539
+    assert stress == approx(stress_true)
 
 
 def test_hydra_2d_compare_output():
@@ -8,7 +85,7 @@ def test_hydra_2d_compare_output():
     D = np.ones((3, 3), float)
     np.fill_diagonal(D, 0.0)
     dim = 2
-    emm = hydra.hydra(D, dim)
+    emm = dodonaphy.hydra.hydra(D, dim)
 
     # Compare to output of hydra in r
     assert emm["curvature"] == approx(-1)
@@ -40,7 +117,7 @@ def test_hydra_3d_compare_output():
         ]
     )
     dim = 3
-    emm = hydra.hydra(D, dim, equi_adj=0)
+    emm = dodonaphy.hydra.hydra(D, dim, equi_adj=0)
 
     # Compare to output of hydra in r
     # NB: some directions reversed from r due to opposite eigenvectors

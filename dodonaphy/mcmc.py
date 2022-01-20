@@ -4,10 +4,6 @@ import time
 
 import numpy as np
 
-from . import hydra, tree
-from .chain import Chain
-from . import Cphylo
-
 
 class DodonaphyMCMC:
     """Markov Chain Monte Carlo"""
@@ -336,11 +332,11 @@ class DodonaphyMCMC:
         print("\nRunning Dodonaphy MCMC")
         assert connector in ["mst", "geodesics", "nj", "mst_choice"]
 
-        # embed tips with distances using Hydra
-        emm_tips = hydra.hydra(
-            dists_data, dim=dim, curvature=curvature, stress=True, equi_adj=0.0
-        )
-        print(f"Embedding Stress (tips only) = {emm_tips['stress'].item():.4}")
+        # embed tips with distances using HydraPlus
+        hp_obj = hydraPlus.HydraPlus(dists_data, dim=dim, curvature=curvature)
+        emm_tips = hp_obj.embed(equi_adj=0.0, stress=True)
+        print(f"Embedding stress of tips (hydra) = {emm_tips['stress_hydra']:.4}")
+        print(f"Embedding stress of tips (hydra+) = {emm_tips['stress_hydraPlus']:.4}")
 
         mymod = DodonaphyMCMC(
             partials,

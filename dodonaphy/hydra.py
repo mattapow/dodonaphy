@@ -1,9 +1,7 @@
 import math
 import warnings
 
-from dodonaphy import Chyperboloid_np
 import numpy as np
-import torch
 
 
 def hydra(D, dim=2, curvature=-1.0, alpha=1.1, equi_adj=0.5, **kwargs):
@@ -178,38 +176,26 @@ def hydra(D, dim=2, curvature=-1.0, alpha=1.1, equi_adj=0.5, **kwargs):
         output["x0"] = x0
         output["X"] = X
 
-    if kwargs.get("stress"):
-        output["stress"] = stress(r, directional, curvature, D)
+    if kwargs.get("stress") and kwargs["stress"]:
+        output["stress"] = get_stress_r(r, directional, curvature, D, dim)
 
     output["curvature"] = curvature
     output["dim"] = dim
     return output
 
 
-def stress(r, directional, curvature, D):
-    # Calculate stress of embedding from radial/directional coordinate
-    # From Nagano 2019
-    n = len(r)  # number of embeded points
-    stress_sq = 0.0  # allocate squared stress
+def get_stress_r(r, directional, curvature, dists, dim):
+    x = np.tile(r, (dim, 1)).T * directional
+    n_taxa = len(r)
+    return get_stress(x, n_taxa, dim, curvature, dists)
 
-    # convert from numpy to torch
-    dist = torch.zeros((n, n))
-    D = torch.tensor(D)
 
-    for i in range(n):
-        for j in range(n):
-            if i != j:
-                dist[i][j] = Chyperboloid_np.hyperbolic_distance(
-                    r[i],
-                    r[j],
-                    directional[
-                        i,
-                    ],
-                    directional[
-                        j,
-                    ],
-                    curvature,
-                )
-                stress_sq = stress_sq + (dist[i][j] - D[i, j]) ** 2
-
-    return np.sqrt(stress_sq)
+def get_stress(x, n_taxa, dim, curvature, dists):
+    x = x.reshape((n_taxa, dim))
+    X = np.matmul(x, x.T)
+    u_tilde = np.sqrt(X.diagonal() + 1)
+    H = X - np.outer(u_tilde, u_tilde)
+    D = 1 / np.sqrt(-curvature) * np.arccosh(np.maximum(-H, 1))
+    np.fill_diagonal(D, 0)
+    y = 0.5 * np.sum((D - dists) ** 2)
+    return y

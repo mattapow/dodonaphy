@@ -260,11 +260,8 @@ cpdef hyper_to_poincare(location):
 
     """
     dim = location.shape[0] - 1
-    out = torch.zeros(dim)
-    for i in range(dim):
-        out[i] = location[i + 1] / (1 + location[0])
+    out = location[1:] / (1+location[0])
     return out
-    # return torch.as_tensor([location[i + 1] / (1 + location[0]) for i in range(dim)])
 
 
 cpdef hyper_to_poincare_jacobian(location):
@@ -390,6 +387,10 @@ cpdef poincare_to_hyper(location):
     -------
 
     """
+    if type(location).__module__ == np.__name__:
+        location = torch.from_numpy(location)
+        np_flag = True
+
     cdef double eps = 0.0000000000000003
     cdef int dim
     if location.ndim == 1:
@@ -404,6 +405,9 @@ cpdef poincare_to_hyper(location):
         out0 = torch.div((1 + a), (1 - a))
         out1 = 2 * location / (1 - a.unsqueeze(dim=1) + eps)
         out = torch.cat((out0.unsqueeze(dim=1), out1), dim=1)
+    
+    if np_flag:
+        location = location.detach().numpy()
     return out
 
 cpdef ball2real(loc_ball, radius=1):
