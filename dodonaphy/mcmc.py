@@ -4,7 +4,7 @@ import time
 
 import numpy as np
 
-from . import hydra, peeler, tree, utils
+from . import peeler, tree, utils, hydraPlus
 from . import Cutils, Cpeeler, Cphylo, Cmcmc, Chyperboloid_np
 from .base_model import BaseModel
 
@@ -218,15 +218,15 @@ class Chain(BaseModel):
 
     def tune_step(self, tol=0.01):
         """Tune the acceptance rate.
-        
+
         Use Euler method if acceptance rate is within 0.5 of target acceptance
         and is greater than 0.1. Solves:
             d(step)/d(acceptance) = acceptance - target_acceptance.
         Learning rate 0.01 and refined to 0.001 when acceptance within 0.1 of
         target.
-        
+
         Otherwise scale the step by a factor of 10 (or 1/10 if step too big).
-        
+
 
         Convergence is decalred once the acceptance rate has been within tol
         of the target acceptance for self.converge_length consecutive iterations.
@@ -244,7 +244,9 @@ class Chain(BaseModel):
         elif np.abs(acceptance - self.target_acceptance) < 0.5 and acceptance > 0.1:
             self.step_scale = self.euler_step(accept_diff, learn_rate=0.01)
         else:
-            self.step_scale = self.scale_step(sign=accept_diff / np.abs(accept_diff), learn_rate=10.0)
+            self.step_scale = self.scale_step(
+                sign=accept_diff / np.abs(accept_diff), learn_rate=10.0
+            )
         self.step_scale = np.maximum(self.step_scale, 2.220446049250313e-16)
 
         # check convegence
@@ -310,7 +312,6 @@ class Chain(BaseModel):
 
         # get log likelihood
         # if self.loss_fn == "likelihood":
-        # TODO: allow other loss functions
         ln_p = Cphylo.compute_LL_np(partials, weights, peel, blens)
         # elif self.loss_fn == "pair_likelihood":
         #     ln_p = self.compute_log_a_like(pdm)
@@ -671,11 +672,11 @@ class DodonaphyMCMC:
         print("\nRunning Dodonaphy MCMC")
         assert connector in ["mst", "geodesics", "nj", "mst_choice"]
 
-        # embed tips with distances using Hydra
-        emm_tips = hydra.hydra(
-            dists_data, dim=dim, curvature=curvature, stress=True, equi_adj=0.0
-        )
-        print(f"Embedding Stress (tips only) = {emm_tips['stress'].item():.4}")
+        # embed tips with distances using HydraPlus
+        hp_obj = hydraPlus.HydraPlus(dists_data, dim=dim, curvature=curvature)
+        emm_tips = hp_obj.embed(equi_adj=0.0, stress=True)
+        print(f"Embedding stress of tips (hydra) = {emm_tips['stress_hydra']:.4}")
+        print(f"Embedding stress of tips (hydra+) = {emm_tips['stress_hydraPlus']:.4}")
 
         mymod = DodonaphyMCMC(
             partials,
