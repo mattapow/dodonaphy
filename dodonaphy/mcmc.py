@@ -503,7 +503,7 @@ class DodonaphyMCMC:
 
     def save_iteration(self, path_write, iteration):
         """Save the current state to file."""
-        if self.loss != "likelihood":
+        if self.chain[0].loss_fn != "likelihood":
             ln_p = Cphylo.compute_LL_np(
                 self.chain[0].partials,
                 self.chain[0].weights,
@@ -511,7 +511,7 @@ class DodonaphyMCMC:
                 self.chain[0].blens,
             )
         else:
-            ln_p = self.likelihood
+            ln_p = self.chain[0].ln_p
         tree.save_tree(
             path_write,
             "mcmc",
@@ -545,14 +545,14 @@ class DodonaphyMCMC:
 
         with open(file_name, "a", encoding="UTF-8") as file:
             file.write(
-                np.array2string(self.chain[0].leaf_r.data.numpy(), separator=",")
+                np.array2string(self.chain[0].leaf_r, separator=",")
                 .replace("\n", "")
                 .replace("[", "")
                 .replace("]", "")
             )
             file.write(", ")
             file.write(
-                np.array2string(self.chain[0].leaf_dir.data.numpy(), separator=",")
+                np.array2string(self.chain[0].leaf_dir, separator=",")
                 .replace("\n", "")
                 .replace("[", "")
                 .replace("]", "")
