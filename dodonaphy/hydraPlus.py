@@ -18,16 +18,6 @@ class HydraPlus:
         self.curvature = curvature
         self.n_taxa = len(dists)
 
-    def jitter(self, x):
-        np.sort(x)
-        d = x[-1] - x[-2]
-        for i in range(len(x)-1):
-            if x[i+1] - x[i] < d:
-                d = x[i+1] - x[i]
-        a = d/5.0
-        x += np.random.uniform(-a, a)
-        return x
-
     def embed(self, alpha=1.1, equi_adj=0.5, maxiter=1000, **kwargs):
         # Embed the distance matrix into the Poincare ball using Hydra+
 
@@ -97,3 +87,13 @@ class HydraPlus:
         np.fill_diagonal(D, 0)
         y = 0.5 * np.sum((D - self.dists) ** 2)
         return y
+
+    def jitter(self, x):
+        np.sort(x)
+        d = x[-1] - x[-2]
+        for i in range(len(x) - 1):
+            if x[i + 1] - x[i] < d:
+                d = x[i + 1] - x[i]
+        a = d / 5.0
+        x += np.random.uniform(-a, a)
+        return x
