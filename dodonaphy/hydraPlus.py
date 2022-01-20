@@ -1,7 +1,7 @@
 import numpy as np
 from scipy.optimize import minimize
 
-from dodonaphy import hydra, Cutils
+from dodonaphy import hydra, Cutils, Chyperboloid
 
 
 class HydraPlus:
@@ -34,6 +34,8 @@ class HydraPlus:
             **kwargs
         )
         loc_init = np.tile(emm["r"], (self.dim, 1)).T * emm["directional"]
+        loc_init = Chyperboloid.poincare_to_hyper(loc_init)
+        self.dim += 1
         loc_init = self.jitter(loc_init)
         print("done.")
 
@@ -46,6 +48,8 @@ class HydraPlus:
             options={"disp": False, "maxiter": maxiter},
         )
         X = optimizer.x.reshape((self.n_taxa, self.dim))
+        X = Chyperboloid.hyper_to_poincare(X.T).T
+        self.dim -= 1
         print("done.", flush=True)
 
         output = {}
