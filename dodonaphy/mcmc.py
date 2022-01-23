@@ -26,6 +26,8 @@ class DodonaphyMCMC:
         max_scale=1,
         normalise_leaf=False,
         loss_fn="likelihood",
+        swap_period=1000,
+        n_swaps=10,
     ):
         self.n_chains = n_chains
         self.chain = []
@@ -34,6 +36,8 @@ class DodonaphyMCMC:
         self.n_trials = n_trials
         self.max_scale = max_scale
         self.save_period = save_period
+        self.swap_period = swap_period
+        self.n_swaps = n_swaps
         for i in range(n_chains):
             chain_temp = 1.0 / (1 + d_temp * i)
             self.chain.append(
@@ -115,6 +119,7 @@ class DodonaphyMCMC:
         self.print_iter(0)
         if path_write is not None:
             self.save_iteration(path_write, 0)
+
         for epoch in range(1, epochs + 1):
             for chain in self.chain:
                 chain.evolve()
@@ -126,8 +131,10 @@ class DodonaphyMCMC:
                 if path_write is not None:
                     self.save_iteration(path_write, epoch)
 
-            if self.n_chains > 1:
-                swaps += self.swap()
+            try_swap = self.n_chains > 1 and epoch % self.swap_period == 0
+            if try_swap:
+                for _ in range(self.n_swaps):
+                    swaps += self.swap()
 
         if path_write is not None:
             self.save_final_info(path_write, swaps, time.time() - start)

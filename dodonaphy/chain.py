@@ -308,7 +308,6 @@ class Chain(BaseModel):
 
         # get log likelihood
         # if self.loss_fn == "likelihood":
-        # TODO: allow other loss functions
         ln_p = Cphylo.compute_LL_np(partials, weights, peel, blens)
         # elif self.loss_fn == "pair_likelihood":
         #     ln_p = self.compute_log_a_like(pdm)
