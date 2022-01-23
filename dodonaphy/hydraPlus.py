@@ -1,4 +1,3 @@
-from re import X
 import numpy as np
 from scipy.optimize import minimize
 
@@ -33,7 +32,6 @@ class HydraPlus:
         loc_init = np.tile(emm["r"], (self.dim, 1)).T * emm["directional"]
         loc_init = Chyperboloid.poincare_to_hyper(loc_init).flatten()
         self.dim += 1
-        loc_init = self.jitter(loc_init)
         print("done.")
 
         print("Minimising initial embedding stress: ", end="", flush=True)
@@ -88,12 +86,3 @@ class HydraPlus:
         y = 0.5 * np.sum((D - self.dists) ** 2)
         return y
 
-    def jitter(self, x):
-        np.sort(x)
-        d = x[-1] - x[-2]
-        for i in range(len(x) - 1):
-            if x[i + 1] - x[i] < d:
-                d = x[i + 1] - x[i]
-        a = d / 5.0
-        x += np.random.uniform(-a, a)
-        return x
