@@ -1,12 +1,12 @@
 import math
 import numpy as np
 cimport numpy as np
-from .Chyperboloid_np import hyperbolic_distance
+from .Chyp_np import hyperbolic_distance
 from collections import Counter
 
 cdef double eps = np.finfo(np.double).eps
 
-def compress_alignment_np(alignment):
+cpdef compress_alignment_np(alignment):
     sequences = [str(sequence) for sequence in alignment.sequences()]
     taxa = alignment.taxon_namespace.labels()
     count_dict = Counter(list(zip(*sequences)))
@@ -51,22 +51,17 @@ def compute_LL_np(partials,
     np.ndarray[np.int_t, ndim=1] weights,
     np.ndarray[np.int_t, ndim=2] peel,
     np.ndarray[np.double_t, ndim=1] blen):
-        """[summary]
-
-        Args:
-            leaf_r ([type]): [description]
-            leaf_dir ([type]): [description]
-            int_r ([type]): [description]
-            int_dir ([type]): [description]
-        """
-        mats = JC69_p_t(blen)
-        return calculate_treelikelihood(
-            partials,
-            weights,
-            peel,
-            mats,
-            np.full([4], 0.25, dtype=np.float64),
-        )
+    """
+    Compute tree likeilhood.
+    """
+    mats = JC69_p_t(blen)
+    return calculate_treelikelihood(
+        partials,
+        weights,
+        peel,
+        mats,
+        np.full([4], 0.25, dtype=np.float64),
+    )
 
 cpdef calculate_treelikelihood(
     partials,
@@ -162,55 +157,38 @@ cdef LogDirPrior(np.ndarray[np.double_t, ndim=1] blen, np.double_t aT, np.double
 cpdef compute_branch_lengths_np(
         np.int_t S,
         np.ndarray[np.int_t, ndim=2] peel,
-        np.ndarray[np.double_t, ndim=1] leaf_r,
-        np.ndarray[np.double_t, ndim=2] leaf_dir,
-        int_r,
-        int_dir,
+        np.ndarray[np.double_t, ndim=2] leaf_x,
+        int_x,
         np.double_t curvature=-1.0
     ):
-        """Computes the hyperbolic distance of two points given in radial/directional coordinates in the Poincare ball
+        """Computes the hyperboloid distance points in peel.
 
         Args:
             S (integer): [description]
             D ([type]): [description]
             peel ([type]): [description]
-            leaf_r ([type]): [description]
-            leaf_dir ([type]): [description]
-            int_r ([type]): [description]
-            int_dir ([type]): [description]
+            leaf_x ([type]): [description]
+            int_x ([type]): [description]
 
         Returns:
             [type]: [description]
         """
         cdef np.int_t bcount = 2 * S - 2
-        cdef np.ndarray[np.double_t, ndim=1] blens = np.empty(bcount, dtype=np.double)
+        cdef np.ndarray[np.double_t, ndim=1] blens = np.zeros(bcount, dtype=np.double)
 
         for b in range(S - 1):
-            directional2 = int_dir[
-                peel[b][2] - S - 1,
-            ]
-            r2 = int_r[peel[b][2] - S - 1]
+            x2 = int_x[peel[b][2] - S - 1,]
 
             for i in range(2):
                 if peel[b][i] < S:
-                    # leaf to internal
-                    r1 = leaf_r[peel[b][i]]
-                    directional1 = leaf_dir[peel[b][i], :]
+                    x1 = leaf_x[peel[b][i], :]  # leaf to internal
                 else:
-                    # internal to internal
-                    r1 = int_r[peel[b][i] - S - 1]
-                    directional1 = int_dir[
-                        peel[b][i] - S - 1,
-                    ]
-
-                hd = hyperbolic_distance(
-                        r1, r2, directional1, directional2, curvature
-                    )
-
+                    x1 = int_x[peel[b][i] - S - 1, :]  # internal to internal
+                hd = hyperbolic_distance(x1, x2, curvature)
                 # apply the inverse transform from Matsumoto et al 2020
                 hd = np.log(np.cosh(hd))
 
                 # add a tiny amount to avoid zero-length branches
-                blens[peel[b][i]] = np.clip(hd, eps, None)
+                blens[peel[b][i]] = np.maximum(hd, eps)
 
         return blens

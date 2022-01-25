@@ -15,7 +15,7 @@ https://github.com/pfnet-research/hyperbolic_wrapped_distribution
 
 import numpy as np
 cimport numpy as np
-from dodonaphy import utils, Cutils
+from dodonaphy import Ctransforms
 from dodonaphy.edge import Edge
 
 cdef np.double_t eps = np.finfo(np.double).eps
@@ -140,7 +140,7 @@ cpdef p2t0(np.ndarray[np.double_t, ndim=2] loc, mu=None, get_jacobian=False):
     cdef np.ndarray[np.double_t, ndim=2] vec_hyp = poincare_to_hyper_2d(loc)
     if mu is None:
         mu = np.zeros_like(loc)
-        mu = up_to_hyper(mu)
+        mu = project_up(mu)
     n_loc, dim = np.shape(loc)
     cdef np.ndarray[np.double_t, ndim=1] zero = np.zeros((dim + 1), dtype=np.double)
     zero[0] = 1
@@ -185,7 +185,7 @@ cpdef t02p(np.ndarray[np.double_t, ndim=2] x, mu=None, get_jacobian=False):
         mu = np.zeros_like(x)
 
     cdef np.ndarray[np.double_t, ndim=2] x_poin = np.zeros_like(x)
-    cdef np.ndarray[np.double_t, ndim=2] mu_hyp = up_to_hyper(mu)
+    cdef np.ndarray[np.double_t, ndim=2] mu_hyp = project_up(mu)
     cdef np.double_t jacobian = np.zeros(1)
     for i in range(n_loc):
         x_hyp = tangent_to_hyper(mu_hyp[i, :], x[i, :], dim)
@@ -278,7 +278,7 @@ cpdef hyper_to_poincare_jacobian(np.ndarray[np.double_t, ndim=1] location):
     return np.log(np.abs(det))
 
 
-cpdef up_to_hyper(loc):
+cpdef project_up(np.ndarray[np.double_t, ndim=1] loc):
     """Project directly up onto the hyperboloid
 
     Take a position in R^n and return the point in R^n+1 lying on the hyperboloid H^n
@@ -293,47 +293,19 @@ cpdef up_to_hyper(loc):
     Location in R^n+1 on Hyperboloid
 
     """
-    if loc.ndim == 1:
-        z = np.expand_dims(np.sqrt(np.sum(np.power(loc, 2)) + 1), 0)
-        return np.concatenate((z, loc), axis=0)
-    elif loc.ndim == 2:
-        z = np.expand_dims(np.sqrt(np.sum(np.power(loc, 2), 1) + 1), 1)
-        return np.concatenate((z, loc), axis=1)
+    z = np.expand_dims(np.sqrt(np.sum(np.power(loc, 2), 0) + 1), 0)
+    return np.concatenate((z, loc), axis=0)
 
+cpdef project_up_2d(np.ndarray[np.double_t, ndim=2] loc):
+    z = np.expand_dims(np.sqrt(np.sum(np.power(loc, 2), 1) + 1), 1)
+    return np.concatenate((z, loc), axis=1)
 
 cpdef hyperbolic_distance(
-    double r1,
-    double r2,
-    np.ndarray[np.double_t, ndim=1] directional1,
-    np.ndarray[np.double_t, ndim=1] directional2,
-    np.double_t curvature):
-    """Generates hyperbolic distance between two points in poincoire ball
-
-    Args:
-        r1 (ndarray): radius of point 1
-        r2 (ndarray): radius of point 2
-        directional1 (1D ndarray): directional of point 1
-        directional2 (1D ndarray): directional of point 2
-        curvature (ndarray): curvature
-
-    Returns:
-        ndarray: distance between point 1 and point 2
-    """
-    assert curvature < 0
-
-    # Use lorentz distance for numerical stability
-    cdef np.ndarray[np.double_t, ndim=1] z1 = poincare_to_hyper(Cutils.dir_to_cart_np(r1, directional1))
-    cdef np.ndarray[np.double_t, ndim=1] z2 = poincare_to_hyper(Cutils.dir_to_cart_np(r2, directional2))
-    cdef double inner = np.maximum(-lorentz_product(z1, z2), 1+eps)
-    return 1. / np.sqrt(-curvature) * np.arccosh(inner)
-
-
-cpdef hyperbolic_distance_lorentz(
     np.ndarray[np.double_t, ndim=1] x1,
     np.ndarray[np.double_t, ndim=1]x2,
     np.double_t curvature=-1.0):
-    """Generates hyperbolic distance between two points in poincare ball.
-    Project onto hyperboloid and compute using Lorentz product.
+    """Generates hyperbolic distance between two points in hyperboloid.
+    Compute using Lorentz product.
 
     Returns:
         tensor: distance between point 1 and point 2
@@ -342,9 +314,7 @@ cpdef hyperbolic_distance_lorentz(
     if np.isclose(curvature, 0.0):
         return np.linalg.norm(x2-x1)
 
-    cdef np.ndarray[np.double_t, ndim=1] z1 = poincare_to_hyper(x1)
-    cdef np.ndarray[np.double_t, ndim=1] z2 = poincare_to_hyper(x2)
-    cdef np.double_t inner = np.maximum(-lorentz_product(z1, z2), 1.+eps)
+    cdef np.double_t inner = np.maximum(-lorentz_product(x1, x2), 1.+eps)
     return 1. / np.sqrt(-curvature) * np.arccosh(inner)
 
 cdef lorentz_product(
@@ -370,241 +340,43 @@ cdef lorentz_product(
     """
     return -x[0] * y[0] + np.dot(x[1:], y[1:])
 
-cdef poincare_to_hyper_2d(np.ndarray[np.double_t, ndim=2] location):
-    """
-    Take point in Poincare ball to hyperbolic sheet
-
-    Parameters
-    ----------
-    location: ndarray
-        location of point in poincare ball
-
-    Returns
-    -------
-
-    """
-    cdef np.int_t n_points = location.shape[0]
-    cdef np.int_t dim = location.shape[1]
-    cdef np.ndarray[np.double_t, ndim=2] out = np.zeros((n_points, dim + 1))
-    cdef np.ndarray[np.double_t, ndim=2] a = np.power(location[:], 2)
-    cdef np.ndarray[np.double_t, ndim=2] b = a.sum(axis=1, keepdims=True)
-    out[:, 1:] = 2 * location[:] / (1 - b + eps)
-    return out
-
-cdef poincare_to_hyper(np.ndarray[np.double_t, ndim=1] location):
-    """
-    Take point in Poincare ball to hyperbolic sheet
-
-    Parameters
-    ----------
-    location: ndarray
-        location of point in poincare ball
-
-    Returns
-    -------
-
-    """
-    cdef np.int_t dim = location.shape[0]
-    cdef np.ndarray[np.double_t, ndim=1] out = np.zeros(dim + 1)
-    cdef np.ndarray[np.double_t, ndim=1] a = np.power(location[:], 2)
-    cdef np.ndarray[np.double_t, ndim=1] b = a.sum(axis=0, keepdims=True)
-    out[0] = (1 + b) / (1 - b + eps)
-    out[1:] = 2 * location[:] / (1 - b + eps)
-    return out
-
-cpdef ball2real(np.ndarray[np.double_t, ndim=2] loc_ball, np.double_t radius=1.0):
-    """A map from the unit ball B^n to real R^n.
-    Inverse of real2ball.
-
-    Args:
-        loc_ball (tensor): [description]
-        radius (tensor): [description]
-
-    Returns:
-        tensor: [description]
-    """
-    if loc_ball.ndim == 1:
-        loc_ball = np.expand_dims(loc_ball, -1)
-    cdef np.int_t dim = loc_ball.shape[1]
-    cdef np.ndarray[np.double_t, ndim=2] norm_loc_ball = np.tile(np.linalg.norm(loc_ball, axis=-1, keepdims=True), (1, dim))
-    cdef np.ndarray[np.double_t, ndim=2] loc_real = loc_ball / (radius - norm_loc_ball)
-    return loc_real
-
-
-cpdef real2ball(np.ndarray[np.double_t, ndim=2] loc_real, np.double_t radius=1.0):
-    """A map from the reals R^n to unit ball B^n.
-    Inverse of ball2real.
-
-    Args:
-        loc_real (tensor): Point in R^n with size [1, dim]
-        radius (float): Radius of ball
-
-    Returns:
-        tensor: [description]
-    """
-    if loc_real.ndim == 1:
-        loc_real = np.expand_dims(loc_real, -1)
-    cdef np.int_t dim = loc_real.shape[1]
-    cdef np.ndarray[np.double_t, ndim=2] norm_loc_real = np.tile(np.linalg.norm(loc_real, axis=-1, keepdims=True), (1, dim))
-    cdef np.ndarray[np.double_t, ndim=2] loc_ball = np.divide(radius * loc_real, (1 + norm_loc_real))
-    return loc_ball
-
-
-cpdef real2ball_LADJ(np.ndarray[np.double_t, ndim=2] y, np.double_t radius=1.0):
-    """Copmute log of absolute value of determinate of jacobian of real2ball on point y
-
-    Args:
-        y (tensor): Points in R^n n_points x n_dimensions
-
-    Returns:
-        scalar tensor: log absolute determinate of Jacobian
-    """
-    if y.ndim == 1:
-        y = np.expand_dims(y, -1)
-
-    n, D = np.shape(y)
-    cdef np.double_t log_abs_det_J = 0.0
-    cdef np.ndarray[np.double_t, ndim=2] norm = np.linalg.norm(y, axis=-1, keepdims=True)
-    cdef np.ndarray[np.double_t, ndim=2] J = np.zeros((D, D))
-    for k in range(n):
-        J = (np.eye(D, D) - np.outer(y[k], y[k]) / (norm[k] * (norm[k] + 1))) / (1+norm[k])
-        sign, log_det = np.linalg.slogdet(radius * J)
-        log_abs_det_J = log_abs_det_J + sign*log_det
-    return log_abs_det_J
-
-
-cpdef get_pdm_tips(leaf_r, leaf_dir, curvature=-1.0):
-    leaf_node_count = leaf_r.shape[0]
-    edge_list = [[] for _ in range(leaf_node_count)]
-
-    for i in range(leaf_node_count):
-        for j in range(i):
-            dist_ij = 0
-            dist_ij = hyperbolic_distance(leaf_r[i], leaf_r[j], leaf_dir[i], leaf_dir[j], curvature)
-
-            # apply the inverse transform from Matsumoto et al 2020
-            dist_ij = np.log(np.cosh(dist_ij))
-
-            edge_list[i].append(Edge(dist_ij, i, j))
-            edge_list[j].append(Edge(dist_ij, j, i))
-
-    return edge_list
-  
-cpdef get_pdm_tips_np(
-    np.ndarray[np.double_t, ndim=1] leaf_r,
-    np.ndarray[np.double_t, ndim=2] leaf_dir,
+cpdef get_pdm(
+    np.ndarray[np.double_t, ndim=2] x,
     np.double_t curvature=-1.0):
     
-    cdef np.int_t leaf_node_count = leaf_r.shape[0]
-    cdef np.ndarray[np.double_t, ndim=2] edge_adj = np.zeros((leaf_node_count, leaf_node_count))
-    cdef np.double_t dist_ij
+    cdef np.ndarray[np.double_t, ndim=2] X = x @ x.T
+    cdef np.ndarray[np.double_t, ndim=1] u_tilde = np.sqrt(np.diagonal(X) + 1)
+    cdef np.ndarray[np.double_t, ndim=2] H = X - np.outer(u_tilde, u_tilde)
+    H = np.minimum(H, -(1 + eps))
+    cdef np.ndarray[np.double_t, ndim=2] D = 1 / np.sqrt(-curvature) * np.arccosh(-H)
+    # apply the inverse transform from Matsumoto et al 2020: 
+    D = np.log(np.cosh(D))
+    return D
 
-    for i in range(leaf_node_count):
-        for j in range(i):
-            dist_ij = hyperbolic_distance(leaf_r[i], leaf_r[j], leaf_dir[i], leaf_dir[j], curvature)
-
-            # apply the inverse transform from Matsumoto et al 2020
-            dist_ij = np.log(np.cosh(dist_ij))
-
-            edge_adj[i, j] = edge_adj[j, i] = dist_ij
-
-    return edge_adj
-
-cpdef get_pdm(
-    np.ndarray[np.double_t, ndim=1] leaf_r,
-    np.ndarray[np.double_t, ndim=2] leaf_dir,
-    int_r=None,
-    int_dir=None,
-    curvature=-np.ones(1),
-    dtype='dict'):
-    """Pair-wise hyperbolic distance matrix
-
-        Note if curvature=0, then the SQUARED Euclidean distance is computed.
-    Args:
-        leaf_r (tensor):
-        leaf_dir (tensor):
-        int_r (1D tensor):
-        inr_dir (1D tensor):
-        curvature (double): curvature
-        dtype (string): "dict" or "numpy"
-
-    Returns:
-        ndarray: distance between point 1 and point 2
+cpdef poincare_to_hyper(np.ndarray[np.double_t, ndim=1] location):
     """
-    cdef np.int_t leaf_node_count = leaf_r.shape[0]
-    cdef np.int_t int_node_count = 0
-    if int_r is None:
-        int_r = np.ndarray((0))
-        int_dir = np.ndarray((0, 0))
-    else:
-        int_node_count = int_r.shape[0]
+    Take points in Poincare ball to hyperbolic sheet
 
-    cdef np.int_t node_count = leaf_node_count + int_node_count
+    Parameters
+    ----------
+    location: tensor
+        n_points x dim location of points in poincare ball
 
-    # return array if pairwise distance if asNumpy
-    cdef asNumpy = dtype == 'numpy'
-    cdef np.ndarray[np.double_t, ndim=2] pdm_np = np.zeros((node_count*asNumpy, node_count*asNumpy))
+    Returns
+    -------
 
-    if np.isclose(curvature, np.zeros(1, dtype=np.double)):
-        # Euclidean distance
-        X = leaf_r[0] * leaf_dir
-        for i in range(X.shape[0]):
-            for j in range(X.shape[1]): 
-                pdm_np[i, j] = pdm_np[j, i] = np.linalg.norm(X[i, :] - X[j, :])
-        return pdm_np
+    """
+    cdef int dim = location.shape[0]
+    cdef np.ndarray[np.double_t, ndim=1] out = np.zeros(dim + 1)
+    cdef np.double_t a = np.power(location[:], 2).sum(axis=0)
+    out[0] = (1 + a) / (1 - a)
+    out[1:] = 2 * location[:] / (1 - a + eps)
+    return out
 
-    assert dtype in ('dict', 'numpy')
-
-    # return dict of lists
-    if dtype == 'dict':
-        pdm_dict = dict()
-        for i in range(node_count):
-            pdm_dict[i] = list()
-
-    cdef np.double_t dist_ij = 0.0
-    cdef np.int_t i_node
-    cdef np.int_t j_node
-
-    for i in range(node_count):
-        for j in range(i + 1, node_count):
-            if i < leaf_node_count and j >= leaf_node_count and int_r is not None:
-                # leaf to internal
-                j_node = j - leaf_node_count
-                dist_ij = hyperbolic_distance(
-                    leaf_r[i],
-                    int_r[j_node],
-                    leaf_dir[i],
-                    int_dir[j_node],
-                    curvature)
-            elif i < leaf_node_count and j < leaf_node_count:
-                # leaf to leaf
-                dist_ij = hyperbolic_distance(
-                    leaf_r[i],
-                    leaf_r[j],
-                    leaf_dir[i],
-                    leaf_dir[j],
-                    curvature)
-            else:
-                # internal to internal
-                i_node = i - leaf_node_count
-                j_node = j - leaf_node_count
-                dist_ij = hyperbolic_distance(
-                    int_r[i_node],
-                    int_r[j_node],
-                    int_dir[i_node],
-                    int_dir[j_node],
-                    curvature)
-
-            # apply the inverse transform from Matsumoto et al 2020
-            dist_ij = np.log(np.cosh(dist_ij))
-
-            if dtype == 'dict':
-                pdm_dict[i].append(Cu_edge(dist_ij, i, j))
-                pdm_dict[j].append(Cu_edge(dist_ij, j, i))
-            elif dtype == 'numpy':
-                pdm_np[i, j] = pdm_np[j, i] = dist_ij
-
-    if dtype == 'dict':
-        return pdm_dict
-    elif dtype == 'numpy':
-        return pdm_np
+cpdef poincare_to_hyper_2d(np.ndarray[np.double_t, ndim=2] location):
+    cdef int dim = location.shape[1]
+    cdef np.ndarray[np.double_t, ndim=1] a = np.power(location, 2).sum(axis=-1)
+    cdef np.ndarray[np.double_t, ndim=1] out0 = (1 + a) / (1 - a)
+    cdef np.ndarray[np.double_t, ndim=2] out1 = 2 * location / (1 - np.expand_dims(a, axis=1) + eps)
+    cdef np.ndarray[np.double_t, ndim=2] out = np.concatenate((np.expand_dims(out0, axis=1), out1), axis=1)
+    return out

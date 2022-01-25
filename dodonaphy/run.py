@@ -11,11 +11,10 @@ from dendropy.model.birthdeath import birth_death_likelihood
 from dendropy.model.discrete import simulate_discrete_chars
 from dendropy.simulate import treesim
 
-from dodonaphy import utils
+from dodonaphy import utils, Cphylo
 from dodonaphy.mcmc import DodonaphyMCMC as mcmc
 from dodonaphy.ml import ML
 from dodonaphy.phylo import compress_alignment
-from dodonaphy.Cphylo import compress_alignment_np
 from dodonaphy.vi import DodonaphyVI
 
 
@@ -50,7 +49,7 @@ def run(args):
 
     start = time.time()
     if args.infer == "mcmc":
-        partials, weights = compress_alignment_np(dna)
+        partials, weights = Cphylo.compress_alignment_np(dna)
         mcmc.run(
             args.dim,
             partials[:],
@@ -60,9 +59,6 @@ def run(args):
             epochs=args.epochs,
             step_scale=args.step,
             save_period=save_period,
-            n_grids=args.grids,
-            n_trials=args.trials,
-            max_scale=args.max_scale,
             n_chains=args.chains,
             burnin=args.burn,
             connector=args.connect,
@@ -70,6 +66,8 @@ def run(args):
             curvature=args.curv,
             normalise_leaf=args.normalise_leaves,
             loss_fn=args.loss_fn,
+            swap_period=args.swap_period,
+            n_swaps=args.n_swaps,
         )
     elif args.infer == "vi":
         partials, weights = compress_alignment(dna)
@@ -83,8 +81,6 @@ def run(args):
             epochs=args.epochs,
             k_samples=args.importance,
             n_draws=args.draws,
-            n_grids=args.grids,
-            n_trials=args.trials,
             max_scale=args.max_scale,
             lr=args.learn,
             embedder=args.embed,
@@ -241,8 +237,8 @@ def init_parser():
     parser.add_argument(
         "--embed",
         "-e",
-        default="simple",
-        choices=("simple", "wrap"),
+        default="up",
+        choices=("up", "wrap"),
         help="Embedded method from Euclidean to Hyperbolic space.",
     )
     parser.add_argument(
@@ -343,11 +339,16 @@ def init_parser():
         help="Loss function for MCMC and ML. Not implemented in VI.",
     )
     parser.add_argument(
+        "--swap_period",
+        default=1000,
         type=int,
+        help="Number MCMC generations before considering swapping chains."
     )
     parser.add_argument(
+        "--n_swaps",
         default=10,
         type=int,
+        help="Number of MCMC chain swap moves considered every swap_period."
     )
 
     # Tree simulation parameters

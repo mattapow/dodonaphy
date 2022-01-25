@@ -1,15 +1,12 @@
 "Base model for MCMC and VI inference"
-import math
-
 import numpy as np
 import torch
 from dendropy import Tree
 from dendropy.model.birthdeath import birth_death_likelihood as birth_death_likelihood
-from torch.distributions.multivariate_normal import MultivariateNormal
 
 from dodonaphy import poincare
 
-from . import Chyperboloid, Chyperboloid_np, peeler, utils, Cphylo
+from . import Chyp_torch, Chyp_np
 from . import tree as treeFunc
 from .phylo import JC69_p_t, calculate_treelikelihood
 from .utils import LogDirPrior
@@ -25,7 +22,7 @@ class BaseModel(object):
         dim,
         soft_temp,
         curvature=-1.0,
-        embedder="simple",
+        embedder="up",
         connector="nj",
         normalise_leaf=False,
         loss_fn="likelihood",
@@ -44,7 +41,7 @@ class BaseModel(object):
         else:
             self.curvature = curvature
         self.epoch = 0
-        assert embedder in ("wrap", "simple")
+        assert embedder in ("wrap", "up")
         self.embedder = embedder
         assert connector in ("geodesics", "nj")
         self.connector = connector
@@ -77,10 +74,8 @@ class BaseModel(object):
     def compute_branch_lengths(
         n_taxa,
         peel,
-        leaf_r,
-        leaf_dir,
-        int_r,
-        int_dir,
+        leaf_x,
+        int_x,
         curvature=-torch.ones(1),
         useNP=True,
     ):
@@ -90,10 +85,8 @@ class BaseModel(object):
             n_taxa (integer): [description]
             D ([type]): [description]
             peel ([type]): [description]
-            leaf_r ([type]): [description]
-            leaf_dir ([type]): [description]
-            int_r ([type]): [description]
-            int_dir ([type]): [description]
+            leaf_x ([type]): [description]
+            int_x ([type]): [description]
 
         Returns:
             [type]: [description]
@@ -101,40 +94,31 @@ class BaseModel(object):
         # Using numpy in cython may be faster
         if useNP:
             DTYPE = np.double
-            leaf_r = leaf_r.detach().numpy().astype(DTYPE)
-            leaf_dir = leaf_dir.detach().numpy().astype(DTYPE)
-            int_r = int_r.detach().numpy().astype(DTYPE)
-            int_dir = int_dir.detach().numpy().astype(DTYPE)
+            leaf_x = leaf_x.detach().numpy().astype(DTYPE)
+            int_x = int_x.detach().numpy().astype(DTYPE)
         bcount = 2 * n_taxa - 2
         blens = torch.empty(bcount, dtype=torch.float64)
         for b in range(n_taxa - 1):
-            directional2 = int_dir[
+            x2 = int_x[
                 peel[b][2] - n_taxa - 1,
             ]
-            r2 = int_r[peel[b][2] - n_taxa - 1]
 
             for i in range(2):
                 if peel[b][i] < n_taxa:
                     # leaf to internal
-                    r1 = leaf_r[peel[b][i]]
-                    directional1 = leaf_dir[peel[b][i], :]
+                    x1 = leaf_x[peel[b][i]]
                 else:
                     # internal to internal
-                    r1 = int_r[peel[b][i] - n_taxa - 1]
-                    directional1 = int_dir[
-                        peel[b][i] - n_taxa - 1,
-                    ]
+                    x1 = int_x[peel[b][i] - n_taxa - 1]
 
                 if useNP:
                     hd = torch.tensor(
-                        Chyperboloid_np.hyperbolic_distance(
-                            r1, r2, directional1, directional2, curvature
+                        Chyp_np.hyperbolic_distance(
+                            x1, x2, curvature
                         )
                     )
                 else:
-                    hd = Chyperboloid.hyperbolic_distance(
-                        r1, r2, directional1, directional2, curvature
-                    )
+                    hd = Chyp_torch.hyperbolic_distance(x1, x2, curvature)
 
                 # apply the inverse transform from Matsumoto et al 2020
                 hd = torch.log(torch.cosh(hd))
@@ -146,13 +130,14 @@ class BaseModel(object):
         return blens
 
     def compute_LL(self, peel, blen):
-        """[summary]
+        """Compute likelihood of tree.
 
         Args:
-            leaf_r ([type]): [description]
-            leaf_dir ([type]): [description]
-            int_r ([type]): [description]
-            int_dir ([type]): [description]
+            peel ([type]): [description]
+            blen ([type]): [description]
+
+        Returns:
+            [type]: [description]
         """
         mats = JC69_p_t(blen)
         return calculate_treelikelihood(
@@ -249,188 +234,13 @@ class BaseModel(object):
         return torch.exp(-pdm_data[u, v])
 
 
-    def sample(
-        self,
-        leaf_loc,
-        leaf_cov,
-        int_loc=None,
-        int_cov=None,
-        soft=True,
-        normalise_leaf=False,
-    ):
-        """Sample a nearby tree embedding.
-
-        Each point is transformed R^n (using the self.embedding method), then
-        a normal is sampled and transformed back to H^n. A tree is formed using
-        the self.connect method.
-
-        A dictionary is  returned containing information about this sampled tree.
-        """
-        # reshape covariance if single number
-        if torch.numel(leaf_cov) == 1:
-            leaf_cov = torch.eye(self.S * self.D, dtype=torch.double) * leaf_cov
-        if int_cov is not None and torch.numel(int_cov) == 1:
-            int_cov = torch.eye((self.S - 2) * self.D, dtype=torch.double) * int_cov
-
-        leaf_r_prop, leaf_dir_prop, log_abs_det_jacobian, log_Q = self.sample_loc(
-            leaf_loc, leaf_cov, is_internal=False, normalise_leaf=normalise_leaf
-        )
-
-        if self.internals_exist:
-            (
-                int_r_prop,
-                int_dir_prop,
-                log_abs_det_jacobian_int,
-                log_Q_int,
-            ) = self.sample_loc(
-                int_loc, int_cov, is_internal=True, normalise_leaf=False
-            )
-            min_leaf_r = min(leaf_r_prop)
-            int_r_prop[int_r_prop > min_leaf_r] = min_leaf_r
-            log_abs_det_jacobian = log_abs_det_jacobian + log_abs_det_jacobian_int
-            log_Q = log_Q + log_Q_int
-
-        # internal nodes and peel for geodesics
-        if self.connector == "geodesics":
-            leaf_locs = leaf_r_prop.repeat((self.D, 1)).T * leaf_dir_prop
-            if isinstance(leaf_locs, torch.Tensor):
-                peel, int_locs, blens = peeler.make_soft_peel_tips(
-                    leaf_locs, connector="geodesics", curvature=self.curvature
-                )
-            else:
-                peel, int_locs = peeler.make_hard_peel_geodesic(leaf_locs)
-            int_r_prop, int_dir_prop = utils.cart_to_dir(int_locs)
-
-        # get peels
-        if self.connector == "nj":
-            pdm = Chyperboloid.get_pdm_torch(
-                leaf_r_prop, leaf_dir_prop, curvature=self.curvature
-            )
-            if soft:
-                peel, blens = peeler.nj(pdm, tau=self.soft_temp)
-            else:
-                peel, blens = peeler.nj(pdm)
-        elif self.connector == "mst":
-            peel = peeler.make_peel_mst(
-                leaf_r_prop, leaf_dir_prop, int_r_prop, int_dir_prop
-            )
-        elif self.connector == "mst_choice":
-            peel = self.select_peel_mst(
-                leaf_r_prop, leaf_dir_prop, int_r_prop, int_dir_prop
-            )
-
-        # get proposal branch lengths
-        if self.connector != "nj":
-            blens = self.compute_branch_lengths(
-                self.S,
-                peel,
-                leaf_r_prop,
-                leaf_dir_prop,
-                int_r_prop,
-                int_dir_prop,
-                useNP=False,
-            )
-
-        # get log likelihood
-        if self.loss_fn == "likelihood":
-            ln_p = self.compute_LL(peel, blens)
-        elif self.loss_fn == "pair_likelihood":
-            ln_p = self.compute_log_a_like(pdm)
-        elif self.loss_fn == "hypHC":
-            leaf_X = utils.dir_to_cart(leaf_r_prop, leaf_dir_prop)
-            ln_p = self.compute_hypHC(pdm, leaf_X)
-
-        # get log prior
-        ln_prior = self.compute_prior_gamma_dir(blens)
-
-        if self.connector in ("nj"):
-            proposal = {
-                "leaf_r": leaf_r_prop,
-                "leaf_dir": leaf_dir_prop,
-                "peel": peel,
-                "blens": blens,
-                "jacobian": log_abs_det_jacobian,
-                "logQ": log_Q,
-                "ln_p": ln_p,
-                "ln_prior": ln_prior,
-            }
-        elif self.connector in ("geodesics", "mst", "mst_choice"):
-            proposal = {
-                "leaf_r": leaf_r_prop,
-                "leaf_dir": leaf_dir_prop,
-                "int_r": int_r_prop,
-                "int_dir": int_dir_prop,
-                "peel": peel,
-                "blens": blens,
-                "jacobian": log_abs_det_jacobian,
-                "logQ": log_Q,
-                "ln_p": ln_p,
-                "ln_prior": ln_prior,
-            }
-        return proposal
-
-    def sample_loc(self, loc, cov, is_internal, normalise_leaf=False):
-        """Given locations in poincare ball, transform them to Euclidean
-        space, sample from a Normal and transform sample back."""
-        if is_internal:
-            n_locs = self.S - 2
-        else:
-            n_locs = self.S
-        n_vars = n_locs * self.D
-        if self.embedder == "simple":
-            # transform internals to R^n
-            loc_t0 = Chyperboloid.ball2real(loc)
-            log_abs_det_jacobian = -Chyperboloid.real2ball_LADJ(loc_t0)
-
-            # flatten data to sample
-            loc_t0 = loc_t0.reshape(n_vars)
-
-            # propose new int nodes from normal in R^n
-            normal_dist = MultivariateNormal(loc_t0.squeeze(), cov)
-            sample = normal_dist.rsample()
-            log_Q = normal_dist.log_prob(sample)
-            loc_t0 = sample.reshape((n_locs, self.D))
-
-            # convert ints to poincare ball
-            loc_prop = Chyperboloid.real2ball(loc_t0)
-
-        elif self.embedder == "wrap":
-            # transform ints to R^n
-            loc_t0, jacobian = Chyperboloid.p2t0(loc, get_jacobian=True)
-            loc_t0 = loc_t0.clone()
-            log_abs_det_jacobian = -jacobian
-
-            # propose new int nodes from normal in R^n
-            normal_dist = MultivariateNormal(
-                torch.zeros(n_vars, dtype=torch.double), cov
-            )
-            sample = normal_dist.rsample()
-            log_Q = normal_dist.log_prob(sample)
-            loc_prop = Chyperboloid.t02p(
-                sample.reshape(n_locs, self.D),
-                loc_t0.reshape(n_locs, self.D),
-            )
-
-        if normalise_leaf:
-            # TODO: do we need normalise jacobian? The positions are inside the integral... so yes
-            r_prop = torch.norm(loc_prop[0, :]).repeat(self.S)
-            loc_prop = utils.normalise(loc_prop) * r_prop.repeat((self.D, 1)).T
-        else:
-            r_prop = torch.norm(loc_prop, dim=-1)
-        dir_prop = loc_prop / torch.norm(loc_prop, dim=-1, keepdim=True)
-        return r_prop, dir_prop, log_abs_det_jacobian, log_Q
-
     @staticmethod
     def compute_prior_birthdeath(peel, blen, **prior):
         """Calculates the log-likelihood of a tree under a birth death model.
 
         Args:
-            leaf_r ([type]): [description]
-            leaf_dir ([type]): [description]
-            int_r ([type]): [description]
-            int_dir ([type]): [description]
-            **prior: [description]
-
+            peel
+            blen
         Returns:
             lnl : float
 

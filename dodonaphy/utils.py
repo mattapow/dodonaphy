@@ -1,7 +1,7 @@
 import numpy as np
 import torch
 
-from . import poincare
+from . import poincare, Chyp_np
 from .edge import Edge
 
 
@@ -174,7 +174,7 @@ def get_plca_np(locs, as_numpy=False):
     """Return a pair-wise least common ancestor matrix based.
 
     Args:
-        locs ([type]): Coordinates in the Poincare ball
+        locs ([type]): Coordinates on the Hyperboloid.
 
     Returns:
         [type]: A list of lists containing the edges.
@@ -189,7 +189,9 @@ def get_plca_np(locs, as_numpy=False):
 
     for i in range(node_count):
         for j in range(i):
-            dist_ij = poincare.hyp_lca_np(locs[i], locs[j], return_coord=False)
+            poin_i = Chyp_np.hyper_to_poincare(locs[i])
+            poin_j = Chyp_np.hyper_to_poincare(locs[j])
+            dist_ij = poincare.hyp_lca_np(poin_i, poin_j, return_coord=False)
             if as_numpy:
                 edge_adj[i, j] = dist_ij
                 edge_adj[j, i] = dist_ij

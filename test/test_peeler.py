@@ -9,8 +9,8 @@ from dodonaphy import (
     poincare,
     utils,
     Cpeeler,
-    Chyperboloid,
-    Chyperboloid_np,
+    Chyp_torch,
+    Chyp_np,
 )
 from dodonaphy.phylo import compress_alignment
 from dodonaphy.vi import DodonaphyVI
@@ -21,9 +21,9 @@ def test_make_peel_geodesic_dogbone():
     leaf_r = np.array([0.5, 0.5, 0.5, 0.5])
     leaf_theta = np.array([np.pi / 10, -np.pi / 10, np.pi * 6 / 8, -np.pi * 6 / 8])
     leaf_dir = Cutils.angle_to_directional_np(leaf_theta)
-    leaf_locs = Cutils.dir_to_cart_np(leaf_r, leaf_dir)
-    print(leaf_locs)
-    peel, _ = peeler.make_hard_peel_geodesic(leaf_locs)
+    leaf_poin = Cutils.dir_to_cart_np(leaf_r, leaf_dir)
+    leaf_hyp = Chyp_np.poincare_to_hyper_2d(leaf_poin)
+    peel, _ = peeler.make_hard_peel_geodesic(leaf_hyp)
     expected_peel = np.array([[1, 0, 4], [3, 2, 5], [4, 5, 6]])
 
     assert np.allclose(peel, expected_peel)
@@ -40,7 +40,8 @@ def test_make_peel_geodesic_example0():
             (0.11386343, -0.03121063, -0.18112418),
         ]
     )
-    _, _ = peeler.make_hard_peel_geodesic(leaf_locs)
+    leaf_hyp = Chyp_np.poincare_to_hyper_2d(leaf_locs)
+    _, _ = peeler.make_hard_peel_geodesic(leaf_hyp)
 
 
 def test_make_peel_geodesic_example1():
@@ -54,7 +55,8 @@ def test_make_peel_geodesic_example1():
             [-4.0814e-02, -3.1838e-01],
         ]
     )
-    peel, _ = peeler.make_hard_peel_geodesic(leaf_locs)
+    leaf_hyp = Chyp_np.poincare_to_hyper_2d(leaf_locs)
+    peel, _ = peeler.make_hard_peel_geodesic(leaf_hyp)
     for i in range(5):
         assert int(peel[i][0]) is not int(peel[i][1])
         assert int(peel[i][0]) is not int(peel[i][2])
@@ -72,7 +74,8 @@ def test_make_peel_geodesic_example2():
             [-1.40397397e-02, 1.47278753e-01],
         ]
     )
-    peel, _ = peeler.make_hard_peel_geodesic(leaf_locs)
+    leaf_hyp = Chyp_np.poincare_to_hyper_2d(leaf_locs)
+    peel, _ = peeler.make_hard_peel_geodesic(leaf_hyp)
     for i in range(5):
         assert int(peel[i][0]) is not int(peel[i][1])
         assert int(peel[i][0]) is not int(peel[i][2])
@@ -83,8 +86,10 @@ def test_nj():
     leaf_r = np.array([0.5, 0.5, 0.5, 0.5])
     leaf_theta = np.array([np.pi / 10, -np.pi / 10, np.pi * 6 / 8, -np.pi * 6 / 8])
     leaf_dir = Cutils.angle_to_directional_np(leaf_theta)
+    leaf_poin = Cutils.dir_to_cart_np(leaf_r, leaf_dir)
+    leaf_hyp = Chyp_np.poincare_to_hyper_2d(leaf_poin)
 
-    pdm = Chyperboloid_np.get_pdm(leaf_r, leaf_dir, dtype="numpy")
+    pdm = Chyp_np.get_pdm(leaf_hyp)
     peel, blens = Cpeeler.nj_np(pdm)
 
     peel_check = []
@@ -92,23 +97,33 @@ def test_nj():
     peel_check.append(np.allclose(peel, [[0, 1, 4], [2, 3, 5], [4, 5, 6]]))
     peel_check.append(np.allclose(peel, [[2, 3, 4], [1, 4, 5], [0, 5, 6]]))
     peel_check.append(np.allclose(peel, [[0, 1, 4], [4, 2, 5], [5, 3, 6]]))
+    peel_check.append(np.allclose(peel, [[2, 3, 4], [0, 4, 5], [1, 5, 6]]))
+    peel_check.append(np.allclose(peel, [[2, 3, 4], [0, 1, 5], [5, 4, 6]]))
+    peel_check.append(np.allclose(peel, [[0, 1, 4], [4, 3, 5], [2, 5, 6]]))
     assert sum(
         peel_check
     ), "Wrong topology. NB. non-exhaustive check of correct topologies."
-    assert np.isclose(sum(blens), 2.0318, atol=0.001)
+    assert np.isclose(sum(blens), 2.0318, atol=0.001)  # Using Matsumoto adjustment
+    # assert np.isclose(sum(blens), 3.29274740, atol=0.001)
 
 
 def test_nj_uneven():
     leaf_r = np.array([0.1, 0.2, 0.3, 0.4])
     leaf_theta = np.array([np.pi / 2, -np.pi / 10, np.pi, -np.pi * 6 / 8])
     leaf_dir = Cutils.angle_to_directional_np(leaf_theta)
+    leaf_poin = Cutils.dir_to_cart_np(leaf_r, leaf_dir)
+    leaf_hyp = Chyp_np.poincare_to_hyper_2d(leaf_poin)
 
-    pdm = Chyperboloid_np.get_pdm(leaf_r, leaf_dir, dtype="numpy")
+    pdm = Chyp_np.get_pdm(leaf_hyp)
     peel, _ = Cpeeler.nj_np(pdm)
     peel_check = []
-    peel_check.append(np.allclose(peel, [[2, 3, 4], [0, 4, 5], [1, 5, 6]]))
-    peel_check.append(np.allclose(peel, [[3, 2, 4], [0, 4, 5], [1, 5, 6]]))
+    peel_check.append(np.allclose(peel, [[1, 0, 4], [3, 2, 5], [5, 4, 6]]))
+    peel_check.append(np.allclose(peel, [[0, 1, 4], [2, 3, 5], [4, 5, 6]]))
+    peel_check.append(np.allclose(peel, [[2, 3, 4], [1, 4, 5], [0, 5, 6]]))
     peel_check.append(np.allclose(peel, [[0, 1, 4], [4, 2, 5], [5, 3, 6]]))
+    peel_check.append(np.allclose(peel, [[2, 3, 4], [0, 4, 5], [1, 5, 6]]))
+    peel_check.append(np.allclose(peel, [[2, 3, 4], [0, 1, 5], [5, 4, 6]]))
+    peel_check.append(np.allclose(peel, [[0, 1, 4], [4, 3, 5], [2, 5, 6]]))
     assert sum(
         peel_check
     ), f"Wrong topology. NB. non-exhaustive check of correct topologies. Peel: {peel}"
@@ -145,8 +160,10 @@ def test_nj_soft():
     leaf_r = torch.tensor([0.5, 0.5, 0.5, 0.5])
     leaf_theta = torch.tensor([np.pi / 10, -np.pi / 10, np.pi * 6 / 8, -np.pi * 6 / 8])
     leaf_dir = utils.angle_to_directional(leaf_theta)
+    leaf_locs = utils.dir_to_cart(leaf_r, leaf_dir).detach().numpy().astype(np.double)
+    leaf_hyp = Chyp_np.poincare_to_hyper_2d(leaf_locs)
 
-    pdm = Chyperboloid.get_pdm_torch(leaf_r, leaf_dir)
+    pdm = torch.tensor(Chyp_np.get_pdm(leaf_hyp))
     pdm.requires_grad = True
     for i in range(10):
         peel, blens = peeler.nj(pdm, tau=1e-7)
@@ -163,11 +180,13 @@ def test_nj_soft():
         assert sum(
             peel_check
         ), f"Iteration: {i}. Possibly an incorrect tree topology:\n{peel}"
+        # assert torch.isclose(
+        #     sum(blens).float(), torch.tensor(2.0318).float(), atol=0.05
+        # ), f"Iteration: {i}. Incorrect total branch length"
         assert torch.isclose(
-            sum(blens).float(), torch.tensor(2.0318).float(), atol=0.05
+            sum(blens).float(), torch.tensor(3.2927).float(), atol=0.05
         ), f"Iteration: {i}. Incorrect total branch length"
         assert blens.requires_grad == True, "Branch lengths must carry gradients."
-
 
 def test_nj_soft_all_even():
     dists = torch.ones((6, 6), dtype=torch.double) - torch.eye(6, dtype=torch.double)
@@ -288,7 +307,7 @@ def test_geodesic():
 
 
 def test_soft_geodesic0():
-    leaf_locs = 0.9 * torch.tensor(
+    leaf_locs_poin = 0.9 * torch.tensor(
         [
             [np.cos(np.pi), np.sin(np.pi)],
             [np.cos(0.9 * np.pi), np.sin(0.9 * np.pi)],
@@ -297,18 +316,22 @@ def test_soft_geodesic0():
         dtype=torch.float64,
         requires_grad=True,
     )
+    leaf_locs_hyp = Chyp_torch.poincare_to_hyper(leaf_locs_poin)
     peel, int_locs, _ = peeler.make_soft_peel_tips(
-        leaf_locs, connector="geodesics", curvature=-torch.ones(1)
+        leaf_locs_poin, connector="geodesics", curvature=-torch.ones(1)
     )
-    _, int_locs1 = peeler.make_hard_peel_geodesic(leaf_locs.detach().numpy())
+    _, int_locs1 = peeler.make_hard_peel_geodesic(leaf_locs_hyp.detach().numpy())
     peel_check = []
     peel_check.append(np.allclose(peel, [[1, 0, 3], [3, 2, 4]]))
     peel_check.append(np.allclose(peel, [[0, 1, 3], [3, 2, 4]]))
     peel_check.append(np.allclose(peel, [[1, 0, 3], [2, 3, 4]]))
     peel_check.append(np.allclose(peel, [[0, 1, 3], [2, 3, 4]]))
+    int_locs1_poin = np.zeros((2, 2))
+    for i in range(2):
+        int_locs1_poin[i] = Chyp_torch.hyper_to_poincare(int_locs1[i])
     assert sum(peel_check), f"Incorrect peel: {peel}"
     assert np.allclose(
-        int_locs.detach().numpy(), int_locs1
+        int_locs.detach().numpy(), int_locs1_poin
     ), f"{int_locs} != {int_locs1}"
 
 
@@ -316,7 +339,7 @@ def test_soft_geodesic1():
     leaf_r = torch.tensor([0.6, 0.6, 0.5, 0.5])
     leaf_theta = torch.tensor([np.pi * 0.2, 0, np.pi, -np.pi * 0.9])
     leaf_dir = utils.angle_to_directional(leaf_theta)
-    leaf_locs = utils.dir_to_cart(leaf_r, leaf_dir).requires_grad_(True)
+    leaf_locs = Cutils.dir_to_cart_np(leaf_r, leaf_dir).requires_grad_(True)
     for i in range(10):
         peel, int_locs, blens = peeler.make_soft_peel_tips(
             leaf_locs, connector="geodesics", curvature=-torch.ones(1)
@@ -350,7 +373,7 @@ def test_soft_geodesic_optim():
     )
     partials, weights = compress_alignment(dna)
     mymod = DodonaphyVI(
-        partials, weights, dim=2, embedder="simple", connector="geodesics"
+        partials, weights, dim=2, embedder="up", connector="geodesics"
     )
     optimizer = torch.optim.Adam(list(params.values()), lr=1)
     optimizer.zero_grad()

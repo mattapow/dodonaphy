@@ -1,7 +1,7 @@
 import numpy as np
 from scipy.optimize import minimize
 
-from dodonaphy import hydra, Cutils, Chyperboloid
+from dodonaphy import hydra, Chyp_np
 
 
 class HydraPlus:
@@ -18,7 +18,7 @@ class HydraPlus:
         self.n_taxa = len(dists)
 
     def embed(self, alpha=1.1, equi_adj=0.5, maxiter=1000, **kwargs):
-        # Embed the distance matrix into the Poincare ball using Hydra+
+        # Embed the distance matrix into the Hyperboloic sheet using Hydra+
 
         print("Minimising initial embedding strain: ", end="")
         emm = hydra.hydra(
@@ -30,7 +30,7 @@ class HydraPlus:
             **kwargs
         )
         loc_init = np.tile(emm["r"], (self.dim, 1)).T * emm["directional"]
-        loc_init = Chyperboloid.poincare_to_hyper(loc_init).flatten()
+        loc_init = Chyp_np.poincare_to_hyper_2d(loc_init).flatten()
         self.dim += 1
         print("done.")
 
@@ -43,15 +43,11 @@ class HydraPlus:
             options={"disp": False, "maxiter": maxiter},
         )
         X = optimizer.x.reshape((self.n_taxa, self.dim))
-        X = Chyperboloid.hyper_to_poincare(X.T).T
         self.dim -= 1
         print("done.", flush=True)
 
         output = {}
         output["X"] = X
-        radius, directional = Cutils.cart_to_dir_np(X)
-        output["r"] = radius
-        output["directional"] = directional
         output["stress_hydra"] = emm["stress"]
         output["stress_hydraPlus"] = optimizer.fun
         output["curvature"] = self.curvature
@@ -66,8 +62,8 @@ class HydraPlus:
         X = np.matmul(x, x.T)
         u_tilde = np.sqrt(X.diagonal() + 1)
         H = X - np.outer(u_tilde, u_tilde)
-        H = np.minimum(H, -(1 + self.eps))  # bad
-        D = 1 / np.sqrt(-self.curvature) * np.arccosh(-H)  # bad
+        H = np.minimum(H, -(1 + self.eps))
+        D = 1 / np.sqrt(-self.curvature) * np.arccosh(-H) 
         np.fill_diagonal(D, 0)
         A = (D - self.dists) * (1 / np.sqrt(-self.curvature * (H ** 2 - 1)))
         np.fill_diagonal(A, 0)

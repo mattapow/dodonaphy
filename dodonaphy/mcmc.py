@@ -15,8 +15,8 @@ class DodonaphyMCMC:
         partials,
         weights,
         dim,
-        embedder="simple",
         connector="nj",
+        embedder="up",
         step_scale=0.01,
         n_chains=1,
         curvature=-1.0,
@@ -210,14 +210,7 @@ class DodonaphyMCMC:
 
         with open(file_name, "a", encoding="UTF-8") as file:
             file.write(
-                np.array2string(self.chain[0].leaf_r, separator=",")
-                .replace("\n", "")
-                .replace("[", "")
-                .replace("]", "")
-            )
-            file.write(", ")
-            file.write(
-                np.array2string(self.chain[0].leaf_dir, separator=",")
+                np.array2string(self.chains[0].leaf_x, separator=",")
                 .replace("\n", "")
                 .replace("[", "")
                 .replace("]", "")
@@ -226,14 +219,7 @@ class DodonaphyMCMC:
             if self.chains[0].internals_exist:
                 file.write(", ")
                 file.write(
-                    np.array2string(self.chain[0].int_r.data.numpy(), separator=", ")
-                    .replace("\n", "")
-                    .replace("[", "")
-                    .replace("]", "")
-                )
-                file.write(",")
-                file.write(
-                    np.array2string(self.chain[0].int_dir.data.numpy(), separator=", ")
+                    np.array2string(self.chains[0].int_x.data.numpy(), separator=", ")
                     .replace("\n", "")
                     .replace("[", "")
                     .replace("]", "")
@@ -262,21 +248,13 @@ class DodonaphyMCMC:
         # swap with probability r
         if r_accept > np.random.uniform(low=0.0, high=1.0):
             # swap the locations and current probability
-            chain_i.leaf_r, chain_j.leaf_r = (
-                chain_j.leaf_r,
-                chain_i.leaf_r,
+            chain_i.leaf_x, chain_j.leaf_x = (
+                chain_j.leaf_x,
+                chain_i.leaf_x,
             )
-            chain_i.leaf_dir, chain_j.leaf_dir = (
-                chain_j.leaf_dir,
-                chain_i.leaf_dir,
-            )
-            chain_i.int_r, chain_j.int_r = (
-                chain_j.int_r,
-                chain_i.int_r,
-            )
-            chain_i.int_dir, chain_j.int_dir = (
-                chain_j.int_dir,
-                chain_i.int_dir,
+            chain_i.int_x, chain_j.int_x = (
+                chain_j.int_x,
+                chain_i.int_x,
             )
             chain_i.ln_p, chain_j.ln_p = (
                 chain_j.ln_p,
@@ -310,7 +288,7 @@ class DodonaphyMCMC:
         n_trials=10,
         max_scale=1,
         n_chains=1,
-        connector="mst",
+        connector="nj",
         embedder="up",
         curvature=-1.0,
         normalise_leaf=True,

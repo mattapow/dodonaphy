@@ -1,10 +1,9 @@
-from collections import defaultdict, deque
 from heapq import heapify, heappop, heappush
 
 import numpy as np
 import torch
 
-from . import poincare, tree, utils, Cpeeler, Chyperboloid_np
+from . import poincare, utils, Cpeeler, Chyp_np
 from .edge import Edge
 
 
@@ -66,11 +65,11 @@ def make_soft_peel_tips(leaf_locs, connector="geodesics", curvature=-torch.ones(
 
 
 def make_hard_peel_geodesic(leaf_locs):
-    """Generate a tree recursively using th closest two points.
+    """Generate a tree recursively using the closest two points.
     Curvature must be -1.0
 
     Args:
-        leaf_locs (array): Location in of the tips in the Poincare disk
+        leaf_locs (array): Location in of the tips in the Hyperboloid.
 
     Returns:
         tuple: (peel, int_locs)
@@ -113,7 +112,10 @@ def make_hard_peel_geodesic(leaf_locs):
         else:
             to_point = int_locs[e.to_ - leaf_node_count]
 
-        int_locs[int_i] = poincare.hyp_lca_np(from_point, to_point)
+        poin_from = Chyp_np.hyper_to_poincare(from_point)
+        poin_to = Chyp_np.hyper_to_poincare(to_point)
+        poin_lca = poincare.hyp_lca_np(poin_from, poin_to)
+        int_locs[int_i] = Chyp_np.poincare_to_hyper(poin_lca)
 
         peel[int_i][0] = e.from_
         peel[int_i][1] = e.to_
@@ -126,13 +128,17 @@ def make_hard_peel_geodesic(leaf_locs):
             if visited[i]:
                 continue
             if i < leaf_node_count:
+                poin_to = Chyp_np.hyper_to_poincare(leaf_locs[i])
+                poin_from = Chyp_np.hyper_to_poincare(int_locs[int_i])
                 dist_ij = -poincare.hyp_lca_np(
-                    leaf_locs[i], int_locs[int_i], return_coord=False
+                    poin_to, poin_from, return_coord=False
                 )
             else:
+                poin_to = Chyp_np.hyper_to_poincare(int_locs[i - leaf_node_count])
+                poin_from = Chyp_np.hyper_to_poincare(int_locs[int_i])
                 dist_ij = -poincare.hyp_lca_np(
-                    int_locs[i - leaf_node_count],
-                    int_locs[int_i],
+                    poin_to,
+                    poin_from,
                     return_coord=False,
                 )
             # apply the inverse transform from Matsumoto et al 2020
