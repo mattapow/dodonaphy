@@ -32,9 +32,6 @@ setup(
                 "dodonaphy.Chyp_np", ["dodonaphy/cython/Chyp_np.pyx"], include_dirs=[np.get_include()]
             ),
             Extension(
-                "dodonaphy.Cmcmc", ["dodonaphy/cython/Cmcmc.pyx"], include_dirs=[np.get_include()]
-            ),
-            Extension(
                 "dodonaphy.Cpeeler", ["dodonaphy/cython/Cpeeler.pyx"], include_dirs=[np.get_include()]
             ),
             Extension(
