@@ -17,7 +17,7 @@ class DodonaphyVI(BaseModel):
         weights,
         dim,
         embedder="wrap",
-        connector="mst",
+        connector="nj",
         curvature=-1.0,
         soft_temp=None,
         noise=None,
@@ -53,7 +53,7 @@ class DodonaphyVI(BaseModel):
                     leaf_sigma, requires_grad=True, dtype=torch.float64
                 ),
             }
-        elif self.connector == "mst":
+        else:
             self.VariationalParams = {
                 "leaf_mu": torch.randn(
                     (self.S, self.D), requires_grad=True, dtype=torch.float64
@@ -93,7 +93,7 @@ class DodonaphyVI(BaseModel):
                 leaf_cov = torch.eye(
                     n_tip_params, dtype=torch.double
                 ) * self.VariationalParams["leaf_sigma"].exp().reshape(n_tip_params)
-                if self.connector == "mst":
+                if self.internals_exist:
                     n_int_params = torch.numel(self.VariationalParams["int_mu"])
                     int_loc = self.VariationalParams["int_mu"].reshape(n_int_params)
                     int_cov = torch.eye(
@@ -105,20 +105,12 @@ class DodonaphyVI(BaseModel):
 
                 peel.append(sample["peel"])
                 blens.append(sample["blens"])
-                if self.connector == "mst":
-                    location.append(
-                        utils.dir_to_cart_tree(
-                            sample["leaf_r"],
-                            sample["int_r"],
-                            sample["leaf_dir"],
-                            sample["int_dir"],
-                            self.D,
-                        )
-                    )
-                else:
-                    location.append(
-                        utils.dir_to_cart(sample["leaf_r"], sample["leaf_dir"])
-                    )
+                location.append(
+                    sample["leaf_x"],
+                )
+                if self.internals_exist:
+                    location.append(sample["int_x"])
+
                 if kwargs.get("lp"):
                     LL = calculate_treelikelihood(
                         self.partials,
@@ -151,7 +143,7 @@ class DodonaphyVI(BaseModel):
         leaf_cov = torch.eye(n_tip_params, dtype=torch.double) * self.VariationalParams[
             "leaf_sigma"
         ].exp().reshape(n_tip_params)
-        if self.connector == "mst":
+        if self.internals_exist:
             n_int_params = torch.numel(self.VariationalParams["int_mu"])
             int_loc = self.VariationalParams["int_mu"].reshape(n_int_params)
             int_cov = torch.eye(
@@ -201,7 +193,7 @@ class DodonaphyVI(BaseModel):
         if param_init is not None:
             self.VariationalParams["leaf_mu"] = param_init["leaf_mu"]
             self.VariationalParams["leaf_sigma"] = param_init["leaf_sigma"]
-            if self.connector == "mst":
+            if self.internals_exist:
                 self.VariationalParams["int_mu"] = param_init["int_mu"]
                 self.VariationalParams["int_sigma"] = param_init["int_sigma"]
 
@@ -338,18 +330,6 @@ class DodonaphyVI(BaseModel):
             curvature=curvature,
         )
 
-        # Choose internal node locations from best random initialisation
-        if connector == "mst":
-            int_r, int_dir = mymod.initialise_ints(
-                emm_tips, n_grids=n_grids, n_trials=n_trials, max_scale=max_scale
-            )
-
-        # convert to cartesian coords
-        leaf_loc_poin = utils.dir_to_cart(
-            torch.from_numpy(emm_tips["r"]), torch.from_numpy(emm_tips["directional"])
-        )
-        if connector == "mst":
-            int_loc_poin = torch.from_numpy(utils.dir_to_cart(int_r, int_dir))
 
         # set variational parameters with small coefficient of variation
         cv = 1.0 / 100
@@ -364,7 +344,7 @@ class DodonaphyVI(BaseModel):
         closest = np.repeat([closest], dim, axis=0).transpose()
         leaf_sigma = np.log(np.abs(closest) * cv + eps)
 
-        if connector == "mst":
+        if mymod.internals_exist:
             param_init = {
                 "leaf_mu": leaf_loc_poin.clone().double().requires_grad_(True),
                 "leaf_sigma": torch.from_numpy(leaf_sigma)
@@ -420,7 +400,7 @@ class DodonaphyVI(BaseModel):
                 f.write("\n")
             f.write("\n")
 
-            if self.connector == "mst":
+            if self.internals_exist:
                 for i in range(self.S - 2):
                     for d in range(self.D):
                         f.write("%f\t" % self.VariationalParams["int_mu"][i, d])

@@ -46,11 +46,9 @@ class BaseModel(object):
         self.epoch = 0
         assert embedder in ("wrap", "simple")
         self.embedder = embedder
-        assert connector in ("mst", "geodesics", "nj", "mst_choice")
+        assert connector in ("geodesics", "nj")
         self.connector = connector
         self.internals_exist = False
-        if self.connector in ("mst", "mst_choice"):
-            self.internals_exist = True
         self.peel = np.zeros((self.S - 1, 3), dtype=int)
         if require_grad:
             self.blens = torch.zeros(self.bcount, dtype=torch.double)
@@ -74,72 +72,6 @@ class BaseModel(object):
                         (1, 4, self.L), dtype=torch.float64, requires_grad=False
                     )
                 )
-
-    def initialise_ints(self, emm_tips, n_grids=10, n_trials=10, max_scale=2):
-        # try out some inner node positions and pick the best
-        # working in the Poincare ball P^d
-        print(
-            "Randomly initialising internal node positions from {} samples: ".format(
-                n_grids * n_trials
-            ),
-            end="",
-            flush=True,
-        )
-
-        leaf_r = emm_tips["r"]
-        leaf_dir = emm_tips["directional"]
-        S = len(emm_tips["r"])
-        scale = 0.5 * emm_tips["r"].min()
-        ln_p = -math.inf
-        directional = np.random.normal(0, 1, (S - 2, self.D))
-        abs_dir = np.sum(directional ** 2, axis=1) ** 0.5
-        # _int_r = np.random.exponential(scale=scale, size=(S-2))
-        # _int_r = scale * np.random.beta(a=2, b=5, size=(S-2))
-        _int_r = np.random.uniform(low=0, high=scale, size=(S - 2))
-        _int_dir = directional / abs_dir.reshape(S - 2, 1)
-        max_scale = max_scale * emm_tips["r"].min()
-
-        for i in range(n_grids):
-            _scale = i / n_grids * max_scale
-            for _ in range(n_trials):
-                peel = peeler.make_peel_mst(
-                    leaf_r,
-                    leaf_dir,
-                    _int_r,
-                    _int_dir,
-                )
-                blen = Cphylo.compute_branch_lengths_np(
-                    self.S,
-                    peel,
-                    leaf_r,
-                    leaf_dir,
-                    _int_r,
-                    _int_dir,
-                )
-                _ln_p = Cphylo.compute_LL_np(self.partials, self.weights, peel, blen)
-
-                if _ln_p > ln_p:
-                    int_r = _int_r
-                    int_dir = _int_dir
-                    ln_p = _ln_p
-                    scale = _scale
-
-                directional = np.random.normal(0, 1, (S - 2, self.D))
-                abs_dir = np.sum(directional ** 2, axis=1) ** 0.5
-                # _int_r = np.random.exponential(scale=_scale, size=(S-2))
-                _int_r[_int_r > emm_tips["r"].min()] = emm_tips["r"].max()
-                # _int_r = _scale * np.random.beta(a=2, b=5, size=(S-2))
-                _int_r = np.random.uniform(low=0, high=_scale, size=(S - 2))
-                _int_dir = directional / abs_dir.reshape(S - 2, 1)
-
-        print("done.\nBest internal node positions selected.")
-        if scale > 0.9 * max_scale:
-            print(
-                "Using scale=%f, from max of %f. Consider a higher maximum."
-                % (scale / emm_tips["r"].min(), max_scale / emm_tips["r"].min())
-            )
-
-        return int_r, int_dir
 
     @staticmethod
     def compute_branch_lengths(
@@ -316,28 +248,6 @@ class BaseModel(object):
         """
         return torch.exp(-pdm_data[u, v])
 
-    def select_peel_mst(self, leaf_r, leaf_dir, int_r, int_dir):
-        leaf_node_count = leaf_r.shape[0]
-        ln_p = torch.zeros(leaf_node_count)
-        for leaf in range(leaf_node_count):
-            peel = peeler.make_peel_mst(
-                leaf_r,
-                leaf_dir,
-                int_r,
-                int_dir,
-                curvature=-torch.ones(1),
-                start_node=leaf,
-            )
-            blens = self.compute_branch_lengths(
-                leaf_node_count, peel, leaf_r, leaf_dir, int_r, int_dir
-            )
-            ln_p[leaf] = self.compute_LL(peel, blens)
-        sftmx = torch.nn.Softmax(dim=0)
-        p = np.array(sftmx(ln_p))
-        leaf = np.random.choice(leaf_node_count, p=p)
-        return peeler.make_peel_mst(
-            leaf_r, leaf_dir, int_r, int_dir, curvature=-torch.ones(1), start_node=leaf
-        )
 
     def sample(
         self,

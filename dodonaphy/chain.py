@@ -20,8 +20,8 @@ class Chain(BaseModel):
         step_scale=0.01,
         chain_temp=1,
         target_acceptance=0.234,
-        connector="mst",
         embedder="simple",
+        connector="nj",
         curvature=-1.0,
         converge_length=500,
         normalise_leaf=False,
@@ -87,14 +87,6 @@ class Chain(BaseModel):
             self.leaf_r, self.leaf_dir = Cutils.cart_to_dir_np(loc_poin)
         elif self.connector == "nj":
             self.peel, self.blens = Cpeeler.nj_np(pdm)
-        elif self.connector == "mst":
-            self.peel = peeler.make_peel_mst(
-                self.leaf_r, self.leaf_dir, self.int_r, self.int_dir
-            )
-        elif self.connector == "mst_choice":
-            self.peel = self.select_peel_mst(
-                self.leaf_r, self.leaf_dir, self.int_r, self.int_dir
-            )
 
         if self.connector != "nj":
             self.blens = Cphylo.compute_branch_lengths_np(
@@ -124,30 +116,18 @@ class Chain(BaseModel):
 
     def evolve(self):
         """Propose new embedding"""
-        leaf_loc = self.leaf_dir * np.tile(self.leaf_r, (self.D, 1)).T
-        if self.connector == "mst":
-            int_loc = self.int_dir * np.tile(self.int_r, (2, 1)).T
-            proposal = self.sample(
-                leaf_loc,
-                self.step_scale,
-                int_loc,
-                self.step_scale,
-                soft=False,
-                normalise_leaf=self.normalise_leaf,
-            )
-        else:
-            proposal = self.sample_leaf_np(
-                leaf_loc,
-                self.step_scale,
-                self.connector,
-                self.embedder,
-                self.partials,
-                self.weights,
-                self.S,
-                self.D,
-                self.curvature,
-                normalise_leaf=self.normalise_leaf,
-            )
+        proposal = self.sample_leaf_np(
+            self.leaf_x,
+            self.step_scale,
+            self.connector,
+            self.embedder,
+            self.partials,
+            self.weights,
+            self.S,
+            self.D,
+            self.curvature,
+            normalise_leaf=self.normalise_leaf,
+        )
 
         r_accept = self.accept_ratio(proposal)
 

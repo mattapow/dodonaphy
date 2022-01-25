@@ -235,7 +235,7 @@ def init_parser():
         "--connect",
         "-C",
         default="nj",
-        choices=("nj", "mst", "geodesics", "mst_choice"),
+        choices=("nj", "geodesics"),
         help="Connection method to form a tree from embedded points.",
     )
     parser.add_argument(
@@ -342,26 +342,15 @@ def init_parser():
         choices=("likelihood", "pair_likelihood", "hypHC"),
         help="Loss function for MCMC and ML. Not implemented in VI.",
     )
+    parser.add_argument(
+        type=int,
+    )
+    parser.add_argument(
+        default=10,
+        type=int,
+    )
 
-    # MST parameters
-    parser.add_argument(
-        "--trials",
-        default=10,
-        type=int,
-        help="Number of initial embeddings to select from per grid for mst.",
-    )
-    parser.add_argument(
-        "--grids",
-        default=10,
-        type=int,
-        help="Number grid scales for selecting inital embedding for mst.",
-    )
-    parser.add_argument(
-        "--max_scale",
-        default=1,
-        type=float,
-        help="Maximum radius for mst internal node positions relative to minimum leaf radius.",
-    )
+    # Tree simulation parameters
     parser.add_argument(
         "--birth", default=2.0, type=float, help="Birth rate of simulated tree."
     )

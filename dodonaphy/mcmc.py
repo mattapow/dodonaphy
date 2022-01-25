@@ -15,8 +15,8 @@ class DodonaphyMCMC:
         partials,
         weights,
         dim,
-        connector="mst",
         embedder="simple",
+        connector="nj",
         step_scale=0.01,
         n_chains=1,
         curvature=-1.0,
@@ -305,15 +305,6 @@ class DodonaphyMCMC:
             chain.int_r = None
             chain.int_dir = None
 
-            if chain.connector in ("mst", "mst_choice"):
-                int_r, int_dir = chain.initialise_ints(
-                    emm,
-                    n_grids=self.n_grids,
-                    n_trials=self.n_trials,
-                    max_scale=self.max_scale,
-                )
-                chain.int_r = int_r.astype(np.double)
-                chain.int_dir = int_dir.astype(np.double)
 
     @staticmethod
     def run(
