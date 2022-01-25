@@ -1,7 +1,7 @@
 """A Markov Chain"""
 import numpy as np
 
-from . import Chyperboloid_np, Cmcmc, Cpeeler, Cphylo, Cutils, peeler, utils
+from . import Chyp_np, Cpeeler, Cphylo, peeler, Chyp_np, Cutils
 from .base_model import BaseModel
 
 
@@ -13,15 +13,13 @@ class Chain(BaseModel):
         partials,
         weights,
         dim,
-        leaf_r=None,
-        leaf_dir=None,
-        int_r=None,
-        int_dir=None,
+        leaf_x=None,
+        int_x=None,
         step_scale=0.01,
         chain_temp=1,
         target_acceptance=0.234,
-        embedder="simple",
         connector="nj",
+        embedder="up",
         curvature=-1.0,
         converge_length=500,
         normalise_leaf=False,
@@ -39,13 +37,11 @@ class Chain(BaseModel):
             loss_fn=loss_fn,
             require_grad=False,
         )
-        self.leaf_dir = leaf_dir  # S x D
-        self.int_dir = int_dir  # S-2 x D
-        self.int_r = int_r  # S-2
-        self.leaf_r = leaf_r  # S
+        self.leaf_x = leaf_x  # S x D
+        self.int_x = int_x  # S-2 x D
         self.jacobian = np.zeros(1)
-        if leaf_dir is not None:
-            self.S = len(leaf_dir)
+        if leaf_x is not None:
+            self.S = leaf_x.shape()[0]
         self.step_scale = step_scale
         self.chain_temp = chain_temp
         self.accepted = 0
@@ -56,35 +52,29 @@ class Chain(BaseModel):
             self.converged = [False] * converge_length
         self.more_tune = True
 
+        self.ln_p = self.get_loss()
+        self.ln_prior = Cphylo.compute_prior_gamma_dir_np(self.blens)
+
+    def get_loss(self):
         if self.loss_fn == "likelihood":
             self.ln_p = Cphylo.compute_LL_np(
                 self.partials, self.weights, self.peel, self.blens
             )
-        elif self.loss_fn == "pair_likelihood" and self.leaf_r is not None:
-            pdm = Chyperboloid_np.get_pdm(
-                self.leaf_r, self.leaf_dir, curvature=self.curvature, dtype="numpy"
-            )
+        elif self.loss_fn == "pair_likelihood" and self.leaf_x is not None:
+            pdm = Chyp_np.get_pdm(self.leaf_x, curvature=self.curvature)
             self.ln_p = self.compute_log_a_like(pdm)
-        elif self.loss_fn == "hypHC" and self.leaf_r is not None:
-            pdm = Chyperboloid_np.get_pdm(
-                self.leaf_r, self.leaf_dir, curvature=self.curvature, dtype="numpy"
-            )
-            leaf_X = utils.dir_to_cart(self.leaf_r, self.leaf_dir)
-            self.ln_p = self.compute_hypHC(pdm, leaf_X)
+        elif self.loss_fn == "hypHC" and self.leaf_x is not None:
+            pdm = Chyp_np.get_pdm(self.leaf_x, curvature=self.curvature)
+            self.ln_p = self.compute_hypHC(pdm, self.leaf_x)
         else:
             self.ln_p = -np.finfo(np.double).max
-        self.ln_prior = Cphylo.compute_prior_gamma_dir_np(self.blens)
+        return self.ln_p
 
     def set_probability(self):
         """Initialise likelihood and prior values of embedding"""
-        pdm = Chyperboloid_np.get_pdm_tips_np(
-            self.leaf_r, self.leaf_dir, curvature=self.curvature
-        )
+        pdm = Chyp_np.get_pdm(self.leaf_x, curvature=self.curvature)
         if self.connector == "geodesics":
-            loc_poin = self.leaf_dir * np.tile(self.leaf_r, (self.D, 1)).T
-            self.peel, int_locs = peeler.make_hard_peel_geodesic(loc_poin)
-            self.int_r, self.int_dir = Cutils.cart_to_dir_np(int_locs)
-            self.leaf_r, self.leaf_dir = Cutils.cart_to_dir_np(loc_poin)
+            self.peel, self.int_x = peeler.make_hard_peel_geodesic(self.leaf_x)
         elif self.connector == "nj":
             self.peel, self.blens = Cpeeler.nj_np(pdm)
 
@@ -92,25 +82,12 @@ class Chain(BaseModel):
             self.blens = Cphylo.compute_branch_lengths_np(
                 self.S,
                 self.peel,
-                self.leaf_r,
-                self.leaf_dir,
-                self.int_r,
-                self.int_dir,
+                self.leaf_x,
+                self.int_x,
                 curvature=self.curvature,
             )
 
-        # current likelihood
-        if self.loss_fn == "likelihood":
-            self.ln_p = Cphylo.compute_LL_np(
-                self.partials, self.weights, self.peel, self.blens
-            )
-        elif self.loss_fn == "pair_likelihood":
-            self.ln_p = self.compute_log_a_like(pdm)
-        elif self.loss_fn == "hypHC":
-            leaf_X = utils.dir_to_cart(self.leaf_r, self.leaf_dir)
-            self.ln_p = self.compute_hypHC(pdm, leaf_X)
-
-        # current prior
+        self.ln_p = self.get_loss()
         # self.ln_prior = self.compute_prior_birthdeath(self.peel, self.blens, **self.prior)
         self.ln_prior = Cphylo.compute_prior_gamma_dir_np(self.blens)
 
@@ -139,16 +116,14 @@ class Chain(BaseModel):
             accept = True
 
         if accept:
-            self.leaf_r = proposal["leaf_r"]
-            self.leaf_dir = proposal["leaf_dir"]
+            self.leaf_x = proposal["leaf_x"]
             self.ln_p = proposal["ln_p"]
             self.ln_prior = proposal["ln_prior"]
             self.peel = proposal["peel"]
             self.blens = proposal["blens"]
             self.jacobian = proposal["jacobian"]
             if self.connector != "nj":
-                self.int_r = proposal["int_r"]
-                self.int_dir = proposal["int_dir"]
+                self.int_x = proposal["int_x"]
             self.accepted += 1
         self.iterations += 1
         return accept
@@ -223,7 +198,12 @@ class Chain(BaseModel):
             self.step_scale = self.scale_step(
                 sign=accept_diff / np.abs(accept_diff), learn_rate=10.0
             )
-        self.step_scale = np.maximum(self.step_scale, 2.220446049250313e-16)
+        eps = 2.220446049250313e-16
+        self.step_scale = np.maximum(self.step_scale, eps)
+        # if np.isclose(self.step_scale, eps) :
+            # declare stuck, reset to 1.0
+            # self.step_scale = 1.0
+        # print(f"step: {self.step_scale} acceptance:{acceptance}")
 
         # check convegence
         if self.converge_length is None:
@@ -257,7 +237,7 @@ class Chain(BaseModel):
         """
         leaf_cov = np.eye(taxa * dim, dtype=np.double) * leaf_cov_single
 
-        leaf_r_prop, leaf_dir_prop, log_abs_det_jacobian = Cmcmc.sample_loc_np(
+        leaf_x_prop, log_abs_det_jacobian = sample_loc_np(
             taxa,
             dim,
             leaf_loc,
@@ -267,57 +247,77 @@ class Chain(BaseModel):
             normalise_leaf=normalise_leaf,
         )
 
+        int_x_prop = None
         if connector == "nj":
-            pdm = Chyperboloid_np.get_pdm_tips_np(
-                leaf_r_prop, leaf_dir_prop, curvature=curvature
-            )
+            pdm = Chyp_np.get_pdm(leaf_x_prop, curvature=curvature)
             peel, blens = Cpeeler.nj_np(pdm)
         elif connector == "geodesics":
-            leaf_locs = np.tile(leaf_r_prop, (dim, 1)).T * leaf_dir_prop
-            peel, int_locs = peeler.make_hard_peel_geodesic(leaf_locs)
-            int_r_prop, int_dir_prop = Cutils.cart_to_dir_np(int_locs)
+            peel, int_x_prop = peeler.make_hard_peel_geodesic(leaf_loc)
             blens = Cphylo.compute_branch_lengths_np(
                 taxa,
                 peel,
-                leaf_r_prop,
-                leaf_dir_prop,
-                int_r_prop,
-                int_dir_prop,
+                leaf_x_prop,
+                int_x_prop,
                 curvature,
             )
 
-        # get log likelihood
-        # if self.loss_fn == "likelihood":
         ln_p = Cphylo.compute_LL_np(partials, weights, peel, blens)
-        # elif self.loss_fn == "pair_likelihood":
-        #     ln_p = self.compute_log_a_like(pdm)
-        # elif self.loss_fn == "hypHC":
-        #     leaf_X = Cutils.dir_to_cart(leaf_r_prop, leaf_dir_prop)
-        #     ln_p = self.compute_hypHC(pdm, leaf_X)
-
-        # get log prior
         ln_prior = Cphylo.compute_prior_gamma_dir_np(blens)
 
-        if connector in ("nj"):
-            proposal = {
-                "leaf_r": leaf_r_prop,
-                "leaf_dir": leaf_dir_prop,
-                "peel": peel,
-                "blens": blens,
-                "jacobian": log_abs_det_jacobian,
-                "ln_p": ln_p,
-                "ln_prior": ln_prior,
-            }
-        elif connector in ("geodesics"):
-            proposal = {
-                "leaf_r": leaf_r_prop,
-                "leaf_dir": leaf_dir_prop,
-                "int_r": int_r_prop,
-                "int_dir": int_dir_prop,
-                "peel": peel,
-                "blens": blens,
-                "jacobian": log_abs_det_jacobian,
-                "ln_p": ln_p,
-                "ln_prior": ln_prior,
-            }
+        proposal = {
+            "leaf_x": leaf_x_prop,
+            "peel": peel,
+            "blens": blens,
+            "jacobian": log_abs_det_jacobian,
+            "ln_p": ln_p,
+            "ln_prior": ln_prior,
+        }
+        if int_x_prop is not None:
+            proposal["int_x"] = int_x_prop
         return proposal
+
+def sample_loc_np(n_taxa, dim, loc_hyp, cov, embedder, is_internal, normalise_leaf=False):
+    """Sample points on hyperboloid."""
+    if is_internal:
+        n_locs = n_taxa - 2
+    else:
+        n_locs = n_taxa
+    n_vars = n_locs * dim
+    loc_hyp_prop = np.empty((n_taxa, dim+1))
+    log_abs_det_jacobian = 0.0
+
+    rng = np.random.default_rng()
+    if embedder == "up":
+        loc_t0 = loc_hyp[:, 1:]
+        sample_t0 = rng.multivariate_normal(loc_t0.flatten(), cov)
+        prop_t0 = sample_t0.reshape((n_locs, dim))
+        for i in range(n_locs):
+            loc_hyp_prop[i] = Chyp_np.project_up(prop_t0[i])
+
+    elif embedder == "wrap":
+        sample_t0 = rng.multivariate_normal(
+            np.zeros(n_vars, dtype=np.double), cov
+        )
+        prop_t0 = sample_t0.reshape((n_locs, dim))
+        for i in range(n_locs):
+            loc_hyp_prop[i, :] = Chyp_np.tangent_to_hyper(loc_hyp[i, :], prop_t0[i, :], dim)
+            log_abs_det_jacobian += Chyp_np.tangent_to_hyper_jacobian(loc_hyp_prop[i, :], loc_hyp[i, :-1], dim)
+
+    if normalise_leaf:
+        r = np.linalg.norm(loc_hyp_prop[0, 1:])
+        loc_hyp_prop[:, 1:] = Cutils.normalise_np(loc_hyp_prop[:, 1:]) * r
+        z = np.sqrt(np.sum(np.power(loc_hyp_prop, 2), 1) + 1)
+        loc_hyp_prop[:, 0] = z
+
+    return loc_hyp_prop, log_abs_det_jacobian
+
+
+def normalise_LADJ(y):
+    norm = np.linalg.norm(y, axis=-1, keepdims=True)
+    n, D = y.shape
+
+    log_abs_det_J = np.zeros(1)
+    for k in range(n):
+        J = np.linalg.det((np.eye(D, D) - np.outer(y[k], y[k]) / norm[k] ** 2) / norm[k])
+        log_abs_det_J = log_abs_det_J + np.log(np.abs(J))
+    return log_abs_det_J

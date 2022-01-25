@@ -30,7 +30,7 @@ class DodonaphyMCMC:
         n_swaps=10,
     ):
         self.n_chains = n_chains
-        self.chain = []
+        self.chains = []
         d_temp = 0.1
         self.n_grids = n_grids
         self.n_trials = n_trials
@@ -40,7 +40,7 @@ class DodonaphyMCMC:
         self.n_swaps = n_swaps
         for i in range(n_chains):
             chain_temp = 1.0 / (1 + d_temp * i)
-            self.chain.append(
+            self.chains.append(
                 Chain(
                     partials,
                     weights,
@@ -64,7 +64,7 @@ class DodonaphyMCMC:
             if i / burnin * 10 > deceile:
                 print(f"{deceile * 10:d}%% ", end="", flush=True)
                 deceile += 1
-            for chain in self.chain:
+            for chain in self.chains:
                 chain.evolve()
                 chain.tune_step()
             if self.n_chains > 1:
@@ -76,12 +76,12 @@ class DodonaphyMCMC:
         if iteration > 0 and (iteration / self.save_period) % 10 == 0:
             print("")
         print(
-            f"{iteration:9d} --- {self.chain[0].ln_p:.3f}",
+            f"{iteration:9d} --- {self.chains[0].ln_p:.3f}",
             end="",
         )
         if self.n_chains > 1:
             print(" (", end="")
-            for chain in self.chain[1:]:
+            for chain in self.chains[1:]:
                 print(
                     f" {chain.ln_p:.3f}",
                     end="",
@@ -89,7 +89,7 @@ class DodonaphyMCMC:
             print(")", end="")
         if iteration > 0:
             print(" --- ", end="")
-            for chain in self.chain:
+            for chain in self.chains:
                 print(
                     f" {chain.accepted / chain.iterations:5.3f}, ",
                     end="",
@@ -105,9 +105,9 @@ class DodonaphyMCMC:
         if path_write is not None:
             info_file = path_write + "/" + "mcmc.info"
             self.save_info(info_file, epochs, burnin, self.save_period)
-            tree.save_tree_head(path_write, "mcmc", self.chain[0].S)
+            tree.save_tree_head(path_write, "mcmc", self.chains[0].S)
 
-        for chain in self.chain:
+        for chain in self.chains:
             chain.set_probability()
 
         if burnin > 0:
@@ -121,7 +121,7 @@ class DodonaphyMCMC:
             self.save_iteration(path_write, 0)
 
         for epoch in range(1, epochs + 1):
-            for chain in self.chain:
+            for chain in self.chains:
                 chain.evolve()
                 chain.tune_step()
 
@@ -145,11 +145,11 @@ class DodonaphyMCMC:
             file.write(f"# epochs:  {epochs}\n")
             file.write(f"Burnin: {burnin}\n")
             file.write(f"Save period: {save_period}\n")
-            file.write(f"Dimensions: {self.chain[0].D}\n")
-            file.write(f"# Taxa:  {self.chain[0].S}\n")
-            file.write(f"Unique sites:  {self.chain[0].L}\n")
+            file.write(f"Dimensions: {self.chains[0].D}\n")
+            file.write(f"# Taxa:  {self.chains[0].S}\n")
+            file.write(f"Unique sites:  {self.chains[0].L}\n")
             file.write(f"\nChains:  {self.n_chains}\n")
-            for chain in self.chain:
+            for chain in self.chains:
                 file.write(f"\nChain temp:  {chain.chain_temp}\n")
                 file.write(f"Convergence length: {chain.converge_length}\n")
                 file.write(f"Connect Mthd:  {chain.connector}\n")
@@ -159,7 +159,7 @@ class DodonaphyMCMC:
         """Save tail of info file with acceptance and time taken."""
         file_name = path_write + "/" + "mcmc.info"
         with open(file_name, "a", encoding="UTF-8") as file:
-            for c_id, chain in enumerate(self.chain):
+            for c_id, chain in enumerate(self.chains):
                 final_accept = chain.accepted / chain.iterations
                 file.write(f"Chain {c_id} acceptance: {final_accept}\n")
                 file.write(f"Step Scale tuned to:  {chain.step_scale}\n\n")
@@ -172,42 +172,38 @@ class DodonaphyMCMC:
 
     def save_iteration(self, path_write, iteration):
         """Save the current state to file."""
-        if self.chain[0].loss_fn != "likelihood":
+        if self.chains[0].loss_fn != "likelihood":
             ln_p = Cphylo.compute_LL_np(
-                self.chain[0].partials,
-                self.chain[0].weights,
-                self.chain[0].peel,
-                self.chain[0].blens,
+                self.chains[0].partials,
+                self.chains[0].weights,
+                self.chains[0].peel,
+                self.chains[0].blens,
             )
         else:
-            ln_p = self.chain[0].ln_p
+            ln_p = self.chains[0].ln_p
         tree.save_tree(
             path_write,
             "mcmc",
-            self.chain[0].peel,
-            self.chain[0].blens,
+            self.chains[0].peel,
+            self.chains[0].blens,
             iteration,
             float(ln_p),
-            float(self.chain[0].ln_prior),
+            float(self.chains[0].ln_prior),
         )
         file_name = path_write + "/locations.csv"
         if not os.path.isfile(file_name):
             with open(file_name, "a", encoding="UTF-8") as file:
-                for i in range(len(self.chain[0].leaf_r)):
-                    file.write(f"leaf_{i}_r, ")
-                for i in range(len(self.chain[0].leaf_dir)):
-                    for j in range(self.chain[0].D):
-                        file.write(f"leaf_{i}_dir_{j}, ")
+                for i in range(len(self.chains[0].leaf_x)):
+                    for j in range(self.chains[0].D):
+                        file.write(f"leaf_{i}_x_{j}, ")
 
-                if self.chain[0].internals_exist:
-                    for i in range(len(self.chain[0].int_r)):
-                        file.write(f"int_{i}_r, ")
-                    for i in range(len(self.chain[0].int_dir)):
-                        for j in range(self.chain[0].D):
-                            file.write(f"int_{i}_dir_{j}")
+                if self.chains[0].internals_exist:
+                    for i in range(len(self.chains[0].int_x)):
+                        for j in range(self.chains[0].D):
+                            file.write(f"int_{i}_x_{j}")
                             if not (
-                                j == self.chain[0].D - 1
-                                and i == len(self.chain[0].int_dir)
+                                j == self.chains[0].D - 1
+                                and i == len(self.chains[0].int_x)
                             ):
                                 file.write(", ")
                 file.write("\n")
@@ -227,7 +223,7 @@ class DodonaphyMCMC:
                 .replace("]", "")
             )
 
-            if self.chain[0].internals_exist:
+            if self.chains[0].internals_exist:
                 file.write(", ")
                 file.write(
                     np.array2string(self.chain[0].int_r.data.numpy(), separator=", ")
@@ -251,8 +247,8 @@ class DodonaphyMCMC:
         rng = np.random.default_rng()
         i = rng.multinomial(1, np.ones(self.n_chains - 1) / (self.n_chains - 1))[0] - 1
         j = i + 1
-        chain_i = self.chain[i]
-        chain_j = self.chain[j]
+        chain_i = self.chains[i]
+        chain_j = self.chains[j]
 
         # get log posterior (unnormalised)
         ln_post_i = chain_i.ln_p + chain_i.ln_prior
@@ -293,18 +289,11 @@ class DodonaphyMCMC:
             return 1
         return 0
 
-    def initialise_chains(self, emm, normalise=True):
+    def initialise_chains(self, emm):
         """initialise each chain"""
-        for chain in self.chain:
-            if normalise:
-                chain.leaf_r = emm["r"]
-            else:
-                chain.leaf_r = np.mean(emm["r"]).repeat(self.chain[0].S)
-            chain.leaf_dir = emm["directional"]
-            chain.n_points = len(chain.leaf_dir)
-            chain.int_r = None
-            chain.int_dir = None
-
+        for chain in self.chains:
+            chain.leaf_x = emm["X"]
+            chain.n_points = chain.leaf_x.shape[0]
 
     @staticmethod
     def run(
@@ -322,21 +311,21 @@ class DodonaphyMCMC:
         max_scale=1,
         n_chains=1,
         connector="mst",
-        embedder="simple",
+        embedder="up",
         curvature=-1.0,
         normalise_leaf=True,
         loss_fn="likelihood",
+        swap_period=1000,
+        n_swaps=10,
     ):
         """Run Dodonaphy's MCMC."""
         print("\nRunning Dodonaphy MCMC")
-        assert connector in ["mst", "geodesics", "nj", "mst_choice"]
+        assert connector in ["geodesics", "nj"]
 
         # embed tips with distances using HydraPlus
         hp_obj = hydraPlus.HydraPlus(dists_data, dim=dim, curvature=curvature)
         emm_tips = hp_obj.embed(equi_adj=0.0, stress=True)
-        print(
-            f"Embedding stress of tips (hydra+) = {emm_tips['stress_hydraPlus']:.4}"
-        )
+        print(f"Embedding stress of tips (hydra+) = {emm_tips['stress_hydraPlus']:.4}")
 
         mymod = DodonaphyMCMC(
             partials,
@@ -353,7 +342,9 @@ class DodonaphyMCMC:
             max_scale=max_scale,
             normalise_leaf=normalise_leaf,
             loss_fn=loss_fn,
+            swap_period=swap_period,
+            n_swaps=n_swaps,
         )
 
-        mymod.initialise_chains(emm_tips, normalise=normalise_leaf)
+        mymod.initialise_chains(emm_tips)
         mymod.learn(epochs, burnin=burnin, path_write=path_write)
