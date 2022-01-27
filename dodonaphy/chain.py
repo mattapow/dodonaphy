@@ -1,7 +1,7 @@
 """A Markov Chain"""
 import numpy as np
 
-from . import Chyp_np, Cpeeler, Cphylo, peeler, Chyp_np, Cutils
+from . import Chyp_np, Cphylo, peeler
 from .base_model import BaseModel
 
 
@@ -250,7 +250,7 @@ class Chain(BaseModel):
         int_x_prop = None
         if connector == "nj":
             pdm = Chyp_np.get_pdm(leaf_x_prop, curvature=curvature)
-            peel, blens = Cpeeler.nj_np(pdm)
+            peel, blens = peeler.nj_np(pdm)
         elif connector == "geodesics":
             peel, int_x_prop = peeler.make_hard_peel_geodesic(leaf_loc)
             blens = Cphylo.compute_branch_lengths_np(
