@@ -3,8 +3,11 @@ from heapq import heapify, heappop, heappush
 import numpy as np
 import torch
 
-from . import poincare, utils, Cpeeler, Chyp_np
+from . import poincare, utils, Chyp_np
+from .node import Node
 from .edge import Edge
+
+eps = np.finfo(np.double).eps
 
 
 def make_soft_peel_tips(leaf_locs, connector="geodesics", curvature=-torch.ones(1)):
@@ -148,8 +151,108 @@ def make_hard_peel_geodesic(leaf_locs):
     return peel, int_locs
 
 
-def nj(pdm, tau=None):
-    """Generate Neighbour joining tree.
+def nj_np(pdm):
+    """Calculate neighbour joining tree.
+    Credit to Dendropy for python implentation.
+
+    Args:
+        pdm (ndarray): Pairwise distance matrix
+    """
+
+    n_pool = len(pdm)
+    n_taxa = len(pdm)
+    n_ints = n_taxa - 1
+    node_count = 2 * n_taxa - 2
+
+    peel = np.zeros((n_ints, 3), dtype=int)
+    blens = np.zeros(node_count, dtype=np.double)
+    
+    # initialise node pool
+    node_pool = [Node(taxon=taxon) for taxon in range(n_pool)]
+
+    # cache calculations
+    for nd1 in node_pool:
+        nd1._nj_xsub = 0.0
+        for nd2 in node_pool:
+            if nd1 is nd2:
+                continue
+            dist = pdm[nd1.taxon, nd2.taxon]
+            nd1._nj_distances[nd2] = dist
+            nd1._nj_xsub += dist
+    
+    while n_pool > 1:
+        # calculate argmin of Q-matrix
+        min_q = None
+        n_pool = len(node_pool)
+        for idx1, nd1 in enumerate(node_pool[:-1]):
+            for _, nd2 in enumerate(node_pool[idx1+1:]):
+                v1 = (n_pool - 2) * nd1._nj_distances[nd2]
+                qvalue = v1 - nd1._nj_xsub - nd2._nj_xsub
+                if min_q is None or qvalue < min_q:
+                    min_q = qvalue
+                    nodes_to_join = (nd1, nd2)
+
+        # create the new node
+        int_i = n_taxa - n_pool
+        parent = int_i + n_taxa
+        new_node = Node(parent)
+        peel[int_i, 2] = parent
+
+        # attach it to the tree
+        peel[int_i, 0] = nodes_to_join[0].taxon
+        peel[int_i, 1] = nodes_to_join[1].taxon
+        node_pool.remove(nodes_to_join[0])
+        node_pool.remove(nodes_to_join[1])
+
+        # calculate the distances for the new node
+        new_node._nj_distances = {}
+        new_node._nj_xsub = 0.0
+        for nd in node_pool:
+            # actual node-to-node distances
+            v1 = 0.0
+            for node_to_join in nodes_to_join:
+                v1 += nd._nj_distances[node_to_join]
+            v3 = nodes_to_join[0]._nj_distances[nodes_to_join[1]]
+            dist = 0.5 * (v1 - v3)
+            new_node._nj_distances[nd] = dist
+            nd._nj_distances[new_node] = dist
+
+            # Adjust/recalculate the values needed for the Q-matrix
+            # calculations
+            new_node._nj_xsub += dist
+            nd._nj_xsub += dist
+            for node_to_join in nodes_to_join:
+                nd._nj_xsub -= node_to_join._nj_distances[nd]
+
+        # calculate the branch lengths
+        if n_pool > 2:
+            v1 = 0.5 * nodes_to_join[0]._nj_distances[nodes_to_join[1]]
+            v4  = 1.0/(2*(n_pool-2)) * (nodes_to_join[0]._nj_xsub - nodes_to_join[1]._nj_xsub)
+            delta_f = v1 + v4
+            delta_g = nodes_to_join[0]._nj_distances[nodes_to_join[1]] - delta_f
+            blens[nodes_to_join[0].taxon] = delta_f
+            blens[nodes_to_join[1].taxon] = delta_g
+        else:
+            dist = nodes_to_join[0]._nj_distances[nodes_to_join[1]]
+            blens[nodes_to_join[0].taxon] = dist / 2.0
+            blens[nodes_to_join[1].taxon] = dist / 2.0
+
+        # clean up
+        for node_to_join in nodes_to_join:
+            node_to_join._nj_distances = {}
+            node_to_join._nj_xsub = 0.0 
+
+        # add the new node to the pool of nodes
+        node_pool.append(new_node)
+
+        # adjust count
+        n_pool -= 1
+    blens = np.maximum(blens, eps)
+    return peel, blens
+
+
+def nj_torch(pdm, tau=None):
+    """Generate Neighbour joining tree with gradients.
 
     Args:
         pdm: pairwise distance.
@@ -160,10 +263,9 @@ def nj(pdm, tau=None):
         tuple: (peel, blens)
     """
     if tau is None:
-        return Cpeeler.nj_np(pdm)
+        return nj_np(pdm)
     leaf_node_count = len(pdm)
     node_count = 2 * leaf_node_count - 2
-    eps = torch.finfo(torch.double).eps
 
     peel = np.zeros((leaf_node_count - 1, 3), dtype=int)
     blens = torch.zeros(node_count, dtype=torch.double)
@@ -308,7 +410,7 @@ def get_new_dist_soft(pdm, mask, hot_f, hot_g):
     sum_pdm = torch.sum(pdm * ~mask_2d, dim=-1)
     dist_uf = torch.clamp(
         0.5 * dist_fg + (sum_pdm @ hot_f - sum_pdm @ hot_g) / (2 * (n_active - 2)),
-        min=torch.finfo(torch.double).eps,
+        min=eps,
     )
     return dist_u, dist_uf, dist_fg
 
