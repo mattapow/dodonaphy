@@ -152,7 +152,7 @@ cpdef p2t0(np.ndarray[np.double_t, ndim=2] loc, mu=None, get_jacobian=False):
         out[i, :] = vec_t0_0[1:]
 
     if get_jacobian:
-        _, jacobian = t02p(out, mu[:, 1:], get_jacobian=True)
+        _, jacobian = t02p(out, mu, get_jacobian=True)
         return out, -jacobian
     return out
 
@@ -185,7 +185,7 @@ cpdef t02p(np.ndarray[np.double_t, ndim=2] x, mu=None, get_jacobian=False):
         mu = np.zeros_like(x)
 
     cdef np.ndarray[np.double_t, ndim=2] x_poin = np.zeros_like(x)
-    cdef np.ndarray[np.double_t, ndim=2] mu_hyp = project_up(mu)
+    cdef np.ndarray[np.double_t, ndim=2] mu_hyp = project_up_2d(mu)
     cdef np.double_t jacobian = np.zeros(1)
     for i in range(n_loc):
         x_hyp = tangent_to_hyper(mu_hyp[i, :], x[i, :], dim)
@@ -266,7 +266,7 @@ cpdef hyper_to_poincare_jacobian(np.ndarray[np.double_t, ndim=1] location):
     cdef np.int_t dim = location.shape[0]
 
     cdef np.double_t a = 1 + location[0]
-    cdef np.double_t norm = np.sum(np.power(location[1:], 2))
+    cdef np.double_t norm = np.sum(np.power(location[1:], 2))  #TODO check [1:]
     cdef np.double_t det = np.divide(np.power(a, 2) + norm, np.power(a, 2 * (dim + 1)))
 
     # compute Jacobian matrix then get determinant
@@ -293,8 +293,12 @@ cpdef project_up(np.ndarray[np.double_t, ndim=1] loc):
     Location in R^n+1 on Hyperboloid
 
     """
-    z = np.expand_dims(np.sqrt(np.sum(np.power(loc, 2), 0) + 1), 0)
-    return np.concatenate((z, loc), axis=0)
+    cdef np.int_t dim = len(loc)
+    cdef np.ndarray[np.double_t, ndim=1] out = np.empty((dim+1), dtype=np.double)
+    cdef np.double_t z = np.sqrt(np.sum(np.power(loc, 2)) + 1)
+    out[1:] = loc
+    out[0] = z
+    return out
 
 cpdef project_up_2d(np.ndarray[np.double_t, ndim=2] loc):
     z = np.expand_dims(np.sqrt(np.sum(np.power(loc, 2), 1) + 1), 1)
@@ -310,11 +314,13 @@ cpdef hyperbolic_distance(
     Returns:
         tensor: distance between point 1 and point 2
     """
+    x1_sheet = project_up(x1)
+    x2_sheet = project_up(x2)
 
     if np.isclose(curvature, 0.0):
-        return np.linalg.norm(x2-x1)
+        return np.linalg.norm(x2_sheet-x1_sheet)
 
-    cdef np.double_t inner = np.maximum(-lorentz_product(x1, x2), 1.+eps)
+    cdef np.double_t inner = np.maximum(-lorentz_product(x1_sheet, x2_sheet), 1.+eps)
     return 1. / np.sqrt(-curvature) * np.arccosh(inner)
 
 cdef lorentz_product(
@@ -343,8 +349,11 @@ cdef lorentz_product(
 cpdef get_pdm(
     np.ndarray[np.double_t, ndim=2] x,
     np.double_t curvature=-1.0):
-    
-    cdef np.ndarray[np.double_t, ndim=2] X = x @ x.T
+    """ Given points in H^dim (not including z coordinate),
+    compute their pairwise distance.
+    """
+    x_sheet = project_up_2d(x)
+    cdef np.ndarray[np.double_t, ndim=2] X = x_sheet @ x_sheet.T
     cdef np.ndarray[np.double_t, ndim=1] u_tilde = np.sqrt(np.diagonal(X) + 1)
     cdef np.ndarray[np.double_t, ndim=2] H = X - np.outer(u_tilde, u_tilde)
     H = np.minimum(H, -(1 + eps))

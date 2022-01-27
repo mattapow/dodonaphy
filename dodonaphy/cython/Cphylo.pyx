@@ -1,7 +1,7 @@
 import math
 import numpy as np
 cimport numpy as np
-from .Chyp_np import hyperbolic_distance
+from . import Chyp_np
 from collections import Counter
 
 cdef double eps = np.finfo(np.double).eps
@@ -178,13 +178,15 @@ cpdef compute_branch_lengths_np(
 
         for b in range(S - 1):
             x2 = int_x[peel[b][2] - S - 1,]
+            x2_sheet = Chyp_np.project_up(x2)
 
             for i in range(2):
                 if peel[b][i] < S:
                     x1 = leaf_x[peel[b][i], :]  # leaf to internal
                 else:
                     x1 = int_x[peel[b][i] - S - 1, :]  # internal to internal
-                hd = hyperbolic_distance(x1, x2, curvature)
+                x1_sheet = Chyp_np.project_up(x1)
+                hd = Chyp_np.hyperbolic_distance(x1_sheet, x2_sheet, curvature)
                 # apply the inverse transform from Matsumoto et al 2020
                 hd = np.log(np.cosh(hd))
 

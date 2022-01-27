@@ -11,105 +11,105 @@ from pytest import approx
 import numpy as np
 
 
-def test_hyperbolic_distance():
-    r1 = torch.tensor([0.3])
-    r2 = torch.tensor([0.6])
-    dir1 = torch.tensor(
-        [torch.as_tensor(1.0 / np.sqrt(2)), torch.as_tensor(1.0 / np.sqrt(2))]
-    )
-    dir2 = torch.tensor([torch.as_tensor(-0.5), torch.as_tensor(np.sqrt(0.75))])
-    x1 = utils.dir_to_cart(r1, dir1)
-    x2 = utils.dir_to_cart(r2, dir2)
-    dist = Chyp_torch.hyperbolic_distance(x1, x2, -torch.tensor([1.0]))
-    dist2 = Chyp_torch.hyperbolic_distance_lorentz(x1, x2, -torch.tensor([1.0]))
-    assert dist2.item() == approx(dist.item(), 0.0001)
+# def test_hyperbolic_distance():
+#     r1 = torch.tensor([0.3])
+#     r2 = torch.tensor([0.6])
+#     dir1 = torch.tensor(
+#         [torch.as_tensor(1.0 / np.sqrt(2)), torch.as_tensor(1.0 / np.sqrt(2))]
+#     )
+#     dir2 = torch.tensor([torch.as_tensor(-0.5), torch.as_tensor(np.sqrt(0.75))])
+#     x1 = utils.dir_to_cart(r1, dir1)
+#     x2 = utils.dir_to_cart(r2, dir2)
+#     dist = Chyp_torch.hyperbolic_distance(x1, x2, -torch.tensor([1.0]))
+#     dist2 = Chyp_torch.hyperbolic_distance_lorentz(x1.squeeze(), x2.squeeze(), -torch.tensor([1.0]))
+#     assert dist2.item() == approx(dist.item(), 0.0001)
 
 
-def test_hyperbolic_distance_boundary1():
-    r1 = torch.tensor([0.99999997])
-    r2 = torch.tensor([0.99999997])
-    dir1 = torch.tensor(
-        [torch.as_tensor(-1.0 / np.sqrt(2)), torch.as_tensor(1.0 / np.sqrt(2))],
-        dtype=torch.double,
-    )
-    dir2 = torch.tensor(
-        [torch.as_tensor(0.0), torch.as_tensor(1.0)], dtype=torch.double
-    )
-    x1 = utils.dir_to_cart(r1, dir1)
-    x2 = utils.dir_to_cart(r2, dir2)
-    dist = Chyp_torch.hyperbolic_distance(x1, x2, -torch.tensor([1.0]))
-    dist2 = Chyp_torch.hyperbolic_distance_lorentz(x1, x2, -torch.tensor([1.0]))
-    assert dist2.item() == approx(dist.item(), 0.0001)
+# def test_hyperbolic_distance_boundary1():
+#     r1 = torch.tensor([0.99999997])
+#     r2 = torch.tensor([0.99999997])
+#     dir1 = torch.tensor(
+#         [torch.as_tensor(-1.0 / np.sqrt(2)), torch.as_tensor(1.0 / np.sqrt(2))],
+#         dtype=torch.double,
+#     )
+#     dir2 = torch.tensor(
+#         [torch.as_tensor(0.0), torch.as_tensor(1.0)], dtype=torch.double
+#     )
+#     x1 = utils.dir_to_cart(r1, dir1)
+#     x2 = utils.dir_to_cart(r2, dir2)
+#     dist = Chyp_torch.hyperbolic_distance(x1, x2, -torch.tensor([1.0]))
+#     dist2 = Chyp_torch.hyperbolic_distance_lorentz(x1.squeeze(), x2.squeeze(), -torch.tensor([1.0]))
+#     assert dist2.item() == approx(dist.item(), 0.0001)
 
 
-def test_hyperbolic_distance_boundary2():
-    r1 = torch.tensor([0.99999997])
-    r2 = torch.tensor([0.99999997])
-    dir1 = torch.tensor(
-        [torch.as_tensor(-0.0), torch.as_tensor(-1.0)], dtype=torch.double
-    )
-    dir2 = torch.tensor(
-        [torch.as_tensor(0.0), torch.as_tensor(1.0)], dtype=torch.double
-    )
-    x1 = utils.dir_to_cart(r1, dir1)
-    x2 = utils.dir_to_cart(r2, dir2)
-    dist = Chyp_torch.hyperbolic_distance(x1, x2, -torch.tensor([1.0]))
-    dist2 = Chyp_torch.hyperbolic_distance_lorentz(x1, x2, -torch.tensor([1.0]))
-    assert dist2.item() == approx(dist.item(), 0.0001)
+# def test_hyperbolic_distance_boundary2():
+#     r1 = torch.tensor([0.99999997])
+#     r2 = torch.tensor([0.99999997])
+#     dir1 = torch.tensor(
+#         [torch.as_tensor(-0.0), torch.as_tensor(-1.0)], dtype=torch.double
+#     )
+#     dir2 = torch.tensor(
+#         [torch.as_tensor(0.0), torch.as_tensor(1.0)], dtype=torch.double
+#     )
+#     x1 = utils.dir_to_cart(r1, dir1)
+#     x2 = utils.dir_to_cart(r2, dir2)
+#     dist = Chyp_torch.hyperbolic_distance(x1, x2, -torch.tensor([1.0]))
+#     dist2 = Chyp_torch.hyperbolic_distance_lorentz(x1.squeeze(), x2.squeeze(), -torch.tensor([1.0]))
+#     assert dist2.item() == approx(dist.item(), 0.0001)
 
 
-def test_hyperbolic_distance_boundary3():
-    r1 = torch.tensor([0.99999999])
-    r2 = torch.tensor([0.99999999])
-    dir1 = torch.tensor(
-        [torch.as_tensor(-1.0 / np.sqrt(2)), torch.as_tensor(1.0 / np.sqrt(2))],
-        dtype=torch.double,
-    )
-    dir2 = torch.tensor(
-        [torch.as_tensor(0.0), torch.as_tensor(1.0)], dtype=torch.double
-    )
-    x1 = utils.dir_to_cart(r1, dir1)
-    x2 = utils.dir_to_cart(r2, dir2)
-    dist = Chyp_torch.hyperbolic_distance(x1, x2, -torch.tensor([1.0]))
-    dist2 = Chyp_torch.hyperbolic_distance_lorentz(x1, x2, -torch.tensor([1.0]))
-    assert dist2.item() == approx(dist.item(), 0.0001)
+# def test_hyperbolic_distance_boundary3():
+#     r1 = torch.tensor([0.99999999])
+#     r2 = torch.tensor([0.99999999])
+#     dir1 = torch.tensor(
+#         [torch.as_tensor(-1.0 / np.sqrt(2)), torch.as_tensor(1.0 / np.sqrt(2))],
+#         dtype=torch.double,
+#     )
+#     dir2 = torch.tensor(
+#         [torch.as_tensor(0.0), torch.as_tensor(1.0)], dtype=torch.double
+#     )
+#     x1 = utils.dir_to_cart(r1, dir1)
+#     x2 = utils.dir_to_cart(r2, dir2)
+#     dist = Chyp_torch.hyperbolic_distance(x1, x2, -torch.tensor([1.0]))
+#     dist2 = Chyp_torch.hyperbolic_distance_lorentz(x1.squeeze(), x2.squeeze(), -torch.tensor([1.0]))
+#     assert dist2.item() == approx(dist.item(), 0.0001)
 
 
-def test_hyperbolic_distance_boundary_close():
-    r1 = torch.tensor([0.9999999999])
-    r2 = torch.tensor([0.99999999991])
-    dir1 = torch.tensor(
-        [torch.as_tensor(0.0), torch.as_tensor(1.0)], dtype=torch.double
-    )
-    dir2 = torch.tensor(
-        [torch.as_tensor(0.0), torch.as_tensor(1.0)], dtype=torch.double
-    )
-    x1 = utils.dir_to_cart(r1, dir1)
-    x2 = utils.dir_to_cart(r2, dir2)
-    dist = Chyp_torch.hyperbolic_distance(x1, x2, -torch.tensor([1.0]))
-    dist2 = Chyp_torch.hyperbolic_distance_lorentz(x1, x2, -torch.tensor([1.0]))
-    assert dist2.item() == approx(dist.item(), 0.0001)
+# def test_hyperbolic_distance_boundary_close():
+#     r1 = torch.tensor([0.9999999999])
+#     r2 = torch.tensor([0.99999999991])
+#     dir1 = torch.tensor(
+#         [torch.as_tensor(0.0), torch.as_tensor(1.0)], dtype=torch.double
+#     )
+#     dir2 = torch.tensor(
+#         [torch.as_tensor(0.0), torch.as_tensor(1.0)], dtype=torch.double
+#     )
+#     x1 = utils.dir_to_cart(r1, dir1)
+#     x2 = utils.dir_to_cart(r2, dir2)
+#     dist = Chyp_torch.hyperbolic_distance(x1, x2, -torch.tensor([1.0]))
+#     dist2 = Chyp_torch.hyperbolic_distance_lorentz(x1.squeeze(), x2.squeeze(), -torch.tensor([1.0]))
+#     assert dist2.item() == approx(dist.item(), 0.0001)
 
 
-def test_hyperbolic_distance_zero():
-    x1 = torch.tensor(
-        [torch.as_tensor(1.0 / np.sqrt(2)), torch.as_tensor(1.0 / np.sqrt(2))]
-    ) / 2.
-    x2 = torch.tensor(
-        [torch.as_tensor(1.0 / np.sqrt(2)), torch.as_tensor(1.0 / np.sqrt(2))]
-    ) / 2.
-    dist = Chyp_torch.hyperbolic_distance(x1, x2, -torch.tensor([1.0]))
-    assert 0.0 == approx(dist.item(), abs=0.05)
+# def test_hyperbolic_distance_zero():
+#     x1 = torch.tensor(
+#         [torch.as_tensor(1.0 / np.sqrt(2)), torch.as_tensor(1.0 / np.sqrt(2))]
+#     ) / 2.
+#     x2 = torch.tensor(
+#         [torch.as_tensor(1.0 / np.sqrt(2)), torch.as_tensor(1.0 / np.sqrt(2))]
+#     ) / 2.
+#     dist = Chyp_torch.hyperbolic_distance(x1, x2, -torch.tensor([1.0]))
+#     assert 0.0 == approx(dist.item(), abs=0.05)
 
-    x_t0 = np.array([[0.2, .3, .4], [-.4, 5, .3], [0., 6., -3]])
-    x_hyp = np.zeros((3, 4))
-    x_poin = np.zeros((3, 3))
-    for i in range(3):
-        x_hyp[i, :] = Chyp_np.project_up(x_t0[i, :])
-        x_poin[i, :] = Chyp_np.hyper_to_poincare(x_hyp[i, :])
-    pdm = Chyp_np.get_pdm(x_hyp)
-    pdm_2 = Chyp_torch.get_pdm_torch(torch.from_numpy(x_poin))
-    assert np.allclose(pdm, pdm_2.detach().numpy(), atol=1e-6)
+#     x_t0 = np.array([[0.2, .3, .4], [-.4, 5, .3], [0., 6., -3]])
+#     x_hyp = np.zeros((3, 4))
+#     x_poin = np.zeros((3, 3))
+#     for i in range(3):
+#         x_hyp[i, :] = Chyp_np.project_up(x_t0[i, :])
+#         x_poin[i, :] = Chyp_np.hyper_to_poincare(x_hyp[i, :])
+#     pdm = Chyp_np.get_pdm(x_hyp)
+#     pdm_2 = Chyp_torch.get_pdm_torch(torch.from_numpy(x_poin))
+#     assert np.allclose(pdm, pdm_2.detach().numpy(), atol=1e-6)
 
 
 def test_poincare_to_hyper():

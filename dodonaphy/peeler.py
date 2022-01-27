@@ -417,7 +417,6 @@ def get_new_dist_soft(pdm, mask, hot_f, hot_g):
 
 def get_new_dist(pdm, mask, f, g):
     """Get neighbour joining distances to new node."""
-    eps = torch.finfo(torch.double).eps
     # get distance all taxa to new node u
     dist_u = 0.5 * (pdm[f] + pdm[g] - pdm[f][g])
 

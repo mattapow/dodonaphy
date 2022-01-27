@@ -72,11 +72,11 @@ class Chain(BaseModel):
 
     def set_probability(self):
         """Initialise likelihood and prior values of embedding"""
-        pdm = Chyp_np.get_pdm(self.leaf_x, curvature=self.curvature)
         if self.connector == "geodesics":
             self.peel, self.int_x = peeler.make_hard_peel_geodesic(self.leaf_x)
         elif self.connector == "nj":
-            self.peel, self.blens = Cpeeler.nj_np(pdm)
+            pdm = Chyp_np.get_pdm(self.leaf_x, curvature=self.curvature)
+            self.peel, self.blens = peeler.nj_np(pdm)
 
         if self.connector != "nj":
             self.blens = Cphylo.compute_branch_lengths_np(
@@ -94,15 +94,15 @@ class Chain(BaseModel):
     def evolve(self):
         """Propose new embedding"""
         proposal = self.sample_leaf_np(
-            self.leaf_x,
-            self.step_scale,
-            self.connector,
-            self.embedder,
-            self.partials,
-            self.weights,
-            self.S,
-            self.D,
-            self.curvature,
+            leaf_loc=self.leaf_x,
+            leaf_cov_single=self.step_scale,
+            connector=self.connector,
+            embedder=self.embedder,
+            partials=self.partials,
+            weights=self.weights,
+            taxa=self.S,
+            dim=self.D,
+            curvature=self.curvature,
             normalise_leaf=self.normalise_leaf,
         )
 
@@ -288,26 +288,25 @@ def sample_loc_np(n_taxa, dim, loc_hyp, cov, embedder, is_internal, normalise_le
 
     rng = np.random.default_rng()
     if embedder == "up":
-        loc_t0 = loc_hyp[:, 1:]
-        sample_t0 = rng.multivariate_normal(loc_t0.flatten(), cov)
-        prop_t0 = sample_t0.reshape((n_locs, dim))
-        for i in range(n_locs):
-            loc_hyp_prop[i] = Chyp_np.project_up(prop_t0[i])
+        sample_hyp = rng.multivariate_normal(loc_hyp.flatten(), cov, method="cholesky")
+        loc_hyp_prop = sample_hyp.reshape((n_locs, dim))
 
     elif embedder == "wrap":
         sample_t0 = rng.multivariate_normal(
-            np.zeros(n_vars, dtype=np.double), cov
+            np.zeros(n_vars, dtype=np.double), cov, method="cholesky"
         )
         prop_t0 = sample_t0.reshape((n_locs, dim))
         for i in range(n_locs):
-            loc_hyp_prop[i, :] = Chyp_np.tangent_to_hyper(loc_hyp[i, :], prop_t0[i, :], dim)
+            #TODO for exact coordinates
+            loc_hyp_prop[i, :] = Chyp_np.tangent_to_hyper(loc_hyp[i, :], prop_t0[i, :], dim)[:, 1:]
             log_abs_det_jacobian += Chyp_np.tangent_to_hyper_jacobian(loc_hyp_prop[i, :], loc_hyp[i, :-1], dim)
 
-    if normalise_leaf:
-        r = np.linalg.norm(loc_hyp_prop[0, 1:])
-        loc_hyp_prop[:, 1:] = Cutils.normalise_np(loc_hyp_prop[:, 1:]) * r
-        z = np.sqrt(np.sum(np.power(loc_hyp_prop, 2), 1) + 1)
-        loc_hyp_prop[:, 0] = z
+    # if normalise_leaf:
+        # TODO normalise
+        # r = np.linalg.norm(loc_hyp_prop[0, 1:])
+        # loc_hyp_prop[:, 1:] = Cutils.normalise_np(loc_hyp_prop[:, 1:]) * r
+        # z = np.sqrt(np.sum(np.power(loc_hyp_prop, 2), 1) + 1)
+        # loc_hyp_prop[:, 0] = z
 
     return loc_hyp_prop, log_abs_det_jacobian
 
