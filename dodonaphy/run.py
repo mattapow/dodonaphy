@@ -44,6 +44,7 @@ def run(args):
         start_tree = read_tree(root_dir, file_name=args.start)
 
     dists_phylo = utils.tip_distances(start_tree, args.taxa)
+    # Apply Matsumoto adjustment
     dists_matsumoto = np.arccosh(np.exp(dists_phylo))
     save_period = max(int(args.epochs / args.draws), 1)
 
@@ -81,7 +82,6 @@ def run(args):
             epochs=args.epochs,
             k_samples=args.importance,
             n_draws=args.draws,
-            max_scale=args.max_scale,
             lr=args.learn,
             embedder=args.embed,
             connector=args.connect,
