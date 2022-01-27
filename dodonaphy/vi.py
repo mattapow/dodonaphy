@@ -311,9 +311,9 @@ class DodonaphyVI(BaseModel):
         if self.connector == "nj":
             pdm = Chyp_torch.get_pdm_torch(leaf_locs, curvature=self.curvature)
             if soft:
-                peel, blens = peeler.nj(pdm, tau=self.soft_temp)
+                peel, blens = peeler.nj_torch(pdm, tau=self.soft_temp)
             else:
-                peel, blens = peeler.nj(pdm)
+                peel, blens = peeler.nj_torch(pdm)
 
         # get proposal branch lengths
         if self.connector != "nj":
