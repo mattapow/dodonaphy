@@ -133,7 +133,7 @@ class DodonaphyMCMC:
                 if path_write is not None:
                     self.save_iteration(path_write, epoch)
 
-            try_swap = self.n_chains > 1 and epoch % self.swap_period == 0
+            try_swap = self.n_chains > 1 and epoch % self.swap_period == self.swap_period - 1
             if try_swap:
                 for _ in range(self.n_swaps):
                     swaps += self.swap()
