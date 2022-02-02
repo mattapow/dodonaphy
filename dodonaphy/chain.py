@@ -224,7 +224,7 @@ class Chain(BaseModel):
         elif self.connector == "geodesics":
             peel, int_x_prop = peeler.make_hard_peel_geodesic(leaf_loc)
             blens = Cphylo.compute_branch_lengths_np(
-                taxa,
+                self.S,
                 peel,
                 leaf_x_prop,
                 int_x_prop,
