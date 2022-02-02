@@ -121,85 +121,6 @@ cpdef exp_map_inverse(np.ndarray[np.double_t, ndim=1] z, np.ndarray[np.double_t,
     return factor * (z - alpha * mu)
 
 
-cpdef p2t0(np.ndarray[np.double_t, ndim=2] loc, mu=None, get_jacobian=False):
-    """Convert location on Poincare ball to Euclidean space.
-
-    Use stereographic projection of point onto hyperboloid surface in R^n+1,
-    then project onto z=1 plane, the tangent plane at the origin.
-
-    Parameters
-    ----------
-    loc: Location in Poincare ball, loc in R^n with |loc|<1
-    mu: Base position of vector on tangent plane at origin.
-
-    Returns
-    -------
-    Projection of location into the tangent space T_0H^n, which is R^n
-
-    """
-    cdef np.ndarray[np.double_t, ndim=2] vec_hyp = poincare_to_hyper_2d(loc)
-    if mu is None:
-        mu = np.zeros_like(loc)
-        mu = project_up(mu)
-    n_loc, dim = np.shape(loc)
-    cdef np.ndarray[np.double_t, ndim=1] zero = np.zeros((dim + 1), dtype=np.double)
-    zero[0] = 1
-
-    cdef np.ndarray[np.double_t, ndim=2] out = np.zeros_like(loc)
-    for i in range(n_loc):
-        vec_t0_mu = exp_map_inverse(vec_hyp[i, :], mu[i, :])
-        vec_t0_0 = parallel_transport(vec_t0_mu, mu[i, :], zero)
-        out[i, :] = vec_t0_0[1:]
-
-    if get_jacobian:
-        _, jacobian = t02p(out, mu, get_jacobian=True)
-        return out, -jacobian
-    return out
-
-
-cpdef t02p(np.ndarray[np.double_t, ndim=2] x, mu=None, get_jacobian=False):
-    """Transform a vector x in Euclidean space to the Poincare disk.
-
-    Take a vector in the tangent space of a hyperboloid at the origin, project it
-    onto a hyperboloid surface then onto the poincare ball. Mu is the mean of the
-    distribution in the Euclidean space
-
-    Parameters
-    ----------
-    x (Tensor or ndarray): Position of sample in tangent space at origin. n_points x n_dimensions
-            x_1, y_1;
-            x_2, y_2;
-            ...
-    mu (Tensor or ndarray): Mean of distribution in tangent space at origin. Must
-        be same size as x. Default at origin.
-
-    Returns
-    -------
-    Transformed vector x, from tangent plane to Poincare ball
-
-    """
-    n_loc = x.shape[0]
-    dim = x.shape[1]
-
-    if mu is None:
-        mu = np.zeros_like(x)
-
-    cdef np.ndarray[np.double_t, ndim=2] x_poin = np.zeros_like(x)
-    cdef np.ndarray[np.double_t, ndim=2] mu_hyp = project_up_2d(mu)
-    cdef np.double_t jacobian = np.zeros(1)
-    for i in range(n_loc):
-        x_hyp = tangent_to_hyper(mu_hyp[i, :], x[i, :], dim)
-        x_poin[i, :] = hyper_to_poincare(x_hyp)
-        if get_jacobian:
-            jacobian = jacobian + tangent_to_hyper_jacobian(mu_hyp[i, :], x[i, :], dim)
-            jacobian = jacobian + hyper_to_poincare_jacobian(x_hyp)
-
-    if get_jacobian:
-        return x_poin, jacobian
-    else:
-        return x_poin
-
-
 cpdef tangent_to_hyper(np.ndarray[np.double_t, ndim=1] mu, np.ndarray[np.double_t, ndim=1] v_tilde, np.int_t dim):
     """Project a vector onto the hyperboloid
 
@@ -214,7 +135,7 @@ cpdef tangent_to_hyper(np.ndarray[np.double_t, ndim=1] mu, np.ndarray[np.double_
 
     Returns
     -------
-    A point in R^dim+1 on the hyperboloid
+    A point in R^dim+1 on the hyperboloid sheet
 
     """
     cdef np.ndarray[np.double_t, ndim=1] mu0 = np.concatenate(([1.0], np.zeros(dim, dtype=np.double)))

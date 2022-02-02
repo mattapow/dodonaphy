@@ -133,6 +133,7 @@ def test_p2t02p():
     output = Chyp_torch.t02p(Chyp_torch.p2t0(input_data))
     assert approx(input_data.data, output.data)
 
+
 def test_t02p2t0():
     input_data = torch.tensor([[10.0, 0.3, -0.44]]).double()
     output = Chyp_torch.p2t0(Chyp_torch.t02p(input_data))
@@ -145,21 +146,3 @@ def test_jacobian_default_mu():
     x_t0_2, jacobian2 = Chyp_torch.p2t0(x_poin, get_jacobian=True)
     assert torch.allclose(x_t0, x_t0_2)
     assert torch.allclose(jacobian0, -jacobian2)
-
-
-def test_jacobian_mu_0():
-    x_t0 = torch.tensor([[-0.4, -0.0, -1.0]]).double()
-    mu_t0 = torch.zeros_like(x_t0).double()
-    x_poin, jacobian0 = Chyp_torch.t02p(x_t0, mu_t0, get_jacobian=True)
-    x_t0_2, jacobian2 = Chyp_torch.p2t0(x_poin, mu_t0, get_jacobian=True)
-    assert torch.allclose(x_t0, x_t0_2)
-    assert torch.allclose(jacobian0, -jacobian2)
-
-
-def test_jacobian_mu_1():
-    x_t0 = torch.tensor([[-6.4, 0.0, 1.1]]).double()
-    mu_t0 = torch.tensor([[0.2, 0.3, -0.5]]).double()
-    x_poin, jacobian_0 = Chyp_torch.t02p(x_t0, mu_t0, get_jacobian=True)
-    x_t0_2, jacobian_2 = Chyp_torch.p2t0(x_poin, mu_t0, get_jacobian=True)
-    assert torch.allclose(x_t0, x_t0_2, atol=0.00001)
-    assert torch.allclose(jacobian_0, -jacobian_2)
