@@ -280,8 +280,9 @@ def init_parser():
         "--matsumoto",
         dest="matsumoto",
         action="store_true",
-        help="Apply the Matsumoto et al 2020 distance adjustment. Currently\
-            ony implemented in MCMC",
+        help="Apply the Matsumoto et al 2020 distance adjustment. NB: hydra+\
+            does not account for this which could lead to a bad initial\
+            embedding. Currently ony implemented in MCMC.",
     )
     parser.set_defaults(matsumoto=False)
 
