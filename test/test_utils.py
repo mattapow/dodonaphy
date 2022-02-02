@@ -37,11 +37,12 @@ def test_euclidean_distance():
     assert norm == pytest.approx(dist.item(), 0.0001)
 
 
-def test_pdm_euclidean():
+def test_pdm_almost_euclidean():
     n_tips = 4
     leaf_r = np.random.uniform(0, 1, n_tips)
     leaf_dir = np.random.normal(0, 1, (n_tips, 2))
     leaf_norm = np.tile(np.linalg.norm(leaf_dir, axis=1), (2, 1)).T
     leaf_dir /= leaf_norm
     leaf_x = Cutils.dir_to_cart_np(leaf_r, leaf_dir)
-    _ = Chyp_np.get_pdm(leaf_x, curvature=0.0)
+    curvature = -0.01
+    _ = Chyp_np.get_pdm(leaf_x, curvature=curvature)

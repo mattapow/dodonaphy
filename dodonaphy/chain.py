@@ -1,7 +1,7 @@
 """A Markov Chain"""
 import numpy as np
 
-from . import Chyp_np, Cphylo, peeler
+from . import Chyp_np, Cphylo, peeler, Cutils
 from .base_model import BaseModel
 from .Chyp_np import tangent_to_hyper as t02hyp
 from .Chyp_np import tangent_to_hyper_jacobian as t02hyp_J
@@ -259,8 +259,6 @@ class Chain(BaseModel):
         Args:
             loc_low (ndarray(double)): 'low' locations n_taxa x dim
             cov (ndarray(double)): Covariance matrix (n_taxa x dim) x (n_taxa x dim)
-            embedder (string): 'up' or 'wrap
-            even_leaf (bool, optional): Normalise the leaves to a single radius. Defaults to False.
 
         Returns:
             [type]: [description]
@@ -277,12 +275,6 @@ class Chain(BaseModel):
             )
             loc_low_prop = sample_hyp.reshape((n_locs, self.D))
 
-    # if normalise_leaf:
-        # TODO normalise
-        # r = np.linalg.norm(loc_hyp_prop[0, 1:])
-        # loc_hyp_prop[:, 1:] = Cutils.normalise_np(loc_hyp_prop[:, 1:]) * r
-        # z = np.sqrt(np.sum(np.power(loc_hyp_prop, 2), 1) + 1)
-        # loc_hyp_prop[:, 0] = z
         elif self.embedder == "wrap":
             zero = np.zeros(n_vars, dtype=np.double)
             sample_t0 = rng.multivariate_normal(zero, cov, method="cholesky").reshape(
@@ -293,6 +285,9 @@ class Chain(BaseModel):
                 loc_low_prop[i, :] = t02hyp(mu_hyp, sample_t0[i, :], self.D)[1:]
                 log_abs_det_jacobian += t02hyp_J(mu_hyp, loc_low[i, :], self.D)
 
+        if self.normalise_leaf:
+            r = np.mean(np.linalg.norm(loc_low, axis=1))
+            loc_low_prop = Cutils.normalise_np(loc_low_prop) * r
 
         return loc_low_prop, log_abs_det_jacobian
 

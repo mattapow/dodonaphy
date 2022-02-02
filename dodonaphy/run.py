@@ -265,8 +265,9 @@ def init_parser():
         "--normalise_leaf",
         dest="normalise_leaves",
         action="store_true",
-        help="Whether to normalise the leaves to a single raduis. Currently\
-        only implemented in MCMC.",
+        help="Whether to normalise the leaves to a single raduis. NB: Hydra+\
+            does not normalise leaves, which could lead to a bad initial\
+            embedding. Currently only implemented in MCMC.",
     )
     parser.add_argument(
         "--free_leaf",
