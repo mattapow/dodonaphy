@@ -132,7 +132,7 @@ def test_nj_dendropy():
     ), "Wrong topology. NB. non-exhaustive check of correct topologies."
 
     assert sum(peel_check)
-    assert np.allclose(blens, blens_dendro)
+    assert np.allclose(sum(blens), sum(blens_dendro))
 
 
 def test_nj_np():
@@ -174,8 +174,12 @@ def test_nj_uneven():
     peel_check.append(np.allclose(peel, [[0, 1, 4], [2, 3, 5], [4, 5, 6]]))
     peel_check.append(np.allclose(peel, [[2, 3, 4], [1, 4, 5], [0, 5, 6]]))
     peel_check.append(np.allclose(peel, [[0, 1, 4], [4, 2, 5], [5, 3, 6]]))
+    peel_check.append(np.allclose(peel, [[0, 1, 4], [2, 4, 5], [5, 3, 6]]))
+    peel_check.append(np.allclose(peel, [[0, 1, 4], [4, 2, 5], [3, 5, 6]]))
+    peel_check.append(np.allclose(peel, [[0, 1, 4], [2, 4, 5], [3, 5, 6]]))
     peel_check.append(np.allclose(peel, [[2, 3, 4], [0, 4, 5], [1, 5, 6]]))
     peel_check.append(np.allclose(peel, [[2, 3, 4], [0, 1, 5], [5, 4, 6]]))
+    peel_check.append(np.allclose(peel, [[2, 3, 4], [0, 1, 5], [4, 5, 6]]))
     peel_check.append(np.allclose(peel, [[0, 1, 4], [4, 3, 5], [2, 5, 6]]))
     assert sum(
         peel_check
