@@ -3,6 +3,8 @@ import numpy as np
 
 from . import Chyp_np, Cphylo, peeler
 from .base_model import BaseModel
+from .Chyp_np import tangent_to_hyper as t02hyp
+from .Chyp_np import tangent_to_hyper_jacobian as t02hyp_J
 
 
 class Chain(BaseModel):
@@ -93,18 +95,7 @@ class Chain(BaseModel):
 
     def evolve(self):
         """Propose new embedding"""
-        proposal = self.sample_leaf_np(
-            leaf_loc=self.leaf_x,
-            leaf_cov_single=self.step_scale,
-            connector=self.connector,
-            embedder=self.embedder,
-            partials=self.partials,
-            weights=self.weights,
-            taxa=self.S,
-            dim=self.D,
-            curvature=self.curvature,
-            normalise_leaf=self.normalise_leaf,
-        )
+        proposal = self.sample_leaf_np(self.leaf_x, self.step_scale)
 
         r_accept = self.accept_ratio(proposal)
 
@@ -201,8 +192,8 @@ class Chain(BaseModel):
         eps = 2.220446049250313e-16
         self.step_scale = np.maximum(self.step_scale, eps)
         # if np.isclose(self.step_scale, eps) :
-            # declare stuck, reset to 1.0
-            # self.step_scale = 1.0
+        # declare stuck, reset to 1.0
+        # self.step_scale = 1.0
         # print(f"step: {self.step_scale} acceptance:{acceptance}")
 
         # check convegence
@@ -214,19 +205,7 @@ class Chain(BaseModel):
             self.more_tune = False
             print(f"Step tuned to {self.step_scale}.")
 
-    @staticmethod
-    def sample_leaf_np(
-        leaf_loc,
-        leaf_cov_single,
-        connector,
-        embedder,
-        partials,
-        weights,
-        taxa,
-        dim,
-        curvature,
-        normalise_leaf=False,
-    ):
+    def sample_leaf_np(self, leaf_loc, leaf_cov_single):
         """Sample a nearby tree embedding.
 
         Each point is transformed R^n (using the self.embedding method), then
@@ -235,33 +214,24 @@ class Chain(BaseModel):
 
         A dictionary is  returned containing information about this sampled tree.
         """
-        leaf_cov = np.eye(taxa * dim, dtype=np.double) * leaf_cov_single
-
-        leaf_x_prop, log_abs_det_jacobian = sample_loc_np(
-            taxa,
-            dim,
-            leaf_loc,
-            leaf_cov,
-            embedder,
-            is_internal=False,
-            normalise_leaf=normalise_leaf,
-        )
+        leaf_cov = np.eye(self.S * self.D, dtype=np.double) * leaf_cov_single
+        leaf_x_prop, log_abs_det_jacobian = self.sample_loc_np(leaf_loc, leaf_cov)
 
         int_x_prop = None
-        if connector == "nj":
-            pdm = Chyp_np.get_pdm(leaf_x_prop, curvature=curvature)
+        if self.connector == "nj":
+            pdm = Chyp_np.get_pdm(leaf_x_prop, curvature=self.curvature)
             peel, blens = peeler.nj_np(pdm)
-        elif connector == "geodesics":
+        elif self.connector == "geodesics":
             peel, int_x_prop = peeler.make_hard_peel_geodesic(leaf_loc)
             blens = Cphylo.compute_branch_lengths_np(
                 taxa,
                 peel,
                 leaf_x_prop,
                 int_x_prop,
-                curvature,
+                self.curvature,
             )
 
-        ln_p = Cphylo.compute_LL_np(partials, weights, peel, blens)
+        ln_p = Cphylo.compute_LL_np(self.partials, self.weights, peel, blens)
         ln_prior = Cphylo.compute_prior_gamma_dir_np(blens)
 
         proposal = {
@@ -276,30 +246,32 @@ class Chain(BaseModel):
             proposal["int_x"] = int_x_prop
         return proposal
 
-def sample_loc_np(n_taxa, dim, loc_hyp, cov, embedder, is_internal, normalise_leaf=False):
-    """Sample points on hyperboloid."""
-    if is_internal:
-        n_locs = n_taxa - 2
-    else:
-        n_locs = n_taxa
-    n_vars = n_locs * dim
-    loc_hyp_prop = np.empty((n_taxa, dim+1))
-    log_abs_det_jacobian = 0.0
+    def sample_loc_np(self, loc_low, cov):
+        """Sample points on hyperboloid.
 
-    rng = np.random.default_rng()
-    if embedder == "up":
-        sample_hyp = rng.multivariate_normal(loc_hyp.flatten(), cov, method="cholesky")
-        loc_hyp_prop = sample_hyp.reshape((n_locs, dim))
+        Points on the hyperboloid satisfy - x0^2 + x1^2 + ... + xdim^2= -1
+        'low' locations are specified by the x1, ... xdim and x0 is determined.
 
-    elif embedder == "wrap":
-        sample_t0 = rng.multivariate_normal(
-            np.zeros(n_vars, dtype=np.double), cov, method="cholesky"
-        )
-        prop_t0 = sample_t0.reshape((n_locs, dim))
-        for i in range(n_locs):
-            #TODO for exact coordinates
-            loc_hyp_prop[i, :] = Chyp_np.tangent_to_hyper(loc_hyp[i, :], prop_t0[i, :], dim)[:, 1:]
-            log_abs_det_jacobian += Chyp_np.tangent_to_hyper_jacobian(loc_hyp_prop[i, :], loc_hyp[i, :-1], dim)
+        Args:
+            loc_low (ndarray(double)): 'low' locations n_taxa x dim
+            cov (ndarray(double)): Covariance matrix (n_taxa x dim) x (n_taxa x dim)
+            embedder (string): 'up' or 'wrap
+            even_leaf (bool, optional): Normalise the leaves to a single radius. Defaults to False.
+
+        Returns:
+            [type]: [description]
+        """
+        n_locs = loc_low.shape[0]
+        n_vars = n_locs * self.D
+        loc_low_prop = np.zeros((n_locs, self.D))
+        log_abs_det_jacobian = 0.0
+
+        rng = np.random.default_rng()
+        if self.embedder == "up":
+            sample_hyp = rng.multivariate_normal(
+                loc_low.flatten(), cov, method="cholesky"
+            )
+            loc_low_prop = sample_hyp.reshape((n_locs, self.D))
 
     # if normalise_leaf:
         # TODO normalise
@@ -307,9 +279,18 @@ def sample_loc_np(n_taxa, dim, loc_hyp, cov, embedder, is_internal, normalise_le
         # loc_hyp_prop[:, 1:] = Cutils.normalise_np(loc_hyp_prop[:, 1:]) * r
         # z = np.sqrt(np.sum(np.power(loc_hyp_prop, 2), 1) + 1)
         # loc_hyp_prop[:, 0] = z
+        elif self.embedder == "wrap":
+            zero = np.zeros(n_vars, dtype=np.double)
+            sample_t0 = rng.multivariate_normal(zero, cov, method="cholesky").reshape(
+                (n_locs, self.D)
+            )
+            for i in range(n_locs):
+                mu_hyp = Chyp_np.project_up(loc_low[i, :])
+                loc_low_prop[i, :] = t02hyp(mu_hyp, sample_t0[i, :], self.D)[1:]
+                log_abs_det_jacobian += t02hyp_J(mu_hyp, loc_low[i, :], self.D)
 
-    return loc_hyp_prop, log_abs_det_jacobian
 
+        return loc_low_prop, log_abs_det_jacobian
 
 def normalise_LADJ(y):
     norm = np.linalg.norm(y, axis=-1, keepdims=True)
@@ -317,6 +298,8 @@ def normalise_LADJ(y):
 
     log_abs_det_J = np.zeros(1)
     for k in range(n):
-        J = np.linalg.det((np.eye(D, D) - np.outer(y[k], y[k]) / norm[k] ** 2) / norm[k])
+        J = np.linalg.det(
+            (np.eye(D, D) - np.outer(y[k], y[k]) / norm[k] ** 2) / norm[k]
+        )
         log_abs_det_J = log_abs_det_J + np.log(np.abs(J))
     return log_abs_det_J

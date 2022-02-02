@@ -154,7 +154,7 @@ def test_mcmc_wrap_nj():
     prior = {"birth_rate": 2.0, "death_rate": 0.5}
 
     # MCMC parameters
-    step_scale = 0.1
+    step_scale = 1e-10
     n_chains = 1
     connector = "nj"
     embedder = "wrap"

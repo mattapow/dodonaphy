@@ -49,9 +49,9 @@ cpdef parallel_transport(
     xi : Tensor
         1D vector to be transported.
     x : Tensor
-        1D vector of tangent point in initial tangent space T_x H^n.
+        1D vector origin of initial tangent space T_x H^n in R^d+1.
     y : Tensor
-        1D tensor of tangent point in target tangent space T_y H^n..
+        1D tensor origin of target tangent space T_y H^n in R^d+1.
 
     Returns
     -------
@@ -59,7 +59,7 @@ cpdef parallel_transport(
 
     """
     cdef np.double_t alpha = -lorentz_product(x, y)
-    cdef np.double_t coef = lorentz_product(y, xi) / (alpha + 1)
+    cdef np.double_t coef = lorentz_product(y, xi) / (alpha + 1.0)
     return xi + coef * (x + y)
 
 
@@ -208,8 +208,8 @@ cpdef tangent_to_hyper(np.ndarray[np.double_t, ndim=1] mu, np.ndarray[np.double_
 
     Parameters
     ----------
-    mu: Point of new tangent space in R^dim+1
-    v_tilde: Vector in R^dim to project
+    mu: Base point of new tangent space on sheet in R^dim+1
+    v_tilde: Vector in T_mu H^n = R^dim to project
     dim: dimension of hyperbolic space H^n
 
     Returns
@@ -218,7 +218,7 @@ cpdef tangent_to_hyper(np.ndarray[np.double_t, ndim=1] mu, np.ndarray[np.double_
 
     """
     cdef np.ndarray[np.double_t, ndim=1] mu0 = np.concatenate(([1.0], np.zeros(dim, dtype=np.double)))
-    cdef np.ndarray[np.double_t, ndim=1] v = np.concatenate(([1.0], np.squeeze(v_tilde))).astype(np.double)
+    cdef np.ndarray[np.double_t, ndim=1] v = np.concatenate(([0.0], v_tilde))
     cdef np.ndarray[np.double_t, ndim=1] u = parallel_transport(v, mu0, mu)
     cdef np.ndarray[np.double_t, ndim=1] z = exponential_map(mu, u)
     return z
