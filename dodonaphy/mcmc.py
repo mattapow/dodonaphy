@@ -28,6 +28,7 @@ class DodonaphyMCMC:
         loss_fn="likelihood",
         swap_period=1000,
         n_swaps=10,
+        matsumoto=False
     ):
         self.n_chains = n_chains
         self.chains = []
@@ -53,6 +54,7 @@ class DodonaphyMCMC:
                     normalise_leaf=normalise_leaf,
                     loss_fn=loss_fn,
                     converge_length=None,
+                    matsumoto=matsumoto
                 )
             )
 
@@ -292,6 +294,7 @@ class DodonaphyMCMC:
         loss_fn="likelihood",
         swap_period=1000,
         n_swaps=10,
+        matsumoto=False,
     ):
         """Run Dodonaphy's MCMC."""
         print("\nRunning Dodonaphy MCMC")
@@ -316,6 +319,7 @@ class DodonaphyMCMC:
             loss_fn=loss_fn,
             swap_period=swap_period,
             n_swaps=n_swaps,
+            matsumoto=matsumoto,
         )
 
         mymod.initialise_chains(emm_tips)

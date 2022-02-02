@@ -384,7 +384,7 @@ cpdef hyper_to_poincare(location):
     return out
 
 
-cpdef get_pdm_torch(leaf_x, int_x=None, curvature=-torch.ones(1)):
+cpdef get_pdm_torch(leaf_x, int_x=None, curvature=-torch.ones(1), bint matsumoto=False):
     # TODO
     """Pair-wise hyperbolic distance matrix
 
@@ -432,8 +432,8 @@ cpdef get_pdm_torch(leaf_x, int_x=None, curvature=-torch.ones(1)):
                     int_x[j_node],
                     curvature)
 
-            # apply the inverse transform from Matsumoto et al 2020
-            dist_ij = torch.log(torch.cosh(dist_ij))
+            if matsumoto:
+                dist_ij = torch.log(torch.cosh(dist_ij))
 
             pdm[i, j] = pdm[j, i] = dist_ij
 

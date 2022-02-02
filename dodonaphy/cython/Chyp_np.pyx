@@ -269,7 +269,9 @@ cdef lorentz_product(
 
 cpdef get_pdm(
     np.ndarray[np.double_t, ndim=2] x,
-    np.double_t curvature=-1.0):
+    np.double_t curvature=-1.0,
+    bint matsumoto=False
+    ):
     """ Given points in H^dim (not including z coordinate),
     compute their pairwise distance.
     """
@@ -279,8 +281,8 @@ cpdef get_pdm(
     cdef np.ndarray[np.double_t, ndim=2] H = X - np.outer(u_tilde, u_tilde)
     H = np.minimum(H, -(1 + eps))
     cdef np.ndarray[np.double_t, ndim=2] D = 1 / np.sqrt(-curvature) * np.arccosh(-H)
-    # apply the inverse transform from Matsumoto et al 2020: 
-    D = np.log(np.cosh(D))
+    if matsumoto:
+        D = np.log(np.cosh(D))
     return D
 
 cpdef poincare_to_hyper(np.ndarray[np.double_t, ndim=1] location):

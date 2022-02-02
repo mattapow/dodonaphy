@@ -27,6 +27,7 @@ class BaseModel(object):
         normalise_leaf=False,
         loss_fn="likelihood",
         require_grad=True,
+        matsumoto=False,
     ):
         self.partials = partials.copy()
         self.weights = weights
@@ -54,6 +55,7 @@ class BaseModel(object):
         self.normalise_leaf = normalise_leaf
         assert loss_fn in ("likelihood", "pair_likelihood", "hypHC")
         self.loss_fn = loss_fn
+        self.matsumoto = matsumoto
 
         # make space for internal partials
         for _ in range(self.S - 1):
@@ -78,6 +80,7 @@ class BaseModel(object):
         int_x,
         curvature=-torch.ones(1),
         useNP=True,
+        matsumoto=False,
     ):
         """Computes the hyperbolic distance of two points given in radial/directional coordinates in the Poincare ball
 
@@ -112,16 +115,12 @@ class BaseModel(object):
                     x1 = int_x[peel[b][i] - n_taxa - 1]
 
                 if useNP:
-                    hd = torch.tensor(
-                        Chyp_np.hyperbolic_distance(
-                            x1, x2, curvature
-                        )
-                    )
+                    hd = torch.tensor(Chyp_np.hyperbolic_distance(x1, x2, curvature))
                 else:
                     hd = Chyp_torch.hyperbolic_distance(x1, x2, curvature)
 
-                # apply the inverse transform from Matsumoto et al 2020
-                hd = torch.log(torch.cosh(hd))
+                if matsumoto:
+                    hd = torch.log(torch.cosh(hd))
 
                 # add a tiny amount to avoid zero-length branches
                 eps = torch.finfo(torch.double).eps
@@ -232,7 +231,6 @@ class BaseModel(object):
             [type]: [description]
         """
         return torch.exp(-pdm_data[u, v])
-
 
     @staticmethod
     def compute_prior_birthdeath(peel, blen, **prior):

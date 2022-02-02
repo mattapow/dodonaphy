@@ -26,6 +26,7 @@ class Chain(BaseModel):
         converge_length=500,
         normalise_leaf=False,
         loss_fn="likelihood",
+        matsumoto=False,
     ):
         super().__init__(
             partials,
@@ -38,6 +39,7 @@ class Chain(BaseModel):
             normalise_leaf=normalise_leaf,
             loss_fn=loss_fn,
             require_grad=False,
+            matsumoto=matsumoto,
         )
         self.leaf_x = leaf_x  # S x D
         self.int_x = int_x  # S-2 x D
@@ -87,6 +89,7 @@ class Chain(BaseModel):
                 self.leaf_x,
                 self.int_x,
                 curvature=self.curvature,
+                matsumoto=self.matsumoto,
             )
 
         self.ln_p = self.get_loss()
@@ -229,6 +232,7 @@ class Chain(BaseModel):
                 leaf_x_prop,
                 int_x_prop,
                 self.curvature,
+                matsumoto=self.matsumoto,
             )
 
         ln_p = Cphylo.compute_LL_np(self.partials, self.weights, peel, blens)
@@ -291,6 +295,7 @@ class Chain(BaseModel):
 
 
         return loc_low_prop, log_abs_det_jacobian
+
 
 def normalise_LADJ(y):
     norm = np.linalg.norm(y, axis=-1, keepdims=True)

@@ -44,8 +44,8 @@ def run(args):
         start_tree = read_tree(root_dir, file_name=args.start)
 
     dists_phylo = utils.tip_distances(start_tree, args.taxa)
-    # Apply Matsumoto adjustment
-    dists_matsumoto = np.arccosh(np.exp(dists_phylo))
+    if args.matsumoto:
+        dists_phylo = np.arccosh(np.exp(dists_phylo))
     save_period = max(int(args.epochs / args.draws), 1)
 
     start = time.time()
@@ -55,7 +55,7 @@ def run(args):
             args.dim,
             partials[:],
             weights,
-            dists_matsumoto,
+            dists_phylo,
             path_write,
             epochs=args.epochs,
             step_scale=args.step,
@@ -69,6 +69,7 @@ def run(args):
             loss_fn=args.loss_fn,
             swap_period=args.swap_period,
             n_swaps=args.n_swaps,
+            matsumoto=args.matsumoto,
         )
     elif args.infer == "vi":
         partials, weights = compress_alignment(dna)
@@ -77,7 +78,7 @@ def run(args):
             args.taxa,
             partials[:],
             weights,
-            dists_matsumoto,
+            dists_phylo,
             path_write,
             epochs=args.epochs,
             k_samples=args.importance,
@@ -93,7 +94,7 @@ def run(args):
         mymod = ML(
             partials[:],
             weights,
-            dists=dists_matsumoto,
+            dists=dists_phylo,
             soft_temp=args.temp,
             loss_fn=args.loss_fn,
         )
@@ -275,6 +276,14 @@ def init_parser():
         only implemented in MCMC.",
     )
     parser.set_defaults(normalise_leaves=False)
+    parser.add_argument(
+        "--matsumoto",
+        dest="matsumoto",
+        action="store_true",
+        help="Apply the Matsumoto et al 2020 distance adjustment. Currently\
+            ony implemented in MCMC",
+    )
+    parser.set_defaults(matsumoto=False)
 
     # i/o
     parser.add_argument(
@@ -342,13 +351,13 @@ def init_parser():
         "--swap_period",
         default=1000,
         type=int,
-        help="Number MCMC generations before considering swapping chains."
+        help="Number MCMC generations before considering swapping chains.",
     )
     parser.add_argument(
         "--n_swaps",
         default=10,
         type=int,
-        help="Number of MCMC chain swap moves considered every swap_period."
+        help="Number of MCMC chain swap moves considered every swap_period.",
     )
 
     # Tree simulation parameters

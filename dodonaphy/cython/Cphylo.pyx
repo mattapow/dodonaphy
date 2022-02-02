@@ -159,7 +159,8 @@ cpdef compute_branch_lengths_np(
         np.ndarray[np.int_t, ndim=2] peel,
         np.ndarray[np.double_t, ndim=2] leaf_x,
         int_x,
-        np.double_t curvature=-1.0
+        np.double_t curvature=-1.0,
+        bint matsumoto=False
     ):
         """Computes the hyperboloid distance points in peel.
 
@@ -187,10 +188,10 @@ cpdef compute_branch_lengths_np(
                     x1 = int_x[peel[b][i] - S - 1, :]  # internal to internal
                 x1_sheet = Chyp_np.project_up(x1)
                 hd = Chyp_np.hyperbolic_distance(x1_sheet, x2_sheet, curvature)
-                # apply the inverse transform from Matsumoto et al 2020
-                hd = np.log(np.cosh(hd))
+                if matsumoto:
+                    hd = np.log(np.cosh(hd))
 
-                # add a tiny amount to avoid zero-length branches
+                # avoid zero-length branches
                 blens[peel[b][i]] = np.maximum(hd, eps)
 
         return blens

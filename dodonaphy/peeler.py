@@ -67,7 +67,7 @@ def make_soft_peel_tips(leaf_locs, connector="geodesics", curvature=-torch.ones(
     return peel, int_locs, blens
 
 
-def make_hard_peel_geodesic(leaf_locs):
+def make_hard_peel_geodesic(leaf_locs, matsumoto=False):
     """Generate a tree recursively using the closest two points.
     Curvature must be -1.0
 
@@ -133,9 +133,7 @@ def make_hard_peel_geodesic(leaf_locs):
             if i < leaf_node_count:
                 poin_to = Chyp_np.hyper_to_poincare(leaf_locs[i])
                 poin_from = Chyp_np.hyper_to_poincare(int_locs[int_i])
-                dist_ij = -poincare.hyp_lca_np(
-                    poin_to, poin_from, return_coord=False
-                )
+                dist_ij = -poincare.hyp_lca_np(poin_to, poin_from, return_coord=False)
             else:
                 poin_to = Chyp_np.hyper_to_poincare(int_locs[i - leaf_node_count])
                 poin_from = Chyp_np.hyper_to_poincare(int_locs[int_i])
@@ -144,8 +142,8 @@ def make_hard_peel_geodesic(leaf_locs):
                     poin_from,
                     return_coord=False,
                 )
-            # apply the inverse transform from Matsumoto et al 2020
-            dist_ij = np.log(np.cosh(dist_ij))
+            if matsumoto:
+                dist_ij = np.log(np.cosh(dist_ij))
             heappush(queue, Edge(dist_ij, i, cur_internal))
         int_i += 1
     return peel, int_locs
@@ -166,7 +164,7 @@ def nj_np(pdm):
 
     peel = np.zeros((n_ints, 3), dtype=int)
     blens = np.zeros(node_count, dtype=np.double)
-    
+
     # initialise node pool
     node_pool = [Node(taxon=taxon) for taxon in range(n_pool)]
 
@@ -179,13 +177,13 @@ def nj_np(pdm):
             dist = pdm[nd1.taxon, nd2.taxon]
             nd1._nj_distances[nd2] = dist
             nd1._nj_xsub += dist
-    
+
     while n_pool > 1:
         # calculate argmin of Q-matrix
         min_q = None
         n_pool = len(node_pool)
         for idx1, nd1 in enumerate(node_pool[:-1]):
-            for _, nd2 in enumerate(node_pool[idx1+1:]):
+            for _, nd2 in enumerate(node_pool[idx1 + 1 :]):
                 v1 = (n_pool - 2) * nd1._nj_distances[nd2]
                 qvalue = v1 - nd1._nj_xsub - nd2._nj_xsub
                 if min_q is None or qvalue < min_q:
@@ -227,7 +225,11 @@ def nj_np(pdm):
         # calculate the branch lengths
         if n_pool > 2:
             v1 = 0.5 * nodes_to_join[0]._nj_distances[nodes_to_join[1]]
-            v4  = 1.0/(2*(n_pool-2)) * (nodes_to_join[0]._nj_xsub - nodes_to_join[1]._nj_xsub)
+            v4 = (
+                1.0
+                / (2 * (n_pool - 2))
+                * (nodes_to_join[0]._nj_xsub - nodes_to_join[1]._nj_xsub)
+            )
             delta_f = v1 + v4
             delta_g = nodes_to_join[0]._nj_distances[nodes_to_join[1]] - delta_f
             blens[nodes_to_join[0].taxon] = delta_f
@@ -240,7 +242,7 @@ def nj_np(pdm):
         # clean up
         for node_to_join in nodes_to_join:
             node_to_join._nj_distances = {}
-            node_to_join._nj_xsub = 0.0 
+            node_to_join._nj_xsub = 0.0
 
         # add the new node to the pool of nodes
         node_pool.append(new_node)
