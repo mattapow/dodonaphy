@@ -155,7 +155,7 @@ class Chain(BaseModel):
     def scale_step(self, sign, learn_rate=2.0):
         return np.power(learn_rate, sign) * self.step_scale
 
-    def tune_step(self, tol=0.01):
+    def tune_step(self):
         """Tune the acceptance rate.
 
         Use Euler method if acceptance rate is within 0.5 of target acceptance
@@ -188,12 +188,20 @@ class Chain(BaseModel):
             )
         eps = 2.220446049250313e-16
         self.step_scale = np.maximum(self.step_scale, eps)
-        # if np.isclose(self.step_scale, eps) :
-        # declare stuck, reset to 1.0
-        # self.step_scale = 1.0
-        # print(f"step: {self.step_scale} acceptance:{acceptance}")
 
-        # check convegence
+        self.check_convergence(accept_diff)
+
+    def check_convergence(self, accept_diff, tol=0.01):
+        """Check for convergence of step.
+
+        Previous 'converge_length' consecutive iterations must be within 'tol'
+        of the target acceptance.
+
+        Args:
+            accept_diff ([type]): Difference to target acceptance.
+            tol (float, optional): Absolute tolerance to target acceptance.
+            Defaults to 0.01.
+        """
         if self.converge_length is None:
             return
         self.converged.pop()
