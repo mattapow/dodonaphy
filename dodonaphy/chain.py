@@ -124,19 +124,20 @@ class Chain(BaseModel):
     def accept_ratio(self, prop):
         """Acceptance critereon for Metropolis-Hastings
 
+        Assumes a Hastings ratio of 1, i.e. symmetric proposals.
+
         Args:
-            prop ([type]): Proposal dictionary
+            prop (dict): Proposal dictionary containing ln_p, ln_prior and the
+            jacobian of the proposal.
 
         Returns:
-            tuple: (r, prop_like)
-            The acceptance ratio r and the likelihood of the proposal.
+            The acceptance ratio for MCMC.
         """
         ln_like_diff = prop["ln_p"] - self.ln_p
         ln_prior_diff = prop["ln_prior"] - self.ln_prior
         ln_jacob_diff = prop["jacobian"] - self.jacobian
-
-        # Proposals are symmetric Guassians
         ln_hastings_diff = 0.0
+
         r_accept = np.exp(
             (ln_prior_diff + ln_like_diff + ln_jacob_diff) * self.chain_temp
             + ln_hastings_diff
