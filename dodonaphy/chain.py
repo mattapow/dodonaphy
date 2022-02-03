@@ -105,7 +105,6 @@ class Chain(BaseModel):
         accept = False
         if r_accept >= 1:
             accept = True
-
         elif np.random.uniform(low=0.0, high=1.0) < r_accept:
             accept = True
 
@@ -116,7 +115,7 @@ class Chain(BaseModel):
             self.peel = proposal["peel"]
             self.blens = proposal["blens"]
             self.jacobian = proposal["jacobian"]
-            if self.connector != "nj":
+            if self.internals_exist:
                 self.int_x = proposal["int_x"]
             self.accepted += 1
         self.iterations += 1
@@ -132,28 +131,17 @@ class Chain(BaseModel):
             tuple: (r, prop_like)
             The acceptance ratio r and the likelihood of the proposal.
         """
-        # likelihood ratio
-        like_ratio = prop["ln_p"] - self.ln_p
-
-        # prior ratio
-        prior_ratio = prop["ln_prior"] - self.ln_prior
-
-        # Jacobian ratio
-        jacob_ratio = prop["jacobian"] - self.jacobian
+        ln_like_diff = prop["ln_p"] - self.ln_p
+        ln_prior_diff = prop["ln_prior"] - self.ln_prior
+        ln_jacob_diff = prop["jacobian"] - self.jacobian
 
         # Proposals are symmetric Guassians
-        hastings_ratio = 1
-
-        # acceptance ratio
-        r_accept = np.minimum(
-            np.ones(1),
-            np.exp(
-                (prior_ratio + like_ratio + jacob_ratio) * self.chain_temp
-                + hastings_ratio
-            ),
+        ln_hastings_diff = 0.0
+        r_accept = np.exp(
+            (ln_prior_diff + ln_like_diff + ln_jacob_diff) * self.chain_temp
+            + ln_hastings_diff
         )
-
-        return r_accept
+        return np.minimum(1.0, r_accept)
 
     def euler_step(self, f, learn_rate=0.01):
         return self.step_scale + learn_rate * f
