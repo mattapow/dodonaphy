@@ -60,6 +60,11 @@ class Chain(BaseModel):
         self.ln_prior = Cphylo.compute_prior_gamma_dir_np(self.blens)
 
     def get_loss(self):
+        """Get the current loss according to the objective.
+
+        Returns:
+            float: The loss value.
+        """
         if self.loss_fn == "likelihood":
             self.ln_p = Cphylo.compute_LL_np(
                 self.partials, self.weights, self.peel, self.blens
@@ -144,8 +149,8 @@ class Chain(BaseModel):
         )
         return np.minimum(1.0, r_accept)
 
-    def euler_step(self, f, learn_rate=0.01):
-        return self.step_scale + learn_rate * f
+    def euler_step(self, value, learn_rate=0.01):
+        return self.step_scale + learn_rate * value
 
     def scale_step(self, sign, learn_rate=2.0):
         return np.power(learn_rate, sign) * self.step_scale
@@ -275,20 +280,29 @@ class Chain(BaseModel):
                 log_abs_det_jacobian += t02hyp_J(mu_hyp, loc_low[i, :], self.D)
 
         if self.normalise_leaf:
-            r = np.mean(np.linalg.norm(loc_low, axis=1))
-            loc_low_prop = Cutils.normalise_np(loc_low_prop) * r
+            radius = np.mean(np.linalg.norm(loc_low, axis=1))
+            loc_low_prop = Cutils.normalise_np(loc_low_prop) * radius
 
         return loc_low_prop, log_abs_det_jacobian
 
 
-def normalise_LADJ(y):
-    norm = np.linalg.norm(y, axis=-1, keepdims=True)
-    n, D = y.shape
+def normalise_LADJ(loc):
+    """Return the log of the absolute value of the determinant of the jacobian.
+    Normalising points to unit sphere.
 
-    log_abs_det_J = np.zeros(1)
-    for k in range(n):
-        J = np.linalg.det(
-            (np.eye(D, D) - np.outer(y[k], y[k]) / norm[k] ** 2) / norm[k]
+    Args:
+        loc (ndarray): locations to normalise: n_locations x n_dim
+
+    Returns:
+        float: log(|det(Jacobian)|)
+    """
+    norm = np.linalg.norm(loc, axis=-1, keepdims=True)
+    n_loc, dim = loc.shape
+
+    log_abs_det_j = 0.0
+    for k in range(n_loc):
+        j_det = np.linalg.det(
+            (np.eye(dim, dim) - np.outer(loc[k], loc[k]) / norm[k] ** 2) / norm[k]
         )
-        log_abs_det_J = log_abs_det_J + np.log(np.abs(J))
-    return log_abs_det_J
+        log_abs_det_j = log_abs_det_j + np.log(np.abs(j_det))
+    return log_abs_det_j
