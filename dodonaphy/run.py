@@ -11,11 +11,10 @@ from dendropy.model.birthdeath import birth_death_likelihood
 from dendropy.model.discrete import simulate_discrete_chars
 from dendropy.simulate import treesim
 
-from dodonaphy import utils
+from dodonaphy import utils, Cphylo
 from dodonaphy.mcmc import DodonaphyMCMC as mcmc
 from dodonaphy.ml import ML
 from dodonaphy.phylo import compress_alignment
-from dodonaphy.Cphylo import compress_alignment_np
 from dodonaphy.vi import DodonaphyVI
 
 
@@ -45,24 +44,22 @@ def run(args):
         start_tree = read_tree(root_dir, file_name=args.start)
 
     dists_phylo = utils.tip_distances(start_tree, args.taxa)
-    dists_matsumoto = np.arccosh(np.exp(dists_phylo))
+    if args.matsumoto:
+        dists_phylo = np.arccosh(np.exp(dists_phylo))
     save_period = max(int(args.epochs / args.draws), 1)
 
     start = time.time()
     if args.infer == "mcmc":
-        partials, weights = compress_alignment_np(dna)
+        partials, weights = Cphylo.compress_alignment_np(dna)
         mcmc.run(
             args.dim,
             partials[:],
             weights,
-            dists_matsumoto,
+            dists_phylo,
             path_write,
             epochs=args.epochs,
             step_scale=args.step,
             save_period=save_period,
-            n_grids=args.grids,
-            n_trials=args.trials,
-            max_scale=args.max_scale,
             n_chains=args.chains,
             burnin=args.burn,
             connector=args.connect,
@@ -70,6 +67,9 @@ def run(args):
             curvature=args.curv,
             normalise_leaf=args.normalise_leaves,
             loss_fn=args.loss_fn,
+            swap_period=args.swap_period,
+            n_swaps=args.n_swaps,
+            matsumoto=args.matsumoto,
         )
     elif args.infer == "vi":
         partials, weights = compress_alignment(dna)
@@ -78,14 +78,11 @@ def run(args):
             args.taxa,
             partials[:],
             weights,
-            dists_matsumoto,
+            dists_phylo,
             path_write,
             epochs=args.epochs,
             k_samples=args.importance,
             n_draws=args.draws,
-            n_grids=args.grids,
-            n_trials=args.trials,
-            max_scale=args.max_scale,
             lr=args.learn,
             embedder=args.embed,
             connector=args.connect,
@@ -97,7 +94,7 @@ def run(args):
         mymod = ML(
             partials[:],
             weights,
-            dists=dists_matsumoto,
+            dists=dists_phylo,
             soft_temp=args.temp,
             loss_fn=args.loss_fn,
         )
@@ -235,14 +232,14 @@ def init_parser():
         "--connect",
         "-C",
         default="nj",
-        choices=("nj", "mst", "geodesics", "mst_choice"),
+        choices=("nj", "geodesics"),
         help="Connection method to form a tree from embedded points.",
     )
     parser.add_argument(
         "--embed",
         "-e",
-        default="simple",
-        choices=("simple", "wrap"),
+        default="up",
+        choices=("up", "wrap"),
         help="Embedded method from Euclidean to Hyperbolic space.",
     )
     parser.add_argument(
@@ -268,8 +265,9 @@ def init_parser():
         "--normalise_leaf",
         dest="normalise_leaves",
         action="store_true",
-        help="Whether to normalise the leaves to a single raduis. Currently\
-        only implemented in MCMC.",
+        help="Whether to normalise the leaves to a single raduis. NB: Hydra+\
+            does not normalise leaves, which could lead to a bad initial\
+            embedding. Currently only implemented in MCMC.",
     )
     parser.add_argument(
         "--free_leaf",
@@ -279,6 +277,15 @@ def init_parser():
         only implemented in MCMC.",
     )
     parser.set_defaults(normalise_leaves=False)
+    parser.add_argument(
+        "--matsumoto",
+        dest="matsumoto",
+        action="store_true",
+        help="Apply the Matsumoto et al 2020 distance adjustment. NB: hydra+\
+            does not account for this which could lead to a bad initial\
+            embedding. Currently ony implemented in MCMC.",
+    )
+    parser.set_defaults(matsumoto=False)
 
     # i/o
     parser.add_argument(
@@ -342,26 +349,20 @@ def init_parser():
         choices=("likelihood", "pair_likelihood", "hypHC"),
         help="Loss function for MCMC and ML. Not implemented in VI.",
     )
+    parser.add_argument(
+        "--swap_period",
+        default=1000,
+        type=int,
+        help="Number MCMC generations before considering swapping chains.",
+    )
+    parser.add_argument(
+        "--n_swaps",
+        default=10,
+        type=int,
+        help="Number of MCMC chain swap moves considered every swap_period.",
+    )
 
-    # MST parameters
-    parser.add_argument(
-        "--trials",
-        default=10,
-        type=int,
-        help="Number of initial embeddings to select from per grid for mst.",
-    )
-    parser.add_argument(
-        "--grids",
-        default=10,
-        type=int,
-        help="Number grid scales for selecting inital embedding for mst.",
-    )
-    parser.add_argument(
-        "--max_scale",
-        default=1,
-        type=float,
-        help="Maximum radius for mst internal node positions relative to minimum leaf radius.",
-    )
+    # Tree simulation parameters
     parser.add_argument(
         "--birth", default=2.0, type=float, help="Birth rate of simulated tree."
     )

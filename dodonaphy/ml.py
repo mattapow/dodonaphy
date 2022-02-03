@@ -87,11 +87,11 @@ class ML(BaseModel):
         dist_2d[tril_idx[1], tril_idx[0]] = self.params["dists"]
 
         if self.loss_fn == "likelihood":
-            self.peel, self.blens = peeler.nj(dist_2d, tau=self.soft_temp)
+            self.peel, self.blens = peeler.nj_torch(dist_2d, tau=self.soft_temp)
             self.ln_p = self.compute_LL(self.peel, self.blens)
             loss = self.ln_p
         elif self.loss_fn == "pair_likelihood":
-            self.peel, self.blens = peeler.nj(dist_2d, tau=None)
+            self.peel, self.blens = peeler.nj_torch(dist_2d, tau=None)
             self.ln_p = self.compute_LL(self.peel, self.blens)
             loss = self.compute_log_a_like(dist_2d)
         elif self.loss_fn == "hypHC":

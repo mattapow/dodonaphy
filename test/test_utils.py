@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 import torch
 from pytest import approx
-from dodonaphy import utils, Chyperboloid, Chyperboloid_np
+from dodonaphy import utils, Cutils, Chyp_torch, Chyp_np
 
 def test_dir_to_cart_1d():
     u = torch.tensor(10.0)
@@ -30,17 +30,19 @@ def test_euclidean_distance():
     dir2 = torch.tensor(
         [torch.as_tensor(-0.5), torch.as_tensor(np.sqrt(0.75))], dtype=torch.double
     )
-    dist = Chyperboloid.hyperbolic_distance(r1, r2, dir1, dir2, torch.zeros(1))
     x1 = r1 * dir1
     x2 = r2 * dir2
+    dist = Chyp_torch.hyperbolic_distance(x1, x2, torch.zeros(1))
     norm = torch.norm(x2 - x1)
     assert norm == pytest.approx(dist.item(), 0.0001)
 
 
-def test_pdm_euclidean():
+def test_pdm_almost_euclidean():
     n_tips = 4
     leaf_r = np.random.uniform(0, 1, n_tips)
     leaf_dir = np.random.normal(0, 1, (n_tips, 2))
     leaf_norm = np.tile(np.linalg.norm(leaf_dir, axis=1), (2, 1)).T
     leaf_dir /= leaf_norm
-    _ = Chyperboloid_np.get_pdm(leaf_r, leaf_dir, curvature=0.0, dtype="numpy")
+    leaf_x = Cutils.dir_to_cart_np(leaf_r, leaf_dir)
+    curvature = -0.01
+    _ = Chyp_np.get_pdm(leaf_x, curvature=curvature)

@@ -1,15 +1,12 @@
 "Base model for MCMC and VI inference"
-import math
-
 import numpy as np
 import torch
 from dendropy import Tree
 from dendropy.model.birthdeath import birth_death_likelihood as birth_death_likelihood
-from torch.distributions.multivariate_normal import MultivariateNormal
 
 from dodonaphy import poincare
 
-from . import Chyperboloid, Chyperboloid_np, peeler, utils, Cphylo
+from . import Chyp_torch, Chyp_np
 from . import tree as treeFunc
 from .phylo import JC69_p_t, calculate_treelikelihood
 from .utils import LogDirPrior
@@ -25,11 +22,12 @@ class BaseModel(object):
         dim,
         soft_temp,
         curvature=-1.0,
-        embedder="simple",
+        embedder="up",
         connector="nj",
         normalise_leaf=False,
         loss_fn="likelihood",
         require_grad=True,
+        matsumoto=False,
     ):
         self.partials = partials.copy()
         self.weights = weights
@@ -44,13 +42,11 @@ class BaseModel(object):
         else:
             self.curvature = curvature
         self.epoch = 0
-        assert embedder in ("wrap", "simple")
+        assert embedder in ("wrap", "up")
         self.embedder = embedder
-        assert connector in ("mst", "geodesics", "nj", "mst_choice")
+        assert connector in ("geodesics", "nj")
         self.connector = connector
         self.internals_exist = False
-        if self.connector in ("mst", "mst_choice"):
-            self.internals_exist = True
         self.peel = np.zeros((self.S - 1, 3), dtype=int)
         if require_grad:
             self.blens = torch.zeros(self.bcount, dtype=torch.double)
@@ -59,6 +55,7 @@ class BaseModel(object):
         self.normalise_leaf = normalise_leaf
         assert loss_fn in ("likelihood", "pair_likelihood", "hypHC")
         self.loss_fn = loss_fn
+        self.matsumoto = matsumoto
 
         # make space for internal partials
         for _ in range(self.S - 1):
@@ -75,82 +72,15 @@ class BaseModel(object):
                     )
                 )
 
-    def initialise_ints(self, emm_tips, n_grids=10, n_trials=10, max_scale=2):
-        # try out some inner node positions and pick the best
-        # working in the Poincare ball P^d
-        print(
-            "Randomly initialising internal node positions from {} samples: ".format(
-                n_grids * n_trials
-            ),
-            end="",
-            flush=True,
-        )
-
-        leaf_r = emm_tips["r"]
-        leaf_dir = emm_tips["directional"]
-        S = len(emm_tips["r"])
-        scale = 0.5 * emm_tips["r"].min()
-        ln_p = -math.inf
-        directional = np.random.normal(0, 1, (S - 2, self.D))
-        abs_dir = np.sum(directional ** 2, axis=1) ** 0.5
-        # _int_r = np.random.exponential(scale=scale, size=(S-2))
-        # _int_r = scale * np.random.beta(a=2, b=5, size=(S-2))
-        _int_r = np.random.uniform(low=0, high=scale, size=(S - 2))
-        _int_dir = directional / abs_dir.reshape(S - 2, 1)
-        max_scale = max_scale * emm_tips["r"].min()
-
-        for i in range(n_grids):
-            _scale = i / n_grids * max_scale
-            for _ in range(n_trials):
-                peel = peeler.make_peel_mst(
-                    leaf_r,
-                    leaf_dir,
-                    _int_r,
-                    _int_dir,
-                )
-                blen = Cphylo.compute_branch_lengths_np(
-                    self.S,
-                    peel,
-                    leaf_r,
-                    leaf_dir,
-                    _int_r,
-                    _int_dir,
-                )
-                _ln_p = Cphylo.compute_LL_np(self.partials, self.weights, peel, blen)
-
-                if _ln_p > ln_p:
-                    int_r = _int_r
-                    int_dir = _int_dir
-                    ln_p = _ln_p
-                    scale = _scale
-
-                directional = np.random.normal(0, 1, (S - 2, self.D))
-                abs_dir = np.sum(directional ** 2, axis=1) ** 0.5
-                # _int_r = np.random.exponential(scale=_scale, size=(S-2))
-                _int_r[_int_r > emm_tips["r"].min()] = emm_tips["r"].max()
-                # _int_r = _scale * np.random.beta(a=2, b=5, size=(S-2))
-                _int_r = np.random.uniform(low=0, high=_scale, size=(S - 2))
-                _int_dir = directional / abs_dir.reshape(S - 2, 1)
-
-        print("done.\nBest internal node positions selected.")
-        if scale > 0.9 * max_scale:
-            print(
-                "Using scale=%f, from max of %f. Consider a higher maximum."
-                % (scale / emm_tips["r"].min(), max_scale / emm_tips["r"].min())
-            )
-
-        return int_r, int_dir
-
     @staticmethod
     def compute_branch_lengths(
         n_taxa,
         peel,
-        leaf_r,
-        leaf_dir,
-        int_r,
-        int_dir,
+        leaf_x,
+        int_x,
         curvature=-torch.ones(1),
         useNP=True,
+        matsumoto=False,
     ):
         """Computes the hyperbolic distance of two points given in radial/directional coordinates in the Poincare ball
 
@@ -158,10 +88,8 @@ class BaseModel(object):
             n_taxa (integer): [description]
             D ([type]): [description]
             peel ([type]): [description]
-            leaf_r ([type]): [description]
-            leaf_dir ([type]): [description]
-            int_r ([type]): [description]
-            int_dir ([type]): [description]
+            leaf_x ([type]): [description]
+            int_x ([type]): [description]
 
         Returns:
             [type]: [description]
@@ -169,43 +97,30 @@ class BaseModel(object):
         # Using numpy in cython may be faster
         if useNP:
             DTYPE = np.double
-            leaf_r = leaf_r.detach().numpy().astype(DTYPE)
-            leaf_dir = leaf_dir.detach().numpy().astype(DTYPE)
-            int_r = int_r.detach().numpy().astype(DTYPE)
-            int_dir = int_dir.detach().numpy().astype(DTYPE)
+            leaf_x = leaf_x.detach().numpy().astype(DTYPE)
+            int_x = int_x.detach().numpy().astype(DTYPE)
         bcount = 2 * n_taxa - 2
         blens = torch.empty(bcount, dtype=torch.float64)
         for b in range(n_taxa - 1):
-            directional2 = int_dir[
+            x2 = int_x[
                 peel[b][2] - n_taxa - 1,
             ]
-            r2 = int_r[peel[b][2] - n_taxa - 1]
 
             for i in range(2):
                 if peel[b][i] < n_taxa:
                     # leaf to internal
-                    r1 = leaf_r[peel[b][i]]
-                    directional1 = leaf_dir[peel[b][i], :]
+                    x1 = leaf_x[peel[b][i]]
                 else:
                     # internal to internal
-                    r1 = int_r[peel[b][i] - n_taxa - 1]
-                    directional1 = int_dir[
-                        peel[b][i] - n_taxa - 1,
-                    ]
+                    x1 = int_x[peel[b][i] - n_taxa - 1]
 
                 if useNP:
-                    hd = torch.tensor(
-                        Chyperboloid_np.hyperbolic_distance(
-                            r1, r2, directional1, directional2, curvature
-                        )
-                    )
+                    hd = torch.tensor(Chyp_np.hyperbolic_distance(x1, x2, curvature))
                 else:
-                    hd = Chyperboloid.hyperbolic_distance(
-                        r1, r2, directional1, directional2, curvature
-                    )
+                    hd = Chyp_torch.hyperbolic_distance(x1, x2, curvature)
 
-                # apply the inverse transform from Matsumoto et al 2020
-                hd = torch.log(torch.cosh(hd))
+                if matsumoto:
+                    hd = torch.log(torch.cosh(hd))
 
                 # add a tiny amount to avoid zero-length branches
                 eps = torch.finfo(torch.double).eps
@@ -214,13 +129,14 @@ class BaseModel(object):
         return blens
 
     def compute_LL(self, peel, blen):
-        """[summary]
+        """Compute likelihood of tree.
 
         Args:
-            leaf_r ([type]): [description]
-            leaf_dir ([type]): [description]
-            int_r ([type]): [description]
-            int_dir ([type]): [description]
+            peel ([type]): [description]
+            blen ([type]): [description]
+
+        Returns:
+            [type]: [description]
         """
         mats = JC69_p_t(blen)
         return calculate_treelikelihood(
@@ -316,211 +232,13 @@ class BaseModel(object):
         """
         return torch.exp(-pdm_data[u, v])
 
-    def select_peel_mst(self, leaf_r, leaf_dir, int_r, int_dir):
-        leaf_node_count = leaf_r.shape[0]
-        ln_p = torch.zeros(leaf_node_count)
-        for leaf in range(leaf_node_count):
-            peel = peeler.make_peel_mst(
-                leaf_r,
-                leaf_dir,
-                int_r,
-                int_dir,
-                curvature=-torch.ones(1),
-                start_node=leaf,
-            )
-            blens = self.compute_branch_lengths(
-                leaf_node_count, peel, leaf_r, leaf_dir, int_r, int_dir
-            )
-            ln_p[leaf] = self.compute_LL(peel, blens)
-        sftmx = torch.nn.Softmax(dim=0)
-        p = np.array(sftmx(ln_p))
-        leaf = np.random.choice(leaf_node_count, p=p)
-        return peeler.make_peel_mst(
-            leaf_r, leaf_dir, int_r, int_dir, curvature=-torch.ones(1), start_node=leaf
-        )
-
-    def sample(
-        self,
-        leaf_loc,
-        leaf_cov,
-        int_loc=None,
-        int_cov=None,
-        soft=True,
-        normalise_leaf=False,
-    ):
-        """Sample a nearby tree embedding.
-
-        Each point is transformed R^n (using the self.embedding method), then
-        a normal is sampled and transformed back to H^n. A tree is formed using
-        the self.connect method.
-
-        A dictionary is  returned containing information about this sampled tree.
-        """
-        # reshape covariance if single number
-        if torch.numel(leaf_cov) == 1:
-            leaf_cov = torch.eye(self.S * self.D, dtype=torch.double) * leaf_cov
-        if int_cov is not None and torch.numel(int_cov) == 1:
-            int_cov = torch.eye((self.S - 2) * self.D, dtype=torch.double) * int_cov
-
-        leaf_r_prop, leaf_dir_prop, log_abs_det_jacobian, log_Q = self.sample_loc(
-            leaf_loc, leaf_cov, is_internal=False, normalise_leaf=normalise_leaf
-        )
-
-        if self.internals_exist:
-            (
-                int_r_prop,
-                int_dir_prop,
-                log_abs_det_jacobian_int,
-                log_Q_int,
-            ) = self.sample_loc(
-                int_loc, int_cov, is_internal=True, normalise_leaf=False
-            )
-            min_leaf_r = min(leaf_r_prop)
-            int_r_prop[int_r_prop > min_leaf_r] = min_leaf_r
-            log_abs_det_jacobian = log_abs_det_jacobian + log_abs_det_jacobian_int
-            log_Q = log_Q + log_Q_int
-
-        # internal nodes and peel for geodesics
-        if self.connector == "geodesics":
-            leaf_locs = leaf_r_prop.repeat((self.D, 1)).T * leaf_dir_prop
-            if isinstance(leaf_locs, torch.Tensor):
-                peel, int_locs, blens = peeler.make_soft_peel_tips(
-                    leaf_locs, connector="geodesics", curvature=self.curvature
-                )
-            else:
-                peel, int_locs = peeler.make_hard_peel_geodesic(leaf_locs)
-            int_r_prop, int_dir_prop = utils.cart_to_dir(int_locs)
-
-        # get peels
-        if self.connector == "nj":
-            pdm = Chyperboloid.get_pdm_torch(
-                leaf_r_prop, leaf_dir_prop, curvature=self.curvature
-            )
-            if soft:
-                peel, blens = peeler.nj(pdm, tau=self.soft_temp)
-            else:
-                peel, blens = peeler.nj(pdm)
-        elif self.connector == "mst":
-            peel = peeler.make_peel_mst(
-                leaf_r_prop, leaf_dir_prop, int_r_prop, int_dir_prop
-            )
-        elif self.connector == "mst_choice":
-            peel = self.select_peel_mst(
-                leaf_r_prop, leaf_dir_prop, int_r_prop, int_dir_prop
-            )
-
-        # get proposal branch lengths
-        if self.connector != "nj":
-            blens = self.compute_branch_lengths(
-                self.S,
-                peel,
-                leaf_r_prop,
-                leaf_dir_prop,
-                int_r_prop,
-                int_dir_prop,
-                useNP=False,
-            )
-
-        # get log likelihood
-        if self.loss_fn == "likelihood":
-            ln_p = self.compute_LL(peel, blens)
-        elif self.loss_fn == "pair_likelihood":
-            ln_p = self.compute_log_a_like(pdm)
-        elif self.loss_fn == "hypHC":
-            leaf_X = utils.dir_to_cart(leaf_r_prop, leaf_dir_prop)
-            ln_p = self.compute_hypHC(pdm, leaf_X)
-
-        # get log prior
-        ln_prior = self.compute_prior_gamma_dir(blens)
-
-        if self.connector in ("nj"):
-            proposal = {
-                "leaf_r": leaf_r_prop,
-                "leaf_dir": leaf_dir_prop,
-                "peel": peel,
-                "blens": blens,
-                "jacobian": log_abs_det_jacobian,
-                "logQ": log_Q,
-                "ln_p": ln_p,
-                "ln_prior": ln_prior,
-            }
-        elif self.connector in ("geodesics", "mst", "mst_choice"):
-            proposal = {
-                "leaf_r": leaf_r_prop,
-                "leaf_dir": leaf_dir_prop,
-                "int_r": int_r_prop,
-                "int_dir": int_dir_prop,
-                "peel": peel,
-                "blens": blens,
-                "jacobian": log_abs_det_jacobian,
-                "logQ": log_Q,
-                "ln_p": ln_p,
-                "ln_prior": ln_prior,
-            }
-        return proposal
-
-    def sample_loc(self, loc, cov, is_internal, normalise_leaf=False):
-        """Given locations in poincare ball, transform them to Euclidean
-        space, sample from a Normal and transform sample back."""
-        if is_internal:
-            n_locs = self.S - 2
-        else:
-            n_locs = self.S
-        n_vars = n_locs * self.D
-        if self.embedder == "simple":
-            # transform internals to R^n
-            loc_t0 = Chyperboloid.ball2real(loc)
-            log_abs_det_jacobian = -Chyperboloid.real2ball_LADJ(loc_t0)
-
-            # flatten data to sample
-            loc_t0 = loc_t0.reshape(n_vars)
-
-            # propose new int nodes from normal in R^n
-            normal_dist = MultivariateNormal(loc_t0.squeeze(), cov)
-            sample = normal_dist.rsample()
-            log_Q = normal_dist.log_prob(sample)
-            loc_t0 = sample.reshape((n_locs, self.D))
-
-            # convert ints to poincare ball
-            loc_prop = Chyperboloid.real2ball(loc_t0)
-
-        elif self.embedder == "wrap":
-            # transform ints to R^n
-            loc_t0, jacobian = Chyperboloid.p2t0(loc, get_jacobian=True)
-            loc_t0 = loc_t0.clone()
-            log_abs_det_jacobian = -jacobian
-
-            # propose new int nodes from normal in R^n
-            normal_dist = MultivariateNormal(
-                torch.zeros(n_vars, dtype=torch.double), cov
-            )
-            sample = normal_dist.rsample()
-            log_Q = normal_dist.log_prob(sample)
-            loc_prop = Chyperboloid.t02p(
-                sample.reshape(n_locs, self.D),
-                loc_t0.reshape(n_locs, self.D),
-            )
-
-        if normalise_leaf:
-            # TODO: do we need normalise jacobian? The positions are inside the integral... so yes
-            r_prop = torch.norm(loc_prop[0, :]).repeat(self.S)
-            loc_prop = utils.normalise(loc_prop) * r_prop.repeat((self.D, 1)).T
-        else:
-            r_prop = torch.norm(loc_prop, dim=-1)
-        dir_prop = loc_prop / torch.norm(loc_prop, dim=-1, keepdim=True)
-        return r_prop, dir_prop, log_abs_det_jacobian, log_Q
-
     @staticmethod
     def compute_prior_birthdeath(peel, blen, **prior):
         """Calculates the log-likelihood of a tree under a birth death model.
 
         Args:
-            leaf_r ([type]): [description]
-            leaf_dir ([type]): [description]
-            int_r ([type]): [description]
-            int_dir ([type]): [description]
-            **prior: [description]
-
+            peel
+            blen
         Returns:
             lnl : float
 

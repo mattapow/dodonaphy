@@ -10,7 +10,7 @@ from dodonaphy.phylo import compress_alignment
 from dodonaphy.vi import DodonaphyVI
 
 
-def test_draws_different_vi_simple_geodesics():
+def test_draws_different_vi_project_up_geodesics():
     """Each draw from the sample should be different in likelihood."""
     simtree = treesim.birth_death_tree(
         birth_rate=1.0, death_rate=0.5, num_extant_tips=6
@@ -20,7 +20,7 @@ def test_draws_different_vi_simple_geodesics():
     )
     partials, weights = compress_alignment(dna)
     mymod = DodonaphyVI(
-        partials, weights, dim=2, embedder="simple", connector="geodesics", soft_temp=1e-8
+        partials, weights, dim=2, embedder="up", connector="geodesics", soft_temp=1e-8
     )
 
     mymod.learn(epochs=2, path_write=None)
@@ -35,7 +35,7 @@ def test_draws_different_vi_simple_geodesics():
     assert not torch.equal(lp__[1], lp__[2])
 
 
-def test_draws_different_vi_simple_nj():
+def test_draws_different_vi_project_up_nj():
     """Each draw from the sample should be different in likelihood."""
     dim = 2  # number of dimensions for embedding
     nseqs = 6  # number of sequences to simulate
@@ -49,7 +49,7 @@ def test_draws_different_vi_simple_nj():
     )
 
     partials, weights = compress_alignment(dna)
-    mymod = DodonaphyVI(partials, weights, dim, embedder="simple", connector="nj", soft_temp=1e-8)
+    mymod = DodonaphyVI(partials, weights, dim, embedder="up", connector="nj", soft_temp=1e-8)
     mymod.learn(epochs=2, path_write=None)
 
     # draw
@@ -72,7 +72,7 @@ def test_io():
         seq_len=1000, tree_model=simtree, seq_model=dendropy.model.discrete.Jc69()
     )
     partials, weights = compress_alignment(dna)
-    mymod = DodonaphyVI(partials, weights, 2, embedder="simple", connector="nj")
+    mymod = DodonaphyVI(partials, weights, 2, embedder="up", connector="nj")
     tmp_dir = "./tmp"
     os.makedirs(tmp_dir, exist_ok=True)
     fp = os.path.join(tmp_dir, "test_data.csv")

@@ -2,7 +2,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 
-from . import Chyperboloid, peeler, tree, utils
+from . import Chyp_torch, peeler, tree, utils
 from .vi import DodonaphyVI
 
 
@@ -104,8 +104,8 @@ class brute(DodonaphyVI):
             leaf_poin = utils.real2ball(leaf_locs)
             int_poin = utils.real2ball(int_locs)
         elif self.embedder == "wrap":
-            leaf_poin = Chyperboloid.t02p(leaf_locs)
-            int_poin = Chyperboloid.t02p(int_locs)
+            leaf_poin = Chyp_torch.t02p(leaf_locs)
+            int_poin = Chyp_torch.t02p(int_locs)
         int_r, int_dir = utils.cart_to_dir(int_poin)
         leaf_r, leaf_dir = utils.cart_to_dir(leaf_poin)
         peel = peeler.make_peel_mst(leaf_r, leaf_dir, int_r, int_dir)
@@ -128,8 +128,8 @@ class brute(DodonaphyVI):
             leaf_poin = utils.real2ball(self.VariationalParams["leaf_mu"])
             int_poin = utils.real2ball(self.VariationalParams["int_mu"])
         elif self.embedder == "wrap":
-            leaf_poin = Chyperboloid.t02p(self.VariationalParams["leaf_mu"])
-            int_poin = Chyperboloid.t02p(self.VariationalParams["int_mu"])
+            leaf_poin = Chyp_torch.t02p(self.VariationalParams["leaf_mu"])
+            int_poin = Chyp_torch.t02p(self.VariationalParams["int_mu"])
         leaf_r, leaf_dir = utils.cart_to_dir(leaf_poin)
         int_r, int_dir = utils.cart_to_dir(int_poin)
 

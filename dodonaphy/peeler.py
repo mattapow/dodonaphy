@@ -1,11 +1,13 @@
-from collections import defaultdict, deque
 from heapq import heapify, heappop, heappush
 
 import numpy as np
 import torch
 
-from . import poincare, tree, utils, Cpeeler, Chyperboloid_np
+from . import poincare, utils, Chyp_np
+from .node import Node
 from .edge import Edge
+
+eps = np.finfo(np.double).eps
 
 
 def make_soft_peel_tips(leaf_locs, connector="geodesics", curvature=-torch.ones(1)):
@@ -65,12 +67,12 @@ def make_soft_peel_tips(leaf_locs, connector="geodesics", curvature=-torch.ones(
     return peel, int_locs, blens
 
 
-def make_hard_peel_geodesic(leaf_locs):
-    """Generate a tree recursively using th closest two points.
+def make_hard_peel_geodesic(leaf_locs, matsumoto=False):
+    """Generate a tree recursively using the closest two points.
     Curvature must be -1.0
 
     Args:
-        leaf_locs (array): Location in of the tips in the Poincare disk
+        leaf_locs (array): Location in of the tips in the Hyperboloid.
 
     Returns:
         tuple: (peel, int_locs)
@@ -113,7 +115,10 @@ def make_hard_peel_geodesic(leaf_locs):
         else:
             to_point = int_locs[e.to_ - leaf_node_count]
 
-        int_locs[int_i] = poincare.hyp_lca_np(from_point, to_point)
+        poin_from = Chyp_np.hyper_to_poincare(from_point)
+        poin_to = Chyp_np.hyper_to_poincare(to_point)
+        poin_lca = poincare.hyp_lca_np(poin_from, poin_to)
+        int_locs[int_i] = Chyp_np.poincare_to_hyper(poin_lca)
 
         peel[int_i][0] = e.from_
         peel[int_i][1] = e.to_
@@ -126,286 +131,130 @@ def make_hard_peel_geodesic(leaf_locs):
             if visited[i]:
                 continue
             if i < leaf_node_count:
-                dist_ij = -poincare.hyp_lca_np(
-                    leaf_locs[i], int_locs[int_i], return_coord=False
-                )
+                poin_to = Chyp_np.hyper_to_poincare(leaf_locs[i])
+                poin_from = Chyp_np.hyper_to_poincare(int_locs[int_i])
+                dist_ij = -poincare.hyp_lca_np(poin_to, poin_from, return_coord=False)
             else:
+                poin_to = Chyp_np.hyper_to_poincare(int_locs[i - leaf_node_count])
+                poin_from = Chyp_np.hyper_to_poincare(int_locs[int_i])
                 dist_ij = -poincare.hyp_lca_np(
-                    int_locs[i - leaf_node_count],
-                    int_locs[int_i],
+                    poin_to,
+                    poin_from,
                     return_coord=False,
                 )
-            # apply the inverse transform from Matsumoto et al 2020
-            dist_ij = np.log(np.cosh(dist_ij))
+            if matsumoto:
+                dist_ij = np.log(np.cosh(dist_ij))
             heappush(queue, Edge(dist_ij, i, cur_internal))
         int_i += 1
     return peel, int_locs
 
 
-def make_peel_mst(
-    leaf_r, leaf_dir, int_r, int_dir, curvature=-torch.ones(1), start_node=None
-):
-    """Create a tree represtation (peel) from its hyperbolic embedic data
+def nj_np(pdm):
+    """Calculate neighbour joining tree.
+    Credit to Dendropy for python implentation.
 
     Args:
-        leaf_r (1D tensor): radius of the leaves
-        leaf_dir (2D tensor): directional tensors of leaves
-        int_r (1D tensor): radius of internal nodes
-        int_dir (2D tensor): directional tensors of internal nodes
+        pdm (ndarray): Pairwise distance matrix
     """
-    leaf_node_count = leaf_r.shape[0]
-    node_count = leaf_r.shape[0] + int_r.shape[0]
-    if isinstance(leaf_r, torch.Tensor):
-        leaf_r = leaf_r.detach().numpy().astype(np.double),
-        leaf_r = leaf_r[0]
-        leaf_dir = leaf_dir.detach().numpy().astype(np.double),
-        leaf_dir = leaf_dir[0]
-        int_r = int_r.detach().numpy().astype(np.double),
-        int_r = int_r[0]
-        int_dir = int_dir.detach().numpy().astype(np.double),
-        int_dir = int_dir[0]
-    edge_list = Chyperboloid_np.get_pdm(
-        leaf_r,
-        leaf_dir,
-        int_r,
-        int_dir,
-        curvature=curvature,
-        dtype="dict",
-    )
 
-    # queue here is a min-heap
-    queue = []
-    heapify(queue)
+    n_pool = len(pdm)
+    n_taxa = len(pdm)
+    n_ints = n_taxa - 1
+    node_count = 2 * n_taxa - 2
 
-    start_edge = get_start_edge(start_node, edge_list, node_count, leaf_node_count)
-    heappush(queue, start_edge)
+    peel = np.zeros((n_ints, 3), dtype=int)
+    blens = np.zeros(node_count, dtype=np.double)
 
-    adjacency = defaultdict(list)
-    visited_count = open_slots = 0
-    visited = node_count * [False]  # visited here is a boolen list
+    # initialise node pool
+    node_pool = [Node(taxon=taxon) for taxon in range(n_pool)]
 
-    while queue.__len__() != 0 and visited_count < node_count:
-        e = heappop(queue)
+    # cache calculations
+    for nd1 in node_pool:
+        nd1._nj_xsub = 0.0
+        for nd2 in node_pool:
+            if nd1 is nd2:
+                continue
+            dist = pdm[nd1.taxon, nd2.taxon]
+            nd1._nj_distances[nd2] = dist
+            nd1._nj_xsub += dist
 
-        # check if edge is valid for binary tree
-        is_valid = is_valid_edge(
-            e.to_,
-            e.from_,
-            adjacency,
-            visited,
-            leaf_node_count,
-            node_count,
-            open_slots,
-            visited_count,
-        )
+    while n_pool > 1:
+        # calculate argmin of Q-matrix
+        min_q = None
+        n_pool = len(node_pool)
+        for idx1, nd1 in enumerate(node_pool[:-1]):
+            for _, nd2 in enumerate(node_pool[idx1 + 1 :]):
+                v1 = (n_pool - 2) * nd1._nj_distances[nd2]
+                qvalue = v1 - nd1._nj_xsub - nd2._nj_xsub
+                if min_q is None or qvalue < min_q:
+                    min_q = qvalue
+                    nodes_to_join = (nd1, nd2)
 
-        if is_valid:
-            adjacency[e.from_].append(e.to_)
-            adjacency[e.to_].append(e.from_)
+        # create the new node
+        int_i = n_taxa - n_pool
+        parent = int_i + n_taxa
+        new_node = Node(parent)
+        peel[int_i, 2] = parent
 
-            # a new internal node has room for 2 more adjacencies
-            if e.to_ >= leaf_node_count:
-                open_slots += 2
-            if e.from_ >= leaf_node_count:
-                open_slots -= 1
+        # attach it to the tree
+        peel[int_i, 0] = nodes_to_join[0].taxon
+        peel[int_i, 1] = nodes_to_join[1].taxon
+        node_pool.remove(nodes_to_join[0])
+        node_pool.remove(nodes_to_join[1])
 
-            visited[e.to_] = True
-            visited_count += 1
-            for new_e in edge_list[e.to_]:
-                if visited[new_e.to_]:
-                    continue
-                heappush(queue, new_e)
+        # calculate the distances for the new node
+        new_node._nj_distances = {}
+        new_node._nj_xsub = 0.0
+        for nd in node_pool:
+            # actual node-to-node distances
+            v1 = 0.0
+            for node_to_join in nodes_to_join:
+                v1 += nd._nj_distances[node_to_join]
+            v3 = nodes_to_join[0]._nj_distances[nodes_to_join[1]]
+            dist = 0.5 * (v1 - v3)
+            new_node._nj_distances[nd] = dist
+            nd._nj_distances[new_node] = dist
 
-    # transform the MST into a binary tree.
-    # find any nodes with more than three adjacencies and introduce
-    # intermediate nodes to reduce the number of adjacencies
-    # NB: this is doing nothing
-    adjacency = force_binary(adjacency)
+            # Adjust/recalculate the values needed for the Q-matrix
+            # calculations
+            new_node._nj_xsub += dist
+            nd._nj_xsub += dist
+            for node_to_join in nodes_to_join:
+                nd._nj_xsub -= node_to_join._nj_distances[nd]
 
-    # add a fake root above node 0: "outgroup" rooting
-    zero_parent = adjacency[0][0]
-    adjacency[node_count].append(0)
-    adjacency[node_count].append(zero_parent)
+        # calculate the branch lengths
+        if n_pool > 2:
+            v1 = 0.5 * nodes_to_join[0]._nj_distances[nodes_to_join[1]]
+            v4 = (
+                1.0
+                / (2 * (n_pool - 2))
+                * (nodes_to_join[0]._nj_xsub - nodes_to_join[1]._nj_xsub)
+            )
+            delta_f = v1 + v4
+            delta_g = nodes_to_join[0]._nj_distances[nodes_to_join[1]] - delta_f
+            blens[nodes_to_join[0].taxon] = delta_f
+            blens[nodes_to_join[1].taxon] = delta_g
+        else:
+            dist = nodes_to_join[0]._nj_distances[nodes_to_join[1]]
+            blens[nodes_to_join[0].taxon] = dist / 2.0
+            blens[nodes_to_join[1].taxon] = dist / 2.0
 
-    fake_root = adjacency.__len__() - 1
-    adjacency[0][0] = fake_root
-    for i in range(adjacency[zero_parent].__len__()):
-        if adjacency[zero_parent][i] == 0:
-            adjacency[zero_parent][i] = fake_root
+        # clean up
+        for node_to_join in nodes_to_join:
+            node_to_join._nj_distances = {}
+            node_to_join._nj_xsub = 0.0
 
-    # make peel via post-order
-    peel = []
-    visited = (node_count + 1) * [False]  # all nodes + the fake root
-    tree.post_order_traversal(adjacency, fake_root, peel, visited)
+        # add the new node to the pool of nodes
+        node_pool.append(new_node)
 
-    return np.array(peel, dtype=int)
-
-
-def get_start_edge(start_node, edge_list, node_count, leaf_node_count):
-    if start_node is None:
-        # Use closest leaf to internal as start edge
-        start_edge = get_smallest_edge(edge_list, node_count, leaf_node_count)
-    elif isinstance(start_node, int):
-        candidate_edges = []
-        heapify(candidate_edges)
-        for i in range(len(edge_list[start_node])):
-            heappush(candidate_edges, edge_list[start_node][i])
-        is_valid = False
-        while not is_valid:
-            start_edge = heappop(candidate_edges)
-            if start_edge.to_ < leaf_node_count and start_edge.from_ >= leaf_node_count:
-                is_valid = True
-            if start_edge.from_ < leaf_node_count and start_edge.to_ >= leaf_node_count:
-                is_valid = True
-            if len(candidate_edges) == 0:
-                raise RuntimeError("No candidates found")
-    return start_edge
+        # adjust count
+        n_pool -= 1
+    blens = np.maximum(blens, eps)
+    return peel, blens
 
 
-def get_smallest_edge(edge_list, node_count, leaf_node_count):
-    """
-    Find the shortest edge between a leaf and internal node.
-    """
-    start_edge = Edge(np.inf, -1, -1)
-    int_node_count = node_count - leaf_node_count
-    for i in range(int_node_count):
-        int_i = i + leaf_node_count
-        for edge in edge_list[int_i]:
-            is_leaf_int = False
-            if edge.to_ >= leaf_node_count and edge.from_ < leaf_node_count:
-                is_leaf_int = True
-            if edge.to_ < leaf_node_count and edge.from_ >= leaf_node_count:
-                is_leaf_int = True
-
-            if is_leaf_int and edge < start_edge:
-                if edge.to_ < edge.from_:
-                    # reverse first edge so to_ is internal
-                    edge = Edge(edge.distance, edge.to_, edge.from_)
-                start_edge = edge
-    return start_edge
-
-
-def force_binary(adjacency):
-    """transform the MST into a binary tree.
-    find any nodes with more than three adjacencies and introduce
-    intermediate nodes to reduce the number of adjacencies
-
-    Args:
-        adjacency ([type]): [description]
-    """
-    # prune internal nodes that don't create a bifurcation
-    leaf_node_count = int(len(adjacency) / 2 + 1)
-    unused, adjacency = prune(leaf_node_count, adjacency)
-
-    if unused.__len__() > 0:
-        for n in range(adjacency.__len__()):
-            while adjacency[n].__len__() > 3:
-                new_node = unused[-1]
-                unused.pop(unused[-1] - 1)
-                move_1 = adjacency[n][-1]
-                move_2 = adjacency[n][0]
-                adjacency[n].pop(adjacency[n][-1] - 1)
-                adjacency[n][0] = new_node
-                # link up new node
-                adjacency[new_node].append(move_1)
-                adjacency[new_node].append(move_2)
-                adjacency[new_node].append(n)
-                for move in {move_1, move_2}:
-                    for i in range(adjacency[move].__len__()):
-                        if adjacency[move][i] == n:
-                            adjacency[move][i] = new_node
-    return adjacency
-
-
-def prune(S, adjacency):
-    # prune internal nodes that don't create a bifurcation
-    to_check = deque()  # performs better than list Re stack
-    for n in range(S, adjacency.__len__()):
-        if adjacency[n].__len__() < 3:
-            to_check.append(n)
-
-    unused = []
-    while to_check.__len__() > 0:
-        n = to_check.pop()
-        if adjacency[n].__len__() == 1:
-            neighbour = adjacency[n][0]
-            adjacency[n].clear()
-            for i in range(adjacency[neighbour].__len__()):
-                if adjacency[neighbour][i] == n:
-                    adjacency[neighbour].pop(adjacency[neighbour][0] + i)
-
-            unused.append(n)
-            to_check.append(neighbour)
-        elif adjacency[n].__len__() == 2:
-            n1 = adjacency[n][0]
-            n2 = adjacency[n][1]
-            adjacency[n].clear()
-            for i in range(adjacency[n1].__len__()):
-                if adjacency[n1][i] == n:
-                    adjacency[n1][i] = n2
-
-            for i in range(adjacency[n2].__len__()):
-                if adjacency[n2][i] == n:
-                    adjacency[n2][i] = n1
-
-            unused.append(n)
-    return unused, adjacency
-
-
-def is_valid_edge(
-    to_, from_, adjacency, visited, S, node_count, open_slots, visited_count
-):
-    # ensure the destination node has not been visited yet
-    # internal nodes can have up to 3 adjacencies, of which at least
-    # one must be internal
-    # leaf nodes can only have a single edge in the MST
-    if to_ is from_:
-        return False
-
-    if visited[to_]:
-        return False
-
-    if isinstance(adjacency, dict):
-        n_from = adjacency[from_].__len__()
-        n_to = adjacency[to_].__len__()
-        if n_from == 2:
-            from_edge0 = adjacency[from_][0]
-            from_edge1 = adjacency[from_][1]
-    elif isinstance(adjacency, np.ndarray):
-        n_from = np.sum(adjacency[from_])
-        n_to = np.sum(adjacency[to_])
-        if n_from == 2:
-            from_edge = np.where(adjacency[from_])[0]
-            from_edge0 = from_edge[0]
-            from_edge1 = from_edge[1]
-
-    if from_ < S and n_from > 0:
-        return False
-
-    if to_ < S and n_to > 0:
-        return False
-
-    is_valid = True
-    if from_ >= S:
-        if n_from == 2:
-            found_internal = to_ >= S
-            if from_edge0 >= S:
-                found_internal = True
-            if from_edge1 >= S:
-                found_internal = True
-            if not found_internal and visited_count < node_count - 2:
-                is_valid = False
-        elif n_from == 3:
-            is_valid = False
-
-    # don't use the last open slot unless this is the last node
-    if open_slots == 1 and to_ < S and visited_count < node_count - 2:
-        is_valid = False
-    return is_valid
-
-
-def nj(pdm, tau=None):
-    """Generate Neighbour joining tree.
+def nj_torch(pdm, tau=None):
+    """Generate Neighbour joining tree with gradients.
 
     Args:
         pdm: pairwise distance.
@@ -416,10 +265,9 @@ def nj(pdm, tau=None):
         tuple: (peel, blens)
     """
     if tau is None:
-        return Cpeeler.nj_np(pdm)
+        return nj_np(pdm)
     leaf_node_count = len(pdm)
     node_count = 2 * leaf_node_count - 2
-    eps = torch.finfo(torch.double).eps
 
     peel = np.zeros((leaf_node_count - 1, 3), dtype=int)
     blens = torch.zeros(node_count, dtype=torch.double)
@@ -564,14 +412,13 @@ def get_new_dist_soft(pdm, mask, hot_f, hot_g):
     sum_pdm = torch.sum(pdm * ~mask_2d, dim=-1)
     dist_uf = torch.clamp(
         0.5 * dist_fg + (sum_pdm @ hot_f - sum_pdm @ hot_g) / (2 * (n_active - 2)),
-        min=torch.finfo(torch.double).eps,
+        min=eps,
     )
     return dist_u, dist_uf, dist_fg
 
 
 def get_new_dist(pdm, mask, f, g):
     """Get neighbour joining distances to new node."""
-    eps = torch.finfo(torch.double).eps
     # get distance all taxa to new node u
     dist_u = 0.5 * (pdm[f] + pdm[g] - pdm[f][g])
 

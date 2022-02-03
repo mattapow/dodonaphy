@@ -4,8 +4,9 @@ from typing import Any, List
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
+from torch.distributions.multivariate_normal import MultivariateNormal
 
-from . import hydraPlus, tree, utils
+from . import hydraPlus, tree, utils, peeler, Ctransforms, Chyp_torch
 from .base_model import BaseModel
 from .phylo import JC69_p_t, calculate_treelikelihood
 
@@ -17,7 +18,7 @@ class DodonaphyVI(BaseModel):
         weights,
         dim,
         embedder="wrap",
-        connector="mst",
+        connector="nj",
         curvature=-1.0,
         soft_temp=None,
         noise=None,
@@ -44,7 +45,7 @@ class DodonaphyVI(BaseModel):
         self.truncate = truncate
         self.ln_p = self.compute_LL(self.peel, self.blens)
 
-        if self.connector in ("geodesics", "nj"):
+        if not self.internals_exist:
             self.VariationalParams = {
                 "leaf_mu": torch.randn(
                     (self.S, self.D), requires_grad=True, dtype=torch.float64
@@ -53,7 +54,7 @@ class DodonaphyVI(BaseModel):
                     leaf_sigma, requires_grad=True, dtype=torch.float64
                 ),
             }
-        elif self.connector == "mst":
+        else:
             self.VariationalParams = {
                 "leaf_mu": torch.randn(
                     (self.S, self.D), requires_grad=True, dtype=torch.float64
@@ -93,32 +94,24 @@ class DodonaphyVI(BaseModel):
                 leaf_cov = torch.eye(
                     n_tip_params, dtype=torch.double
                 ) * self.VariationalParams["leaf_sigma"].exp().reshape(n_tip_params)
-                if self.connector == "mst":
+                if self.internals_exist:
                     n_int_params = torch.numel(self.VariationalParams["int_mu"])
                     int_loc = self.VariationalParams["int_mu"].reshape(n_int_params)
                     int_cov = torch.eye(
                         n_int_params, dtype=torch.double
                     ) * self.VariationalParams["int_sigma"].exp().reshape(n_int_params)
-                    sample = self.sample(leaf_loc, leaf_cov, int_loc, int_cov)
+                    sample = self.rsample(leaf_loc, leaf_cov, int_loc, int_cov)
                 else:
-                    sample = self.sample(leaf_loc, leaf_cov)
+                    sample = self.rsample(leaf_loc, leaf_cov)
 
                 peel.append(sample["peel"])
                 blens.append(sample["blens"])
-                if self.connector == "mst":
-                    location.append(
-                        utils.dir_to_cart_tree(
-                            sample["leaf_r"],
-                            sample["int_r"],
-                            sample["leaf_dir"],
-                            sample["int_dir"],
-                            self.D,
-                        )
-                    )
-                else:
-                    location.append(
-                        utils.dir_to_cart(sample["leaf_r"], sample["leaf_dir"])
-                    )
+                location.append(
+                    sample["leaf_x"],
+                )
+                if self.internals_exist:
+                    location.append(sample["int_x"])
+
                 if kwargs.get("lp"):
                     LL = calculate_treelikelihood(
                         self.partials,
@@ -151,37 +144,15 @@ class DodonaphyVI(BaseModel):
         leaf_cov = torch.eye(n_tip_params, dtype=torch.double) * self.VariationalParams[
             "leaf_sigma"
         ].exp().reshape(n_tip_params)
-        if self.connector == "mst":
+        if self.internals_exist:
             n_int_params = torch.numel(self.VariationalParams["int_mu"])
             int_loc = self.VariationalParams["int_mu"].reshape(n_int_params)
             int_cov = torch.eye(
                 n_int_params, dtype=torch.double
             ) * self.VariationalParams["int_sigma"].exp().reshape(n_int_params)
-            sample = self.sample(leaf_loc, leaf_cov, int_loc, int_cov)
+            sample = self.rsample(leaf_loc, leaf_cov, int_loc, int_cov)
         else:
-            sample = self.sample(leaf_loc, leaf_cov)
-
-        # if self.connector == "mst":
-        #     pdm = Chyperboloid.get_pdm_torch(
-        #         sample["leaf_r"].repeat(self.S),
-        #         sample["leaf_dir"],
-        #         sample["int_r"],
-        #         sample["int_dir"],
-        #         curvature=self.curvature,
-        #     )
-        # else:
-        #     pdm = Chyperboloid.get_pdm_torch(
-        #         sample["leaf_r"].repeat(self.S),
-        #         sample["leaf_dir"],
-        #         curvature=self.curvature,
-        #     )
-        # logPrior = self.compute_prior_gamma_dir(sample['blens'])
-        # logP = self.compute_LL(sample['peel'], sample['blens'])
-        # logPrior = self.compute_prior_gamma_dir(pdm[:])
-        # anneal_epoch = torch.tensor(100)
-        # min_temp = torch.tensor(.1)
-        # temp = torch.maximum(torch.exp(- self.epoch / anneal_epoch), min_temp)
-        # logP = self.compute_log_a_like(pdm, temp=temp)
+            sample = self.rsample(leaf_loc, leaf_cov)
 
         return sample["ln_p"] + sample["ln_prior"] - sample["logQ"] + sample["jacobian"]
 
@@ -201,7 +172,7 @@ class DodonaphyVI(BaseModel):
         if param_init is not None:
             self.VariationalParams["leaf_mu"] = param_init["leaf_mu"]
             self.VariationalParams["leaf_sigma"] = param_init["leaf_sigma"]
-            if self.connector == "mst":
+            if self.internals_exist:
                 self.VariationalParams["int_mu"] = param_init["int_mu"]
                 self.VariationalParams["int_sigma"] = param_init["int_sigma"]
 
@@ -293,6 +264,139 @@ class DodonaphyVI(BaseModel):
             elbos[i] = self.calculate_elbo()
         return torch.mean(elbos)
 
+    def rsample(
+        self,
+        leaf_loc,
+        leaf_cov,
+        int_loc=None,
+        int_cov=None,
+        soft=True,
+        normalise_leaf=False,
+    ):
+        """Sample a nearby tree embedding.
+
+        Each point is transformed R^n (using the self.embedding method), then
+        a normal is sampled and transformed back to H^n. A tree is formed using
+        the self.connect method.
+
+        A dictionary is  returned containing information about this sampled tree.
+        """
+        # reshape covariance if single number
+        if torch.numel(leaf_cov) == 1:
+            leaf_cov = torch.eye(self.S * self.D, dtype=torch.double) * leaf_cov
+        if int_cov is not None and torch.numel(int_cov) == 1:
+            int_cov = torch.eye((self.S - 2) * self.D, dtype=torch.double) * int_cov
+
+        leaf_locs, log_abs_det_jacobian, log_Q = self.rsample_loc(
+            leaf_loc, leaf_cov, is_internal=False, normalise_leaf=normalise_leaf
+        )
+
+        if self.internals_exist:
+            (int_locs, log_abs_det_jacobian_int, log_Q_int,) = self.rsample_loc(
+                int_loc, int_cov, is_internal=True, normalise_leaf=False
+            )
+            log_abs_det_jacobian = log_abs_det_jacobian + log_abs_det_jacobian_int
+            log_Q = log_Q + log_Q_int
+
+        # internal nodes and peel for geodesics
+        if self.connector == "geodesics":
+            if isinstance(leaf_locs, torch.Tensor):
+                peel, int_locs, blens = peeler.make_soft_peel_tips(
+                    leaf_locs, connector="geodesics", curvature=self.curvature
+                )
+            else:
+                peel, int_locs = peeler.make_hard_peel_geodesic(leaf_locs)
+
+        # get peels
+        if self.connector == "nj":
+            pdm = Chyp_torch.get_pdm_torch(leaf_locs, curvature=self.curvature)
+            if soft:
+                peel, blens = peeler.nj_torch(pdm, tau=self.soft_temp)
+            else:
+                peel, blens = peeler.nj_torch(pdm)
+
+        # get proposal branch lengths
+        if self.connector != "nj":
+            blens = self.compute_branch_lengths(
+                self.S,
+                peel,
+                leaf_locs,
+                int_locs,
+                useNP=False,
+            )
+
+        if self.loss_fn == "likelihood":
+            ln_p = self.compute_LL(peel, blens)
+        elif self.loss_fn == "pair_likelihood":
+            ln_p = self.compute_log_a_like(pdm)
+        elif self.loss_fn == "hypHC":
+            ln_p = self.compute_hypHC(pdm, leaf_locs)
+
+        ln_prior = self.compute_prior_gamma_dir(blens)
+
+        # TODO rename leaf_x to leaf_locs
+        proposal = {
+            "leaf_x": leaf_locs,
+            "peel": peel,
+            "blens": blens,
+            "jacobian": log_abs_det_jacobian,
+            "logQ": log_Q,
+            "ln_p": ln_p,
+            "ln_prior": ln_prior,
+        }
+        if self.internals_exist:
+            proposal["int_x"] = int_locs
+        return proposal
+
+    def rsample_loc(self, loc, cov, is_internal, normalise_leaf=False):
+        """Given locations in poincare ball, transform them to Euclidean
+        space, sample from a Normal and transform sample back."""
+        if is_internal:
+            n_locs = self.S - 2
+        else:
+            n_locs = self.S
+        n_vars = n_locs * self.D
+        if self.embedder == "up":
+            # transform internals to R^n
+            loc_t0 = Ctransforms.ball2real_torch(loc)
+            log_abs_det_jacobian = -Ctransforms.real2ball_LADJ_torch(loc_t0)
+
+            # flatten data to sample
+            loc_t0 = loc_t0.reshape(n_vars)
+
+            # propose new int nodes from normal in R^n
+            normal_dist = MultivariateNormal(loc_t0.squeeze(), cov)
+            sample = normal_dist.rsample()
+            log_Q = normal_dist.log_prob(sample)
+            loc_t0 = sample.reshape((n_locs, self.D))
+
+            # convert ints to poincare ball
+            loc_prop = Ctransforms.real2ball_torch(loc_t0)
+
+        elif self.embedder == "wrap":
+            # transform ints to R^n
+            loc_t0, jacobian = Chyp_torch.p2t0(loc, get_jacobian=True)
+            loc_t0 = loc_t0.clone()
+            log_abs_det_jacobian = -jacobian
+
+            # propose new int nodes from normal in R^n
+            normal_dist = MultivariateNormal(
+                torch.zeros(n_vars, dtype=torch.double), cov
+            )
+            sample = normal_dist.rsample()
+            log_Q = normal_dist.log_prob(sample)
+            loc_prop = Chyp_torch.t02p(
+                sample.reshape(n_locs, self.D),
+                loc_t0.reshape(n_locs, self.D),
+            )
+
+        if normalise_leaf:
+            # TODO Normalise everywhere as required
+            # TODO: do we need normalise jacobian? The positions are inside the integral... so yes
+            r_prop = torch.norm(loc_prop[0, :]).repeat(self.S)
+            loc_prop = utils.normalise(loc_prop) * r_prop.repeat((self.D, 1)).T
+        return loc_prop, log_abs_det_jacobian, log_Q
+
     @staticmethod
     def run(
         dim,
@@ -304,9 +408,6 @@ class DodonaphyVI(BaseModel):
         epochs=1000,
         k_samples=3,
         n_draws=100,
-        n_grids=10,
-        n_trials=100,
-        max_scale=1,
         embedder="wrap",
         lr=1e-3,
         curvature=-1.0,
@@ -338,25 +439,15 @@ class DodonaphyVI(BaseModel):
             curvature=curvature,
         )
 
-        # Choose internal node locations from best random initialisation
-        if connector == "mst":
-            int_r, int_dir = mymod.initialise_ints(
-                emm_tips, n_grids=n_grids, n_trials=n_trials, max_scale=max_scale
-            )
-
-        # convert to cartesian coords
-        leaf_loc_poin = utils.dir_to_cart(
-            torch.from_numpy(emm_tips["r"]), torch.from_numpy(emm_tips["directional"])
-        )
-        if connector == "mst":
-            int_loc_poin = torch.from_numpy(utils.dir_to_cart(int_r, int_dir))
+        leaf_loc_hyp = emm_tips["X"]
 
         # set variational parameters with small coefficient of variation
         cv = 1.0 / 100
         eps = np.finfo(np.double).eps
-        # leaf_sigma = np.log(np.abs(np.array(leaf_loc_poin)) * cv + eps)
-        if connector == "mst":
-            int_sigma = np.log(np.abs(np.array(int_loc_poin)) * cv + eps)
+        leaf_sigma = np.log(np.abs(np.array(leaf_loc_hyp)) * cv + eps)
+        if mymod.internals_exist:
+            int_loc_hyp = None
+            int_sigma = None
 
         # set leaf variational sigma using closest neighbour
         dists_data[dists_data == 0] = np.inf
@@ -364,24 +455,23 @@ class DodonaphyVI(BaseModel):
         closest = np.repeat([closest], dim, axis=0).transpose()
         leaf_sigma = np.log(np.abs(closest) * cv + eps)
 
-        if connector == "mst":
+        if mymod.internals_exist:
             param_init = {
-                "leaf_mu": leaf_loc_poin.clone().double().requires_grad_(True),
+                "leaf_mu": leaf_loc_hyp.clone().double().requires_grad_(True),
                 "leaf_sigma": torch.from_numpy(leaf_sigma)
                 .double()
                 .requires_grad_(True),
-                "int_mu": int_loc_poin.clone().double().requires_grad_(True),
+                "int_mu": int_loc_hyp.clone().double().requires_grad_(True),
                 "int_sigma": torch.from_numpy(int_sigma).double().requires_grad_(True),
             }
-        elif connector in ("geodesics", "nj"):
+        else:
             param_init = {
-                "leaf_mu": leaf_loc_poin.clone().double().requires_grad_(True),
+                "leaf_mu": leaf_loc_hyp.clone().double().requires_grad_(True),
                 "leaf_sigma": torch.from_numpy(leaf_sigma)
                 .double()
                 .requires_grad_(True),
             }
 
-        # learn ML
         # mymod.learn_ML_brute(param_init=param_init)
 
         # learn
@@ -393,8 +483,7 @@ class DodonaphyVI(BaseModel):
             lr=lr,
         )
 
-        # draw samples (one-by-one for reduced memory requirements)
-        # and save them
+        # draw samples (one-by-one) and save them
         if path_write is not None:
             tree.save_tree_head(path_write, "vi", S)
             for i in range(n_draws):
@@ -420,7 +509,7 @@ class DodonaphyVI(BaseModel):
                 f.write("\n")
             f.write("\n")
 
-            if self.connector == "mst":
+            if self.internals_exist:
                 for i in range(self.S - 2):
                     for d in range(self.D):
                         f.write("%f\t" % self.VariationalParams["int_mu"][i, d])

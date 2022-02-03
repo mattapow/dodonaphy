@@ -84,8 +84,8 @@ def hyp_lca_np(a, b, return_coord=True):
     Computes projection of the origin on the geodesic between a and b, at scale c
     More optimized than hyp_lca1
     """
-    if np.allclose(a, b):
-        proj = a
+    # if np.allclose(a, b):
+    #     proj = a
 
     r = reflection_center_np(a)
     b_inv = isometric_transform_np(r, b)
