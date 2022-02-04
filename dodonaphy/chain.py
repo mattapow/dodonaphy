@@ -60,6 +60,11 @@ class Chain(BaseModel):
         self.ln_prior = Cphylo.compute_prior_gamma_dir_np(self.blens)
 
     def get_loss(self):
+        """Get the current loss according to the objective.
+
+        Returns:
+            float: The loss value.
+        """
         if self.loss_fn == "likelihood":
             self.ln_p = Cphylo.compute_LL_np(
                 self.partials, self.weights, self.peel, self.blens
@@ -105,7 +110,6 @@ class Chain(BaseModel):
         accept = False
         if r_accept >= 1:
             accept = True
-
         elif np.random.uniform(low=0.0, high=1.0) < r_accept:
             accept = True
 
@@ -116,7 +120,7 @@ class Chain(BaseModel):
             self.peel = proposal["peel"]
             self.blens = proposal["blens"]
             self.jacobian = proposal["jacobian"]
-            if self.connector != "nj":
+            if self.internals_exist:
                 self.int_x = proposal["int_x"]
             self.accepted += 1
         self.iterations += 1
@@ -125,43 +129,33 @@ class Chain(BaseModel):
     def accept_ratio(self, prop):
         """Acceptance critereon for Metropolis-Hastings
 
+        Assumes a Hastings ratio of 1, i.e. symmetric proposals.
+
         Args:
-            prop ([type]): Proposal dictionary
+            prop (dict): Proposal dictionary containing ln_p, ln_prior and the
+            jacobian of the proposal.
 
         Returns:
-            tuple: (r, prop_like)
-            The acceptance ratio r and the likelihood of the proposal.
+            The acceptance ratio for MCMC.
         """
-        # likelihood ratio
-        like_ratio = prop["ln_p"] - self.ln_p
+        ln_like_diff = prop["ln_p"] - self.ln_p
+        ln_prior_diff = prop["ln_prior"] - self.ln_prior
+        ln_jacob_diff = prop["jacobian"] - self.jacobian
+        ln_hastings_diff = 0.0
 
-        # prior ratio
-        prior_ratio = prop["ln_prior"] - self.ln_prior
-
-        # Jacobian ratio
-        jacob_ratio = prop["jacobian"] - self.jacobian
-
-        # Proposals are symmetric Guassians
-        hastings_ratio = 1
-
-        # acceptance ratio
-        r_accept = np.minimum(
-            np.ones(1),
-            np.exp(
-                (prior_ratio + like_ratio + jacob_ratio) * self.chain_temp
-                + hastings_ratio
-            ),
+        r_accept = np.exp(
+            (ln_prior_diff + ln_like_diff + ln_jacob_diff) * self.chain_temp
+            + ln_hastings_diff
         )
+        return np.minimum(1.0, r_accept)
 
-        return r_accept
-
-    def euler_step(self, f, learn_rate=0.01):
-        return self.step_scale + learn_rate * f
+    def euler_step(self, value, learn_rate=0.01):
+        return self.step_scale + learn_rate * value
 
     def scale_step(self, sign, learn_rate=2.0):
         return np.power(learn_rate, sign) * self.step_scale
 
-    def tune_step(self, tol=0.01):
+    def tune_step(self):
         """Tune the acceptance rate.
 
         Use Euler method if acceptance rate is within 0.5 of target acceptance
@@ -173,7 +167,7 @@ class Chain(BaseModel):
         Otherwise scale the step by a factor of 10 (or 1/10 if step too big).
 
 
-        Convergence is decalred once the acceptance rate has been within tol
+        Convergence is declared once the acceptance rate has been within tol
         of the target acceptance for self.converge_length consecutive iterations.
 
         Args:
@@ -194,12 +188,20 @@ class Chain(BaseModel):
             )
         eps = 2.220446049250313e-16
         self.step_scale = np.maximum(self.step_scale, eps)
-        # if np.isclose(self.step_scale, eps) :
-        # declare stuck, reset to 1.0
-        # self.step_scale = 1.0
-        # print(f"step: {self.step_scale} acceptance:{acceptance}")
 
-        # check convegence
+        self.check_convergence(accept_diff)
+
+    def check_convergence(self, accept_diff, tol=0.01):
+        """Check for convergence of step.
+
+        Previous 'converge_length' consecutive iterations must be within 'tol'
+        of the target acceptance.
+
+        Args:
+            accept_diff ([type]): Difference to target acceptance.
+            tol (float, optional): Absolute tolerance to target acceptance.
+            Defaults to 0.01.
+        """
         if self.converge_length is None:
             return
         self.converged.pop()
@@ -286,20 +288,29 @@ class Chain(BaseModel):
                 log_abs_det_jacobian += t02hyp_J(mu_hyp, loc_low[i, :], self.D)
 
         if self.normalise_leaf:
-            r = np.mean(np.linalg.norm(loc_low, axis=1))
-            loc_low_prop = Cutils.normalise_np(loc_low_prop) * r
+            radius = np.mean(np.linalg.norm(loc_low, axis=1))
+            loc_low_prop = Cutils.normalise_np(loc_low_prop) * radius
 
         return loc_low_prop, log_abs_det_jacobian
 
 
-def normalise_LADJ(y):
-    norm = np.linalg.norm(y, axis=-1, keepdims=True)
-    n, D = y.shape
+def normalise_LADJ(loc):
+    """Return the log of the absolute value of the determinant of the jacobian.
+    Normalising points to unit sphere.
 
-    log_abs_det_J = np.zeros(1)
-    for k in range(n):
-        J = np.linalg.det(
-            (np.eye(D, D) - np.outer(y[k], y[k]) / norm[k] ** 2) / norm[k]
+    Args:
+        loc (ndarray): locations to normalise: n_locations x n_dim
+
+    Returns:
+        float: log(|det(Jacobian)|)
+    """
+    norm = np.linalg.norm(loc, axis=-1, keepdims=True)
+    n_loc, dim = loc.shape
+
+    log_abs_det_j = 0.0
+    for k in range(n_loc):
+        j_det = np.linalg.det(
+            (np.eye(dim, dim) - np.outer(loc[k], loc[k]) / norm[k] ** 2) / norm[k]
         )
-        log_abs_det_J = log_abs_det_J + np.log(np.abs(J))
-    return log_abs_det_J
+        log_abs_det_j = log_abs_det_j + np.log(np.abs(j_det))
+    return log_abs_det_j
