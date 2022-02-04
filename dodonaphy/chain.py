@@ -167,7 +167,7 @@ class Chain(BaseModel):
         Otherwise scale the step by a factor of 10 (or 1/10 if step too big).
 
 
-        Convergence is decalred once the acceptance rate has been within tol
+        Convergence is declared once the acceptance rate has been within tol
         of the target acceptance for self.converge_length consecutive iterations.
 
         Args:
