@@ -42,6 +42,7 @@ def run(args):
         start_tree.write(path=tree_path, schema="nexus")
     else:
         start_tree = read_tree(root_dir, file_name=args.start)
+        args.taxa = len(start_tree)
 
     dists_phylo = utils.tip_distances(start_tree, args.taxa)
     if args.matsumoto:
@@ -90,7 +91,7 @@ def run(args):
             soft_temp=args.temp,
         )
     elif args.infer == "ml":
-        assert args.temp > 0., "Temperature must be greater than 0."
+        assert args.temp > 0.0, "Temperature must be greater than 0."
         partials, weights = compress_alignment(dna)
         mymod = MAP(
             partials[:],
@@ -103,7 +104,7 @@ def run(args):
         mymod.learn(epochs=args.epochs, learn_rate=args.learn, path_write=path_write)
 
     elif args.infer == "map":
-        assert args.temp > 0., "Temperature must be greater than 0."
+        assert args.temp > 0.0, "Temperature must be greater than 0."
         partials, weights = compress_alignment(dna)
         mymod = MAP(
             partials[:],
@@ -225,39 +226,13 @@ def init_parser():
         description="Compute a Bayesian phylogenetic posterior from a hyperbolic embedding.",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
-    parser.add_argument("--dim", "-D", default=5, type=int, help="Embedding dimensions")
-    parser.add_argument("--taxa", "-S", type=int, required=True, help="Number of taxa.")
-    parser.add_argument("--seq", "-L", type=int, help="Sequence length.")
-    parser.add_argument(
-        "--epochs", "-n", default=1000, type=int, help="Epochs (iterations)."
-    )
-    parser.add_argument(
-        "--draws",
-        "-d",
-        default=1000,
-        type=int,
-        help="Number of samples to draw from distribution.",
-    )
-    parser.add_argument(
-        "--connect",
-        "-C",
-        default="nj",
-        choices=("nj", "geodesics"),
-        help="Connection method to form a tree from embedded points.",
-    )
-    parser.add_argument(
-        "--embed",
-        "-e",
-        default="up",
-        choices=("up", "wrap"),
-        help="Embedded method from Euclidean to Hyperbolic space.",
-    )
+    # inference
     parser.add_argument(
         "--infer",
         "-i",
         default="mcmc",
         choices=("mcmc", "vi", "ml", "map", "simulate"),
-        help="Inference method: MCMC or Variational Inference for Bayesian\
+        help="Inf: Inference method: MCMC or Variational Inference for Bayesian\
         inference. Use map to maximise the posterior of a similarity matrix.\
         Use [simulate] to simulate dna from a birth death tree.",
     )
@@ -265,24 +240,68 @@ def init_parser():
         "--prior",
         default="None",
         choices=("None", "gammadir", "birthdeath"),
-        help=("Which prior to use: no prior, Gamma-Dirichlet or Birth-Death.")
-
+        help=("Inf: Which prior to use: no prior, Gamma-Dirichlet or Birth-Death."),
     )
     parser.add_argument(
-        "--curv", "-c", default=-1.0, type=float, help="Hyperbolic curvature."
+        "--connect",
+        "-C",
+        default="nj",
+        choices=("nj", "geodesics"),
+        help="Inf: Connection method to form a tree from embedded points.",
     )
+
+    # i/o
     parser.add_argument(
         "--start",
         "-t",
         default="data/start_tree.nex",
-        help="Path to starting tree in nexus format. If set to RAxML, a RAxML\
+        help="I/O: Path to starting tree in nexus format. If set to RAxML, a RAxML\
         tree will be found and used.",
+    )
+    parser.add_argument(
+        "--path_root",
+        default="",
+        type=str,
+        help="I/O: Specify the root directory, which should contain a nexus file.\
+        If empty uses default ./data/T[taxa]",
+    )
+    parser.add_argument(
+        "--exp_ext",
+        default="",
+        type=str,
+        help="I/O: Add a suffix to the experimental directory path_root/*/d*_c*_[exp_ext]",
+    )
+    parser.add_argument(
+        "--dna_path",
+        default="dna.nex",
+        type=str,
+        help="I/O: File name of dna nexus file in contained in root directory.",
+    )
+    parser.add_argument(
+        "--no-save",
+        dest="doSave",
+        action="store_false",
+        help="I/O: Whether to save the simulation.",
+    )
+    parser.set_defaults(doSave=True)
+
+    # embedding
+    parser.add_argument("--dim", "-D", default=5, type=int, help="Embedding dimensions")
+    parser.add_argument(
+        "--embed",
+        "-e",
+        default="up",
+        choices=("up", "wrap"),
+        help="Embed: Embedded method from Euclidean to Hyperbolic space.",
+    )
+    parser.add_argument(
+        "--curv", "-c", default=-1.0, type=float, help="Embed: Hyperbolic curvature."
     )
     parser.add_argument(
         "--normalise_leaf",
         dest="normalise_leaves",
         action="store_true",
-        help="Whether to normalise the leaves to a single raduis. NB: Hydra+\
+        help="Embed: Whether to normalise the leaves to a single raduis. NB: Hydra+\
             does not normalise leaves, which could lead to a bad initial\
             embedding. Currently only implemented in MCMC.",
     )
@@ -290,7 +309,7 @@ def init_parser():
         "--free_leaf",
         dest="normalise_leaves",
         action="store_false",
-        help="Whether to normalise the leaves to a single raduis. Currently\
+        help="Embed: Whether to normalise the leaves to a single raduis. Currently\
         only implemented in MCMC.",
     )
     parser.set_defaults(normalise_leaves=False)
@@ -298,101 +317,92 @@ def init_parser():
         "--matsumoto",
         dest="matsumoto",
         action="store_true",
-        help="Apply the Matsumoto et al 2020 distance adjustment. NB: hydra+\
+        help="Embed: Apply the Matsumoto et al 2020 distance adjustment. NB: hydra+\
             does not account for this which could lead to a bad initial\
             embedding. Currently ony implemented in MCMC.",
     )
     parser.set_defaults(matsumoto=False)
 
-    # i/o
-    parser.add_argument(
-        "--path_root",
-        default="",
-        type=str,
-        help="Specify the root directory, which should contain a nexus file.\
-        If empty uses default ./data/T[taxa]",
-    )
-    parser.add_argument(
-        "--exp_ext",
-        default="",
-        type=str,
-        help="Add a suffix to the experimental directory path_root/*/d*_c*_[exp_ext]",
-    )
-    parser.add_argument(
-        "--dna_path",
-        default="dna.nex",
-        type=str,
-        help="File name of dna nexus file in contained in root directory.",
-    )
-    parser.add_argument(
-        "--save",
-        dest="doSave",
-        action="store_true",
-        help="Whether to save the simulation.",
-    )
-    parser.add_argument(
-        "--no-save",
-        dest="doSave",
-        action="store_false",
-        help="Whether to save the simulation.",
-    )
-    parser.set_defaults(doSave=True)
-
-    # VI parameters
-    parser.add_argument(
-        "--importance",
-        "-k",
-        default=1,
-        type=int,
-        help="Number of tree samples for each epoch in Variational inference.",
-    )
-    parser.add_argument(
-        "--learn", "-r", default=1e-1, type=float, help="Learning rate."
-    )
-
     # MCMC parameters
     parser.add_argument(
-        "--step", "-x", default=0.1, type=float, help="Initial step scale for MCMC."
+        "--epochs", "-n", default=1000, type=int, help="MCMC: Iterations (VI epochs)."
     )
     parser.add_argument(
-        "--chains", "-N", default=5, type=int, help="Number of MCMC chains."
+        "--step",
+        "-x",
+        default=0.1,
+        type=float,
+        help="MCMC: Initial step scale for MCMC.",
     )
     parser.add_argument(
-        "--burn", "-b", default=0, type=int, help="Number of burn in iterations."
+        "--chains", "-N", default=5, type=int, help="MCMC: Number of MCMC chains."
+    )
+    parser.add_argument(
+        "--burn", "-b", default=0, type=int, help="MCMC: Number of burn in iterations."
     )
     parser.add_argument(
         "--loss_fn",
         default="likelihood",
         choices=("likelihood", "pair_likelihood", "hypHC"),
-        help="Loss function for MCMC and MAP. Not implemented in VI.",
+        help="MCMC: Loss function for MCMC and MAP. Not implemented in VI.",
     )
     parser.add_argument(
         "--swap_period",
         default=1000,
         type=int,
-        help="Number MCMC generations before considering swapping chains.",
+        help="MCMC: Number MCMC generations before considering swapping chains.",
     )
     parser.add_argument(
         "--n_swaps",
         default=10,
         type=int,
-        help="Number of MCMC chain swap moves considered every swap_period.",
+        help="MCMC: Number of MCMC chain swap moves considered every swap_period.",
     )
 
-    # Tree simulation parameters
-    parser.add_argument(
-        "--birth", default=2.0, type=float, help="Birth rate of simulated tree."
-    )
-    parser.add_argument(
-        "--death", default=0.5, type=float, help="Death rate of simulated tree."
-    )
-
-    # "soft" parameters
+    # soft
     parser.add_argument(
         "--temp",
         default=None,
         type=float,
-        help="Temperature for soft neighbour joining",
+        help="Soft: Temperature for soft neighbour joining",
+    )
+
+    # VI parameters
+    parser.add_argument(
+        "--draws",
+        "-d",
+        default=1000,
+        type=int,
+        help="VI: Number of samples to draw from distribution.",
+    )
+    parser.add_argument(
+        "--importance",
+        "-k",
+        default=1,
+        type=int,
+        help="VI: Number of tree samples for each epoch in Variational inference.",
+    )
+    parser.add_argument(
+        "--learn",
+        "-r",
+        default=1e-1,
+        type=float,
+        help="VI: Learning rate. Also for learning MCMC steps",
+    )
+
+    # Tree simulation parameters
+    parser.add_argument(
+        "--taxa", "-S", type=int, help="Simu: Number of taxa to simulate."
+    )
+    parser.add_argument(
+        "--seq", "-L", type=int, help="Simu: Sequence length for simulating a tree."
+    )
+
+    parser.add_argument(
+        "--birth", default=2.0, type=float, help="Simu: Birth rate of simulated tree."
+    )
+    parser.add_argument(
+        "--death", default=0.5, type=float, help="Simu: Death rate of simulated tree."
     )
     return parser
 
