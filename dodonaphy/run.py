@@ -359,12 +359,21 @@ def init_parser():
         help="MCMC: Number of MCMC chain swap moves considered every swap_period.",
     )
 
-    # soft
+    # tuning parameters
     parser.add_argument(
         "--temp",
         default=None,
         type=float,
-        help="Soft: Temperature for soft neighbour joining",
+        help="Tune: Temperature for soft neighbour joining. Towards 0 is\
+            'colder', which increases accuracy, but reduces gradient\
+            information.",
+    )
+    parser.add_argument(
+        "--learn",
+        "-r",
+        default=1e-1,
+        type=float,
+        help="Tune: Learning rate. Also for learning MCMC steps.",
     )
 
     # VI parameters
@@ -381,13 +390,6 @@ def init_parser():
         default=1,
         type=int,
         help="VI: Number of tree samples for each epoch in Variational inference.",
-    )
-    parser.add_argument(
-        "--learn",
-        "-r",
-        default=1e-1,
-        type=float,
-        help="VI: Learning rate. Also for learning MCMC steps",
     )
 
     # Tree simulation parameters
