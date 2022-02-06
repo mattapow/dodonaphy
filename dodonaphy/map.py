@@ -9,10 +9,10 @@ from dodonaphy import peeler, tree
 from dodonaphy.base_model import BaseModel
 
 
-class ML(BaseModel):
-    """Maximum Likelihood class"""
+class MAP(BaseModel):
+    """Maximum A Posteriori class"""
 
-    def __init__(self, partials, weights, dists, soft_temp, loss_fn):
+    def __init__(self, partials, weights, dists, soft_temp, loss_fn, prior="gammadir"):
         super().__init__(
             partials,
             weights,
@@ -27,8 +27,11 @@ class ML(BaseModel):
         self.params = {
             "dists": torch.tensor(dists_1d, requires_grad=True, dtype=torch.float64)
         }
-        self.ln_p = self.compute_likelihood()
+        self.ln_p = self.compute_ln_likelihood()
         self.current_epoch = 0
+        assert prior in ("None", "birth_death", "gammadir"), "Invalid prior requested."
+        self.prior = prior
+        self.ln_prior = self.compute_ln_prior()
 
     def update_epoch(self, epoch):
         self.current_epoch = epoch
@@ -37,21 +40,20 @@ class ML(BaseModel):
         """Optimise params["dists"]"."""
 
         def lr_lambda(epoch):
-            return 1.0 / (epoch + 1) ** 0.5
+            return 1.0 / (epoch + .1) ** 0.5
 
         optimizer = torch.optim.LBFGS(params=list(self.params.values()), lr=learn_rate)
         scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lr_lambda)
-        like_hist = []
+        post_hist = []
 
         if path_write is not None:
-            like_fn = os.path.join(path_write, "likelihood.txt")
+            post_path = os.path.join(path_write, "posterior.txt")
             dist_path = os.path.join(path_write, "dists")
             os.mkdir(dist_path)
 
         def closure():
             optimizer.zero_grad()
-            temp = 2 * lr_lambda(self.current_epoch) + 1
-            loss = -temp * self.compute_likelihood()
+            loss = - self.compute_ln_likelihood() - self.compute_ln_prior()
             loss.backward()
             return loss
 
@@ -60,15 +62,15 @@ class ML(BaseModel):
             self.update_epoch(i)
             optimizer.step(closure)
             scheduler.step()
-            like_hist.append(self.ln_p.item())
-            print(f"epoch {i+1} Likelihood: {like_hist[-1]:.20f}")
+            post_hist.append(self.ln_p.item()+self.ln_prior.item())
+            print(f"epoch {i+1} posterior: {post_hist[-1]:.20f}")
 
             if path_write is not None:
                 tree.save_tree(
-                    path_write, "ml", self.peel, self.blens, i, self.ln_p, -1
+                    path_write, "map", self.peel, self.blens, i, self.ln_p, self.prior
                 )
-                with open(like_fn, "a", encoding="UTF-8") as file:
-                    file.write(f"{like_hist[-1]}\n")
+                with open(post_path, "a", encoding="UTF-8") as file:
+                    file.write(f"{post_hist[-1]}\n")
                 dists_fn = os.path.join(dist_path, f"dists_hist_{i}.txt")
                 np.savetxt(
                     dists_fn,
@@ -77,9 +79,9 @@ class ML(BaseModel):
                 )
 
         if epochs > 0 and path_write is not None:
-            ML.trace(epochs, like_hist, path_write)
+            MAP.trace(epochs, post_hist, path_write)
 
-    def compute_likelihood(self):
+    def compute_ln_likelihood(self):
         """Compute likelihood of current tree, reducing soft_temp as required."""
         tril_idx = torch.tril_indices(self.S, self.S, -1)
         dist_2d = torch.zeros((self.S, self.S), dtype=torch.double)
@@ -95,9 +97,18 @@ class ML(BaseModel):
             self.ln_p = self.compute_LL(self.peel, self.blens)
             loss = self.compute_log_a_like(dist_2d)
         elif self.loss_fn == "hypHC":
-            raise ValueError("hypHC requires embedding, not available with ML.")
-
+            raise ValueError("hypHC requires embedding, not available with MAP.")
         return loss
+    
+    def compute_ln_prior(self):
+        """Compute prior of current tree."""
+        if self.prior == "None":
+            return torch.zeros(1)
+        elif self.prior == "gammadir":
+            return self.compute_prior_gamma_dir(self.blens)
+        elif self.prior == "birthdeath":
+            return self.compute_prior_birthdeath(self.peel, self.blens)
+
 
     @staticmethod
     def trace(epochs, like_hist, path_write):

@@ -13,7 +13,7 @@ from dendropy.simulate import treesim
 
 from dodonaphy import utils, Cphylo
 from dodonaphy.mcmc import DodonaphyMCMC as mcmc
-from dodonaphy.ml import ML
+from dodonaphy.map import MAP
 from dodonaphy.phylo import compress_alignment
 from dodonaphy.vi import DodonaphyVI
 
@@ -90,13 +90,28 @@ def run(args):
             soft_temp=args.temp,
         )
     elif args.infer == "ml":
+        assert args.temp > 0., "Temperature must be greater than 0."
         partials, weights = compress_alignment(dna)
-        mymod = ML(
+        mymod = MAP(
             partials[:],
             weights,
             dists=dists_phylo,
             soft_temp=args.temp,
             loss_fn=args.loss_fn,
+            prior="None",
+        )
+        mymod.learn(epochs=args.epochs, learn_rate=args.learn, path_write=path_write)
+
+    elif args.infer == "map":
+        assert args.temp > 0., "Temperature must be greater than 0."
+        partials, weights = compress_alignment(dna)
+        mymod = MAP(
+            partials[:],
+            weights,
+            dists=dists_phylo,
+            soft_temp=args.temp,
+            loss_fn=args.loss_fn,
+            prior=args.prior,
         )
         mymod.learn(epochs=args.epochs, learn_rate=args.learn, path_write=path_write)
 
@@ -132,15 +147,10 @@ def get_path(root_dir, args):
         )
         print(f"Saving to {path_write}")
 
-    elif args.infer == "ml":
-        assert (
-            args.connect == "nj"
-        ), "Maximum likelihood only works on neighbour joining. This is since\n\
-            it it the only purely distance-based connection method\n\
-            implemented. Other methods depend on embedding locations."
+    elif args.infer in ("ml", "map"):
         ln_rate = -int(np.log10(args.learn))
         ln_tau = -int(np.log10(args.temp))
-        method_dir = os.path.join(root_dir, "ml", args.connect)
+        method_dir = os.path.join(root_dir, args.infer, args.connect)
         path_write = os.path.join(method_dir, f"lr{ln_rate}_tau{ln_tau}{args.exp_ext}")
         print(f"Saving to {path_write}")
 
@@ -246,10 +256,17 @@ def init_parser():
         "--infer",
         "-i",
         default="mcmc",
-        choices=("mcmc", "vi", "ml", "simulate"),
+        choices=("mcmc", "vi", "ml", "map", "simulate"),
         help="Inference method: MCMC or Variational Inference for Bayesian\
-        inference. Use ml to maximise the likelihod of a similarity matrix.\
+        inference. Use map to maximise the posterior of a similarity matrix.\
         Use [simulate] to simulate dna from a birth death tree.",
+    )
+    parser.add_argument(
+        "--prior",
+        default="None",
+        choices=("None", "gammadir", "birthdeath"),
+        help=("Which prior to use: no prior, Gamma-Dirichlet or Birth-Death.")
+
     )
     parser.add_argument(
         "--curv", "-c", default=-1.0, type=float, help="Hyperbolic curvature."
@@ -347,7 +364,7 @@ def init_parser():
         "--loss_fn",
         default="likelihood",
         choices=("likelihood", "pair_likelihood", "hypHC"),
-        help="Loss function for MCMC and ML. Not implemented in VI.",
+        help="Loss function for MCMC and MAP. Not implemented in VI.",
     )
     parser.add_argument(
         "--swap_period",
