@@ -12,7 +12,7 @@ from dodonaphy.base_model import BaseModel
 class MAP(BaseModel):
     """Maximum A Posteriori class"""
 
-    def __init__(self, partials, weights, dists, soft_temp, loss_fn, prior="gammadir"):
+    def __init__(self, partials, weights, dists, soft_temp, loss_fn, prior="None"):
         super().__init__(
             partials,
             weights,
@@ -58,12 +58,15 @@ class MAP(BaseModel):
             return loss
 
         print(f"Running for {epochs} iterations.")
+        print("Iteration: log prior + log_likelihood = log posterior")
         for i in range(epochs):
             self.update_epoch(i)
             optimizer.step(closure)
             scheduler.step()
             post_hist.append(self.ln_p.item()+self.ln_prior.item())
-            print(f"epoch {i+1} posterior: {post_hist[-1]:.20f}")
+            print(f"{i+1}: {self.ln_prior.item():.3f} + {self.ln_p.item():.3f} = {post_hist[-1]:.3f}")
+            if i+1 % 10 == 9:
+                print("")
 
             if path_write is not None:
                 tree.save_tree(
