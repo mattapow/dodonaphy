@@ -125,7 +125,7 @@ def run(args):
 
 def get_path(root_dir, args):
     """Generate and return experiment path"""
-    if args.doSave is False:
+    if args.no_save is True:
         return None
 
     if args.exp_ext != "":
@@ -279,11 +279,11 @@ def init_parser():
     )
     parser.add_argument(
         "--no-save",
-        dest="doSave",
+        dest="no_save",
         action="store_false",
-        help="I/O: Whether to save the simulation.",
+        help="I/O: Dry run, not saving to file.",
     )
-    parser.set_defaults(doSave=True)
+    parser.set_defaults(no_save=False)
 
     # embedding
     parser.add_argument("--dim", "-D", default=5, type=int, help="Embedding dimensions")
