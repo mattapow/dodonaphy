@@ -69,8 +69,11 @@ class MAP(BaseModel):
                 print("")
 
             if path_write is not None:
+                infer = "map"
+                if self.prior == "None":
+                    infer = "ml"
                 tree.save_tree(
-                    path_write, "map", self.peel, self.blens, i, self.ln_p, self.prior
+                    path_write, infer, self.peel, self.blens, i, self.ln_p.item(), self.ln_prior.item()
                 )
                 with open(post_path, "a", encoding="UTF-8") as file:
                     file.write(f"{post_hist[-1]}\n")
