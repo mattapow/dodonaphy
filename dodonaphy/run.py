@@ -282,7 +282,7 @@ def init_parser():
     parser.add_argument(
         "--no-save",
         dest="no_save",
-        action="store_false",
+        action="store_true",
         help="I/O: Dry run, not saving to file.",
     )
     parser.set_defaults(no_save=False)
