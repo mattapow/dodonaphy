@@ -28,6 +28,7 @@ class BaseModel(object):
         loss_fn="likelihood",
         require_grad=True,
         matsumoto=False,
+        tip_labels=None,
     ):
         self.partials = partials.copy()
         self.weights = weights
@@ -56,6 +57,7 @@ class BaseModel(object):
         assert loss_fn in ("likelihood", "pair_likelihood", "hypHC")
         self.loss_fn = loss_fn
         self.matsumoto = matsumoto
+        self.tip_labels = tip_labels
 
         # make space for internal partials
         for _ in range(self.S - 1):

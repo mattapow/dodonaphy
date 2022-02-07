@@ -12,7 +12,7 @@ from dodonaphy.base_model import BaseModel
 class MAP(BaseModel):
     """Maximum A Posteriori class"""
 
-    def __init__(self, partials, weights, dists, soft_temp, loss_fn, prior="None"):
+    def __init__(self, partials, weights, dists, soft_temp, loss_fn, prior="None", tip_labels=None):
         super().__init__(
             partials,
             weights,
@@ -21,6 +21,7 @@ class MAP(BaseModel):
             connector="nj",
             curvature=-1,
             loss_fn=loss_fn,
+            tip_labels=tip_labels,
         )
         tril_idx = torch.tril_indices(self.S, self.S, -1)
         dists_1d = dists[tril_idx[0], tril_idx[1]]
@@ -50,6 +51,7 @@ class MAP(BaseModel):
             post_path = os.path.join(path_write, "posterior.txt")
             dist_path = os.path.join(path_write, "dists")
             os.mkdir(dist_path)
+            tree.save_tree_head(path_write, "samples", self.tip_labels)
 
         def closure():
             optimizer.zero_grad()
@@ -69,11 +71,8 @@ class MAP(BaseModel):
                 print("")
 
             if path_write is not None:
-                infer = "map"
-                if self.prior == "None":
-                    infer = "ml"
                 tree.save_tree(
-                    path_write, infer, self.peel, self.blens, i, self.ln_p.item(), self.ln_prior.item()
+                    path_write, "samples", self.peel, self.blens, i, self.ln_p.item(), self.ln_prior.item()
                 )
                 with open(post_path, "a", encoding="UTF-8") as file:
                     file.write(f"{post_hist[-1]}\n")

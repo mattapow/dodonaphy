@@ -28,7 +28,8 @@ class DodonaphyMCMC:
         loss_fn="likelihood",
         swap_period=1000,
         n_swaps=10,
-        matsumoto=False
+        matsumoto=False,
+        tip_labels=None,
     ):
         self.n_chains = n_chains
         self.chains = []
@@ -54,7 +55,8 @@ class DodonaphyMCMC:
                     normalise_leaf=normalise_leaf,
                     loss_fn=loss_fn,
                     converge_length=None,
-                    matsumoto=matsumoto
+                    matsumoto=matsumoto,
+                    tip_labels=tip_labels,
                 )
             )
 
@@ -107,7 +109,7 @@ class DodonaphyMCMC:
         if path_write is not None:
             info_file = path_write + "/" + "mcmc.info"
             self.save_info(info_file, epochs, burnin, self.save_period)
-            tree.save_tree_head(path_write, "mcmc", self.chains[0].S)
+            tree.save_tree_head(path_write, "samples", self.chains[0].tip_labels)
 
         for chain in self.chains:
             chain.set_probability()
@@ -295,6 +297,7 @@ class DodonaphyMCMC:
         swap_period=1000,
         n_swaps=10,
         matsumoto=False,
+        tip_labels=None,
     ):
         """Run Dodonaphy's MCMC."""
         print("\nRunning Dodonaphy MCMC")
@@ -320,6 +323,7 @@ class DodonaphyMCMC:
             swap_period=swap_period,
             n_swaps=n_swaps,
             matsumoto=matsumoto,
+            tip_labels=tip_labels,
         )
 
         mymod.initialise_chains(emm_tips)

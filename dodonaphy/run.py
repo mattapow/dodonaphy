@@ -71,6 +71,7 @@ def run(args):
             swap_period=args.swap_period,
             n_swaps=args.n_swaps,
             matsumoto=args.matsumoto,
+            tip_labels=start_tree.taxon_namespace.labels(),
         )
     elif args.infer == "vi":
         partials, weights = compress_alignment(dna)
@@ -89,6 +90,7 @@ def run(args):
             connector=args.connect,
             curvature=args.curv,
             soft_temp=args.temp,
+            tip_labels=start_tree.taxon_namespace.labels(),
         )
     elif args.infer == "ml":
         assert args.temp > 0.0, "Temperature must be greater than 0."
@@ -100,6 +102,7 @@ def run(args):
             soft_temp=args.temp,
             loss_fn=args.loss_fn,
             prior="None",
+            tip_labels=start_tree.taxon_namespace.labels(),
         )
         mymod.learn(epochs=args.epochs, learn_rate=args.learn, path_write=path_write)
 
@@ -113,6 +116,7 @@ def run(args):
             soft_temp=args.temp,
             loss_fn=args.loss_fn,
             prior=args.prior,
+            tip_labels=start_tree.taxon_namespace.labels(),
         )
         mymod.learn(epochs=args.epochs, learn_rate=args.learn, path_write=path_write)
 
@@ -139,23 +143,21 @@ def get_path(root_dir, args):
             method_dir,
             f"d{args.dim}_lr{ln_lr}_k{args.importance}{args.exp_ext}",
         )
-        print(f"Saving to {path_write}")
 
     elif args.infer == "mcmc":
         method_dir = os.path.join(root_dir, "mcmc", exp_method)
         path_write = os.path.join(
             method_dir, f"d{args.dim}_c{args.chains}{args.exp_ext}"
         )
-        print(f"Saving to {path_write}")
 
     elif args.infer in ("ml", "map"):
         ln_rate = -int(np.log10(args.learn))
         ln_tau = -int(np.log10(args.temp))
         method_dir = os.path.join(root_dir, args.infer, args.connect)
         path_write = os.path.join(method_dir, f"lr{ln_rate}_tau{ln_tau}{args.exp_ext}")
-        print(f"Saving to {path_write}")
 
     if path_write is not None:
+        print(f"Saving to {path_write}")
         if not os.path.exists(method_dir):
             try:
                 os.makedirs(method_dir, exist_ok=False)

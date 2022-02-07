@@ -23,6 +23,7 @@ class DodonaphyVI(BaseModel):
         soft_temp=None,
         noise=None,
         truncate=None,
+        tip_labels=None,
     ):
         super().__init__(
             partials,
@@ -32,6 +33,7 @@ class DodonaphyVI(BaseModel):
             embedder=embedder,
             connector=connector,
             curvature=curvature,
+            tip_labels=tip_labels,
         )
         print("Initialising variational model.\n")
 
@@ -413,6 +415,7 @@ class DodonaphyVI(BaseModel):
         curvature=-1.0,
         connector="nj",
         soft_temp=None,
+        tip_labels=None,
     ):
         """Initialise and run Dodonaphy's variational inference
 
@@ -426,7 +429,7 @@ class DodonaphyVI(BaseModel):
         # embed tips with distances using HydraPlus
         hp_obj = hydraPlus.HydraPlus(dists_data, dim=dim, curvature=curvature)
         emm_tips = hp_obj.embed(equi_adj=0.0, stress=True)
-        print("Embedding Stress (tips only) = {:.4}".format(emm_tips["stress"].item()))
+        print("Embedding Stress (tips only) = {:.4}".format(emm_tips["stress_hydraPlus"]))
 
         # Initialise model
         mymod = DodonaphyVI(
@@ -437,6 +440,7 @@ class DodonaphyVI(BaseModel):
             connector=connector,
             soft_temp=soft_temp,
             curvature=curvature,
+            tip_labels=tip_labels,
         )
 
         leaf_loc_hyp = emm_tips["X"]
@@ -457,19 +461,15 @@ class DodonaphyVI(BaseModel):
 
         if mymod.internals_exist:
             param_init = {
-                "leaf_mu": leaf_loc_hyp.clone().double().requires_grad_(True),
-                "leaf_sigma": torch.from_numpy(leaf_sigma)
-                .double()
-                .requires_grad_(True),
-                "int_mu": int_loc_hyp.clone().double().requires_grad_(True),
+                "leaf_mu": torch.from_numpy(leaf_loc_hyp).double().requires_grad_(True),
+                "leaf_sigma": torch.from_numpy(leaf_sigma).double().requires_grad_(True),
+                "int_mu": torch.from_numpy(int_loc_hyp).double().requires_grad_(True),
                 "int_sigma": torch.from_numpy(int_sigma).double().requires_grad_(True),
             }
         else:
             param_init = {
-                "leaf_mu": leaf_loc_hyp.clone().double().requires_grad_(True),
-                "leaf_sigma": torch.from_numpy(leaf_sigma)
-                .double()
-                .requires_grad_(True),
+                "leaf_mu": torch.from_numpy(leaf_loc_hyp).double().requires_grad_(True),
+                "leaf_sigma": torch.from_numpy(leaf_sigma).double().requires_grad_(True),
             }
 
         # mymod.learn_ML_brute(param_init=param_init)
@@ -485,18 +485,19 @@ class DodonaphyVI(BaseModel):
 
         # draw samples (one-by-one) and save them
         if path_write is not None:
-            tree.save_tree_head(path_write, "vi", S)
+            tree.save_tree_head(path_write, "samples", mymod.tip_labels)
             for i in range(n_draws):
                 peels, blens, _, lp = mymod.draw_sample(1, lp=True)
                 ln_prior = mymod.compute_prior_gamma_dir(blens[0])
                 tree.save_tree(
                     path_write,
-                    "vi",
+                    "samples",
                     peels[0],
                     blens[0],
                     i,
                     lp[0].item(),
                     ln_prior.item(),
+                    tip_labels=mymod.tip_labels,
                 )
 
     def save(self, fn):

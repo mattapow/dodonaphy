@@ -27,6 +27,7 @@ class Chain(BaseModel):
         normalise_leaf=False,
         loss_fn="likelihood",
         matsumoto=False,
+        tip_labels=None,
     ):
         super().__init__(
             partials,
@@ -40,6 +41,7 @@ class Chain(BaseModel):
             loss_fn=loss_fn,
             require_grad=False,
             matsumoto=matsumoto,
+            tip_labels=tip_labels,
         )
         self.leaf_x = leaf_x  # S x D
         self.int_x = int_x  # S-2 x D
