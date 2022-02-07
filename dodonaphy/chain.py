@@ -107,12 +107,12 @@ class Chain(BaseModel):
         """Propose new embedding"""
         proposal = self.sample_leaf_np(self.leaf_x, self.step_scale)
 
-        r_accept = self.accept_ratio(proposal)
+        ln_r_accept = self.ln_accept_ratio(proposal)
 
         accept = False
-        if r_accept >= 1:
+        if ln_r_accept >= 0:
             accept = True
-        elif np.random.uniform(low=0.0, high=1.0) < r_accept:
+        elif -np.random.exponential(scale=1.0) < ln_r_accept:
             accept = True
 
         if accept:
@@ -128,8 +128,8 @@ class Chain(BaseModel):
         self.iterations += 1
         return accept
 
-    def accept_ratio(self, prop):
-        """Acceptance critereon for Metropolis-Hastings
+    def ln_accept_ratio(self, prop):
+        """Log acceptance critereon for Metropolis-Hastings
 
         Assumes a Hastings ratio of 1, i.e. symmetric proposals.
 
@@ -145,11 +145,8 @@ class Chain(BaseModel):
         ln_jacob_diff = prop["jacobian"] - self.jacobian
         ln_hastings_diff = 0.0
 
-        r_accept = np.exp(
-            (ln_prior_diff + ln_like_diff + ln_jacob_diff) * self.chain_temp
-            + ln_hastings_diff
-        )
-        return np.minimum(1.0, r_accept)
+        ln_r_accept = (ln_prior_diff + ln_like_diff + ln_jacob_diff) * self.chain_temp + ln_hastings_diff
+        return np.minimum(0.0, ln_r_accept)
 
     def euler_step(self, value, learn_rate=0.01):
         return self.step_scale + learn_rate * value

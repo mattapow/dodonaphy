@@ -247,10 +247,10 @@ class DodonaphyMCMC:
         # probability of exhanging these two chains
         prob1 = (ln_post_i - ln_post_j) * chain_j.chain_temp
         prob2 = (ln_post_j - ln_post_i) * chain_i.chain_temp
-        r_accept = np.minimum(1, np.exp(prob1 + prob2))
+        ln_r_accept = np.minimum(0, prob1 + prob2)
 
         # swap with probability r
-        if r_accept > np.random.uniform(low=0.0, high=1.0):
+        if ln_r_accept > -np.random.exponential(scale=1.0):
             # swap the locations and current probability
             chain_i.leaf_x, chain_j.leaf_x = (
                 chain_j.leaf_x,
