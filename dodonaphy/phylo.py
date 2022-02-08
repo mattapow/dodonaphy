@@ -45,6 +45,11 @@ def compress_alignment(alignment):
     return partials, np.array(weights)
 
 
+def calculate_pairwise_distance(dna):
+    dna_np = np.array(dna.sequences())
+    return (dna_np[:, None] != dna_np).sum(axis=2) / len(dna[0])
+
+
 def calculate_treelikelihood(partials, weights, post_indexing, mats, freqs):
     for left, right, node in post_indexing:
         partials[node] = torch.matmul(mats[left], partials[left]) * torch.matmul(

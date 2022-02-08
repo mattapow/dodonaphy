@@ -14,7 +14,7 @@ from dendropy.simulate import treesim
 from dodonaphy import utils, Cphylo
 from dodonaphy.mcmc import DodonaphyMCMC as mcmc
 from dodonaphy.map import MAP
-from dodonaphy.phylo import compress_alignment
+from dodonaphy.phylo import compress_alignment, calculate_pairwise_distance
 from dodonaphy.vi import DodonaphyVI
 
 
@@ -33,30 +33,38 @@ def run(args):
 
     path_write = get_path(root_dir, args)
     dna = read_dna(root_dir, args.dna_path)
+    partials, weights = compress_alignment(dna)
 
-    if args.start == "RAxML":
+    if args.start == "None":
+        print("Computing distances from sequences:", end="", flush=True)
+        dists = calculate_pairwise_distance(dna)
+        print(" done.", flush=True)
+        tip_labels = dna.taxon_namespace
+    elif args.start == "RAxML":
         print("Finding RAxML tree.")
         rax = raxml.RaxmlRunner()
         start_tree = rax.estimate_tree(char_matrix=dna, raxml_args=["--no-bfgs"])
         tree_path = os.path.join(root_dir, "start_tree.nex")
         start_tree.write(path=tree_path, schema="nexus")
+        dists = utils.tip_distances(start_tree, args.taxa)
+        tip_labels = start_tree.taxon_namespace.labels()
     else:
         start_tree = read_tree(root_dir, file_name=args.start)
         args.taxa = len(start_tree)
+        dists = utils.tip_distances(start_tree, args.taxa)
+        tip_labels = start_tree.taxon_namespace.labels()
 
-    dists_phylo = utils.tip_distances(start_tree, args.taxa)
     if args.matsumoto:
         dists = np.arccosh(np.exp(dists))
     save_period = max(int(args.epochs / args.draws), 1)
 
     start = time.time()
     if args.infer == "mcmc":
-        partials, weights = Cphylo.compress_alignment_np(dna)
         mcmc.run(
             args.dim,
             partials[:],
             weights,
-            dists_phylo,
+            dists,
             path_write,
             epochs=args.epochs,
             step_scale=args.step,
@@ -71,16 +79,15 @@ def run(args):
             swap_period=args.swap_period,
             n_swaps=args.n_swaps,
             matsumoto=args.matsumoto,
-            tip_labels=start_tree.taxon_namespace.labels(),
+            tip_labels=tip_labels,
         )
     elif args.infer == "vi":
-        partials, weights = compress_alignment(dna)
         DodonaphyVI.run(
             args.dim,
             args.taxa,
             partials[:],
             weights,
-            dists_phylo,
+            dists,
             path_write,
             epochs=args.epochs,
             k_samples=args.importance,
@@ -90,7 +97,7 @@ def run(args):
             connector=args.connect,
             curvature=args.curv,
             soft_temp=args.temp,
-            tip_labels=start_tree.taxon_namespace.labels(),
+            tip_labels=tip_labels,
         )
     elif args.infer == "ml":
         assert args.temp > 0.0, "Temperature must be greater than 0."
@@ -98,11 +105,11 @@ def run(args):
         mymod = MAP(
             partials[:],
             weights,
-            dists=dists_phylo,
+            dists=dists,
             soft_temp=args.temp,
             loss_fn=args.loss_fn,
             prior="None",
-            tip_labels=start_tree.taxon_namespace.labels(),
+            tip_labels=tip_labels,
         )
         mymod.learn(epochs=args.epochs, learn_rate=args.learn, path_write=path_write)
 
@@ -112,11 +119,11 @@ def run(args):
         mymod = MAP(
             partials[:],
             weights,
-            dists=dists_phylo,
+            dists=dists,
             soft_temp=args.temp,
             loss_fn=args.loss_fn,
             prior=args.prior,
-            tip_labels=start_tree.taxon_namespace.labels(),
+            tip_labels=tip_labels,
         )
         mymod.learn(epochs=args.epochs, learn_rate=args.learn, path_write=path_write)
 
@@ -256,9 +263,10 @@ def init_parser():
     parser.add_argument(
         "--start",
         "-t",
-        default="data/start_tree.nex",
+        default="None",
         help="I/O: Path to starting tree in nexus format. If set to RAxML, a RAxML\
-        tree will be found and used.",
+        tree will be found and used. If set to 'None' the distances will be\
+        inferred from the sequences.",
     )
     parser.add_argument(
         "--path_root",
