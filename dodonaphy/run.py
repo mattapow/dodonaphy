@@ -37,9 +37,9 @@ def run(args):
 
     if args.start == "None":
         print("Computing distances from sequences:", end="", flush=True)
-        dists = calculate_pairwise_distance(dna)
+        dists = calculate_pairwise_distance(dna, adjust=None)
         print(" done.", flush=True)
-        tip_labels = dna.taxon_namespace
+        tip_labels = dna.taxon_namespace.labels()
     elif args.start == "RAxML":
         print("Finding RAxML tree.")
         rax = raxml.RaxmlRunner()
@@ -55,7 +55,7 @@ def run(args):
         tip_labels = start_tree.taxon_namespace.labels()
 
     if args.matsumoto:
-        dists_phylo = np.arccosh(np.exp(dists_phylo))
+        dists = np.arccosh(np.exp(dists))
     save_period = max(int(args.epochs / args.draws), 1)
 
     start = time.time()
