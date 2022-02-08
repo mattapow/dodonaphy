@@ -46,7 +46,7 @@ def run(args):
 
     dists_phylo = utils.tip_distances(start_tree, args.taxa)
     if args.matsumoto:
-        dists_phylo = np.arccosh(np.exp(dists_phylo))
+        dists = np.arccosh(np.exp(dists))
     save_period = max(int(args.epochs / args.draws), 1)
 
     start = time.time()

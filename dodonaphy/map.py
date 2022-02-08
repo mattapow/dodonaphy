@@ -12,10 +12,11 @@ from dodonaphy.base_model import BaseModel
 class MAP(BaseModel):
     """Maximum A Posteriori class"""
 
-    def __init__(self, partials, weights, dists, soft_temp, loss_fn, prior="None", tip_labels=None):
+    def __init__(self, partials_np, weights, dists, soft_temp, loss_fn, prior="None", tip_labels=None):
+        partials = [torch.from_numpy(plv) for plv in partials_np]
         super().__init__(
             partials,
-            weights,
+            torch.from_numpy(weights),
             dim=None,
             soft_temp=soft_temp,
             connector="nj",
@@ -66,9 +67,9 @@ class MAP(BaseModel):
             optimizer.step(closure)
             scheduler.step()
             post_hist.append(self.ln_p.item()+self.ln_prior.item())
-            print(f"{i+1}: {self.ln_prior.item():.3f} + {self.ln_p.item():.3f} = {post_hist[-1]:.3f}")
-            if i+1 % 10 == 9:
-                print("")
+            print(f"{i+1}: {self.ln_prior.item():.3f} + {self.ln_p.item():.3f} = {post_hist[-1]:.3f}", flush=True)
+            if int(i+1) % 10 == 9:
+                print("", flush=True)
 
             if path_write is not None:
                 tree.save_tree(
@@ -94,7 +95,12 @@ class MAP(BaseModel):
         dist_2d[tril_idx[1], tril_idx[0]] = self.params["dists"]
 
         if self.loss_fn == "likelihood":
-            self.peel, self.blens = peeler.nj_torch(dist_2d, tau=self.soft_temp)
+            n_tries = 10
+            for _ in range(n_tries):
+                try:
+                    self.peel, self.blens = peeler.nj_torch(dist_2d, tau=self.soft_temp)
+                except ValueError:
+                    self.soft_temp = self.soft_temp / 2.0
             self.ln_p = self.compute_LL(self.peel, self.blens)
             loss = self.ln_p
         elif self.loss_fn == "pair_likelihood":

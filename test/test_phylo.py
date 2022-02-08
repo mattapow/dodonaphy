@@ -4,6 +4,7 @@ from dodonaphy import phylo
 from dodonaphy import tree as treeFunc
 from dodonaphy.base_model import BaseModel
 from pytest import approx
+import numpy as np
 
 
 def test_dna_alphabet():
@@ -93,7 +94,7 @@ def test_dna_alphabet():
         ],
         dtype=torch.float64,
     )
-    assert torch.allclose(
+    assert np.allclose(
         partials[0], sorted_partials
     ), "Partials incorrectly read alphabet."
     assert (sum(weights) / len(weights)) == 1, "Weights incorrectly read alphabet."
@@ -108,18 +109,19 @@ def test_likelihood_alphabet():
     dna = dendropy.DnaCharacterMatrix.get(
         data=">T1\nAAAAAAAAA\n>T2\nAAAAAAAAD\n\n", schema="fasta"
     )
-    partials, weights = phylo.compress_alignment(dna)
-    partials.append(torch.zeros((1, 4, 9), dtype=torch.float64))
+    partials_np, weights = phylo.compress_alignment(dna)
+    partials_np.append(np.zeros((1, 4, 9), dtype=np.float64))
+    partials = [torch.from_numpy(plv) for plv in partials_np]
     LL = phylo.calculate_treelikelihood(partials, weights, post_indexing, mats, freqs)
 
     dna = dendropy.DnaCharacterMatrix.get(
         data=">T1\nAAAAAAAAA\n>T2\nAAAAAAAA-\n\n", schema="fasta"
     )
-    partials, weights = phylo.compress_alignment(dna)
-    partials.append(torch.zeros((1, 4, 9), dtype=torch.float64))
+    partials_np, weights = phylo.compress_alignment(dna)
+    partials_np.append(np.zeros((1, 4, 9), dtype=np.float64))
+    partials = [torch.from_numpy(plv) for plv in partials_np]
     LL_1 = phylo.calculate_treelikelihood(partials, weights, post_indexing, mats, freqs)
     assert LL != LL_1, "Likelihoods should be different."
-
 
 def test_prior_mrbayes_0():
     data = "(6:2.000000e-02,((5:2.000000e-02,2:2.000000e-02):2.000000e-02,\

@@ -38,13 +38,11 @@ def compress_alignment(alignment):
 
     for taxon in taxa:
         partials.append(
-            torch.tensor(
-                np.transpose(
-                    np.array([dna_map.get(c.upper(), unknown) for c in patterns[taxon]])
-                )
+            np.transpose(
+                np.array([dna_map.get(c.upper(), unknown) for c in patterns[taxon]])
             )
         )
-    return partials, torch.tensor(np.array(weights))
+    return partials, np.array(weights)
 
 
 def calculate_treelikelihood(partials, weights, post_indexing, mats, freqs):

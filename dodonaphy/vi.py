@@ -14,7 +14,7 @@ from .phylo import JC69_p_t, calculate_treelikelihood
 class DodonaphyVI(BaseModel):
     def __init__(
         self,
-        partials,
+        partials_np,
         weights,
         dim,
         embedder="wrap",
@@ -25,9 +25,10 @@ class DodonaphyVI(BaseModel):
         truncate=None,
         tip_labels=None,
     ):
+        partials = [torch.from_numpy(plv) for plv in partials_np]
         super().__init__(
             partials,
-            weights,
+            torch.from_numpy(weights),
             dim,
             soft_temp=soft_temp,
             embedder=embedder,
