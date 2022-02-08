@@ -38,11 +38,13 @@ def compress_alignment(alignment):
 
     for taxon in taxa:
         partials.append(
-            np.transpose(
-                np.array([dna_map.get(c.upper(), unknown) for c in patterns[taxon]])
+            torch.tensor(
+                np.transpose(
+                    np.array([dna_map.get(c.upper(), unknown) for c in patterns[taxon]])
+                )
             )
         )
-    return partials, np.array(weights)
+    return partials, torch.tensor(np.array(weights))
 
 
 def calculate_pairwise_distance(dna):

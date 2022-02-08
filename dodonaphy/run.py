@@ -55,7 +55,7 @@ def run(args):
         tip_labels = start_tree.taxon_namespace.labels()
 
     if args.matsumoto:
-        dists = np.arccosh(np.exp(dists))
+        dists_phylo = np.arccosh(np.exp(dists_phylo))
     save_period = max(int(args.epochs / args.draws), 1)
 
     start = time.time()
