@@ -134,7 +134,7 @@ def save_tree(
         return
     if tip_labels == None:
         S = len(peel) + 1
-        tip_labels = ["T" + str(x + 1) for x in range(S)]
+        tip_labels = [str(x + 1) for x in range(S)]
     tree = tree_to_newick(tip_labels, peel, blens)
     fn = os.path.join(root_dir, filename + ".t")
     with open(fn, "a+", encoding="UTF-8") as file:
@@ -201,7 +201,7 @@ def save_tree_head(path_write, filename, tip_labels, format="MrBayes"):
             file.write("\t\tT%d T%d;\n" % (S, S))
     else:
         with open(fn, "w", encoding="UTF-8") as file:
-            file.write("#NEXUS\n[Param: tree]\nbegin trees;\n\ttranslate\n")
+            file.write("#NEXUS\n[Param: tree]\nbegin trees;\n\ttranslate;\n")
             last_taxon = tip_labels.pop()
             for i, taxon in enumerate(tip_labels):
                 file.write(f"\t{i} {taxon},\n")
