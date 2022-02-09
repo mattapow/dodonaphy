@@ -12,7 +12,16 @@ from dodonaphy.base_model import BaseModel
 class MAP(BaseModel):
     """Maximum A Posteriori class"""
 
-    def __init__(self, partials, weights, dists, soft_temp, loss_fn, prior="None", tip_labels=None):
+    def __init__(
+        self,
+        partials,
+        weights,
+        dists,
+        soft_temp,
+        loss_fn,
+        prior="None",
+        tip_labels=None,
+    ):
         super().__init__(
             partials,
             weights,
@@ -41,9 +50,9 @@ class MAP(BaseModel):
         """Optimise params["dists"]"."""
 
         def lr_lambda(epoch):
-            return 1.0 / (epoch + .1) ** 0.5
+            return 1.0 / (epoch + 1.0) ** 0.5
 
-        optimizer = torch.optim.LBFGS(params=list(self.params.values()), lr=learn_rate)
+        optimizer = torch.optim.SGD(params=list(self.params.values()), lr=learn_rate)
         scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lr_lambda)
         post_hist = []
 
@@ -55,7 +64,7 @@ class MAP(BaseModel):
 
         def closure():
             optimizer.zero_grad()
-            loss = - self.compute_ln_likelihood() - self.compute_ln_prior()
+            loss = -self.compute_ln_likelihood() - self.compute_ln_prior()
             loss.backward()
             return loss
 
@@ -65,14 +74,22 @@ class MAP(BaseModel):
             self.update_epoch(i)
             optimizer.step(closure)
             scheduler.step()
-            post_hist.append(self.ln_p.item()+self.ln_prior.item())
-            print(f"{i+1}: {self.ln_prior.item():.3f} + {self.ln_p.item():.3f} = {post_hist[-1]:.3f}")
-            if int(i+1) % 10 == 9:
+            post_hist.append(self.ln_p.item() + self.ln_prior.item())
+            print(
+                f"{i+1}: {self.ln_prior.item():.3f} + {self.ln_p.item():.3f} = {post_hist[-1]:.3f}"
+            )
+            if int(i + 1) % 10 == 9:
                 print("")
 
             if path_write is not None:
                 tree.save_tree(
-                    path_write, "samples", self.peel, self.blens, i, self.ln_p.item(), self.ln_prior.item()
+                    path_write,
+                    "samples",
+                    self.peel,
+                    self.blens,
+                    i,
+                    self.ln_p.item(),
+                    self.ln_prior.item(),
                 )
                 with open(post_path, "a", encoding="UTF-8") as file:
                     file.write(f"{post_hist[-1]}\n")
@@ -104,7 +121,7 @@ class MAP(BaseModel):
         elif self.loss_fn == "hypHC":
             raise ValueError("hypHC requires embedding, not available with MAP.")
         return loss
-    
+
     def compute_ln_prior(self):
         """Compute prior of current tree."""
         if self.prior == "None":
@@ -113,7 +130,6 @@ class MAP(BaseModel):
             return self.compute_prior_gamma_dir(self.blens)
         elif self.prior == "birthdeath":
             return self.compute_prior_birthdeath(self.peel, self.blens)
-
 
     @staticmethod
     def trace(epochs, like_hist, path_write):
