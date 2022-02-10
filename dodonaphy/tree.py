@@ -205,4 +205,4 @@ def save_tree_head(path_write, filename, tip_labels, format="MrBayes"):
             last_taxon = tip_labels.pop()
             for i, taxon in enumerate(tip_labels):
                 file.write(f"\t\t{i} {taxon},\n")
-            file.write(f"\t{i+1} {last_taxon};\n")
+            file.write(f"\t\t{i+1} {last_taxon};\n")
