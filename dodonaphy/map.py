@@ -1,4 +1,4 @@
-"""Maximum Likelihood Module"""
+"""Maximum A Posteriori Module"""
 import os
 
 import matplotlib.pyplot as plt
