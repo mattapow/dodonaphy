@@ -68,9 +68,8 @@ class HMAP(BaseModel):
         post_hist = []
 
         if path_write is not None:
-            post_path = os.path.join(path_write, "posterior.txt")
-            dist_path = os.path.join(path_write, "dists")
-            os.mkdir(dist_path)
+            emm_path = os.path.join(path_write, "embed")
+            os.mkdir(emm_path)
             tree.save_tree_head(path_write, "samples", self.tip_labels)
 
         def closure():
@@ -93,26 +92,33 @@ class HMAP(BaseModel):
                 print("")
 
             if path_write is not None:
-                tree.save_tree(
-                    path_write,
-                    "samples",
-                    self.peel,
-                    self.blens,
-                    i,
-                    self.ln_p.item(),
-                    self.ln_prior.item(),
-                )
-                with open(post_path, "a", encoding="UTF-8") as file:
-                    file.write(f"{post_hist[-1]}\n")
-                dists_fn = os.path.join(dist_path, f"dists_hist_{i}.txt")
-                np.savetxt(
-                    dists_fn,
-                    optimizer.param_groups[0]["params"][0].detach().numpy(),
-                    delimiter=", ",
-                )
+                self.save_epoch(i, path_write, optimizer)
 
         if epochs > 0 and path_write is not None:
             HMAP.trace(epochs, post_hist, path_write)
+
+    def save_epoch(self, i, path_write, optimizer):
+        print_header = str([f"dim{i}, " for i in range(self.D)])
+        post_path = os.path.join(path_write, "posterior.txt")
+        emm_path = os.path.join(path_write, "embed")
+        tree.save_tree(
+            path_write,
+            "samples",
+            self.peel,
+            self.blens,
+            i,
+            self.ln_p.item(),
+            self.ln_prior.item(),
+        )
+        with open(post_path, "a", encoding="UTF-8") as file:
+            file.write(f"{self.ln_p.item() + self.ln_prior.item()}\n")
+        emm_fn = os.path.join(emm_path, f"dists_hist_{i}.txt")
+        np.savetxt(
+            emm_fn,
+            optimizer.param_groups[0]["params"][0].detach().numpy(),
+            delimiter=", ",
+            header=print_header,
+        )
 
     def compute_ln_likelihood(self):
         """Compute likelihood of current tree, reducing soft_temp as required."""
