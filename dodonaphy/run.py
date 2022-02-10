@@ -11,11 +11,13 @@ from dendropy.model.birthdeath import birth_death_likelihood
 from dendropy.model.discrete import simulate_discrete_chars
 from dendropy.simulate import treesim
 
-from dodonaphy import utils, Cphylo
+from dodonaphy import utils
 from dodonaphy.mcmc import DodonaphyMCMC as mcmc
 from dodonaphy.map import MAP
+from dodonaphy.hmap import HMAP
 from dodonaphy.phylo import compress_alignment, calculate_pairwise_distance
 from dodonaphy.vi import DodonaphyVI
+
 
 
 def run(args):
@@ -126,6 +128,23 @@ def run(args):
             tip_labels=tip_labels,
         )
         mymod.learn(epochs=args.epochs, learn_rate=args.learn, path_write=path_write)
+    
+    elif args.infer =="hmap":
+        assert args.temp > 0.0, "Temperature must be greater than 0."
+        partials, weights = compress_alignment(dna)
+        mymod = HMAP(
+            partials[:],
+            weights,
+            dim = args.dim,
+            dists=dists,
+            soft_temp=args.temp,
+            loss_fn=args.loss_fn,
+            prior=args.prior,
+            tip_labels=tip_labels,
+            matsumoto=args.matsumoto,
+        )
+        mymod.learn(epochs=args.epochs, learn_rate=args.learn, path_write=path_write)
+
 
     mins, secs = divmod(time.time() - start, 60)
     hrs, mins = divmod(mins, 60)
@@ -157,7 +176,7 @@ def get_path(root_dir, args):
             method_dir, f"d{args.dim}_c{args.chains}{args.exp_ext}"
         )
 
-    elif args.infer in ("ml", "map"):
+    elif args.infer in ("ml", "map", "hmap"):
         ln_rate = -int(np.log10(args.learn))
         ln_tau = -int(np.log10(args.temp))
         method_dir = os.path.join(root_dir, args.infer, args.connect)
@@ -240,10 +259,11 @@ def init_parser():
         "--infer",
         "-i",
         default="mcmc",
-        choices=("mcmc", "vi", "ml", "map", "simulate"),
+        choices=("mcmc", "vi", "ml", "map", "hmap", "simulate"),
         help="Inf: Inference method: MCMC or Variational Inference for Bayesian\
         inference. Use map to maximise the posterior of a similarity matrix.\
-        Use [simulate] to simulate dna from a birth death tree.",
+        Use hmap to maximise the posterior of the embedding. Use [simulate] to\
+        simulate dna from a birth death tree.",
     )
     parser.add_argument(
         "--prior",
@@ -383,7 +403,7 @@ def init_parser():
         "-r",
         default=1e-1,
         type=float,
-        help="Tune: Learning rate. Also for learning MCMC steps.",
+        help="Initial learning rate. Also for learning MCMC steps.",
     )
 
     # VI parameters
