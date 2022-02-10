@@ -311,7 +311,7 @@ class DodonaphyVI(BaseModel):
 
         # get peels
         if self.connector == "nj":
-            pdm = Chyp_torch.get_pdm_torch(leaf_locs, curvature=self.curvature)
+            pdm = Chyp_torch.get_pdm(leaf_locs, curvature=self.curvature)
             if soft:
                 peel, blens = peeler.nj_torch(pdm, tau=self.soft_temp)
             else:

@@ -115,14 +115,14 @@ class HMAP(BaseModel):
         emm_fn = os.path.join(emm_path, f"dists_hist_{i}.txt")
         np.savetxt(
             emm_fn,
-            optimizer.param_groups[0]["params"][0].detach().numpy(),
+            self.params["leaf_loc"].detach().numpy(),
             delimiter=", ",
             header=print_header,
         )
 
     def compute_ln_likelihood(self):
         """Compute likelihood of current tree, reducing soft_temp as required."""
-        dist_2d = Chyp_torch.get_pdm_torch(
+        dist_2d = Chyp_torch.get_pdm(
             self.params["leaf_loc"], curvature=self.curvature, matsumoto=self.matsumoto
         )
 

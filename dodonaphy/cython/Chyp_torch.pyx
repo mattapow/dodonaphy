@@ -384,7 +384,7 @@ cpdef hyper_to_poincare(location):
     return out
 
 
-cpdef get_pdm_torch(leaf_loc, curvature=-torch.ones(1), bint matsumoto=False):
+cpdef get_pdm(leaf_loc, curvature=-torch.ones(1), bint matsumoto=False):
     """Get pair-wise hyperbolic distance matrix.
 
 

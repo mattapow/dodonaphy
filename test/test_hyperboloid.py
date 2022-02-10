@@ -108,7 +108,7 @@ import numpy as np
 #         x_hyp[i, :] = Chyp_np.project_up(x_t0[i, :])
 #         x_poin[i, :] = Chyp_np.hyper_to_poincare(x_hyp[i, :])
 #     pdm = Chyp_np.get_pdm(x_hyp)
-#     pdm_2 = Chyp_torch.get_pdm_torch(torch.from_numpy(x_poin))
+#     pdm_2 = Chyp_torch.get_pdm(torch.from_numpy(x_poin))
 #     assert np.allclose(pdm, pdm_2.detach().numpy(), atol=1e-6)
 
 
