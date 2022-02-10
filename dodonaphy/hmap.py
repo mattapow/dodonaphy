@@ -1,11 +1,10 @@
 """Maximum A Posteriori Module on hyperboloid sheet."""
 import os
 
-import matplotlib.pyplot as plt
 import numpy as np
 import torch
 
-from dodonaphy import peeler, tree, hydraPlus, Chyp_torch
+from dodonaphy import Chyp_torch, hydraPlus, peeler, tree
 from dodonaphy.base_model import BaseModel
 
 
@@ -142,18 +141,3 @@ class HMAP(BaseModel):
             return self.compute_prior_gamma_dir(self.blens)
         elif self.prior == "birthdeath":
             return self.compute_prior_birthdeath(self.peel, self.blens)
-
-    @staticmethod
-    def trace(epochs, like_hist, path_write):
-        """Plot trace and histogram of likelihood."""
-        plt.figure()
-        plt.plot(range(epochs), like_hist, "r", label="likelihood")
-        plt.xlabel("Epochs")
-        plt.ylabel("likelihood")
-        plt.legend()
-        plt.savefig(path_write + "/likelihood_trace.png")
-
-        plt.clf()
-        plt.hist(like_hist)
-        plt.title("Likelihood histogram")
-        plt.savefig(path_write + "/likelihood_hist.png")
