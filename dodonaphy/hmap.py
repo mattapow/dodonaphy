@@ -10,7 +10,7 @@ from dodonaphy.base_model import BaseModel
 
 class HMAP(BaseModel):
     """Maximum A Posteriori class of embedding on hyperboloid sheet.
-    
+
     Given a sequence alignment embed the tips onto the hyperboloid model of
     hyperbolic space, then optimise the tree likelihood of the decoded tree.
 
@@ -53,9 +53,8 @@ class HMAP(BaseModel):
         self.prior = prior
         self.ln_prior = self.compute_ln_prior()
         self.matsumoto = matsumoto
+        self.loss = torch.zeros(1)
 
-    def update_epoch(self, epoch):
-        self.current_epoch = epoch
 
     def learn(self, epochs, learn_rate, path_write):
         """Optimise params["dists"]"."""
@@ -68,20 +67,20 @@ class HMAP(BaseModel):
         post_hist = []
 
         if path_write is not None:
-            emm_path = os.path.join(path_write, "embed")
+            emm_path = os.path.join(path_write, "embedding")
+            post_path = os.path.join(path_write, "posterior.txt")
             os.mkdir(emm_path)
-            tree.save_tree_head(path_write, "samples", self.tip_labels)
 
         def closure():
             optimizer.zero_grad()
-            loss = -self.compute_ln_likelihood() - self.compute_ln_prior()
-            loss.backward()
-            return loss
+            self.loss = -self.compute_ln_likelihood() - self.compute_ln_prior()
+            self.loss.backward()
+            return self.loss
 
         print(f"Running for {epochs} iterations.")
         print("Iteration: log prior + log_likelihood = log posterior")
         for i in range(epochs):
-            self.update_epoch(i)
+            self.current_epoch = i
             optimizer.step(closure)
             scheduler.step()
             post_hist.append(self.ln_p.item() + self.ln_prior.item())
@@ -90,28 +89,32 @@ class HMAP(BaseModel):
             )
             if int(i + 1) % 10 == 9:
                 print("")
-
             if path_write is not None:
-                self.save_epoch(i, path_write, optimizer)
+                self.save_epoch(i, emm_path, post_path)
+
+        if path_write is not None:
+            tree.save_tree_head(path_write, "mape", self.tip_labels)
+            tree.save_tree(
+                path_write,
+                "mape",
+                self.peel,
+                self.blens,
+                i + 1,
+                self.ln_p.item(),
+                self.ln_prior.item(),
+            )
 
         if epochs > 0 and path_write is not None:
             HMAP.trace(epochs, post_hist, path_write)
 
-    def save_epoch(self, i, path_write, optimizer):
+    def save_epoch(self, i, emm_path, post_path):
+        "Save posterior value and leaf locations to file."
         print_header = str([f"dim{i}, " for i in range(self.D)])
-        post_path = os.path.join(path_write, "posterior.txt")
-        emm_path = os.path.join(path_write, "embed")
-        tree.save_tree(
-            path_write,
-            "samples",
-            self.peel,
-            self.blens,
-            i,
-            self.ln_p.item(),
-            self.ln_prior.item(),
-        )
+        ln_p = self.ln_p.item()
+        ln_prior = self.ln_prior.item()
+        ln_post = ln_p + ln_prior
         with open(post_path, "a", encoding="UTF-8") as file:
-            file.write(f"{self.ln_p.item() + self.ln_prior.item()}\n")
+            file.write(f"{ln_post} = {ln_p} + {ln_prior}\n")
         emm_fn = os.path.join(emm_path, f"dists_hist_{i}.txt")
         np.savetxt(
             emm_fn,
@@ -134,9 +137,6 @@ class HMAP(BaseModel):
             self.peel, self.blens = peeler.nj_torch(dist_2d, tau=None)
             self.ln_p = self.compute_LL(self.peel, self.blens)
             loss = self.compute_log_a_like(dist_2d)
-        elif self.loss_fn == "hypHC":
-            # TODO:
-            raise ValueError("hypHC requires embedding, not available with MAP.")
         return loss
 
     def compute_ln_prior(self):
@@ -147,3 +147,67 @@ class HMAP(BaseModel):
             return self.compute_prior_gamma_dir(self.blens)
         elif self.prior == "birthdeath":
             return self.compute_prior_birthdeath(self.peel, self.blens)
+
+    def get_ln_posterior(self, leaf_loc):
+        """Returns the posterior value.
+
+        Assumes phylo likelihood as model.
+
+        Args:
+            leaf_loc ([type]): [description]
+            curvature ([type]): [description]
+        """
+        dist_2d = Chyp_torch.get_pdm(
+            leaf_loc, curvature=self.curvature, matsumoto=self.matsumoto
+        )
+        peel, blens = peeler.nj_torch(dist_2d, tau=self.soft_temp)
+        ln_p = self.compute_LL(peel, blens)
+        ln_prior = self.compute_prior_gamma_dir(blens)
+        return ln_p + ln_prior
+
+    def laplace(self, path_write, n_samples=100):
+        """Generate a laplace approximation around the current embedding.
+
+        Args:
+            path_write (string): Save trees in this directory.
+            n (int, optional): Number of samples. Defaults to 100.
+        """
+        hessian = torch.autograd.functional.hessian
+        normal = torch.distributions.multivariate_normal.MultivariateNormal
+
+        print("Generating laplace approximation: ", end="", flush=True)
+        filename = "laplace_samples"
+        tree.save_tree_head(path_write, filename, self.tip_labels)
+        samples = torch.zeros((self.S, self.D, n_samples))
+        for taxa in range(self.S):
+            mean = self.params["leaf_loc"][taxa]
+            res = hessian(
+                self.get_ln_posterior, self.params["leaf_loc"][taxa], vectorize=True
+            )
+            cov = -torch.linalg.inv(res)
+            norm_aprx = normal(mean, cov)
+            samples[taxa, :, :] = np.swapaxes(
+                norm_aprx.sample(torch.Size((n_samples,))), 0, 1
+            )
+        print("done.")
+
+        print("Drawing samples from laplace approximation: ", end="", flush=True)
+        for i in range(n_samples):
+            dists = Chyp_torch.get_pdm(
+                samples[..., i], curvature=self.curvature, matsumoto=self.matsumoto
+            )
+            peel, blens = peeler.nj_torch(dists)
+            blens = torch.tensor(blens)
+            ln_p = self.compute_LL(peel, blens)
+            ln_prior = self.compute_prior_gamma_dir(blens)
+            tree.save_tree(
+                path_write,
+                filename,
+                peel,
+                blens,
+                i,
+                ln_p,
+                ln_prior,
+                tip_labels=self.tip_labels,
+            )
+        print("done.")

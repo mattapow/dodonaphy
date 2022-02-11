@@ -87,7 +87,8 @@ class BaseModel(object):
         useNP=True,
         matsumoto=False,
     ):
-        """Computes the hyperbolic distance of two points given in radial/directional coordinates in the Poincare ball
+        """Computes the hyperbolic distance of two points given in radial-\
+            directional coordinates in the Poincare ball
 
         Args:
             n_taxa (integer): [description]

@@ -145,6 +145,22 @@ def run(args):
         )
         mymod.learn(epochs=args.epochs, learn_rate=args.learn, path_write=path_write)
 
+    elif args.infer =="hlaplace":
+        assert args.temp > 0.0, "Temperature must be greater than 0."
+        partials, weights = compress_alignment(dna)
+        mymod = HMAP(
+            partials[:],
+            weights,
+            dim = args.dim,
+            dists=dists,
+            soft_temp=args.temp,
+            loss_fn=args.loss_fn,
+            prior=args.prior,
+            tip_labels=tip_labels,
+            matsumoto=args.matsumoto,
+        )
+        mymod.learn(epochs=args.epochs, learn_rate=args.learn, path_write=path_write)
+        mymod.laplace(path_write, n_samples=args.draws)
 
     mins, secs = divmod(time.time() - start, 60)
     hrs, mins = divmod(mins, 60)
@@ -176,7 +192,7 @@ def get_path(root_dir, args):
             method_dir, f"d{args.dim}_c{args.chains}{args.exp_ext}"
         )
 
-    elif args.infer in ("ml", "map", "hmap"):
+    elif args.infer in ("ml", "map", "hmap", "hlaplace"):
         ln_rate = -int(np.log10(args.learn))
         ln_tau = -int(np.log10(args.temp))
         method_dir = os.path.join(root_dir, args.infer, args.connect)
@@ -259,11 +275,16 @@ def init_parser():
         "--infer",
         "-i",
         default="mcmc",
-        choices=("mcmc", "vi", "ml", "map", "hmap", "simulate"),
-        help="Inf: Inference method: MCMC or Variational Inference for Bayesian\
-        inference. Use map to maximise the posterior of a similarity matrix.\
-        Use hmap to maximise the posterior of the embedding. Use [simulate] to\
-        simulate dna from a birth death tree.",
+        choices=("mcmc", "vi", "ml", "map", "hmap", "hlaplace", "simulate"),
+        help="Inf: Inference method for Bayesian inference:\
+        [mcmc]: MCMC\
+        [vi]: Variational bayesian inference.\
+        Use [map] to maximise the posterior of a distance matrix.\
+        Use [ml] to maximise likelihood of distance matrix (map with no prior).\
+        Use [hmap] to maximise the posterior of the embedding.\
+        Use [hlaplace] to maximise the posterior of the embedding (hmap) and\
+        then draw samples from a laplace approximation around the map.\
+        Use [simulate] to simulate dna from a birth death tree.",
     )
     parser.add_argument(
         "--prior",
@@ -412,7 +433,7 @@ def init_parser():
         "-d",
         default=1000,
         type=int,
-        help="VI: Number of samples to draw from distribution.",
+        help="Number of samples to draw from distribution in hlaplace, VI, and MCMC (via thinning).",
     )
     parser.add_argument(
         "--importance",
