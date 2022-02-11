@@ -58,6 +58,8 @@ class BaseModel(object):
         assert loss_fn in ("likelihood", "pair_likelihood", "hypHC")
         self.loss_fn = loss_fn
         self.matsumoto = matsumoto
+        if tip_labels is None:
+            tip_labels = [f"T{i}" for i in range(self.S)]
         self.tip_labels = tip_labels
 
         # make space for internal partials
