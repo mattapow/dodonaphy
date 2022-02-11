@@ -308,6 +308,8 @@ class DodonaphyMCMC:
         emm_tips = hp_obj.embed(equi_adj=0.0, stress=True)
         print(f"Embedding stress of tips (hydra+) = {emm_tips['stress_hydraPlus']:.4}")
 
+        partials = [partial.detach().numpy() for partial in partials]
+        weights = weights.detach().numpy()
         mymod = DodonaphyMCMC(
             partials,
             weights,
