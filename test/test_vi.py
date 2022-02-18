@@ -73,7 +73,7 @@ def test_io():
     )
     partials, weights = compress_alignment(dna)
     mymod = DodonaphyVI(partials, weights, 2, embedder="up", connector="nj")
-    tmp_dir = "./tmp"
+    tmp_dir = "./tmp_test_io"
     os.makedirs(tmp_dir, exist_ok=True)
     fp = os.path.join(tmp_dir, "test_data.csv")
     if os.path.exists(fp):

@@ -1,7 +1,8 @@
 import numpy as np
 from scipy.optimize import minimize
 
-from dodonaphy import hydra, Chyp_np
+from dodonaphy import Chyp_np
+import hydra
 
 
 class HydraPlus:
