@@ -124,13 +124,10 @@ class DodonaphyMCMC:
         if path_write is not None:
             self.save_iteration(path_write, 0)
 
-        n_params = self.chains[0].D * self.chains[0].S
-        pval = np.ones(n_params)/n_params
         for epoch in range(1, epochs + 1):
             for chain in self.chains:
-                param_idx = np.where(np.random.multinomial(1, pval))[0]
-                chain.evolve(param_idx)
-                chain.tune_step(param_idx)
+                chain.evolve()
+                chain.tune_step()
 
             do_save = self.save_period > 0 and epoch % self.save_period == 0
             if do_save:

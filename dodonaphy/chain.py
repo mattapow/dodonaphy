@@ -48,7 +48,7 @@ class Chain(BaseModel):
         self.jacobian = np.zeros(1)
         if leaf_x is not None:
             self.S = leaf_x.shape()[0]
-        self.leaf_cov_vec = np.ones(self.S * self.D) * step_scale
+        self.step_scale = step_scale
         self.chain_temp = chain_temp
         self.accepted = 0
         self.iterations = 0
@@ -103,9 +103,9 @@ class Chain(BaseModel):
         # self.ln_prior = self.compute_prior_birthdeath(self.peel, self.blens, **self.prior)
         self.ln_prior = Cphylo.compute_prior_gamma_dir_np(self.blens)
 
-    def evolve(self, param_idx):
+    def evolve(self):
         """Propose new embedding"""
-        proposal = self.sample_leaf_np(self.leaf_x, self.leaf_cov_vec, param_idx)
+        proposal = self.sample_leaf_np(self.leaf_x, self.step_scale)
 
         ln_r_accept = self.ln_accept_ratio(proposal)
 
@@ -148,13 +148,13 @@ class Chain(BaseModel):
         ln_r_accept = (ln_prior_diff + ln_like_diff + ln_jacob_diff) * self.chain_temp + ln_hastings_diff
         return np.minimum(0.0, ln_r_accept)
 
-    def euler_step(self, value, dvalue, learn_rate=0.01):
-        return value + learn_rate * dvalue
+    def euler_step(self, value, learn_rate=0.01):
+        return self.step_scale + learn_rate * value
 
-    def scale_step(self, value, sign, learn_rate=2.0):
-        return np.power(learn_rate, sign) * value
+    def scale_step(self, sign, learn_rate=2.0):
+        return np.power(learn_rate, sign) * self.step_scale
 
-    def tune_step(self, param_idx):
+    def tune_step(self):
         """Tune the acceptance rate.
 
         Use Euler method if acceptance rate is within 0.5 of target acceptance
@@ -177,21 +177,17 @@ class Chain(BaseModel):
 
         acceptance = self.accepted / self.iterations
         accept_diff = acceptance - self.target_acceptance
-
-        if np.abs(accept_diff) < 0.1:
-            self.leaf_cov_vec[param_idx] = self.euler_step(
-                self.leaf_cov_vec[param_idx], accept_diff, learn_rate=0.001
-            )
-        elif np.abs(accept_diff) < 0.5 and acceptance > 0.1:
-            self.leaf_cov_vec[param_idx] = self.euler_step(
-                self.leaf_cov_vec[param_idx], accept_diff, learn_rate=0.01
-            )
+        if np.abs(acceptance - self.target_acceptance) < 0.1:
+            self.step_scale = self.euler_step(accept_diff, learn_rate=0.001)
+        elif np.abs(acceptance - self.target_acceptance) < 0.5 and acceptance > 0.1:
+            self.step_scale = self.euler_step(accept_diff, learn_rate=0.01)
         else:
-            sign = accept_diff / np.abs(accept_diff)
-            learn_rate = 2.0
-            self.leaf_cov_vec[param_idx] = np.power(learn_rate, sign) * self.leaf_cov_vec[param_idx]
+            self.step_scale = self.scale_step(
+                sign=accept_diff / np.abs(accept_diff), learn_rate=10.0
+            )
         eps = 2.220446049250313e-16
-        self.leaf_cov_vec[param_idx] = np.maximum(self.leaf_cov_vec[param_idx], eps)
+        self.step_scale = np.maximum(self.step_scale, eps)
+
         self.check_convergence(accept_diff)
 
     def check_convergence(self, accept_diff, tol=0.01):
@@ -211,9 +207,9 @@ class Chain(BaseModel):
         self.converged.insert(0, np.abs(accept_diff) < tol)
         if all(self.converged):
             self.more_tune = False
-            print(f"Step tuned to {self.leaf_cov_vec}.")
+            print(f"Step tuned to {self.step_scale}.")
 
-    def sample_leaf_np(self, leaf_loc, leaf_cov_vec, param_idx):
+    def sample_leaf_np(self, leaf_loc, leaf_cov_single):
         """Sample a nearby tree embedding.
 
         Each point is transformed R^n (using the self.embedding method), then
@@ -222,10 +218,8 @@ class Chain(BaseModel):
 
         A dictionary is  returned containing information about this sampled tree.
         """
-        leaf_x_prop = leaf_loc
-        row, col = np.unravel_index(param_idx, (leaf_x_prop.shape))
-        leaf_x_prop[row, col] += np.random.normal(loc=0, scale=leaf_cov_vec[param_idx])
-        log_abs_det_jacobian = 0.0
+        leaf_cov = np.eye(self.S * self.D, dtype=np.double) * leaf_cov_single
+        leaf_x_prop, log_abs_det_jacobian = self.sample_loc_np(leaf_loc, leaf_cov)
 
         int_x_prop = None
         if self.connector == "nj":
