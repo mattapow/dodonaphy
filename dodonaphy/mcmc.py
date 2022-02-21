@@ -109,7 +109,7 @@ class DodonaphyMCMC:
         if path_write is not None:
             info_file = path_write + "/" + "mcmc.info"
             self.save_info(info_file, epochs, burnin, self.save_period)
-            tree.save_tree_head(path_write, "samples", self.chains[0].tip_labels)
+            tree.save_tree_head(path_write, "mcmc", self.chains[0].tip_labels)
 
         for chain in self.chains:
             chain.set_probability()
