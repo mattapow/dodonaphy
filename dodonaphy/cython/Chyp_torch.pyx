@@ -20,7 +20,7 @@ from collections import defaultdict
 from dodonaphy import Ctransforms
 from dodonaphy.edge import Edge
 
-eps = torch.finfo(torch.double).eps
+eps = torch.tensor(torch.finfo(torch.double).eps)
 
 cdef class Cu_edge:
     
@@ -384,60 +384,27 @@ cpdef hyper_to_poincare(location):
     return out
 
 
-cpdef get_pdm_torch(leaf_x, int_x=None, curvature=-torch.ones(1), bint matsumoto=False):
-    # TODO
-    """Pair-wise hyperbolic distance matrix
+cpdef get_pdm(leaf_loc, curvature=-torch.ones(1), bint matsumoto=False):
+    """Get pair-wise hyperbolic distance matrix.
 
-        Note if curvature=0, then the SQUARED Euclidean distance is computed.
+
     Args:
-        leaf_x (tensor):
-        int_x (2D tensor):
-        curvature (double): curvature
+        leaf_loc (tensor): leaf locations in H^dim
+        curvature (double): curvature. Must be negative.
+        matsumoto (bool): apply matsumoto transform
 
     Returns:
         ndarray: pairwise distance between point
     """
-    cdef int leaf_node_count = leaf_x.shape[0]
-    cdef int int_node_count = 0
-    if int_x is None:
-        int_x = torch.tensor((0, 0)).unsqueeze(dim=-1)
-    else:
-        int_node_count = int_x.shape[0]
-    cdef int node_count = leaf_node_count + int_node_count
-    
-    cdef pdm = torch.zeros((node_count, node_count)).double()
-
-    cdef int i_node
-    for i in range(node_count):
-        for j in range(i + 1, node_count):
-            if i < leaf_node_count and j >= leaf_node_count and int_x is not None:
-                # leaf to internal
-                j_node = j - leaf_node_count
-                dist_ij = hyperbolic_distance(
-                    leaf_x[i],
-                    int_x[j_node],
-                    curvature)
-            elif i < leaf_node_count and j < leaf_node_count:
-                # leaf to leaf
-                dist_ij = hyperbolic_distance(
-                    leaf_x[i],
-                    leaf_x[j],
-                    curvature)
-            else:
-                # internal to internal
-                i_node = i - leaf_node_count
-                j_node = j - leaf_node_count
-                dist_ij = hyperbolic_distance(
-                    int_x[i_node],
-                    int_x[j_node],
-                    curvature)
-
-            if matsumoto:
-                dist_ij = torch.log(torch.cosh(dist_ij))
-
-            pdm[i, j] = pdm[j, i] = dist_ij
-
-    return pdm
+    x_sheet = project_up_2d(leaf_loc)
+    cdef X = x_sheet @ x_sheet.T
+    cdef u_tilde = torch.sqrt(torch.diagonal(X) + 1)
+    cdef H = X - torch.outer(u_tilde, u_tilde)
+    H = torch.minimum(H, -torch.tensor(1.0000001))
+    cdef D = 1 / torch.sqrt(-curvature) * torch.arccosh(-H)
+    if matsumoto:
+        D = torch.log(torch.cosh(D))
+    return D
 
 cpdef p2t0(loc, mu=None, get_jacobian=False):
     """Convert location on Poincare ball to Euclidean space.
@@ -515,5 +482,7 @@ cpdef project_up_2d(loc):
     Location in R^n+1 on Hyperboloid
 
     """
+    if loc.ndim == 1:
+        return project_up(loc).unsqueeze(-1)
     z = torch.unsqueeze(torch.sqrt(torch.sum(torch.pow(loc, 2), 1) + 1), 1)
     return torch.cat((z, loc), axis=1)

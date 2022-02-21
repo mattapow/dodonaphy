@@ -47,6 +47,31 @@ def compress_alignment(alignment):
     return partials, torch.tensor(np.array(weights))
 
 
+def calculate_pairwise_distance(dna, adjust=None):
+    """Calculate the pairwise evolutionary distances.
+
+    The evolutionary distance rho is the number of substitutions per site.
+    These distance can be corrected under a JC69 model:
+        d = - 3/4 ln(1 - 4/3 rho).
+
+    Args:
+        dna (DnaCharacterMatrix): From Dendropy.
+        adjust (String, optional): Set to 'JC69' to adjust for JC69 distances.
+        Defaults to None.
+
+    Returns:
+        array: A 2d array of the pairwise evolutionary distances.
+    """
+    dna_np = np.array(dna.sequences())
+    rho = (dna_np[:, None] != dna_np).sum(axis=2) / len(dna[0])
+    if adjust is None:
+        return rho
+    elif adjust == "JC69":
+        return -3 / 4 * np.log(1 - 4 / 3 * rho)
+    else:
+        raise ValueError("adjust must be None or 'JC69'")
+
+
 def calculate_treelikelihood(partials, weights, post_indexing, mats, freqs):
     for left, right, node in post_indexing:
         partials[node] = torch.matmul(mats[left], partials[left]) * torch.matmul(

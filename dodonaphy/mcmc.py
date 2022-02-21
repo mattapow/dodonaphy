@@ -28,7 +28,8 @@ class DodonaphyMCMC:
         loss_fn="likelihood",
         swap_period=1000,
         n_swaps=10,
-        matsumoto=False
+        matsumoto=False,
+        tip_labels=None,
     ):
         self.n_chains = n_chains
         self.chains = []
@@ -54,7 +55,8 @@ class DodonaphyMCMC:
                     normalise_leaf=normalise_leaf,
                     loss_fn=loss_fn,
                     converge_length=None,
-                    matsumoto=matsumoto
+                    matsumoto=matsumoto,
+                    tip_labels=tip_labels,
                 )
             )
 
@@ -107,7 +109,7 @@ class DodonaphyMCMC:
         if path_write is not None:
             info_file = path_write + "/" + "mcmc.info"
             self.save_info(info_file, epochs, burnin, self.save_period)
-            tree.save_tree_head(path_write, "mcmc", self.chains[0].S)
+            tree.save_tree_head(path_write, "samples", self.chains[0].tip_labels)
 
         for chain in self.chains:
             chain.set_probability()
@@ -248,10 +250,10 @@ class DodonaphyMCMC:
         # probability of exhanging these two chains
         prob1 = (ln_post_i - ln_post_j) * chain_j.chain_temp
         prob2 = (ln_post_j - ln_post_i) * chain_i.chain_temp
-        r_accept = np.minimum(1, np.exp(prob1 + prob2))
+        ln_r_accept = np.minimum(0, prob1 + prob2)
 
         # swap with probability r
-        if r_accept > np.random.uniform(low=0.0, high=1.0):
+        if ln_r_accept > -np.random.exponential(scale=1.0):
             # swap the locations and current probability
             chain_i.leaf_x, chain_j.leaf_x = (
                 chain_j.leaf_x,
@@ -298,6 +300,7 @@ class DodonaphyMCMC:
         swap_period=1000,
         n_swaps=10,
         matsumoto=False,
+        tip_labels=None,
     ):
         """Run Dodonaphy's MCMC."""
         print("\nRunning Dodonaphy MCMC")
@@ -308,6 +311,8 @@ class DodonaphyMCMC:
         emm_tips = hp_obj.embed(equi_adj=0.0, stress=True)
         print(f"Embedding stress of tips (hydra+) = {emm_tips['stress_hydraPlus']:.4}")
 
+        partials = [partial.detach().numpy() for partial in partials]
+        weights = weights.detach().numpy()
         mymod = DodonaphyMCMC(
             partials,
             weights,
@@ -323,6 +328,7 @@ class DodonaphyMCMC:
             swap_period=swap_period,
             n_swaps=n_swaps,
             matsumoto=matsumoto,
+            tip_labels=tip_labels,
         )
 
         mymod.initialise_chains(emm_tips)

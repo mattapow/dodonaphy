@@ -6,47 +6,6 @@ from collections import Counter
 
 cdef double eps = np.finfo(np.double).eps
 
-cpdef compress_alignment_np(alignment):
-    sequences = [str(sequence) for sequence in alignment.sequences()]
-    taxa = alignment.taxon_namespace.labels()
-    count_dict = Counter(list(zip(*sequences)))
-    pattern_ordering = sorted(list(count_dict.keys()))
-    patterns_list = list(zip(*pattern_ordering))
-    weights = [count_dict[pattern] for pattern in pattern_ordering]
-    patterns = dict(zip(taxa, patterns_list))
-
-    partials = []
-
-    dna_map = {
-        "A": [1.0, 0.0, 0.0, 0.0],
-        "C": [0.0, 1.0, 0.0, 0.0],
-        "G": [0.0, 0.0, 1.0, 0.0],
-        "T": [0.0, 0.0, 0.0, 1.0],
-        "R": [1.0, 0.0, 1.0, 0.0],
-        "Y": [0.0, 1.0, 0.0, 1.0],
-        "M": [1.0, 1.0, 0.0, 0.0],
-        "W": [1.0, 0.0, 0.0, 1.0],
-        "S": [0.0, 1.0, 1.0, 0.0],
-        "K": [0.0, 0.0, 1.0, 1.0],
-        "B": [0.0, 1.0, 1.0, 1.0],
-        "D": [1.0, 0.0, 1.0, 1.0],
-        "H": [1.0, 1.0, 0.0, 1.0],
-        "V": [1.0, 1.0, 1.0, 0.0],
-        "N": [1.0, 1.0, 1.0, 1.0],
-        "?": [1.0, 1.0, 1.0, 1.0],
-        "-": [1.0, 1.0, 1.0, 1.0],
-    }
-    unknown = [1.0] * 4
-
-    for taxon in taxa:
-        partials.append(
-            np.transpose(
-                np.array([dna_map.get(c.upper(), unknown) for c in patterns[taxon]])
-            )
-        )
-    return partials, np.array(weights, dtype=int)
-
-
 def compute_LL_np(partials,
     np.ndarray[np.int_t, ndim=1] weights,
     np.ndarray[np.int_t, ndim=2] peel,

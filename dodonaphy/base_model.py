@@ -1,12 +1,13 @@
 "Base model for MCMC and VI inference"
+import matplotlib.pyplot as plt
 import numpy as np
 import torch
 from dendropy import Tree
-from dendropy.model.birthdeath import birth_death_likelihood as birth_death_likelihood
+from dendropy.model.birthdeath import birth_death_likelihood
 
 from dodonaphy import poincare
 
-from . import Chyp_torch, Chyp_np
+from . import Chyp_np, Chyp_torch
 from . import tree as treeFunc
 from .phylo import JC69_p_t, calculate_treelikelihood
 from .utils import LogDirPrior
@@ -28,6 +29,7 @@ class BaseModel(object):
         loss_fn="likelihood",
         require_grad=True,
         matsumoto=False,
+        tip_labels=None,
     ):
         self.partials = partials.copy()
         self.weights = weights
@@ -56,6 +58,9 @@ class BaseModel(object):
         assert loss_fn in ("likelihood", "pair_likelihood", "hypHC")
         self.loss_fn = loss_fn
         self.matsumoto = matsumoto
+        if tip_labels is None:
+            tip_labels = [f"T{i}" for i in range(self.S)]
+        self.tip_labels = tip_labels
 
         # make space for internal partials
         for _ in range(self.S - 1):
@@ -82,7 +87,8 @@ class BaseModel(object):
         useNP=True,
         matsumoto=False,
     ):
-        """Computes the hyperbolic distance of two points given in radial/directional coordinates in the Poincare ball
+        """Computes the hyperbolic distance of two points given in radial-\
+            directional coordinates in the Poincare ball
 
         Args:
             n_taxa (integer): [description]
@@ -309,3 +315,18 @@ class BaseModel(object):
         ln_prior = ln_prior - torch.sum(torch.log(torch.arange(n_leaf * 2 - 5, 0, -2)))
 
         return ln_prior
+
+    @staticmethod
+    def trace(epochs, like_hist, path_write):
+        """Plot trace and histogram of likelihood."""
+        plt.figure()
+        plt.plot(range(epochs), like_hist, "r", label="likelihood")
+        plt.xlabel("Epochs")
+        plt.ylabel("likelihood")
+        plt.legend()
+        plt.savefig(path_write + "/likelihood_trace.png")
+
+        plt.clf()
+        plt.hist(like_hist)
+        plt.title("Likelihood histogram")
+        plt.savefig(path_write + "/likelihood_hist.png")

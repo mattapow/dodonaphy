@@ -5,7 +5,7 @@ import numpy as np
 from dendropy.model.discrete import simulate_discrete_chars
 from dendropy.simulate import treesim
 from dodonaphy.mcmc import DodonaphyMCMC as mcmc
-from dodonaphy import Cphylo
+from dodonaphy import phylo
 from dodonaphy.utils import tip_distances
 
 
@@ -35,7 +35,7 @@ def test_mcmc_geodesics():
         seq_len=L, tree_model=simtree, seq_model=dendropy.model.discrete.Jc69(), rng=rng
     )
 
-    partials, weights = Cphylo.compress_alignment_np(dna)
+    partials, weights = phylo.compress_alignment(dna)
 
     dists = tip_distances(simtree, S)
 
@@ -57,22 +57,19 @@ def test_mcmc_geodesics():
 
 def test_mcmc_geodesics_wrap():
     # Simulation parameters
-    dim = 2  # number of dimensions for embedding
+    dim = 3  # number of dimensions for embedding
     S = 11  # number of sequences to simulate
-    L = 1000  # length of sequences to simulate
-    prior = {"birth_rate": 2.0, "death_rate": 0.5}
 
     # simulate a tree
     simtree = treesim.birth_death_tree(
-        birth_rate=prior["birth_rate"],
-        death_rate=prior["death_rate"],
+        birth_rate=2.,
+        death_rate=0.5,
         num_extant_tips=S,
     )
     dna = simulate_discrete_chars(
-        seq_len=L, tree_model=simtree, seq_model=dendropy.model.discrete.Jc69()
+        seq_len=1000, tree_model=simtree, seq_model=dendropy.model.discrete.Jc69()
     )
-    partials, weights = Cphylo.compress_alignment_np(dna)
-
+    partials, weights = phylo.compress_alignment(dna)
     dists = tip_distances(simtree, S)
 
     # Run Dodoanphy MCMC
@@ -120,7 +117,7 @@ def test_mcmc_project_up_nj():
         seq_len=L, tree_model=simtree, seq_model=dendropy.model.discrete.Jc69(), rng=rng
     )
 
-    partials, weights = Cphylo.compress_alignment_np(dna)
+    partials, weights = phylo.compress_alignment(dna)
 
     # Get tip pair-wise distance
     dists = np.zeros((S, S))
@@ -173,7 +170,7 @@ def test_mcmc_wrap_nj():
         seq_len=L, tree_model=simtree, seq_model=dendropy.model.discrete.Jc69(), rng=rng
     )
 
-    partials, weights = Cphylo.compress_alignment_np(dna)
+    partials, weights = phylo.compress_alignment(dna)
 
     # Get tip pair-wise distance
     dists = np.zeros((S, S))

@@ -5,6 +5,8 @@ Hyperbolic embeddings for approximating phylogenetic posteriors.
 This code is under active research & development and not intended for production use for phylogenetic inference.
 
 ## Installing with Conda and Pip
+First install the Python version of hydra+ from https://github.com/mattapow/hydraPlus.
+
 On Mac OS Catalina, CommandLineTools (possibly used in setuptools) has an error in python==3.8.2. Numpy does not yet support python>=3.10. So use 3.9
 
 ```
