@@ -191,14 +191,15 @@ class HMAP(BaseModel):
             blens = torch.tensor(blens)
             ln_p = self.compute_LL(peel, blens)
             ln_prior = self.compute_prior_gamma_dir(blens)
-            tree.save_tree(
-                path_write,
-                filename,
-                peel,
-                blens,
-                smp_i,
-                ln_p,
-                ln_prior,
-                tip_labels=self.tip_labels,
-            )
+            if path_write is not None:
+                tree.save_tree(
+                    path_write,
+                    filename,
+                    peel,
+                    blens,
+                    smp_i,
+                    ln_p,
+                    ln_prior,
+                    tip_labels=self.tip_labels,
+                )
         print("done.")
