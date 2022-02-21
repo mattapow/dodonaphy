@@ -55,7 +55,7 @@ def test_laplace():
         matsumoto=False,
     )
     mymod.learn(epochs=5, learn_rate=0.001, path_write=None)
-    temp_path = "./tmp"
+    temp_path = "./tmp_test_laplace"
     if not os.path.exists(temp_path):
         os.mkdir(temp_path)
     mymod.laplace(temp_path, n_samples=2)

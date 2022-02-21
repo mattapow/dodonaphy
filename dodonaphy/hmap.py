@@ -55,7 +55,6 @@ class HMAP(BaseModel):
         self.matsumoto = matsumoto
         self.loss = torch.zeros(1)
 
-
     def learn(self, epochs, learn_rate, path_write):
         """Optimise params["dists"]"."""
 
@@ -148,7 +147,7 @@ class HMAP(BaseModel):
         elif self.prior == "birthdeath":
             return self.compute_prior_birthdeath(self.peel, self.blens)
 
-    def get_ln_posterior(self, leaf_loc):
+    def get_ln_posterior(self, leaf_loc_flat):
         """Returns the posterior value.
 
         Assumes phylo likelihood as model.
@@ -157,6 +156,7 @@ class HMAP(BaseModel):
             leaf_loc ([type]): [description]
             curvature ([type]): [description]
         """
+        leaf_loc = leaf_loc_flat.view((self.S, self.D))
         dist_2d = Chyp_torch.get_pdm(
             leaf_loc, curvature=self.curvature, matsumoto=self.matsumoto
         )
@@ -178,23 +178,14 @@ class HMAP(BaseModel):
         print("Generating laplace approximation: ", end="", flush=True)
         filename = "laplace_samples"
         tree.save_tree_head(path_write, filename, self.tip_labels)
-        samples = torch.zeros((self.S, self.D, n_samples))
-        for taxa in range(self.S):
-            mean = self.params["leaf_loc"][taxa]
-            res = hessian(
-                self.get_ln_posterior, self.params["leaf_loc"][taxa], vectorize=True
-            )
+        mean = self.params["leaf_loc"].view(-1)
+        for smp_i in range(n_samples):
+            res = hessian(self.get_ln_posterior, mean, vectorize=True)
             cov = -torch.linalg.inv(res)
             norm_aprx = normal(mean, cov)
-            samples[taxa, :, :] = np.swapaxes(
-                norm_aprx.sample(torch.Size((n_samples,))), 0, 1
-            )
-        print("done.")
-
-        print("Drawing samples from laplace approximation: ", end="", flush=True)
-        for i in range(n_samples):
+            sample = norm_aprx.sample(torch.Size((1,)))
             dists = Chyp_torch.get_pdm(
-                samples[..., i], curvature=self.curvature, matsumoto=self.matsumoto
+                sample, curvature=self.curvature, matsumoto=self.matsumoto
             )
             peel, blens = peeler.nj_torch(dists)
             blens = torch.tensor(blens)
@@ -205,7 +196,7 @@ class HMAP(BaseModel):
                 filename,
                 peel,
                 blens,
-                i,
+                smp_i,
                 ln_p,
                 ln_prior,
                 tip_labels=self.tip_labels,
