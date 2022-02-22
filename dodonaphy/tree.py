@@ -186,13 +186,13 @@ def tree_to_newick(tipnames, peel_row, blen_row):
     return str(chunks[peel_row[-1][2]])
 
 
-def save_tree_head(path_write, filename, tip_labels, format="MrBayes"):
+def save_tree_head(path_write, filename, tip_labels, formatter="MrBayes"):
     if path_write is None:
         return
     fn = path_write + "/" + filename + ".t"
     S = len(tip_labels)
-    assert format in ("Beast", "MrBayes"), "Invalid save format specified."
-    if format == "Beast":
+    assert formatter in ("Beast", "MrBayes"), "Invalid save format specified."
+    if formatter == "Beast":
         with open(fn, "w", encoding="UTF-8") as file:
             file.write("#NEXUS\n\n")
             file.write("Begin taxa;\n\tDimensions ntax=" + str(S) + ";\n")
@@ -208,6 +208,8 @@ def save_tree_head(path_write, filename, tip_labels, format="MrBayes"):
     else:
         with open(fn, "w", encoding="UTF-8") as file:
             file.write("#NEXUS\n[Param: tree]\nbegin trees;\n\ttranslate\n")
-            for i, taxon in enumerate(tip_labels[:-1]):
-                file.write(f"\t\t{i+1} {taxon},\n")
-            file.write(f"\t\t{i+2} {tip_labels[-1]};\n")
+            idx = 1
+            for taxon in tip_labels[:-1]:
+                file.write(f"\t\t{idx} {taxon},\n")
+                idx += 1
+            file.write(f"\t\t{idx} {tip_labels[-1]};\n")
