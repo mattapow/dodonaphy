@@ -30,6 +30,8 @@ class DodonaphyMCMC:
         n_swaps=10,
         matsumoto=False,
         tip_labels=None,
+        warm_up=100,
+        mcmc_alg="RAM",
     ):
         self.n_chains = n_chains
         self.chains = []
@@ -57,6 +59,8 @@ class DodonaphyMCMC:
                     converge_length=None,
                     matsumoto=matsumoto,
                     tip_labels=tip_labels,
+                    warm_up=warm_up,
+                    mcmc_alg=mcmc_alg,
                 )
             )
 
@@ -126,8 +130,17 @@ class DodonaphyMCMC:
 
         for epoch in range(1, epochs + 1):
             for chain in self.chains:
-                chain.evolve()
-                chain.tune_step()
+                if epoch < chain.warm_up:
+                    chain.evolve()
+                    chain.tune_step()
+                elif chain.mcmc_alg == "RAM":
+                    chain.evolve_RAM()
+                elif chain.mcmc_alg == "tune":
+                    chain.evolve()
+                    chain.tune_step()
+                elif chain.mcmc_alg == "AM":
+                    chain.evolve()
+                    chain.adapt_covariance()
 
             do_save = self.save_period > 0 and epoch % self.save_period == 0
             if do_save:
@@ -135,7 +148,9 @@ class DodonaphyMCMC:
                 if path_write is not None:
                     self.save_iteration(path_write, epoch)
 
-            try_swap = self.n_chains > 1 and epoch % self.swap_period == self.swap_period - 1
+            try_swap = (
+                self.n_chains > 1 and epoch % self.swap_period == self.swap_period - 1
+            )
             if try_swap:
                 for _ in range(self.n_swaps):
                     swaps += self.swap()
@@ -150,6 +165,8 @@ class DodonaphyMCMC:
             file.write(f"Burnin: {burnin}\n")
             file.write(f"Save period: {save_period}\n")
             file.write(f"Dimensions: {self.chains[0].D}\n")
+            file.write(f"swap period: {self.swap_period}\n")
+            file.write(f"Number of swaps per swap period: {self.n_swaps}\n")
             file.write(f"# Taxa:  {self.chains[0].S}\n")
             file.write(f"Unique sites:  {self.chains[0].L}\n")
             file.write(f"\nChains:  {self.n_chains}\n")
@@ -158,6 +175,12 @@ class DodonaphyMCMC:
                 file.write(f"Convergence length: {chain.converge_length}\n")
                 file.write(f"Connect Mthd:  {chain.connector}\n")
                 file.write(f"Embed Mthd:  {chain.embedder}\n")
+                file.write(f"Curvature: {chain.curvature}\n")
+                file.write(f"Normalise Leaf: {chain.normalise_leaf}\n")
+                file.write(f"Loss function: {chain.loss_fn}\n")
+                file.write(f"Matsumoto adustment: {chain.matsumoto}\n")
+                file.write(f"Warm-up period: {chain.warm_up}\n")
+                file.write(f"MCMC algorithm: {chain.mcmc_alg}\n")
 
     def save_final_info(self, path_write, swaps, seconds):
         """Save tail of info file with acceptance and time taken."""
@@ -298,6 +321,8 @@ class DodonaphyMCMC:
         n_swaps=10,
         matsumoto=False,
         tip_labels=None,
+        warm_up=100,
+        mcmc_alg="RAM",
     ):
         """Run Dodonaphy's MCMC."""
         print("\nRunning Dodonaphy MCMC")
@@ -326,6 +351,8 @@ class DodonaphyMCMC:
             n_swaps=n_swaps,
             matsumoto=matsumoto,
             tip_labels=tip_labels,
+            warm_up=warm_up,
+            mcmc_alg=mcmc_alg,
         )
 
         mymod.initialise_chains(emm_tips)

@@ -10,6 +10,8 @@ from .Chyp_np import tangent_to_hyper_jacobian as t02hyp_J
 class Chain(BaseModel):
     """A Markov Chain class"""
 
+    eps = 2.220446049250313e-16
+
     def __init__(
         self,
         partials,
@@ -28,6 +30,8 @@ class Chain(BaseModel):
         loss_fn="likelihood",
         matsumoto=False,
         tip_labels=None,
+        warm_up=100,
+        mcmc_alg="RAM",
     ):
         super().__init__(
             partials,
@@ -48,7 +52,15 @@ class Chain(BaseModel):
         self.jacobian = np.zeros(1)
         if leaf_x is not None:
             self.S = leaf_x.shape()[0]
+            self.X_bar = leaf_x.flatten()
         self.step_scale = step_scale
+        self.cov = np.eye(self.S * self.D, dtype=np.double) * step_scale
+        self.mcmc_alg = mcmc_alg
+        if mcmc_alg == "AM" and warm_up <= 2:
+            err_msg = f"Warm up period must be stricly greater than 2 for AM \
+algorithm, got {warm_up}."
+            raise ValueError(err_msg)
+        self.warm_up = warm_up
         self.chain_temp = chain_temp
         self.accepted = 0
         self.iterations = 0
@@ -104,29 +116,19 @@ class Chain(BaseModel):
         self.ln_prior = Cphylo.compute_prior_gamma_dir_np(self.blens)
 
     def evolve(self):
-        """Propose new embedding"""
-        proposal = self.sample_leaf_np(self.leaf_x, self.step_scale)
-
+        """Propose new embedding with regular MCMC."""
+        proposal = self.sample_leaf_np(self.leaf_x, self.cov)
         ln_r_accept = self.ln_accept_ratio(proposal)
 
-        accept = False
-        if ln_r_accept >= 0:
-            accept = True
-        elif -np.random.exponential(scale=1.0) < ln_r_accept:
-            accept = True
+        self.check_proposal(proposal, ln_r_accept)
 
-        if accept:
-            self.leaf_x = proposal["leaf_x"]
-            self.ln_p = proposal["ln_p"]
-            self.ln_prior = proposal["ln_prior"]
-            self.peel = proposal["peel"]
-            self.blens = proposal["blens"]
-            self.jacobian = proposal["jacobian"]
-            if self.internals_exist:
-                self.int_x = proposal["int_x"]
-            self.accepted += 1
+        if self.iterations == 0:
+            self.X_bar = self.leaf_x.flatten()
+        elif self.iterations <= self.warm_up:
+            self.X_bar = self.X_bar + 1 / (self.iterations + 1) * (
+                self.leaf_x.flatten() - self.X_bar
+            )
         self.iterations += 1
-        return accept
 
     def ln_accept_ratio(self, prop):
         """Log acceptance critereon for Metropolis-Hastings
@@ -145,7 +147,9 @@ class Chain(BaseModel):
         ln_jacob_diff = prop["jacobian"] - self.jacobian
         ln_hastings_diff = 0.0
 
-        ln_r_accept = (ln_prior_diff + ln_like_diff + ln_jacob_diff) * self.chain_temp + ln_hastings_diff
+        ln_r_accept = (
+            ln_prior_diff + ln_like_diff + ln_jacob_diff
+        ) * self.chain_temp + ln_hastings_diff
         return np.minimum(0.0, ln_r_accept)
 
     def euler_step(self, value, learn_rate=0.01):
@@ -154,14 +158,14 @@ class Chain(BaseModel):
     def scale_step(self, sign, learn_rate=2.0):
         return np.power(learn_rate, sign) * self.step_scale
 
-    def tune_step(self):
+    def tune_step(self, decay=0.5):
         """Tune the acceptance rate.
 
         Use Euler method if acceptance rate is within 0.5 of target acceptance
         and is greater than 0.1. Solves:
             d(step)/d(acceptance) = acceptance - target_acceptance.
-        Learning rate 0.01 and refined to 0.001 when acceptance within 0.1 of
-        target.
+        Learning rate decays as (iteration + 1)^-decay when acceptance within
+        0.1 of target.
 
         Otherwise scale the step by a factor of 10 (or 1/10 if step too big).
 
@@ -175,20 +179,70 @@ class Chain(BaseModel):
         if not self.more_tune or self.iterations == 0:
             return
 
+        eta = (self.iterations + 1) ** -decay
         acceptance = self.accepted / self.iterations
         accept_diff = acceptance - self.target_acceptance
         if np.abs(acceptance - self.target_acceptance) < 0.1:
-            self.step_scale = self.euler_step(accept_diff, learn_rate=0.001)
-        elif np.abs(acceptance - self.target_acceptance) < 0.5 and acceptance > 0.1:
-            self.step_scale = self.euler_step(accept_diff, learn_rate=0.01)
+            new_step_scale = self.euler_step(accept_diff, learn_rate=eta)
         else:
-            self.step_scale = self.scale_step(
+            new_step_scale = self.scale_step(
                 sign=accept_diff / np.abs(accept_diff), learn_rate=10.0
             )
-        eps = 2.220446049250313e-16
-        self.step_scale = np.maximum(self.step_scale, eps)
-
+        new_step_scale = np.maximum(new_step_scale, self.eps)
+        self.cov = self.cov * new_step_scale / self.step_scale
+        self.step_scale = new_step_scale
         self.check_convergence(accept_diff)
+
+    def adapt_covariance(self):
+        """Based on an Adaptive Metropolis Algoirthm, Haario 2001"""
+        X = self.leaf_x.flatten()
+        t = self.iterations
+        s_d = 2.4 ** 2 / (self.S * self.D)
+        X_bar_last = self.X_bar
+        self.X_bar = X_bar_last + 1 / (t + 1) * (X - X_bar_last)
+
+        self.cov = (t - 1) / t * self.cov + s_d / t * (
+            t * np.outer(X_bar_last, X_bar_last)
+            - (t - 1) * np.outer(self.X_bar, self.X_bar)
+            + np.outer(X, X)
+            + self.eps * np.eye(self.S * self.D)
+        )
+        return
+
+    def check_proposal(self, proposal, ln_r_accept):
+        accept = False
+        if ln_r_accept >= 0:
+            accept = True
+        elif -np.random.exponential(scale=1.0) < ln_r_accept:
+            accept = True
+        if accept:
+            self.leaf_x = proposal["leaf_x"]
+            self.ln_p = proposal["ln_p"]
+            self.ln_prior = proposal["ln_prior"]
+            self.peel = proposal["peel"]
+            self.blens = proposal["blens"]
+            self.jacobian = proposal["jacobian"]
+            if self.internals_exist:
+                self.int_x = proposal["int_x"]
+            self.accepted += 1
+        return
+
+    def evolve_RAM(self):
+        """Based on Robust Adaptive Metropolis, Vihola 2012"""
+        proposal = self.sample_leaf_np(self.leaf_x, self.cov)
+        ln_r_accept = self.ln_accept_ratio(proposal)
+        U = proposal["leaf_x"].flatten() - self.leaf_x.flatten()
+
+        self.check_proposal(proposal, ln_r_accept)
+
+        n = self.S * self.D
+        eta = (self.iterations + 1) ** (-0.5)
+        accept_diff = np.exp(ln_r_accept) - self.target_acceptance
+        U_out = np.outer(U, U) / np.linalg.norm(U) ** 2
+        cov_full = self.cov * (np.eye(n) + eta * accept_diff * U_out) * self.cov.T
+        self.cov = np.linalg.cholesky(cov_full)
+        self.iterations += 1
+        return
 
     def check_convergence(self, accept_diff, tol=0.01):
         """Check for convergence of step.
@@ -209,7 +263,7 @@ class Chain(BaseModel):
             self.more_tune = False
             print(f"Step tuned to {self.step_scale}.")
 
-    def sample_leaf_np(self, leaf_loc, leaf_cov_single):
+    def sample_leaf_np(self, leaf_loc, leaf_cov):
         """Sample a nearby tree embedding.
 
         Each point is transformed R^n (using the self.embedding method), then
@@ -218,7 +272,6 @@ class Chain(BaseModel):
 
         A dictionary is  returned containing information about this sampled tree.
         """
-        leaf_cov = np.eye(self.S * self.D, dtype=np.double) * leaf_cov_single
         leaf_x_prop, log_abs_det_jacobian = self.sample_loc_np(leaf_loc, leaf_cov)
 
         int_x_prop = None

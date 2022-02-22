@@ -62,7 +62,7 @@ def test_mcmc_geodesics_wrap():
 
     # simulate a tree
     simtree = treesim.birth_death_tree(
-        birth_rate=2.,
+        birth_rate=2.0,
         death_rate=0.5,
         num_extant_tips=S,
     )
@@ -141,7 +141,9 @@ def test_mcmc_project_up_nj():
         n_chains=n_chains,
         connector=connector,
         embedder=embedder,
+        warm_up=0,
     )
+
 
 def test_mcmc_wrap_nj():
     # Simulation parameters

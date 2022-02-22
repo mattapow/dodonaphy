@@ -19,7 +19,6 @@ from dodonaphy.phylo import compress_alignment, calculate_pairwise_distance
 from dodonaphy.vi import DodonaphyVI
 
 
-
 def run(args):
     """Run dodonaphy.
     Using an embedding for MCMC, or embedding variational inference,
@@ -82,6 +81,8 @@ def run(args):
             n_swaps=args.n_swaps,
             matsumoto=args.matsumoto,
             tip_labels=tip_labels,
+            warm_up=args.warm_up,
+            mcmc_alg=args.mcmc_alg,
         )
     elif args.infer == "vi":
         DodonaphyVI.run(
@@ -128,14 +129,14 @@ def run(args):
             tip_labels=tip_labels,
         )
         mymod.learn(epochs=args.epochs, learn_rate=args.learn, path_write=path_write)
-    
-    elif args.infer =="hmap":
+
+    elif args.infer == "hmap":
         assert args.temp > 0.0, "Temperature must be greater than 0."
         partials, weights = compress_alignment(dna)
         mymod = HMAP(
             partials[:],
             weights,
-            dim = args.dim,
+            dim=args.dim,
             dists=dists,
             soft_temp=args.temp,
             loss_fn=args.loss_fn,
@@ -145,13 +146,13 @@ def run(args):
         )
         mymod.learn(epochs=args.epochs, learn_rate=args.learn, path_write=path_write)
 
-    elif args.infer =="hlaplace":
+    elif args.infer == "hlaplace":
         assert args.temp > 0.0, "Temperature must be greater than 0."
         partials, weights = compress_alignment(dna)
         mymod = HMAP(
             partials[:],
             weights,
-            dim = args.dim,
+            dim=args.dim,
             dists=dists,
             soft_temp=args.temp,
             loss_fn=args.loss_fn,
@@ -408,6 +409,22 @@ def init_parser():
         default=10,
         type=int,
         help="MCMC: Number of MCMC chain swap moves considered every swap_period.",
+    )
+    parser.add_argument(
+        "--warm_up",
+        default=100,
+        type=int,
+        help="MCMC: Number of iterations before using adaptive covariance.\
+            Tune a single step for all tips before this iteration.",
+    )
+    parser.add_argument(
+        "--mcmc_alg",
+        default="RAM",
+        choices=("RAM", "tune", "AM"),
+        help="MCMC: algorithm used. Robust adaptive Metropolis (RAM) is only\
+            used after warm_up. Tune: the covariance by multipying by a\
+            constant to achieve target acceptance rate (used during warm_up).\
+            Adaptive Metropolis (AM) won't tune acceptance rate.",
     )
 
     # tuning parameters
