@@ -138,9 +138,15 @@ def save_tree(
     tree = tree_to_newick(tip_labels, peel, blens)
     fn = os.path.join(root_dir, filename + ".t")
     with open(fn, "a+", encoding="UTF-8") as file:
-        file.write("tree STATE_" + str(iteration))
+        file.write("\ttree STATE_" + str(iteration))
         file.write(" [&lnL=%f, &lnPr=%f] = [&U] " % (lnL, lnPr))
         file.write(tree + "\n")
+
+
+def end_tree_file(path_write):
+    fn = os.path.join(path_write, "mcmc.t")
+    with open(fn, "a+", encoding="UTF-8") as file:
+        file.write("end;\n")
 
 
 def tree_to_newick(tipnames, peel_row, blen_row):
@@ -201,7 +207,7 @@ def save_tree_head(path_write, filename, tip_labels, format="MrBayes"):
             file.write("\t\tT%d T%d;\n" % (S, S))
     else:
         with open(fn, "w", encoding="UTF-8") as file:
-            file.write("#NEXUS\n[Param: tree]\nbegin trees;\n\ttranslate;\n")
+            file.write("#NEXUS\n[Param: tree]\nbegin trees;\n\ttranslate\n")
             for i, taxon in enumerate(tip_labels[:-1]):
-                file.write(f"\t\t{i} {taxon},\n")
-            file.write(f"\t\t{i+1} {tip_labels[-1]};\n")
+                file.write(f"\t\t{i+1} {taxon},\n")
+            file.write(f"\t\t{i+2} {tip_labels[-1]};\n")

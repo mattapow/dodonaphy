@@ -157,6 +157,7 @@ class DodonaphyMCMC:
 
         if path_write is not None:
             self.save_final_info(path_write, swaps, time.time() - start)
+            tree.end_tree_file(path_write)
 
     def save_info(self, file, epochs, burnin, save_period):
         """Save information about this simulation."""

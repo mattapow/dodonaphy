@@ -54,6 +54,7 @@ def run(args):
         args.taxa = len(start_tree)
         dists = utils.tip_distances(start_tree, args.taxa)
         tip_labels = start_tree.taxon_namespace.labels()
+    tip_labels = [label.replace(" ", "_") for label in tip_labels]
 
     if args.matsumoto:
         dists = np.arccosh(np.exp(dists))
