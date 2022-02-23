@@ -9,7 +9,7 @@ from torch.distributions.multivariate_normal import MultivariateNormal
 from . import tree, utils, peeler, Ctransforms, Chyp_torch
 from .base_model import BaseModel
 from .phylo import JC69_p_t, calculate_treelikelihood
-import hydra
+import hydraPlus
 
 
 class DodonaphyVI(BaseModel):
@@ -25,6 +25,7 @@ class DodonaphyVI(BaseModel):
         noise=None,
         truncate=None,
         tip_labels=None,
+        n_boosts=1,
     ):
         super().__init__(
             partials,
@@ -38,12 +39,12 @@ class DodonaphyVI(BaseModel):
         )
         print("Initialising variational model.\n")
 
-        # Store mu on poincare ball in R^dim.
-        # Distributions stored in tangent space T_0 H^D, then transformed to poincare ball.
-        # The distribution for each point has a single sigma (i.e. mean field in x, y).
-        eps = np.finfo(np.double).eps
-        leaf_sigma = np.log(np.abs(np.random.randn(self.S, self.D)) + eps)
-        int_sigma = np.log(np.abs(np.random.randn(self.S - 2, self.D)) + eps)
+        # Store distribution centres mu in hyperboloid projected onto R^dim.
+        # The last coordinate in R^(dim+1) is determined.
+        self.n_boosts = n_boosts
+        mix_weights = np.full((n_boosts), 1 / n_boosts)
+        leaf_sigma = np.random.exponential(size=(self.n_boosts, self.S, self.D))
+        int_sigma = np.random.exponential(size=(self.n_boosts, self.S - 2, self.D))
         self.noise = noise
         self.truncate = truncate
         self.ln_p = self.compute_LL(self.peel, self.blens)
@@ -51,25 +52,37 @@ class DodonaphyVI(BaseModel):
         if not self.internals_exist:
             self.VariationalParams = {
                 "leaf_mu": torch.randn(
-                    (self.S, self.D), requires_grad=True, dtype=torch.float64
+                    (self.n_boosts, self.S, self.D),
+                    requires_grad=True,
+                    dtype=torch.float64,
                 ),
                 "leaf_sigma": torch.tensor(
                     leaf_sigma, requires_grad=True, dtype=torch.float64
+                ),
+                "mix_weights": torch.tensor(
+                    mix_weights, requires_grad=True, dtype=torch.float64
                 ),
             }
         else:
             self.VariationalParams = {
                 "leaf_mu": torch.randn(
-                    (self.S, self.D), requires_grad=True, dtype=torch.float64
+                    (self.n_boosts, self.S, self.D),
+                    requires_grad=True,
+                    dtype=torch.float64,
                 ),
                 "leaf_sigma": torch.tensor(
                     leaf_sigma, requires_grad=True, dtype=torch.float64
                 ),
                 "int_mu": torch.randn(
-                    (self.S - 2, self.D), requires_grad=True, dtype=torch.float64
+                    (self.n_boosts, self.S - 2, self.D),
+                    requires_grad=True,
+                    dtype=torch.float64,
                 ),
                 "int_sigma": torch.tensor(
                     int_sigma, requires_grad=True, dtype=torch.float64
+                ),
+                "mix_weights": torch.tensor(
+                    mix_weights, requires_grad=True, dtype=torch.float64
                 ),
             }
 
@@ -89,20 +102,21 @@ class DodonaphyVI(BaseModel):
         blens = []
         location = []
         lp = []
+        mix_samples = torch.multinomial(self.VariationalParams["mix_weights"], num_samples=nSample, replacement=True)
         with torch.no_grad():
-            for _ in range(nSample):
-
-                n_tip_params = torch.numel(self.VariationalParams["leaf_mu"])
-                leaf_loc = self.VariationalParams["leaf_mu"].reshape(n_tip_params)
+            for i in range(nSample):
+                mix_idx = mix_samples[i]
+                n_tip_params = torch.numel(self.VariationalParams["leaf_mu"][mix_idx])
+                leaf_loc = self.VariationalParams["leaf_mu"][mix_idx].reshape(n_tip_params)
                 leaf_cov = torch.eye(
                     n_tip_params, dtype=torch.double
-                ) * self.VariationalParams["leaf_sigma"].exp().reshape(n_tip_params)
+                ) * self.VariationalParams["leaf_sigma"][mix_idx].exp().reshape(n_tip_params)
                 if self.internals_exist:
                     n_int_params = torch.numel(self.VariationalParams["int_mu"])
-                    int_loc = self.VariationalParams["int_mu"].reshape(n_int_params)
+                    int_loc = self.VariationalParams["int_mu"][mix_idx].reshape(n_int_params)
                     int_cov = torch.eye(
                         n_int_params, dtype=torch.double
-                    ) * self.VariationalParams["int_sigma"].exp().reshape(n_int_params)
+                    ) * self.VariationalParams["int_sigma"][mix_idx].exp().reshape(n_int_params)
                     sample = self.rsample(leaf_loc, leaf_cov, int_loc, int_cov)
                 else:
                     sample = self.rsample(leaf_loc, leaf_cov)
@@ -130,29 +144,26 @@ class DodonaphyVI(BaseModel):
         else:
             return peel, blens, location
 
-    def calculate_elbo(self):
-        """Calculate the elbo of a sample from the variational distributions q
+    def calculate_elbo(self, mix_idx):
+        """Calculate the elbo of a sample from the variational distributions q_k
 
         Args:
-            q_leaf (Multivariate distribution):
-                Distributions of leave locations in tangent space of hyperboloid T_0 H^n
-            q_int (Multivariate distribution):
-                Distributions of internal node locations in tangent space of hyperboloid T_0 H^n
+            mix_idx (int): index of mixture
 
         Returns:
             float: The evidence lower bound of a sample from q
         """
-        n_tip_params = torch.numel(self.VariationalParams["leaf_mu"])
-        leaf_loc = self.VariationalParams["leaf_mu"].reshape(n_tip_params)
+        n_tip_params = torch.numel(self.VariationalParams["leaf_mu"][mix_idx])
+        leaf_loc = self.VariationalParams["leaf_mu"][mix_idx].reshape(n_tip_params)
         leaf_cov = torch.eye(n_tip_params, dtype=torch.double) * self.VariationalParams[
             "leaf_sigma"
-        ].exp().reshape(n_tip_params)
+        ][mix_idx].exp().reshape(n_tip_params)
         if self.internals_exist:
-            n_int_params = torch.numel(self.VariationalParams["int_mu"])
-            int_loc = self.VariationalParams["int_mu"].reshape(n_int_params)
+            n_int_params = torch.numel(self.VariationalParams["int_mu"][mix_idx])
+            int_loc = self.VariationalParams["int_mu"][mix_idx].reshape(n_int_params)
             int_cov = torch.eye(
                 n_int_params, dtype=torch.double
-            ) * self.VariationalParams["int_sigma"].exp().reshape(n_int_params)
+            ) * self.VariationalParams["int_sigma"][mix_idx].exp().reshape(n_int_params)
             sample = self.rsample(leaf_loc, leaf_cov, int_loc, int_cov)
         else:
             sample = self.rsample(leaf_loc, leaf_cov)
@@ -160,30 +171,49 @@ class DodonaphyVI(BaseModel):
         return sample["ln_p"] + sample["ln_prior"] - sample["logQ"] + sample["jacobian"]
 
     def learn(
-        self, param_init=None, epochs=1000, k_samples=3, path_write="./out", lr=1e-3
+        self,
+        param_init=None,
+        epochs=1000,
+        importance_samples=1,
+        path_write="./out",
+        lr=1e-3,
     ):
         """Learn the variational parameters using Adam optimiser
         Args:
             param_init (dict, optional): Initial parameters. Defaults to None.
             epochs (int, optional): Number of epochs. Defaults to 1000.
-            k_samples (int, optional): Number of tree samples at each epoch. Defaults to 3.
+            importance_samples (int, optional): Number of tree samples at each epoch. Defaults to 1.
         """
-        print("Using %i tree samples at each epoch." % k_samples)
-        print("Running for %i epochs.\n" % epochs)
+        print(f"Using {importance_samples} tree samples at each epoch.")
+        print(f"Using {self.n_boosts} variational distributions for boosting.")
+        print(f"Running for {epochs} epochs.\n")
 
         # initialise variational parameters if given
         if param_init is not None:
-            self.VariationalParams["leaf_mu"] = param_init["leaf_mu"]
-            self.VariationalParams["leaf_sigma"] = param_init["leaf_sigma"]
+            if param_init["leaf_mu"].ndim == 2:
+                param_init["leaf_mu"].unsqueeze(0)
+            if param_init["leaf_sigma"].ndim == 2:
+                param_init["leaf_sigma"].unsqueeze(0)
+            self.VariationalParams["leaf_mu"] = param_init["leaf_mu"].repeat((self.n_boosts, 1, 1)).requires_grad_()
+            self.VariationalParams["leaf_sigma"] = param_init["leaf_sigma"].repeat((self.n_boosts, 1, 1)).requires_grad_()
             if self.internals_exist:
-                self.VariationalParams["int_mu"] = param_init["int_mu"]
-                self.VariationalParams["int_sigma"] = param_init["int_sigma"]
+                if param_init["int_mu"].ndim == 2:
+                    param_init["int_mu"].unsqueeze(0)
+                if param_init["int_sigma"].ndim == 2:
+                    param_init["int_sigma"].unsqueeze(0)
+                self.VariationalParams["int_mu"] = param_init["int_mu"].repeat((self.n_boosts, 1, 1)).requires_grad_()
+                self.VariationalParams["int_sigma"] = param_init["int_sigma"].repeat((self.n_boosts, 1, 1)).requires_grad_()
 
         if path_write is not None:
             fn = path_write + "/" + "vi.info"
             with open(fn, "w", encoding="UTF-8") as file:
                 file.write("%-12s: %i\n" % ("# epochs", epochs))
-                file.write("%-12s: %i\n" % ("k_samples", k_samples))
+                file.write("%-12s: %i\n" % ("Importance", importance_samples))
+                file.write("%-12s: %i\n" % ("# mixtures", self.n_boosts))
+                file.write("%-12s: %i\n" % ("Curvature", self.curvature))
+                file.write("%-12s: %i\n" % ("Matsumoto", self.matsumoto))
+                file.write("%-12s: %i\n" % ("Soft temp", self.soft_temp))
+                file.write("%s: %i\n" % ("Normalise Leaf", self.normalise_leaf))
                 file.write("%-12s: %i\n" % ("Dimensions", self.D))
                 file.write("%-12s: %i\n" % ("# Taxa", self.S))
                 file.write("%-12s: %i\n" % ("Patterns", self.L))
@@ -210,7 +240,7 @@ class DodonaphyVI(BaseModel):
         def closure():
             if torch.is_grad_enabled():
                 optimizer.zero_grad()
-            loss = -self.elbo_normal(k_samples)
+            loss = -self.elbo_siwae(importance_samples)
             if loss.requires_grad:
                 loss.backward()
             elbo_hist.append(-loss.item())
@@ -232,7 +262,7 @@ class DodonaphyVI(BaseModel):
             self.trace(epochs, path_write, hist_dat, elbo_hist)
 
         if path_write is not None:
-            final_elbo = self.elbo_normal(100).item()
+            final_elbo = self.elbo_siwae(100).item()
             print("Final ELBO: {}".format(final_elbo))
             fn = os.path.join(path_write, "vi.info")
             with open(fn, "a", encoding="UTF-8") as file:
@@ -252,20 +282,27 @@ class DodonaphyVI(BaseModel):
         plt.hist(hist_dat)
         plt.savefig(path_write + "/elbo_hist.png")
 
-    def elbo_normal(self, size=1):
-        """[summary]
+    def elbo_siwae(self, importance=1):
+        """Compute the ELBO.
 
         Args:
-            size (int, optional): [description]. Defaults to 1.
+            importance (int, optional): Number of importance samples of elbo (IWAE).
+            Defaults to 1.
 
         Returns:
-            [type]: [description]
+            [torch.Tensor]: ELBO value
         """
-
-        elbos = torch.zeros(size)
-        for i in range(size):
-            elbos[i] = self.calculate_elbo()
-        return torch.mean(elbos)
+        ln_elbos = torch.zeros((importance, self.n_boosts))
+        for k in range(self.n_boosts):
+            for t in range(importance):
+                ln_elbos[t, k] = self.calculate_elbo(k)
+        loss = torch.logsumexp(
+            - torch.log(torch.tensor(importance))
+            + torch.log_softmax(self.VariationalParams["mix_weights"], dim=0)
+            + ln_elbos,
+            dim=1,
+        )
+        return torch.mean(loss)
 
     def rsample(
         self,
@@ -403,13 +440,13 @@ class DodonaphyVI(BaseModel):
     @staticmethod
     def run(
         dim,
-        S,
         partials,
         weights,
         dists_data,
         path_write,
         epochs=1000,
-        k_samples=3,
+        n_boosts=1,
+        importance_samples=1,
         n_draws=100,
         embedder="wrap",
         lr=1e-3,
@@ -430,7 +467,9 @@ class DodonaphyVI(BaseModel):
         # embed tips with distances using HydraPlus
         hp_obj = hydraPlus.HydraPlus(dists_data, dim=dim, curvature=curvature)
         emm_tips = hp_obj.embed(equi_adj=0.0, stress=True)
-        print("Embedding Stress (tips only) = {:.4}".format(emm_tips["stress_hydraPlus"]))
+        print(
+            "Embedding Stress (tips only) = {:.4}".format(emm_tips["stress_hydraPlus"])
+        )
 
         # Initialise model
         mymod = DodonaphyVI(
@@ -442,6 +481,7 @@ class DodonaphyVI(BaseModel):
             soft_temp=soft_temp,
             curvature=curvature,
             tip_labels=tip_labels,
+            n_boosts=n_boosts,
         )
 
         leaf_loc_hyp = emm_tips["X"]
@@ -462,15 +502,17 @@ class DodonaphyVI(BaseModel):
 
         if mymod.internals_exist:
             param_init = {
-                "leaf_mu": torch.from_numpy(leaf_loc_hyp).double().requires_grad_(True),
-                "leaf_sigma": torch.from_numpy(leaf_sigma).double().requires_grad_(True),
-                "int_mu": torch.from_numpy(int_loc_hyp).double().requires_grad_(True),
-                "int_sigma": torch.from_numpy(int_sigma).double().requires_grad_(True),
+                "leaf_mu": torch.from_numpy(leaf_loc_hyp).double(),
+                "leaf_sigma": torch.from_numpy(leaf_sigma)
+                .double(),
+                "int_mu": torch.from_numpy(int_loc_hyp).double(),
+                "int_sigma": torch.from_numpy(int_sigma).double(),
             }
         else:
             param_init = {
-                "leaf_mu": torch.from_numpy(leaf_loc_hyp).double().requires_grad_(True),
-                "leaf_sigma": torch.from_numpy(leaf_sigma).double().requires_grad_(True),
+                "leaf_mu": torch.from_numpy(leaf_loc_hyp).double(),
+                "leaf_sigma": torch.from_numpy(leaf_sigma)
+                .double(),
             }
 
         # mymod.learn_ML_brute(param_init=param_init)
@@ -479,7 +521,7 @@ class DodonaphyVI(BaseModel):
         mymod.learn(
             param_init=param_init,
             epochs=epochs,
-            k_samples=k_samples,
+            importance_samples=importance_samples,
             path_write=path_write,
             lr=lr,
         )
@@ -503,22 +545,23 @@ class DodonaphyVI(BaseModel):
 
     def save(self, fn):
         with open(fn, "w", encoding="UTF-8") as f:
-            for i in range(self.S):
-                for d in range(self.D):
-                    f.write("%f\t" % self.VariationalParams["leaf_mu"][i, d])
-                for d in range(self.D):
-                    f.write("%f\t" % self.VariationalParams["leaf_sigma"][i, d])
-                f.write("\n")
-            f.write("\n")
-
-            if self.internals_exist:
-                for i in range(self.S - 2):
+            for k in range(self.n_boosts):
+                for i in range(self.S):
                     for d in range(self.D):
-                        f.write("%f\t" % self.VariationalParams["int_mu"][i, d])
+                        f.write("%f\t" % self.VariationalParams["leaf_mu"][k, i, d])
                     for d in range(self.D):
-                        f.write("%f\t" % self.VariationalParams["int_sigma"][i, d])
+                        f.write("%f\t" % self.VariationalParams["leaf_sigma"][k, i, d])
                     f.write("\n")
                 f.write("\n")
+
+                if self.internals_exist:
+                    for i in range(self.S - 2):
+                        for d in range(self.D):
+                            f.write("%f\t" % self.VariationalParams["int_mu"][k, i, d])
+                        for d in range(self.D):
+                            f.write("%f\t" % self.VariationalParams["int_sigma"][k, i, d])
+                        f.write("\n")
+                    f.write("\n")
 
 
 def read(path_read, internals=True):

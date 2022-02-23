@@ -1,6 +1,7 @@
 import os
 
 import dendropy
+import numpy as np
 import torch
 from dendropy.model.discrete import simulate_discrete_chars
 from dendropy.simulate import treesim
@@ -23,7 +24,71 @@ def test_draws_different_vi_project_up_geodesics():
         partials, weights, dim=2, embedder="up", connector="geodesics", soft_temp=1e-8
     )
 
-    mymod.learn(epochs=2, path_write=None)
+    mymod.learn(epochs=2, path_write=None, importance_samples=3)
+
+    _, blens, _, lp__ = mymod.draw_sample(3, lp=True)
+    assert not torch.equal(blens[0], blens[1])
+    assert not torch.equal(blens[0], blens[2])
+    assert not torch.equal(blens[1], blens[2])
+
+    assert not torch.equal(lp__[0], lp__[1])
+    assert not torch.equal(lp__[0], lp__[2])
+    assert not torch.equal(lp__[1], lp__[2])
+
+
+def test_draws_different_vi_project_up_geodesics_init():
+    """Each draw from the sample should be different in likelihood."""
+    simtree = treesim.birth_death_tree(
+        birth_rate=1.0, death_rate=0.5, num_extant_tips=6
+    )
+    dna = simulate_discrete_chars(
+        seq_len=1000, tree_model=simtree, seq_model=dendropy.model.discrete.Jc69()
+    )
+    partials, weights = compress_alignment(dna)
+    mymod = DodonaphyVI(
+        partials, weights, dim=2, embedder="up", connector="geodesics", soft_temp=1e-8
+    )
+
+    mix_weights = np.ones((1))
+    leaf_sigma = np.random.exponential(size=(1, 6, 2))
+    param_init = {
+        "leaf_mu": torch.randn(
+            (1, 6, 2),
+            dtype=torch.float64,
+        ),
+        "leaf_sigma": torch.tensor(
+            leaf_sigma, dtype=torch.float64
+        ),
+        "mix_weights": torch.tensor(
+            mix_weights, dtype=torch.float64
+        ),
+    }
+
+    mymod.learn(epochs=2, path_write=None, importance_samples=3, param_init=param_init)
+
+    _, blens, _, lp__ = mymod.draw_sample(3, lp=True)
+    assert not torch.equal(blens[0], blens[1])
+    assert not torch.equal(blens[0], blens[2])
+    assert not torch.equal(blens[1], blens[2])
+
+    assert not torch.equal(lp__[0], lp__[1])
+    assert not torch.equal(lp__[0], lp__[2])
+    assert not torch.equal(lp__[1], lp__[2])
+
+def test_draws_different_vi_project_up_geodesics_2mix():
+    """Each draw from the sample should be different in likelihood."""
+    simtree = treesim.birth_death_tree(
+        birth_rate=1.0, death_rate=0.5, num_extant_tips=6
+    )
+    dna = simulate_discrete_chars(
+        seq_len=1000, tree_model=simtree, seq_model=dendropy.model.discrete.Jc69()
+    )
+    partials, weights = compress_alignment(dna)
+    mymod = DodonaphyVI(
+        partials, weights, dim=2, embedder="up", connector="geodesics", soft_temp=1e-8, n_boosts=2
+    )
+
+    mymod.learn(epochs=2, path_write=None, importance_samples=3)
 
     _, blens, _, lp__ = mymod.draw_sample(3, lp=True)
     assert not torch.equal(blens[0], blens[1])
@@ -92,3 +157,52 @@ def test_io():
         mymod.VariationalParams["leaf_sigma"].detach().numpy(),
         atol=1e-6,
     )
+
+def test_draws_different_vi_project_wrap_nj():
+    """Each draw from the sample should be different in likelihood."""
+    simtree = treesim.birth_death_tree(
+        birth_rate=1.0, death_rate=0.5, num_extant_tips=6
+    )
+    dna = simulate_discrete_chars(
+        seq_len=1000, tree_model=simtree, seq_model=dendropy.model.discrete.Jc69()
+    )
+    partials, weights = compress_alignment(dna)
+    mymod = DodonaphyVI(
+        partials, weights, dim=2, embedder="wrap", connector="nj", soft_temp=1e-8
+    )
+
+    mymod.learn(epochs=2, path_write=None, importance_samples=3)
+
+    _, blens, _, lp__ = mymod.draw_sample(3, lp=True)
+    assert not torch.equal(blens[0], blens[1])
+    assert not torch.equal(blens[0], blens[2])
+    assert not torch.equal(blens[1], blens[2])
+
+    assert not torch.equal(lp__[0], lp__[1])
+    assert not torch.equal(lp__[0], lp__[2])
+    assert not torch.equal(lp__[1], lp__[2])
+
+
+def test_draws_different_vi_project_wrap_geodesics():
+    """Each draw from the sample should be different in likelihood."""
+    simtree = treesim.birth_death_tree(
+        birth_rate=1.0, death_rate=0.5, num_extant_tips=6
+    )
+    dna = simulate_discrete_chars(
+        seq_len=1000, tree_model=simtree, seq_model=dendropy.model.discrete.Jc69()
+    )
+    partials, weights = compress_alignment(dna)
+    mymod = DodonaphyVI(
+        partials, weights, dim=2, embedder="wrap", connector="geodesics", soft_temp=1e-8
+    )
+
+    mymod.learn(epochs=2, path_write=None, importance_samples=3)
+
+    _, blens, _, lp__ = mymod.draw_sample(3, lp=True)
+    assert not torch.equal(blens[0], blens[1])
+    assert not torch.equal(blens[0], blens[2])
+    assert not torch.equal(blens[1], blens[2])
+
+    assert not torch.equal(lp__[0], lp__[1])
+    assert not torch.equal(lp__[0], lp__[2])
+    assert not torch.equal(lp__[1], lp__[2])

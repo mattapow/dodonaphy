@@ -86,15 +86,15 @@ def run(args):
             mcmc_alg=args.mcmc_alg,
         )
     elif args.infer == "vi":
+        assert args.temp > 0.0, "Temperature must be greater than 0."
         DodonaphyVI.run(
             args.dim,
-            args.taxa,
             partials[:],
             weights,
             dists,
             path_write,
             epochs=args.epochs,
-            k_samples=args.importance,
+            importance_samples=args.importance,
             n_draws=args.draws,
             lr=args.learn,
             embedder=args.embed,
@@ -102,6 +102,7 @@ def run(args):
             curvature=args.curv,
             soft_temp=args.temp,
             tip_labels=tip_labels,
+            n_boosts=args.boosts,
         )
     elif args.infer == "ml":
         assert args.temp > 0.0, "Temperature must be greater than 0."
@@ -185,7 +186,7 @@ def get_path(root_dir, args):
         method_dir = os.path.join(root_dir, "vi", exp_method)
         path_write = os.path.join(
             method_dir,
-            f"d{args.dim}_lr{ln_lr}_k{args.importance}{args.exp_ext}",
+            f"d{args.dim}_lr{ln_lr}_i{args.importance}_b{args.boosts}{args.exp_ext}",
         )
 
     elif args.infer == "mcmc":
@@ -433,7 +434,7 @@ def init_parser():
         "--temp",
         default=None,
         type=float,
-        help="Tune: Temperature for soft neighbour joining. Towards 0 is\
+        help="TUNE: Temperature for soft neighbour joining. Towards 0 is\
             'colder', which increases accuracy, but reduces gradient\
             information.",
     )
@@ -442,7 +443,7 @@ def init_parser():
         "-r",
         default=1e-1,
         type=float,
-        help="Initial learning rate. Also for learning MCMC steps.",
+        help="TUNE: Initial learning rate. Also for learning MCMC steps.",
     )
 
     # VI parameters
@@ -451,7 +452,7 @@ def init_parser():
         "-d",
         default=1000,
         type=int,
-        help="Number of samples to draw from distribution in hlaplace, VI, and MCMC (via thinning).",
+        help="VI/MCMC: Number of samples to draw from distribution in hlaplace, VI, and MCMC (via thinning).",
     )
     parser.add_argument(
         "--importance",
@@ -459,6 +460,12 @@ def init_parser():
         default=1,
         type=int,
         help="VI: Number of tree samples for each epoch in Variational inference.",
+    )
+    parser.add_argument(
+        "--boosts",
+        default=1,
+        type=int,
+        help="VI: Total number of mixtures to boost variational distribution."
     )
 
     # Tree simulation parameters

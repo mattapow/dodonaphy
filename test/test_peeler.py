@@ -512,7 +512,7 @@ def test_soft_geodesic_optim():
     mymod = DodonaphyVI(partials, weights, dim=2, embedder="up", connector="geodesics")
     optimizer = torch.optim.Adam(list(params.values()), lr=1)
     optimizer.zero_grad()
-    loss = -mymod.elbo_normal(1)
+    loss = -mymod.elbo_siwae(1)
     loss.backward()
     optimizer.step()
 
