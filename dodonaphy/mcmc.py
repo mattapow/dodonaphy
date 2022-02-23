@@ -220,19 +220,26 @@ class DodonaphyMCMC:
         )
         file_name = path_write + "/locations.csv"
         if not os.path.isfile(file_name):
+            n_leaf = len(self.chains[0].leaf_x)
+            if self.chains[0].internals_exist:
+                n_int = len(self.chains[0].int_x)
+            n_dim = self.chains[0].D
             with open(file_name, "a", encoding="UTF-8") as file:
-                for i in range(len(self.chains[0].leaf_x)):
-                    for j in range(self.chains[0].D):
-                        file.write(f"leaf_{i}_x_{j}, ")
+                for i in range(n_leaf):
+                    for j in range(n_dim):
+                        file.write(f"leaf_{i}_x_{j}")
+                        if not (
+                            i == n_leaf - 1
+                            and j == n_dim - 1
+                            and not self.chains[0].internals_exist
+                        ):
+                            file.write(f", ")
 
                 if self.chains[0].internals_exist:
-                    for i in range(len(self.chains[0].int_x)):
-                        for j in range(self.chains[0].D):
+                    for i in range(n_int):
+                        for j in range(n_dim):
                             file.write(f"int_{i}_x_{j}")
-                            if not (
-                                j == self.chains[0].D - 1
-                                and i == len(self.chains[0].int_x)
-                            ):
+                            if not (j == n_dim - 1 and i == n_int - 1):
                                 file.write(", ")
                 file.write("\n")
 
