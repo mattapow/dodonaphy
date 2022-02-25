@@ -397,21 +397,11 @@ class DodonaphyVI(BaseModel):
             n_locs = self.S
         n_vars = n_locs * self.D
         if self.embedder == "up":
-            # transform internals to R^n
-            loc_t0 = Ctransforms.ball2real_torch(loc)
-            log_abs_det_jacobian = -Ctransforms.real2ball_LADJ_torch(loc_t0)
-
-            # flatten data to sample
-            loc_t0 = loc_t0.reshape(n_vars)
-
-            # propose new int nodes from normal in R^n
-            normal_dist = MultivariateNormal(loc_t0.squeeze(), cov)
+            normal_dist = MultivariateNormal(loc.reshape(n_vars).squeeze(), cov)
             sample = normal_dist.rsample()
             log_Q = normal_dist.log_prob(sample)
-            loc_t0 = sample.reshape((n_locs, self.D))
-
-            # convert ints to poincare ball
-            loc_prop = Ctransforms.real2ball_torch(loc_t0)
+            loc_prop = sample.reshape((n_locs, self.D))
+            log_abs_det_jacobian = torch.zeros(1)
 
         elif self.embedder == "wrap":
             # transform ints to R^n
@@ -540,7 +530,6 @@ class DodonaphyVI(BaseModel):
                     i,
                     lp[0].item(),
                     ln_prior.item(),
-                    tip_labels=mymod.tip_labels,
                 )
 
     def save(self, fn):
