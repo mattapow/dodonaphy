@@ -102,7 +102,8 @@ class DodonaphyVI(BaseModel):
         blens = []
         location = []
         lp = []
-        mix_samples = torch.multinomial(self.VariationalParams["mix_weights"], num_samples=nSample, replacement=True)
+        weights = torch.softmax(self.VariationalParams["mix_weights"], dim=0)
+        mix_samples = torch.multinomial(weights, num_samples=nSample, replacement=True)
         with torch.no_grad():
             for i in range(nSample):
                 mix_idx = mix_samples[i]
