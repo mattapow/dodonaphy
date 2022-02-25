@@ -177,8 +177,8 @@ def get_path(root_dir, args):
     if args.no_save is True:
         return None
 
-    if args.exp_ext != "":
-        args.exp_ext = "_" + args.exp_ext
+    if args.suffix != "":
+        args.suffix = "_" + args.suffix
     exp_method = f"{args.embed}_{args.connect}"
 
     if args.infer == "vi":
@@ -186,20 +186,20 @@ def get_path(root_dir, args):
         method_dir = os.path.join(root_dir, "vi", exp_method)
         path_write = os.path.join(
             method_dir,
-            f"d{args.dim}_lr{ln_lr}_i{args.importance}_b{args.boosts}{args.exp_ext}",
+            f"d{args.dim}_lr{ln_lr}_i{args.importance}_b{args.boosts}{args.suffix}",
         )
 
     elif args.infer == "mcmc":
         method_dir = os.path.join(root_dir, "mcmc", exp_method)
         path_write = os.path.join(
-            method_dir, f"d{args.dim}_c{args.chains}{args.exp_ext}"
+            method_dir, f"d{args.dim}_c{args.chains}{args.suffix}"
         )
 
     elif args.infer in ("ml", "map", "hmap", "hlaplace"):
         ln_rate = -int(np.log10(args.learn))
         ln_tau = -int(np.log10(args.temp))
         method_dir = os.path.join(root_dir, args.infer, args.connect)
-        path_write = os.path.join(method_dir, f"lr{ln_rate}_tau{ln_tau}{args.exp_ext}")
+        path_write = os.path.join(method_dir, f"lr{ln_rate}_tau{ln_tau}{args.suffix}")
 
     if path_write is not None:
         print(f"Saving to {path_write}")
@@ -308,9 +308,9 @@ def init_parser():
         "--start",
         "-t",
         default="None",
-        help="I/O: Path to starting tree in nexus format. If set to RAxML, a RAxML\
-        tree will be found and used. If set to 'None' the distances will be\
-        inferred from the sequences.",
+        help="I/O: Path to starting tree in nexus format. Path is relative to\
+        path_root. If set to RAxML, a RAxML tree will be found and used. If\
+        set to 'None' the distances will be inferred from the sequences.",
     )
     parser.add_argument(
         "--path_root",
@@ -320,16 +320,16 @@ def init_parser():
         If empty uses default ./data/T[taxa]",
     )
     parser.add_argument(
-        "--exp_ext",
+        "--suffix",
         default="",
         type=str,
-        help="I/O: Add a suffix to the experimental directory path_root/*/d*_c*_[exp_ext]",
+        help="I/O: Add a suffix to the experimental directory path_root/name_[suffix]",
     )
     parser.add_argument(
         "--dna_path",
         default="dna.nex",
         type=str,
-        help="I/O: File name of dna nexus file in contained in root directory.",
+        help="I/O: File name of dna nexus file. Path is realtive to path_root.",
     )
     parser.add_argument(
         "--no-save",

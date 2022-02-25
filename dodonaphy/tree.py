@@ -144,7 +144,7 @@ def save_tree(
 
 
 def end_tree_file(path_write):
-    fn = os.path.join(path_write, "mcmc.t")
+    fn = os.path.join(path_write, "samples.t")
     with open(fn, "a+", encoding="UTF-8") as file:
         file.write("end;\n")
 

@@ -211,7 +211,7 @@ class DodonaphyMCMC:
             ln_p = self.chains[0].ln_p
         tree.save_tree(
             path_write,
-            "mcmc",
+            "samples",
             self.chains[0].peel,
             self.chains[0].blens,
             iteration,
