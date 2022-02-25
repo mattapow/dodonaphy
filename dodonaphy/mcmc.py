@@ -3,7 +3,8 @@ import os
 import time
 
 import numpy as np
-from . import tree, Cphylo, hydraPlus
+from . import tree, Cphylo
+import hydraPlus
 from .chain import Chain
 
 
