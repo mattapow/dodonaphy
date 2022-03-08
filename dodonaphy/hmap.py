@@ -4,7 +4,8 @@ import os
 import numpy as np
 import torch
 
-from dodonaphy import Chyp_torch, hydraPlus, peeler, tree
+from dodonaphy import Chyp_torch, peeler, tree
+import hydraPlus
 from dodonaphy.base_model import BaseModel
 
 
