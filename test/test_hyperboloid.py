@@ -128,16 +128,16 @@ def test_tangent_to_hyper():
     assert torch.isclose(Chyp_torch.lorentz_product(z), torch.as_tensor(-1).double())
 
 
-def test_p2t02p():
-    input_data = torch.tensor([[0.1, 0.3, 0.4]]).double()
-    output = Chyp_torch.t02p(Chyp_torch.p2t0(input_data))
-    assert approx(input_data.data, output.data)
+# def test_p2t02p():
+#     input_data = torch.tensor([[0.1, 0.3, 0.4]]).double()
+#     output = Chyp_torch.t02p(Chyp_torch.p2t0(input_data))
+#     assert approx(input_data.data, output.data)
 
 
-def test_t02p2t0():
-    input_data = torch.tensor([[10.0, 0.3, -0.44]]).double()
-    output = Chyp_torch.p2t0(Chyp_torch.t02p(input_data))
-    assert approx(input_data.data, output.data)
+# def test_t02p2t0():
+#     input_data = torch.tensor([[10.0, 0.3, -0.44]]).double()
+#     output = Chyp_torch.p2t0(Chyp_torch.t02p(input_data))
+#     assert approx(input_data.data, output.data)
 
 
 def test_jacobian_default_mu():
