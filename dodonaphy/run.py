@@ -191,8 +191,12 @@ def get_path(root_dir, args):
 
     elif args.infer == "mcmc":
         method_dir = os.path.join(root_dir, "mcmc", exp_method)
+        if args.curv < 0: 
+            ln_crv = int(np.log10(-args.curv))
+        else:
+            ln_crv = str(np.log10(-args.curv))
         path_write = os.path.join(
-            method_dir, f"d{args.dim}_c{args.chains}{args.suffix}"
+            method_dir, f"d{args.dim}_k{ln_crv}{args.suffix}"
         )
 
     elif args.infer in ("ml", "map", "hmap", "hlaplace"):

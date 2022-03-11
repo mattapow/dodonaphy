@@ -275,12 +275,19 @@ cpdef get_pdm(
     """ Given points in H^dim (not including z coordinate),
     compute their pairwise distance.
     """
+    cdef np.ndarray[np.double_t, ndim=2] D
+    if np.isclose(curvature, 0.0):
+        D  = np.sum( (x[:, None] - x)**2, axis=-1)**0.5
+        if matsumoto:
+            D = np.log(np.cosh(D))
+        return D
+
     x_sheet = project_up_2d(x)
     cdef np.ndarray[np.double_t, ndim=2] X = x_sheet @ x_sheet.T
     cdef np.ndarray[np.double_t, ndim=1] u_tilde = np.sqrt(np.diagonal(X) + 1)
     cdef np.ndarray[np.double_t, ndim=2] H = X - np.outer(u_tilde, u_tilde)
     H = np.minimum(H, -(1 + eps))
-    cdef np.ndarray[np.double_t, ndim=2] D = 1 / np.sqrt(-curvature) * np.arccosh(-H)
+    D = 1 / np.sqrt(-curvature) * np.arccosh(-H)
     if matsumoto:
         D = np.log(np.cosh(D))
     return D

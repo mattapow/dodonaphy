@@ -338,7 +338,8 @@ class DodonaphyMCMC:
         assert connector in ["geodesics", "nj"]
 
         # embed tips with distances using HydraPlus
-        hp_obj = hydraPlus.HydraPlus(dists_data, dim=dim, curvature=curvature)
+        hydra_crv = min(curvature, -1e-16)
+        hp_obj = hydraPlus.HydraPlus(dists_data, dim=dim, curvature=hydra_crv)
         emm_tips = hp_obj.embed(equi_adj=0.0, stress=True)
         print(f"Embedding stress of tips (hydra+) = {emm_tips['stress_hydraPlus']:.4}")
 
