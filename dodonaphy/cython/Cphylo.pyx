@@ -1,7 +1,7 @@
 import math
 import numpy as np
 cimport numpy as np
-from . import Chyp_np
+from dodonaphy import Chyp_np
 from collections import Counter
 
 cdef double eps = np.finfo(np.double).eps

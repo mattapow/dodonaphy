@@ -6,9 +6,9 @@ import numpy as np
 import torch
 from torch.distributions.multivariate_normal import MultivariateNormal
 
-from . import tree, utils, peeler, Ctransforms, Chyp_torch
-from .base_model import BaseModel
-from .phylo import JC69_p_t, calculate_treelikelihood
+from dodonaphy import tree, utils, peeler, Ctransforms, Chyp_torch
+from dodonaphy.base_model import BaseModel
+from dodonaphy.phylo import JC69_p_t, calculate_treelikelihood
 import hydraPlus
 
 

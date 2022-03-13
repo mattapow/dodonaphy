@@ -7,10 +7,10 @@ from dendropy.model.birthdeath import birth_death_likelihood
 
 from dodonaphy import poincare
 
-from . import Chyp_np, Chyp_torch
-from . import tree as treeFunc
-from .phylo import JC69_p_t, calculate_treelikelihood
-from .utils import LogDirPrior
+from dodonaphy import Chyp_np, Chyp_torch
+from dodonaphy import tree as treeFunc
+from dodonaphy.phylo import JC69_p_t, calculate_treelikelihood
+from dodonaphy.utils import LogDirPrior
 
 
 class BaseModel(object):

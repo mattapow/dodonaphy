@@ -3,9 +3,9 @@ import os
 import time
 
 import numpy as np
-from . import tree, Cphylo
+from dodonaphy import tree, Cphylo
 import hydraPlus
-from .chain import Chain
+from dodonaphy.chain import Chain
 
 
 class DodonaphyMCMC:

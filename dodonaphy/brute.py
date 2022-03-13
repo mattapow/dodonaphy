@@ -2,8 +2,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 
-from . import Chyp_torch, peeler, tree, utils
-from .vi import DodonaphyVI
+from dodonaphy import Chyp_torch, peeler, tree, utils
+from dodonaphy.vi import DodonaphyVI
 
 
 class brute(DodonaphyVI):

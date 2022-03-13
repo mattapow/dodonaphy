@@ -1,8 +1,8 @@
 import numpy as np
 import torch
 
-from . import poincare, Chyp_np
-from .edge import Edge
+from dodonaphy import poincare, Chyp_np
+from dodonaphy.edge import Edge
 
 
 def angle_to_directional(theta):

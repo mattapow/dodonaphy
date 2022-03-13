@@ -3,9 +3,9 @@ from heapq import heapify, heappop, heappush
 import numpy as np
 import torch
 
-from . import poincare, utils, Chyp_np
-from .node import Node
-from .edge import Edge
+from dodonaphy import poincare, utils, Chyp_np
+from dodonaphy.node import Node
+from dodonaphy.edge import Edge
 
 eps = np.finfo(np.double).eps
 

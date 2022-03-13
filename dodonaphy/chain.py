@@ -1,10 +1,10 @@
 """A Markov Chain"""
 import numpy as np
 
-from . import Chyp_np, Cphylo, peeler, Cutils
-from .base_model import BaseModel
-from .Chyp_np import tangent_to_hyper as t02hyp
-from .Chyp_np import tangent_to_hyper_jacobian as t02hyp_J
+from dodonaphy import Chyp_np, Cphylo, peeler, Cutils
+from dodonaphy.base_model import BaseModel
+from dodonaphy.Chyp_np import tangent_to_hyper as t02hyp
+from dodonaphy.Chyp_np import tangent_to_hyper_jacobian as t02hyp_J
 
 
 class Chain(BaseModel):

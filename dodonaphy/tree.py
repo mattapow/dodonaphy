@@ -4,7 +4,7 @@ import numpy as np
 import torch
 from matplotlib.patches import Circle
 
-from .poincare import geodesic_fn
+from dodonaphy.poincare import geodesic_fn
 
 
 def post_order_traversal(adjacency, currentNode, peel, visited):
