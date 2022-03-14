@@ -10,8 +10,8 @@ First install the Python version of hydra+ from https://github.com/mattapow/hydr
 On Mac OS Catalina, CommandLineTools (possibly used in setuptools) has an error in python==3.8.2. Numpy does not yet support python>=3.10. So use 3.9
 
 ```
-conda create --name dodo python=3.9
-conda activate dodo
+conda create --name dodonaphy python=3.9
+conda activate dodonaphy
 ```
 
 Pip needs numpy and cython for the setup:
@@ -21,11 +21,7 @@ pip install cython
 pip install numpy
 ```
 
-Then install the Dodonaphy package using pip:
-```
-pip install dodonaphy
-```
-Alternatively the package can be installed locally using
+Then install the Dodonaphy locally package using pip:
 ```
 pip install -e .
 ```
