@@ -11,3 +11,4 @@ dodonaphy.egg-info
 build
 *.html
 *.c
+*profile

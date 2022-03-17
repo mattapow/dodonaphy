@@ -1,7 +1,7 @@
 """A Markov Chain"""
 import numpy as np
 
-from dodonaphy import Chyp_np, Cphylo, peeler, Cutils
+from dodonaphy import Chyp_np, Cphylo, Cpeeler, Cutils
 from dodonaphy.base_model import BaseModel
 from dodonaphy.Chyp_np import tangent_to_hyper as t02hyp
 from dodonaphy.Chyp_np import tangent_to_hyper_jacobian as t02hyp_J
@@ -100,7 +100,7 @@ algorithm, got {warm_up}."
             self.peel, self.int_x = peeler.make_hard_peel_geodesic(self.leaf_x)
         elif self.connector == "nj":
             pdm = Chyp_np.get_pdm(self.leaf_x, curvature=self.curvature)
-            self.peel, self.blens = peeler.nj_np(pdm)
+            self.peel, self.blens = Cpeeler.nj_np(pdm)
 
         if self.connector != "nj":
             self.blens = Cphylo.compute_branch_lengths_np(
@@ -278,7 +278,7 @@ algorithm, got {warm_up}."
         int_x_prop = None
         if self.connector == "nj":
             pdm = Chyp_np.get_pdm(leaf_x_prop, curvature=self.curvature)
-            peel, blens = peeler.nj_np(pdm)
+            peel, blens = Cpeeler.nj_np(pdm)
         elif self.connector == "geodesics":
             peel, int_x_prop = peeler.make_hard_peel_geodesic(leaf_loc)
             blens = Cphylo.compute_branch_lengths_np(

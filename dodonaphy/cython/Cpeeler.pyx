@@ -1,7 +1,131 @@
+from heapq import heapify, heappop, heappush
+
 import numpy as np
 cimport numpy as np
+cimport cython
 
-cpdef nj_np(np.ndarray[np.double_t, ndim=2] pdm):
+from dodonaphy.node import Node
+from dodonaphy.edge import Edge
+
+
+eps = np.finfo(np.double).eps
+
+def nj_np(double[:, ::1] pdm):
+    """Calculate neighbour joining tree.
+    Credit to Dendropy for python implentation.
+
+    Args:
+        pdm (ndarray): Pairwise distance matrix
+    """
+
+    cdef int n_pool = len(pdm)
+    cdef int n_taxa = len(pdm)
+    cdef int n_ints = n_taxa - 1
+    cdef int node_count = 2 * n_taxa - 2
+
+    cdef np.ndarray[long, ndim=2] peel = np.zeros((n_ints, 3), dtype=int)
+    cdef np.ndarray[np.double_t, ndim=1] blens = np.zeros(node_count, dtype=np.double)
+
+    # initialise node pool
+    node_pool = [Node(taxon=taxon) for taxon in range(n_pool)]
+
+    cdef np.double_t dist
+    cdef np.double_t v1
+    cdef np.double_t v3
+    cdef np.double_t v4
+    cdef np.double_t qvalue
+    cdef np.double_t min_q
+    cdef int int_i
+    cdef int parent
+    cdef np.double_t delta_f
+    cdef np.double_t delta_g
+
+    # cache calculations
+    for nd1 in node_pool:
+        nd1._nj_xsub = 0.0
+        for nd2 in node_pool:
+            if nd1 is nd2:
+                continue
+            dist = pdm[nd1.taxon, nd2.taxon]
+            nd1._nj_distances[nd2] = dist
+            nd1._nj_xsub += dist
+
+    while n_pool > 1:
+        # calculate argmin of Q-matrix
+        min_q = np.inf
+        n_pool = len(node_pool)
+        for idx1, nd1 in enumerate(node_pool[:-1]):
+            for _, nd2 in enumerate(node_pool[idx1 + 1 :]):
+                v1 = (n_pool - 2) * nd1._nj_distances[nd2]
+                qvalue = v1 - nd1._nj_xsub - nd2._nj_xsub
+                if qvalue < min_q:
+                    min_q = qvalue
+                    nodes_to_join = (nd1, nd2)
+
+        # create the new node
+        int_i = n_taxa - n_pool
+        parent = int_i + n_taxa
+        new_node = Node(parent)
+        peel[int_i, 2] = parent
+
+        # attach it to the tree
+        peel[int_i, 0] = nodes_to_join[0].taxon
+        peel[int_i, 1] = nodes_to_join[1].taxon
+        node_pool.remove(nodes_to_join[0])
+        node_pool.remove(nodes_to_join[1])
+
+        # calculate the distances for the new node
+        new_node._nj_distances = {}
+        new_node._nj_xsub = 0.0
+        for nd in node_pool:
+            # actual node-to-node distances
+            v1 = 0.0
+            for node_to_join in nodes_to_join:
+                v1 += nd._nj_distances[node_to_join]
+            v3 = nodes_to_join[0]._nj_distances[nodes_to_join[1]]
+            dist = 0.5 * (v1 - v3)
+            new_node._nj_distances[nd] = dist
+            nd._nj_distances[new_node] = dist
+
+            # Adjust/recalculate the values needed for the Q-matrix
+            # calculations
+            new_node._nj_xsub += dist
+            nd._nj_xsub += dist
+            for node_to_join in nodes_to_join:
+                nd._nj_xsub -= node_to_join._nj_distances[nd]
+
+        # calculate the branch lengths
+        if n_pool > 2:
+            v1 = 0.5 * nodes_to_join[0]._nj_distances[nodes_to_join[1]]
+            v4 = (
+                1.0
+                / (2 * (n_pool - 2))
+                * (nodes_to_join[0]._nj_xsub - nodes_to_join[1]._nj_xsub)
+            )
+            delta_f = v1 + v4
+            delta_g = nodes_to_join[0]._nj_distances[nodes_to_join[1]] - delta_f
+            blens[nodes_to_join[0].taxon] = delta_f
+            blens[nodes_to_join[1].taxon] = delta_g
+        else:
+            dist = nodes_to_join[0]._nj_distances[nodes_to_join[1]]
+            blens[nodes_to_join[0].taxon] = dist / 2.0
+            blens[nodes_to_join[1].taxon] = dist / 2.0
+
+        # clean up
+        for node_to_join in nodes_to_join:
+            node_to_join._nj_distances = {}
+            node_to_join._nj_xsub = 0.0
+
+        # add the new node to the pool of nodes
+        node_pool.append(new_node)
+
+        # adjust count
+        n_pool -= 1
+    blens = np.maximum(blens, eps)
+    return peel, blens
+
+
+cpdef nj_np_old(np.ndarray[np.double_t, ndim=2] pdm):
     cdef np.int_t leaf_node_count = len(pdm)
     cdef np.int_t node_count = 2 * leaf_node_count - 2
     cdef np.double_t eps = np.double(2.220446049250313e-16)
