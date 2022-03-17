@@ -72,6 +72,7 @@ algorithm, got {warm_up}."
 
         self.ln_p = self.get_loss()
         self.ln_prior = Cphylo.compute_prior_gamma_dir_np(self.blens)
+        self.rng = np.random.default_rng()
 
     def get_loss(self):
         """Get the current loss according to the objective.
@@ -322,16 +323,15 @@ algorithm, got {warm_up}."
         loc_low_prop = np.zeros((n_locs, self.D))
         log_abs_det_jacobian = 0.0
 
-        rng = np.random.default_rng()
         if self.embedder == "up":
-            sample_hyp = rng.multivariate_normal(
+            sample_hyp = self.rng.multivariate_normal(
                 loc_low.flatten(), cov, method="cholesky"
             )
             loc_low_prop = sample_hyp.reshape((n_locs, self.D))
 
         elif self.embedder == "wrap":
             zero = np.zeros(n_vars, dtype=np.double)
-            sample_t0 = rng.multivariate_normal(zero, cov, method="cholesky").reshape(
+            sample_t0 = self.rng.multivariate_normal(zero, cov, method="cholesky").reshape(
                 (n_locs, self.D)
             )
             for i in range(n_locs):

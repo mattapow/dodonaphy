@@ -324,7 +324,7 @@ class DodonaphyMCMC:
         connector="nj",
         embedder="up",
         curvature=-1.0,
-        normalise_leaf=True,
+        normalise_leaf=False,
         loss_fn="likelihood",
         swap_period=1000,
         n_swaps=10,
