@@ -33,7 +33,7 @@ def run(args):
         return
 
     path_write = get_path(root_dir, args)
-    dna = read_dna(root_dir, args.dna_path)
+    dna = read_dna(root_dir, args.path_dna)
     partials, weights = compress_alignment(dna)
 
     if args.start == "None":
@@ -330,7 +330,7 @@ def init_parser():
         help="I/O: Add a suffix to the experimental directory path_root/name_[suffix]",
     )
     parser.add_argument(
-        "--dna_path",
+        "--path_dna",
         default="dna.nex",
         type=str,
         help="I/O: File name of dna nexus file. Path is realtive to path_root.",
