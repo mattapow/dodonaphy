@@ -135,7 +135,7 @@ class DodonaphyMCMC:
                     chain.evolve()
                     chain.tune_step()
                 elif chain.mcmc_alg == "RAM":
-                    chain.evolve_RAM()
+                    chain.evolve_RAM(path_write)
                 elif chain.mcmc_alg == "tune":
                     chain.evolve()
                     chain.tune_step()

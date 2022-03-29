@@ -1,7 +1,12 @@
 """A Markov Chain"""
+import os
 import numpy as np
+from dendropy.calculate.treecompare import weighted_robinson_foulds_distance as rf_dist
+from dendropy.calculate.treecompare import symmetric_difference
+from dendropy import Tree
 
-from dodonaphy import Chyp_np, Cphylo, Cpeeler, Cutils
+from dodonaphy import tree as treeFunc
+from dodonaphy import Chyp_np, Cphylo, Cpeeler, Cutils, peeler
 from dodonaphy.base_model import BaseModel
 from dodonaphy.Chyp_np import tangent_to_hyper as t02hyp
 from dodonaphy.Chyp_np import tangent_to_hyper_jacobian as t02hyp_J
@@ -228,11 +233,13 @@ algorithm, got {warm_up}."
             self.accepted += 1
         return
 
-    def evolve_RAM(self):
+    def evolve_RAM(self, path_write):
         """Based on Robust Adaptive Metropolis, Vihola 2012"""
         proposal = self.sample_leaf_np(self.leaf_x, self.cov)
         ln_r_accept = self.ln_accept_ratio(proposal)
         U = proposal["leaf_x"].flatten() - self.leaf_x.flatten()
+
+        self.write_nni_dist(path_write)
 
         self.check_proposal(proposal, ln_r_accept)
 
@@ -244,6 +251,21 @@ algorithm, got {warm_up}."
         self.cov = np.linalg.cholesky(cov_full)
         self.iterations += 1
         return
+    
+    def write_nni_dist(self, path_write):
+        if path_write is not None and self.chain_temp == 1:
+            newick1 = treeFunc.tree_to_newick(self.tip_labels, self.peel, self.blens)
+            tree1 = Tree.get(data=newick1, schema="newick")
+            newick2 = treeFunc.tree_to_newick(self.tip_labels, proposal["peel"], proposal["blens"])
+            tree2 = Tree.get(data=newick2, schema="newick", taxon_namespace=tree1.taxon_namespace)
+            rfl = rf_dist(tree1, tree2)
+            sym_diff = symmetric_difference(tree1, tree2)
+            path_rfl = os.path.join(path_write, 'rfl.txt')
+            path_sym_diff = os.path.join(path_write, 'sym_diff.txt')
+            with open(path_rfl, "a", encoding="UTF-8") as file:
+                file.write(f"{str(rfl)}\n")
+            with open(path_sym_diff, "a", encoding="UTF-8") as file:
+                file.write(f"{str(sym_diff)}\n")
 
     def check_convergence(self, accept_diff, tol=0.01):
         """Check for convergence of step.
