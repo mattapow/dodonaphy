@@ -506,8 +506,6 @@ class DodonaphyVI(BaseModel):
                 .double(),
             }
 
-        # mymod.learn_ML_brute(param_init=param_init)
-
         # learn
         mymod.learn(
             param_init=param_init,

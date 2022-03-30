@@ -17,6 +17,7 @@ from dodonaphy.map import MAP
 from dodonaphy.hmap import HMAP
 from dodonaphy.phylo import compress_alignment, calculate_pairwise_distance
 from dodonaphy.vi import DodonaphyVI
+from dodonaphy.brute import Brute
 
 
 def run(args):
@@ -164,6 +165,28 @@ def run(args):
         )
         mymod.learn(epochs=args.epochs, learn_rate=args.learn, path_write=path_write)
         mymod.laplace(path_write, n_samples=args.draws)
+    
+    elif args.infer == "brute":
+        partials, weights = compress_alignment(dna)
+        path_write = './test_brute'
+        #TODO: what inputs required
+        mymod = Brute()
+        mymod.run(
+            dim,
+            partials,
+            weights,
+            path_write,
+            dists=dists,
+            tip_labels=tip_labels,
+            epochs=1000,
+            n_boosts=1,
+            n_draws=100,
+            embedder="up",
+            lr=1e-3,
+            curvature=-1.0,
+            connector="nj",
+            soft_temp=None,
+        )
 
     mins, secs = divmod(time.time() - start, 60)
     hrs, mins = divmod(mins, 60)
@@ -282,7 +305,7 @@ def init_parser():
         "--infer",
         "-i",
         default="mcmc",
-        choices=("mcmc", "vi", "ml", "map", "hmap", "hlaplace", "simulate"),
+        choices=("mcmc", "vi", "ml", "map", "hmap", "hlaplace", "simulate", "brute"),
         help="Inf: Inference method for Bayesian inference:\
         [mcmc]: MCMC\
         [vi]: Variational bayesian inference.\
@@ -291,7 +314,8 @@ def init_parser():
         Use [hmap] to maximise the posterior of the embedding.\
         Use [hlaplace] to maximise the posterior of the embedding (hmap) and\
         then draw samples from a laplace approximation around the map.\
-        Use [simulate] to simulate dna from a birth death tree.",
+        Use [simulate] to simulate dna from a birth death tree.\
+        Use [brute] to perform a grid search of the first node location.",
     )
     parser.add_argument(
         "--prior",

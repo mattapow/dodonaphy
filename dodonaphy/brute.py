@@ -2,11 +2,71 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 
-from dodonaphy import Chyp_torch, peeler, tree, utils
+from dodonaphy import Chyp_torch, peeler, tree, utils, Cpeeler, Chyp_np
 from dodonaphy.vi import DodonaphyVI
 
 
-class brute(DodonaphyVI):
+class Brute(DodonaphyVI):
+    """Brute force learn an Embedding"""
+
+    @staticmethod
+    def run(
+        dim,
+        partials,
+        weights,
+        dists,
+        path_write,
+        epochs=1000,
+        n_boosts=1,
+        importance_samples=1,
+        n_draws=100,
+        embedder="wrap",
+        lr=1e-3,
+        curvature=-1.0,
+        connector="nj",
+        soft_temp=None,
+        tip_labels=None,
+    ):
+        """Brute force algorithm to do grid search."""
+        print("\nRunning Dodonaphy Brute Force Search.")
+        print("Using %s embedding with %s connections" % (embedder, connector))
+
+        # embed tips with distances using HydraPlus
+        hp_obj = hydraPlus.HydraPlus(dists, dim=dim, curvature=curvature)
+        emm_tips = hp_obj.embed(equi_adj=0.0, stress=True)
+        print(
+            "Embedding Stress (tips only) = {:.4}".format(emm_tips["stress_hydraPlus"])
+        )
+
+        # Initialise model
+        mymod = DodonaphyVI(
+            partials,
+            weights,
+            dim,
+            embedder=embedder,
+            connector=connector,
+            soft_temp=soft_temp,
+            curvature=curvature,
+            tip_labels=tip_labels,
+            n_boosts=n_boosts,
+        )
+
+        leaf_loc_hyp = emm_tips["X"]
+        if mymod.internals_exist:
+            int_loc_hyp = None
+            param_init = {
+                "leaf_loc": torch.from_numpy(leaf_loc_hyp).double(),
+                "int_loc": torch.from_numpy(int_loc_hyp).double(),
+            }
+        else:
+            param_init = {
+                "leaf_loc": torch.from_numpy(leaf_loc_hyp).double(),
+            }
+
+        # mymod.learn_ML_brute(param_init=param_init)
+        idx = 0
+        mymod.grid_search_LL(idx, isLeaf=True, doPlot=True)
+
     def embedding_LL(self, int_loc_optim):
         leaf_loc = self.VariationalParams["leaf_mu"]
         int_loc = self.VariationalParams["int_mu"]
@@ -114,60 +174,56 @@ class brute(DodonaphyVI):
         tree.plot_tree(ax, peel, X.detach().numpy())
         plt.show()
 
-    def grid_search_LL(self, idx, isLeaf=False, doPlot=False):
+    def grid_search_LL(self, idx, isLeaf=True, doPlot=False):
         """Find Maximum likelihood tree by only move one internal node.
+
         Args:
-            int_idx ([type]): [description]
+            idx (_type_): _description_
+            isLeaf (bool, optional): _description_. Defaults to False.
+            doPlot (bool, optional): _description_. Defaults to False.
+
+        Returns:
+            _type_: _description_
         """
         assert self.D == 2
-        # leaf_locs = self.VariationalParams["leaf_mu"]
-        # int_locs = self.VariationalParams["int_mu"]
+        leaf_locs = self.param_init["leaf_loc"]
+        if self.internals_exist:
+            int_locs = self.param_init["int_loc"]
 
-        # convert current nodes to poincare
-        if self.embedder == "simple":
-            leaf_poin = utils.real2ball(self.VariationalParams["leaf_mu"])
-            int_poin = utils.real2ball(self.VariationalParams["int_mu"])
-        elif self.embedder == "wrap":
-            leaf_poin = Chyp_torch.t02p(self.VariationalParams["leaf_mu"])
-            int_poin = Chyp_torch.t02p(self.VariationalParams["int_mu"])
-        leaf_r, leaf_dir = utils.cart_to_dir(leaf_poin)
-        int_r, int_dir = utils.cart_to_dir(int_poin)
+        # convert current nodes to poincare ?
 
         # beat the current likelihood
         if isLeaf:
             best_loc = leaf_poin[idx, :]
         else:
             best_loc = int_poin[idx, :]
-        peel = peeler.make_peel_mst(leaf_r, leaf_dir, int_r, int_dir)
-        blen = self.compute_branch_lengths(
-            self.S, peel, leaf_r, leaf_dir, int_r, int_dir
-        )
+        pdm = Chyp_np.get_pdm(leaf_locs, curvature=self.curvature)
+        peel, blen = Cpeeler.nj_np(pdm)
         best_lnLike = self.compute_LL(peel, blen)
 
         # grid search centred at current location in Poincare disk
-        steps = 20
         # scale = torch.pow(torch.sum(torch.pow(best_loc, 2), axis=-1), .5)
         # X = torch.linspace(-scale, scale, steps) + best_loc[0].detach().numpy()
         # Y = torch.linspace(-scale, scale, steps) + best_loc[1].detach().numpy()
+
+        # grid search over [-.5, .5]^2
+        steps = 10
         X = torch.linspace(-0.5, 0.5, steps)
         Y = torch.linspace(-0.5, 0.5, steps)
         lnLike = torch.zeros((steps, steps))
         for i, x in enumerate(X):
             for j, y in enumerate(Y):
                 test_point = torch.tensor([x, y])
-                if torch.norm(test_point) > 1:
-                    lnLike[j, i] = -np.inf
-                    continue
+                # if torch.norm(test_point) > 1:
+                #     lnLike[j, i] = -np.inf
+                #     continue
                 if isLeaf:
                     leaf_poin[idx, :] = test_point
                 else:
                     int_poin[idx, :] = test_point
-                leaf_r, leaf_dir = utils.cart_to_dir(leaf_poin)
-                int_r, int_dir = utils.cart_to_dir(int_poin)
-                peel = peeler.make_peel_mst(leaf_r, leaf_dir, int_r, int_dir)
-                blen = self.compute_branch_lengths(
-                    self.S, peel, leaf_r, leaf_dir, int_r, int_dir
-                )
+                
+                pdm = Chyp_np.get_pdm(leaf_locs, curvature=self.curvature)
+                peel, blen = Cpeeler.nj_np(pdm)
                 cur_ll = self.compute_LL(peel, blen)
                 lnLike[j, i] = cur_ll
                 if cur_ll > best_lnLike:
@@ -179,32 +235,36 @@ class brute(DodonaphyVI):
             _, ax = plt.subplots(1, 2)
             X, Y = np.meshgrid(X, Y)
             ax[0].contourf(X, Y, lnLike, cmap="hot", levels=200)
+            ax[0].scatter(best_loc[:, 0], best_loc[:, 1])
             # plt.colorbar()
             if not isLeaf:
-                ax[0].set_title("Node %i" % (self.S + idx))
+                ax[0].set_title("Node %i Likelihood" % (self.S + idx))
             else:
-                ax[0].set_title("Node %i" % idx)
+                ax[0].set_title("Node %i Likelihood" % idx)
 
             # plot best tree
-            if isLeaf:
-                leaf_poin[idx, :] = best_loc
-            else:
-                int_poin[idx, :] = best_loc
-            leaf_r, leaf_dir = utils.cart_to_dir(leaf_poin)
-            int_r, int_dir = utils.cart_to_dir(int_poin)
-            peel = peeler.make_peel_mst(leaf_r, leaf_dir, int_r, int_dir)
-            locs = torch.cat((leaf_poin, int_poin, leaf_poin[0, :].reshape(1, self.D)))
-            tree.plot_tree(ax[1], peel, locs)
+            # if isLeaf:
+            #     leaf_poin[idx, :] = best_loc
+            # else:
+            #     int_poin[idx, :] = best_loc
+            # pdm = Chyp_np.get_pdm(leaf_locs, curvature=self.curvature)
+            # peel, blen = Cpeeler.nj_np(pdm)
+            # locs = torch.cat((leaf_poin, int_poin, leaf_poin[0, :].reshape(1, self.D)))
+            # tree.plot_tree(ax[1], peel, locs)
             plt.show()
 
         if isLeaf:
             if self.embedder == "simple":
-                self.VariationalParams["leaf_mu"][idx, :] = Chyperboloid.ball2real(best_loc)
+                self.VariationalParams["leaf_mu"][idx, :] = Chyperboloid.ball2real(
+                    best_loc
+                )
             elif self.embedder == "wrap":
                 self.VariationalParams["leaf_mu"][idx, :] = Chyperboloid.p2t0(best_loc)
         else:
             if self.embedder == "simple":
-                self.VariationalParams["int_mu"][idx, :] = Chyperboloid.ball2real(best_loc)
+                self.VariationalParams["int_mu"][idx, :] = Chyperboloid.ball2real(
+                    best_loc
+                )
             elif self.embedder == "wrap":
                 self.VariationalParams["int_mu"][idx, :] = Chyperboloid.p2t0(best_loc)
         return best_lnLike
