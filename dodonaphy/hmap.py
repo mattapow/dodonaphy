@@ -41,7 +41,7 @@ class HMAP(BaseModel):
             tip_labels=tip_labels,
         )
         hp_obj = hydraPlus.HydraPlus(dists, dim=self.D, curvature=curvature)
-        emm_tips = hp_obj.embed(equi_adj=0.0, stress=True)
+        emm_tips = hp_obj.embed(equi_adj=0.0)
 
         self.params = {
             "leaf_loc": torch.tensor(
