@@ -239,7 +239,7 @@ algorithm, got {warm_up}."
         ln_r_accept = self.ln_accept_ratio(proposal)
         U = proposal["leaf_x"].flatten() - self.leaf_x.flatten()
 
-        self.write_nni_dist(path_write)
+        self.write_nni_dist(proposal, path_write)
 
         self.check_proposal(proposal, ln_r_accept)
 
@@ -252,7 +252,7 @@ algorithm, got {warm_up}."
         self.iterations += 1
         return
     
-    def write_nni_dist(self, path_write):
+    def write_nni_dist(self, proposal, path_write):
         if path_write is not None and self.chain_temp == 1:
             newick1 = treeFunc.tree_to_newick(self.tip_labels, self.peel, self.blens)
             tree1 = Tree.get(data=newick1, schema="newick")
