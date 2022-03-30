@@ -359,32 +359,9 @@ algorithm, got {warm_up}."
             for i in range(n_locs):
                 mu_hyp = Chyp_np.project_up(loc_low[i, :])
                 loc_low_prop[i, :] = t02hyp(mu_hyp, sample_t0[i, :], self.D)[1:]
-                log_abs_det_jacobian += t02hyp_J(mu_hyp, loc_low[i, :], self.D)
 
         if self.normalise_leaf:
             radius = np.linalg.norm(loc_low, axis=1)[0]
             loc_low_prop = Cutils.normalise_np(loc_low_prop) * radius
 
         return loc_low_prop, log_abs_det_jacobian
-
-
-def normalise_LADJ(loc):
-    """Return the log of the absolute value of the determinant of the jacobian.
-    Normalising points to unit sphere.
-
-    Args:
-        loc (ndarray): locations to normalise: n_locations x n_dim
-
-    Returns:
-        float: log(|det(Jacobian)|)
-    """
-    norm = np.linalg.norm(loc, axis=-1, keepdims=True)
-    n_loc, dim = loc.shape
-
-    log_abs_det_j = 0.0
-    for k in range(n_loc):
-        j_det = np.linalg.det(
-            (np.eye(dim, dim) - np.outer(loc[k], loc[k]) / norm[k] ** 2) / norm[k]
-        )
-        log_abs_det_j = log_abs_det_j + np.log(np.abs(j_det))
-    return log_abs_det_j

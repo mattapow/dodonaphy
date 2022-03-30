@@ -330,3 +330,24 @@ class BaseModel(object):
         plt.hist(like_hist)
         plt.title("Likelihood histogram")
         plt.savefig(path_write + "/likelihood_hist.png")
+
+def normalise_LADJ(loc):
+    """Return the log of the absolute value of the determinant of the jacobian.
+    Normalising points to unit sphere.
+
+    Args:
+        loc (ndarray): locations to normalise: n_locations x n_dim
+
+    Returns:
+        float: log(|det(Jacobian)|)
+    """
+    norm = np.linalg.norm(loc, axis=-1, keepdims=True)
+    n_loc, dim = loc.shape
+
+    log_abs_det_j = 0.0
+    for k in range(n_loc):
+        j_det = np.linalg.det(
+            (np.eye(dim, dim) - np.outer(loc[k], loc[k]) / norm[k] ** 2) / norm[k]
+        )
+        log_abs_det_j = log_abs_det_j + np.log(np.abs(j_det))
+    return log_abs_det_j
