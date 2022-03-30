@@ -362,7 +362,7 @@ algorithm, got {warm_up}."
                 log_abs_det_jacobian += t02hyp_J(mu_hyp, loc_low[i, :], self.D)
 
         if self.normalise_leaf:
-            radius = np.mean(np.linalg.norm(loc_low, axis=1))
+            radius = np.linalg.norm(loc_low, axis=1)[0]
             loc_low_prop = Cutils.normalise_np(loc_low_prop) * radius
 
         return loc_low_prop, log_abs_det_jacobian

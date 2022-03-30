@@ -3,7 +3,7 @@ import os
 import time
 
 import numpy as np
-from dodonaphy import tree, Cphylo
+from dodonaphy import tree, Cphylo, Cutils
 import hydraPlus
 from dodonaphy.chain import Chain
 
@@ -303,10 +303,14 @@ class DodonaphyMCMC:
             return 1
         return 0
 
-    def initialise_chains(self, emm):
+    def initialise_chains(self, emm, normalise_leaf):
         """initialise each chain"""
         for chain in self.chains:
-            chain.leaf_x = emm["X"]
+            if normalise_leaf:
+                radius = np.linalg.norm(emm["X"], axis=1)[0]
+                chain.leaf_x = Cutils.normalise_np(emm["X"]) * radius
+            else:
+                chain.leaf_x = emm["X"]
             chain.n_points = chain.leaf_x.shape[0]
 
     @staticmethod
@@ -367,5 +371,5 @@ class DodonaphyMCMC:
             mcmc_alg=mcmc_alg,
         )
 
-        mymod.initialise_chains(emm_tips)
+        mymod.initialise_chains(emm_tips, normalise_leaf)
         mymod.learn(epochs, burnin=burnin, path_write=path_write)
