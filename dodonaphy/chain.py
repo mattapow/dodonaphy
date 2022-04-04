@@ -213,7 +213,6 @@ algorithm, got {warm_up}."
             + np.outer(X, X)
             + self.eps * np.eye(self.S * self.D)
         )
-        return
 
     def check_proposal(self, proposal, ln_r_accept):
         accept = False
@@ -231,7 +230,7 @@ algorithm, got {warm_up}."
             if self.internals_exist:
                 self.int_x = proposal["int_x"]
             self.accepted += 1
-        return
+        return accept
 
     def evolve_RAM(self, path_write):
         """Based on Robust Adaptive Metropolis, Vihola 2012"""
@@ -239,9 +238,8 @@ algorithm, got {warm_up}."
         ln_r_accept = self.ln_accept_ratio(proposal)
         U = proposal["leaf_x"].flatten() - self.leaf_x.flatten()
 
-        self.write_nni_dist(proposal, path_write)
-
-        self.check_proposal(proposal, ln_r_accept)
+        accept = self.check_proposal(proposal, ln_r_accept)
+        self.write_prop_dist(proposal, path_write, accept)
 
         n = self.S * self.D
         eta = (self.iterations + 1) ** (-0.5)
@@ -250,22 +248,24 @@ algorithm, got {warm_up}."
         cov_full = self.cov * (np.eye(n) + eta * accept_diff * U_out) * self.cov.T
         self.cov = np.linalg.cholesky(cov_full)
         self.iterations += 1
-        return
     
-    def write_nni_dist(self, proposal, path_write):
+    def write_prop_dist(self, proposal, path_write, accept):
+        """Write to file the symmetric difference to the proposal"""
         if path_write is not None and self.chain_temp == 1:
             newick1 = treeFunc.tree_to_newick(self.tip_labels, self.peel, self.blens)
             tree1 = Tree.get(data=newick1, schema="newick")
             newick2 = treeFunc.tree_to_newick(self.tip_labels, proposal["peel"], proposal["blens"])
             tree2 = Tree.get(data=newick2, schema="newick", taxon_namespace=tree1.taxon_namespace)
+
             rfl = rf_dist(tree1, tree2)
             sym_diff = symmetric_difference(tree1, tree2)
+
             path_rfl = os.path.join(path_write, 'rfl.txt')
             path_sym_diff = os.path.join(path_write, 'sym_diff.txt')
             with open(path_rfl, "a", encoding="UTF-8") as file:
-                file.write(f"{str(rfl)}\n")
+                file.write(f"{str(rfl)}\t{int(accept)}\n")
             with open(path_sym_diff, "a", encoding="UTF-8") as file:
-                file.write(f"{str(sym_diff)}\n")
+                file.write(f"{str(sym_diff)}\t{int(accept)}\n")
 
     def check_convergence(self, accept_diff, tol=0.01):
         """Check for convergence of step.
