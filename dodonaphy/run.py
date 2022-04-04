@@ -368,7 +368,7 @@ def init_parser():
     parser.set_defaults(no_save=False)
 
     # embedding
-    parser.add_argument("--dim", "-D", default=5, type=int, help="Embedding dimensions")
+    parser.add_argument("--dim", "-D", default=3, type=int, help="Embedding dimensions")
     parser.add_argument(
         "--embed",
         "-e",
@@ -407,7 +407,7 @@ def init_parser():
 
     # MCMC parameters
     parser.add_argument(
-        "--epochs", "-n", default=1000, type=int, help="MCMC: Iterations (VI epochs)."
+        "--epochs", "-n", default=10000, type=int, help="MCMC: Iterations (VI epochs)."
     )
     parser.add_argument(
         "--step",
@@ -417,7 +417,7 @@ def init_parser():
         help="MCMC: Initial step scale for MCMC.",
     )
     parser.add_argument(
-        "--chains", "-N", default=5, type=int, help="MCMC: Number of MCMC chains."
+        "--chains", "-N", default=4, type=int, help="MCMC: Number of MCMC chains."
     )
     parser.add_argument(
         "--burn", "-b", default=0, type=int, help="MCMC: Number of burn in iterations."
@@ -442,7 +442,7 @@ def init_parser():
     )
     parser.add_argument(
         "--warm_up",
-        default=100,
+        default=1000,
         type=int,
         help="MCMC: Number of iterations before using adaptive covariance.\
             Tune a single step for all tips before this iteration.",
