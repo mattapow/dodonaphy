@@ -33,6 +33,7 @@ class DodonaphyMCMC:
         tip_labels=None,
         warm_up=100,
         mcmc_alg="RAM",
+        write_dists=False,
     ):
         self.n_chains = n_chains
         self.chains = []
@@ -62,6 +63,7 @@ class DodonaphyMCMC:
                     tip_labels=tip_labels,
                     warm_up=warm_up,
                     mcmc_alg=mcmc_alg,
+                    write_dists=write_dists,
                 )
             )
 
@@ -336,6 +338,7 @@ class DodonaphyMCMC:
         tip_labels=None,
         warm_up=100,
         mcmc_alg="RAM",
+        write_dists=False,
     ):
         """Run Dodonaphy's MCMC."""
         print("\nRunning Dodonaphy MCMC")
@@ -369,6 +372,7 @@ class DodonaphyMCMC:
             tip_labels=tip_labels,
             warm_up=warm_up,
             mcmc_alg=mcmc_alg,
+            write_dists=write_dists,
         )
 
         mymod.initialise_chains(emm_tips, normalise_leaf)

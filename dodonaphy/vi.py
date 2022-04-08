@@ -457,7 +457,7 @@ class DodonaphyVI(BaseModel):
 
         # embed tips with distances using HydraPlus
         hp_obj = hydraPlus.HydraPlus(dists_data, dim=dim, curvature=curvature)
-        emm_tips = hp_obj.embed(equi_adj=0.0, stress=True)
+        emm_tips = hp_obj.embed(equi_adj=0.0)
         print(
             "Embedding Stress (tips only) = {:.4}".format(emm_tips["stress_hydraPlus"])
         )

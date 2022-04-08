@@ -85,6 +85,7 @@ def run(args):
             tip_labels=tip_labels,
             warm_up=args.warm_up,
             mcmc_alg=args.mcmc_alg,
+            write_dists=args.write_dists,
         )
     elif args.infer == "vi":
         assert args.temp > 0.0, "Temperature must be greater than 0."
@@ -366,6 +367,13 @@ def init_parser():
         help="I/O: Dry run, not saving to file.",
     )
     parser.set_defaults(no_save=False)
+    parser.add_argument(
+        "--write-dists",
+        dest="write_dists",
+        action="store_true",
+        help="I/O MCMC: Save MCMC proposal distances.",
+    )
+    parser.set_defaults(write_dists=False)
 
     # embedding
     parser.add_argument("--dim", "-D", default=3, type=int, help="Embedding dimensions")

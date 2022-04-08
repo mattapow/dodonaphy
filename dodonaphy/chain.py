@@ -37,6 +37,7 @@ class Chain(BaseModel):
         tip_labels=None,
         warm_up=100,
         mcmc_alg="RAM",
+        write_dists=False,
     ):
         super().__init__(
             partials,
@@ -78,6 +79,7 @@ algorithm, got {warm_up}."
         self.ln_p = self.get_loss()
         self.ln_prior = Cphylo.compute_prior_gamma_dir_np(self.blens)
         self.rng = np.random.default_rng()
+        self.write_dists = write_dists
 
     def get_loss(self):
         """Get the current loss according to the objective.
@@ -239,7 +241,8 @@ algorithm, got {warm_up}."
         U = proposal["leaf_x"].flatten() - self.leaf_x.flatten()
 
         accept = self.check_proposal(proposal, ln_r_accept)
-        self.write_prop_dist(proposal, path_write, accept)
+        if self.write_dists:
+            self.write_prop_dist(proposal, path_write, accept)
 
         n = self.S * self.D
         eta = (self.iterations + 1) ** (-0.5)
