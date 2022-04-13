@@ -91,7 +91,7 @@ def test_nj():
     leaf_hyp = Chyp_np.poincare_to_hyper_2d(leaf_poin)
 
     pdm = Chyp_np.get_pdm(leaf_hyp)
-    peel, blens = peeler.nj_np(pdm)
+    peel, blens = Cpeeler.nj_np(pdm)
 
     peel_check = []
     peel_check.append(np.allclose(peel, [[1, 0, 4], [3, 2, 5], [5, 4, 6]]))
@@ -115,7 +115,7 @@ def test_nj_matsumoto():
     leaf_hyp = Chyp_np.poincare_to_hyper_2d(leaf_poin)
 
     pdm = Chyp_np.get_pdm(leaf_hyp, matsumoto=True)
-    peel, blens = peeler.nj_np(pdm)
+    peel, blens = Cpeeler.nj_np(pdm)
 
     peel_check = []
     peel_check.append(np.allclose(peel, [[1, 0, 4], [3, 2, 5], [5, 4, 6]]))
@@ -166,7 +166,7 @@ def test_nj_np():
     leaf_hyp = Chyp_np.poincare_to_hyper_2d(leaf_poin)
 
     pdm = Chyp_np.get_pdm(leaf_hyp)
-    peel, blens = peeler.nj_np(pdm)
+    peel, blens = Cpeeler.nj_np(pdm)
 
     peel_check = []
     peel_check.append(np.allclose(peel, [[1, 0, 4], [3, 2, 5], [5, 4, 6]]))
@@ -191,7 +191,7 @@ def test_nj_uneven():
     leaf_hyp = Chyp_np.poincare_to_hyper_2d(leaf_poin)
 
     pdm = Chyp_np.get_pdm(leaf_hyp)
-    peel, _ = peeler.nj_np(pdm)
+    peel, _ = Cpeeler.nj_np(pdm)
     peel_check = []
     peel_check.append(np.allclose(peel, [[1, 0, 4], [3, 2, 5], [5, 4, 6]]))
     peel_check.append(np.allclose(peel, [[0, 1, 4], [2, 3, 5], [4, 5, 6]]))
@@ -208,6 +208,26 @@ def test_nj_uneven():
         peel_check
     ), f"Wrong topology. NB. non-exhaustive check of correct topologies. Peel: {peel}"
 
+
+def test_nj_implementations():
+    leaf_r = np.array([0.1, 0.2, 0.3, 0.4])
+    leaf_theta = np.array([np.pi / 2, -np.pi / 10, np.pi, -np.pi * 6 / 8])
+    leaf_dir = Cutils.angle_to_directional_np(leaf_theta)
+    leaf_poin = Cutils.dir_to_cart_np(leaf_r, leaf_dir)
+    leaf_hyp = Chyp_np.poincare_to_hyper_2d(leaf_poin)
+
+    pdm = Chyp_np.get_pdm(leaf_hyp)
+    _, blens0 = Cpeeler.nj_np(pdm)
+    _, blens1 = Cpeeler.nj_np_old(pdm)
+    _, blens2 = peeler.nj_np(pdm)
+
+    close01 = np.isclose(sum(blens0), sum(blens1))
+    close12 = np.isclose(sum(blens1), sum(blens2))
+    close02 = np.isclose(sum(blens0), sum(blens2))
+    assert(close01)
+    assert(close12)
+    assert(close02)
+    
 
 def test_compute_Q_dendropy():
     pdm = np.zeros((5, 5)).astype(np.double)
