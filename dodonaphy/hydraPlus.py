@@ -24,6 +24,7 @@ class HydraPlus:
             curvature=self.curvature,
             alpha=alpha,
             equi_adj=equi_adj,
+            stress=True,
             **kwargs
         )
         loc_poin = np.tile(emm["r"], (self.dim, 1)).T * emm["directional"]
