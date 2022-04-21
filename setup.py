@@ -20,25 +20,37 @@ setup(
     ext_modules=cythonize(
         [
             Extension(
-                "dodonaphy.Cutils", ["dodonaphy/cython/Cutils.pyx"], include_dirs=[np.get_include()]
+                "dodonaphy.Cutils",
+                ["dodonaphy/cython/Cutils.pyx"],
+                include_dirs=[np.get_include()],
             ),
             Extension(
-                "dodonaphy.Cphylo", ["dodonaphy/cython/Cphylo.pyx"], include_dirs=[np.get_include()]
+                "dodonaphy.Cphylo",
+                ["dodonaphy/cython/Cphylo.pyx"],
+                include_dirs=[np.get_include()],
             ),
             Extension(
-                "dodonaphy.Chyp_torch", ["dodonaphy/cython/Chyp_torch.pyx"], include_dirs=[np.get_include()]
+                "dodonaphy.Chyp_torch",
+                ["dodonaphy/cython/Chyp_torch.pyx"],
+                include_dirs=[np.get_include()],
             ),
             Extension(
-                "dodonaphy.Chyp_np", ["dodonaphy/cython/Chyp_np.pyx"], include_dirs=[np.get_include()]
+                "dodonaphy.Chyp_np",
+                ["dodonaphy/cython/Chyp_np.pyx"],
+                include_dirs=[np.get_include()],
             ),
             Extension(
-                "dodonaphy.Cpeeler", ["dodonaphy/cython/Cpeeler.pyx"], include_dirs=[np.get_include()]
+                "dodonaphy.Cpeeler",
+                ["dodonaphy/cython/Cpeeler.pyx"],
+                include_dirs=[np.get_include()],
             ),
             Extension(
-                "dodonaphy.Ctransforms", ["dodonaphy/cython/Ctransforms.pyx"], include_dirs=[np.get_include()]
+                "dodonaphy.Ctransforms",
+                ["dodonaphy/cython/Ctransforms.pyx"],
+                include_dirs=[np.get_include()],
             ),
         ],
-        annotate=True
+        annotate=False,
     ),
     entry_points={"console_scripts": ["dodo = dodonaphy.run:main"]},
 )
