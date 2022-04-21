@@ -2,15 +2,17 @@ import os
 
 import dendropy
 import numpy as np
+import pytest
 import torch
 from dendropy.model.discrete import simulate_discrete_chars
 from dendropy.simulate import treesim
-from numpy import allclose
 from dodonaphy import vi
 from dodonaphy.phylo import compress_alignment
 from dodonaphy.vi import DodonaphyVI
+from numpy import allclose
 
 
+@pytest.mark.skip(reason="Not implemented.")
 def test_draws_different_vi_project_up_geodesics():
     """Each draw from the sample should be different in likelihood."""
     simtree = treesim.birth_death_tree(
@@ -36,6 +38,7 @@ def test_draws_different_vi_project_up_geodesics():
     assert not torch.equal(lp__[1], lp__[2])
 
 
+@pytest.mark.skip(reason="Not implemented.")
 def test_draws_different_vi_project_up_geodesics_init():
     """Each draw from the sample should be different in likelihood."""
     simtree = treesim.birth_death_tree(
@@ -56,12 +59,8 @@ def test_draws_different_vi_project_up_geodesics_init():
             (1, 6, 2),
             dtype=torch.float64,
         ),
-        "leaf_sigma": torch.tensor(
-            leaf_sigma, dtype=torch.float64
-        ),
-        "mix_weights": torch.tensor(
-            mix_weights, dtype=torch.float64
-        ),
+        "leaf_sigma": torch.tensor(leaf_sigma, dtype=torch.float64),
+        "mix_weights": torch.tensor(mix_weights, dtype=torch.float64),
     }
 
     mymod.learn(epochs=2, path_write=None, importance_samples=3, param_init=param_init)
@@ -75,6 +74,8 @@ def test_draws_different_vi_project_up_geodesics_init():
     assert not torch.equal(lp__[0], lp__[2])
     assert not torch.equal(lp__[1], lp__[2])
 
+
+@pytest.mark.skip(reason="Not implemented.")
 def test_draws_different_vi_project_up_geodesics_2mix():
     """Each draw from the sample should be different in likelihood."""
     simtree = treesim.birth_death_tree(
@@ -85,7 +86,13 @@ def test_draws_different_vi_project_up_geodesics_2mix():
     )
     partials, weights = compress_alignment(dna)
     mymod = DodonaphyVI(
-        partials, weights, dim=2, embedder="up", connector="geodesics", soft_temp=1e-8, n_boosts=2
+        partials,
+        weights,
+        dim=2,
+        embedder="up",
+        connector="geodesics",
+        soft_temp=1e-8,
+        n_boosts=2,
     )
 
     mymod.learn(epochs=2, path_write=None, importance_samples=3)
@@ -100,6 +107,7 @@ def test_draws_different_vi_project_up_geodesics_2mix():
     assert not torch.equal(lp__[1], lp__[2])
 
 
+@pytest.mark.skip(reason="Not implemented.")
 def test_draws_different_vi_project_up_nj():
     """Each draw from the sample should be different in likelihood."""
     dim = 2  # number of dimensions for embedding
@@ -114,7 +122,9 @@ def test_draws_different_vi_project_up_nj():
     )
 
     partials, weights = compress_alignment(dna)
-    mymod = DodonaphyVI(partials, weights, dim, embedder="up", connector="nj", soft_temp=1e-8)
+    mymod = DodonaphyVI(
+        partials, weights, dim, embedder="up", connector="nj", soft_temp=1e-8
+    )
     mymod.learn(epochs=2, path_write=None)
 
     # draw
@@ -158,6 +168,8 @@ def test_io():
         atol=1e-6,
     )
 
+
+@pytest.mark.skip(reason="Not implemented.")
 def test_draws_different_vi_project_wrap_nj():
     """Each draw from the sample should be different in likelihood."""
     simtree = treesim.birth_death_tree(
@@ -183,6 +195,7 @@ def test_draws_different_vi_project_wrap_nj():
     assert not torch.equal(lp__[1], lp__[2])
 
 
+@pytest.mark.skip(reason="Not implemented.")
 def test_draws_different_vi_project_wrap_geodesics():
     """Each draw from the sample should be different in likelihood."""
     simtree = treesim.birth_death_tree(

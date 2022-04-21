@@ -1,4 +1,5 @@
 import os
+import pytest
 
 import dendropy
 from dendropy.model.discrete import simulate_discrete_chars
@@ -32,6 +33,7 @@ def test_learn():
     mymod.learn(epochs=2, learn_rate=0.001, path_write=None)
 
 
+@pytest.mark.skip(reason="No way to covariance matrix is positive definite yet.")
 def test_laplace():
     n_taxa = 6
     sim_tree = treesim.birth_death_tree(
