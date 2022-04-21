@@ -139,7 +139,7 @@ def test_nj_dendropy():
     leaf_hyp = Chyp_np.poincare_to_hyper_2d(leaf_poin)
     pdm = Chyp_np.get_pdm(leaf_hyp)
 
-    peel_dendro, blens_dendro = peeler.nj_np(pdm)
+    peel_dendro, blens_dendro = Cpeeler.nj_np(pdm)
     _, blens = Cpeeler.nj_np(pdm)
 
     peel_check = []
@@ -219,14 +219,9 @@ def test_nj_implementations():
     pdm = Chyp_np.get_pdm(leaf_hyp)
     _, blens0 = Cpeeler.nj_np(pdm)
     _, blens1 = Cpeeler.nj_np_old(pdm)
-    _, blens2 = peeler.nj_np(pdm)
 
     close01 = np.isclose(sum(blens0), sum(blens1))
-    close12 = np.isclose(sum(blens1), sum(blens2))
-    close02 = np.isclose(sum(blens0), sum(blens2))
     assert(close01)
-    assert(close12)
-    assert(close02)
     
 
 def test_compute_Q_dendropy():
@@ -358,7 +353,7 @@ def test_nj_eg1():
     dist_2d[tril_idx[0], tril_idx[1]] = dists_1d
     dist_2d[tril_idx[1], tril_idx[0]] = dists_1d
 
-    peel_hard, _ = peeler.nj_np(dist_2d)
+    peel_hard, _ = Cpeeler.nj_np(dist_2d)
     peel_soft, _ = peeler.nj_torch(torch.tensor(dist_2d, dtype=torch.double), tau=1e-18)
     children_hard = set((frozenset(peel_hard[i, :2]) for i in range(16)))
     children_soft = set((frozenset(peel_soft[i, :2]) for i in range(16)))
