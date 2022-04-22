@@ -108,16 +108,24 @@ class DodonaphyVI(BaseModel):
             for i in range(nSample):
                 mix_idx = mix_samples[i]
                 n_tip_params = torch.numel(self.VariationalParams["leaf_mu"][mix_idx])
-                leaf_loc = self.VariationalParams["leaf_mu"][mix_idx].reshape(n_tip_params)
+                leaf_loc = self.VariationalParams["leaf_mu"][mix_idx].reshape(
+                    n_tip_params
+                )
                 leaf_cov = torch.eye(
                     n_tip_params, dtype=torch.double
-                ) * self.VariationalParams["leaf_sigma"][mix_idx].exp().reshape(n_tip_params)
+                ) * self.VariationalParams["leaf_sigma"][mix_idx].exp().reshape(
+                    n_tip_params
+                )
                 if self.internals_exist:
                     n_int_params = torch.numel(self.VariationalParams["int_mu"])
-                    int_loc = self.VariationalParams["int_mu"][mix_idx].reshape(n_int_params)
+                    int_loc = self.VariationalParams["int_mu"][mix_idx].reshape(
+                        n_int_params
+                    )
                     int_cov = torch.eye(
                         n_int_params, dtype=torch.double
-                    ) * self.VariationalParams["int_sigma"][mix_idx].exp().reshape(n_int_params)
+                    ) * self.VariationalParams["int_sigma"][mix_idx].exp().reshape(
+                        n_int_params
+                    )
                     sample = self.rsample(leaf_loc, leaf_cov, int_loc, int_cov)
                 else:
                     sample = self.rsample(leaf_loc, leaf_cov)
@@ -173,7 +181,7 @@ class DodonaphyVI(BaseModel):
 
     def learn(
         self,
-        param_init=None,
+        param_init,
         epochs=1000,
         importance_samples=1,
         path_write="./out",
@@ -181,29 +189,38 @@ class DodonaphyVI(BaseModel):
     ):
         """Learn the variational parameters using Adam optimiser
         Args:
-            param_init (dict, optional): Initial parameters. Defaults to None.
+            param_init (dict): Initial parameters. With "leaf_mu" (location)
+            and "leaf_sigma" (log covariance). Similar for "int_*" (optional).
             epochs (int, optional): Number of epochs. Defaults to 1000.
-            importance_samples (int, optional): Number of tree samples at each epoch. Defaults to 1.
+            importance_samples (int, optional): Number of tree samples at each
+            epoch. Defaults to 1.
         """
         print(f"Using {importance_samples} tree samples at each epoch.")
         print(f"Using {self.n_boosts} variational distributions for boosting.")
         print(f"Running for {epochs} epochs.\n")
 
-        # initialise variational parameters if given
-        if param_init is not None:
-            if param_init["leaf_mu"].ndim == 2:
-                param_init["leaf_mu"].unsqueeze(0)
-            if param_init["leaf_sigma"].ndim == 2:
-                param_init["leaf_sigma"].unsqueeze(0)
-            self.VariationalParams["leaf_mu"] = param_init["leaf_mu"].repeat((self.n_boosts, 1, 1)).requires_grad_()
-            self.VariationalParams["leaf_sigma"] = param_init["leaf_sigma"].repeat((self.n_boosts, 1, 1)).requires_grad_()
-            if self.internals_exist:
-                if param_init["int_mu"].ndim == 2:
-                    param_init["int_mu"].unsqueeze(0)
-                if param_init["int_sigma"].ndim == 2:
-                    param_init["int_sigma"].unsqueeze(0)
-                self.VariationalParams["int_mu"] = param_init["int_mu"].repeat((self.n_boosts, 1, 1)).requires_grad_()
-                self.VariationalParams["int_sigma"] = param_init["int_sigma"].repeat((self.n_boosts, 1, 1)).requires_grad_()
+        # initialise variational parameters
+        if param_init["leaf_mu"].ndim == 2:
+            param_init["leaf_mu"].unsqueeze(0)
+        if param_init["leaf_sigma"].ndim == 2:
+            param_init["leaf_sigma"].unsqueeze(0)
+        self.VariationalParams["leaf_mu"] = (
+            param_init["leaf_mu"].repeat((self.n_boosts, 1, 1)).requires_grad_()
+        )
+        self.VariationalParams["leaf_sigma"] = (
+            param_init["leaf_sigma"].repeat((self.n_boosts, 1, 1)).requires_grad_()
+        )
+        if self.internals_exist:
+            if param_init["int_mu"].ndim == 2:
+                param_init["int_mu"].unsqueeze(0)
+            if param_init["int_sigma"].ndim == 2:
+                param_init["int_sigma"].unsqueeze(0)
+            self.VariationalParams["int_mu"] = (
+                param_init["int_mu"].repeat((self.n_boosts, 1, 1)).requires_grad_()
+            )
+            self.VariationalParams["int_sigma"] = (
+                param_init["int_sigma"].repeat((self.n_boosts, 1, 1)).requires_grad_()
+            )
 
         if path_write is not None:
             fn = path_write + "/" + "vi.info"
@@ -269,6 +286,50 @@ class DodonaphyVI(BaseModel):
             with open(fn, "a", encoding="UTF-8") as file:
                 file.write("%-12s: %i\n" % ("Final ELBO (100 samples)", final_elbo))
 
+    def hydra_init(self, dists, cv=0.01, cv_base="closest"):
+        """Initialise variational distributions using hydra+ and a coefficient of variation.
+        Set the coefficient of variation base as either the 'closest' distance or 'norm'.
+        """
+        valid_cv_base = ("closest", "norm")
+        if not cv_base in valid_cv_base:
+            raise ValueError(f"Coefficient of variation must be in {valid_cv_base}")
+
+        # embed tips with distances using HydraPlus
+        hp_obj = hydraPlus.HydraPlus(dists, dim=self.dim, curvature=self.curvature)
+        emm_tips = hp_obj.embed(equi_adj=0.0)
+        print(
+            "Embedding Stress (tips only) = {:.4}".format(emm_tips["stress_hydraPlus"])
+        )
+        leaf_loc_hyp = emm_tips["X"]
+
+        if cv_base == "norm":
+            # set variational parameters with small coefficient of variation
+            #TODO: hyperboic norm
+            leaf_sigma = np.abs(leaf_loc_hyp) * cv
+            if self.internals_exist:
+                int_loc_hyp = None
+                int_sigma = None
+        elif cv_base == "closest":
+            # set leaf variational sigma using closest neighbour
+            dists[dists == 0] = np.inf
+            closest = dists.min(axis=0)
+            closest = np.repeat([closest], self.dim, axis=0).transpose()
+            leaf_sigma = np.abs(closest) * cv
+
+        if self.internals_exist:
+            param_init = {
+                "leaf_mu": torch.from_numpy(leaf_loc_hyp).double(),
+                "leaf_sigma": torch.from_numpy(leaf_sigma).double(),
+                "int_mu": torch.from_numpy(int_loc_hyp).double(),
+                "int_sigma": torch.from_numpy(int_sigma).double(),
+            }
+        else:
+            param_init = {
+                "leaf_mu": torch.from_numpy(leaf_loc_hyp).double(),
+                "leaf_sigma": torch.from_numpy(leaf_sigma).double(),
+            }
+        return param_init
+
     @staticmethod
     def trace(epochs, path_write, hist_dat, elbo_hist):
         plt.figure()
@@ -298,7 +359,7 @@ class DodonaphyVI(BaseModel):
             for t in range(importance):
                 ln_elbos[t, k] = self.calculate_elbo(k)
         loss = torch.logsumexp(
-            - torch.log(torch.tensor(importance))
+            -torch.log(torch.tensor(importance))
             + torch.log_softmax(self.VariationalParams["mix_weights"], dim=0)
             + ln_elbos,
             dim=1,
@@ -455,13 +516,6 @@ class DodonaphyVI(BaseModel):
         print("\nRunning Dodonaphy Variational Inference.")
         print("Using %s embedding with %s connections" % (embedder, connector))
 
-        # embed tips with distances using HydraPlus
-        hp_obj = hydraPlus.HydraPlus(dists_data, dim=dim, curvature=curvature)
-        emm_tips = hp_obj.embed(equi_adj=0.0)
-        print(
-            "Embedding Stress (tips only) = {:.4}".format(emm_tips["stress_hydraPlus"])
-        )
-
         # Initialise model
         mymod = DodonaphyVI(
             partials,
@@ -474,37 +528,7 @@ class DodonaphyVI(BaseModel):
             tip_labels=tip_labels,
             n_boosts=n_boosts,
         )
-
-        leaf_loc_hyp = emm_tips["X"]
-
-        # set variational parameters with small coefficient of variation
-        cv = 1.0 / 100
-        eps = np.finfo(np.double).eps
-        leaf_sigma = np.log(np.abs(np.array(leaf_loc_hyp)) * cv + eps)
-        if mymod.internals_exist:
-            int_loc_hyp = None
-            int_sigma = None
-
-        # set leaf variational sigma using closest neighbour
-        dists_data[dists_data == 0] = np.inf
-        closest = dists_data.min(axis=0)
-        closest = np.repeat([closest], dim, axis=0).transpose()
-        leaf_sigma = np.log(np.abs(closest) * cv + eps)
-
-        if mymod.internals_exist:
-            param_init = {
-                "leaf_mu": torch.from_numpy(leaf_loc_hyp).double(),
-                "leaf_sigma": torch.from_numpy(leaf_sigma)
-                .double(),
-                "int_mu": torch.from_numpy(int_loc_hyp).double(),
-                "int_sigma": torch.from_numpy(int_sigma).double(),
-            }
-        else:
-            param_init = {
-                "leaf_mu": torch.from_numpy(leaf_loc_hyp).double(),
-                "leaf_sigma": torch.from_numpy(leaf_sigma)
-                .double(),
-            }
+        param_init = mymod.hydra_init(dists=dists_data)
 
         # learn
         mymod.learn(
@@ -547,7 +571,9 @@ class DodonaphyVI(BaseModel):
                         for d in range(self.D):
                             f.write("%f\t" % self.VariationalParams["int_mu"][k, i, d])
                         for d in range(self.D):
-                            f.write("%f\t" % self.VariationalParams["int_sigma"][k, i, d])
+                            f.write(
+                                "%f\t" % self.VariationalParams["int_sigma"][k, i, d]
+                            )
                         f.write("\n")
                     f.write("\n")
 
