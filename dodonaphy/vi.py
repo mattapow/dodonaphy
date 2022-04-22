@@ -286,64 +286,6 @@ class DodonaphyVI(BaseModel):
             with open(fn, "a", encoding="UTF-8") as file:
                 file.write("%-12s: %i\n" % ("Final ELBO (100 samples)", final_elbo))
 
-    def hydra_init(self, dists, cv=0.01, cv_base="closest"):
-        """Initialise variational distributions using hydra+ and a coefficient of variation.
-        Set the coefficient of variation base as either the 'closest' distance or 'norm'.
-        """
-        valid_cv_base = ("closest", "norm")
-        if not cv_base in valid_cv_base:
-            raise ValueError(f"Coefficient of variation must be in {valid_cv_base}")
-
-        # embed tips with distances using HydraPlus
-        hp_obj = hydraPlus.HydraPlus(dists, dim=self.dim, curvature=self.curvature)
-        emm_tips = hp_obj.embed(equi_adj=0.0)
-        print(
-            "Embedding Stress (tips only) = {:.4}".format(emm_tips["stress_hydraPlus"])
-        )
-        leaf_loc_hyp = emm_tips["X"]
-
-        if cv_base == "norm":
-            # set variational parameters with small coefficient of variation
-            #TODO: hyperboic norm
-            leaf_sigma = np.abs(leaf_loc_hyp) * cv
-            if self.internals_exist:
-                int_loc_hyp = None
-                int_sigma = None
-        elif cv_base == "closest":
-            # set leaf variational sigma using closest neighbour
-            dists[dists == 0] = np.inf
-            closest = dists.min(axis=0)
-            closest = np.repeat([closest], self.dim, axis=0).transpose()
-            leaf_sigma = np.abs(closest) * cv
-
-        if self.internals_exist:
-            param_init = {
-                "leaf_mu": torch.from_numpy(leaf_loc_hyp).double(),
-                "leaf_sigma": torch.from_numpy(leaf_sigma).double(),
-                "int_mu": torch.from_numpy(int_loc_hyp).double(),
-                "int_sigma": torch.from_numpy(int_sigma).double(),
-            }
-        else:
-            param_init = {
-                "leaf_mu": torch.from_numpy(leaf_loc_hyp).double(),
-                "leaf_sigma": torch.from_numpy(leaf_sigma).double(),
-            }
-        return param_init
-
-    @staticmethod
-    def trace(epochs, path_write, hist_dat, elbo_hist):
-        plt.figure()
-        plt.plot(range(1, epochs), elbo_hist[1:], "r", label="elbo")
-        plt.title("Elbo values")
-        plt.xlabel("Epochs")
-        plt.ylabel("elbo")
-        plt.legend()
-        plt.savefig(path_write + "/elbo_trace.png")
-
-        plt.clf()
-        plt.hist(hist_dat)
-        plt.savefig(path_write + "/elbo_hist.png")
-
     def elbo_siwae(self, importance=1):
         """Compute the ELBO.
 
@@ -490,6 +432,66 @@ class DodonaphyVI(BaseModel):
         return loc_prop, log_abs_det_jacobian, log_Q
 
     @staticmethod
+    def hydra_init(
+        dists, dim, curvature, internals_exist=False, cv=0.01, cv_base="closest"
+    ):
+        """Initialise variational distributions using hydra+ and a coefficient of variation.
+        Set the coefficient of variation base as either the 'closest' distance or 'norm'.
+        """
+        valid_cv_base = ("closest", "norm")
+        if not cv_base in valid_cv_base:
+            raise ValueError(f"Coefficient of variation must be in {valid_cv_base}")
+
+        # embed tips with distances using HydraPlus
+        hp_obj = hydraPlus.HydraPlus(dists, dim=dim, curvature=curvature)
+        emm_tips = hp_obj.embed(equi_adj=0.0)
+        print(
+            "Embedding Stress (tips only) = {:.4}".format(emm_tips["stress_hydraPlus"])
+        )
+        leaf_loc_hyp = emm_tips["X"]
+
+        if cv_base == "norm":
+            # set variational parameters with small coefficient of variation
+            # TODO: hyperboic norm
+            leaf_sigma = np.abs(leaf_loc_hyp) * cv
+            if internals_exist:
+                int_loc_hyp = None
+                int_sigma = None
+        elif cv_base == "closest":
+            # set leaf variational sigma using closest neighbour
+            dists[dists == 0] = np.inf
+            closest = dists.min(axis=0)
+            closest = np.repeat([closest], dim, axis=0).transpose()
+            leaf_sigma = np.abs(closest) * cv
+
+        if internals_exist:
+            param_init = {
+                "leaf_mu": torch.from_numpy(leaf_loc_hyp).double(),
+                "leaf_sigma": torch.from_numpy(leaf_sigma).double(),
+                "int_mu": torch.from_numpy(int_loc_hyp).double(),
+                "int_sigma": torch.from_numpy(int_sigma).double(),
+            }
+        else:
+            param_init = {
+                "leaf_mu": torch.from_numpy(leaf_loc_hyp).double(),
+                "leaf_sigma": torch.from_numpy(leaf_sigma).double(),
+            }
+        return param_init
+
+    @staticmethod
+    def trace(epochs, path_write, hist_dat, elbo_hist):
+        plt.figure()
+        plt.plot(range(1, epochs), elbo_hist[1:], "r", label="elbo")
+        plt.title("Elbo values")
+        plt.xlabel("Epochs")
+        plt.ylabel("elbo")
+        plt.legend()
+        plt.savefig(path_write + "/elbo_trace.png")
+        plt.clf()
+        plt.hist(hist_dat)
+        plt.savefig(path_write + "/elbo_hist.png")
+
+    @staticmethod
     def run(
         dim,
         partials,
@@ -528,7 +530,14 @@ class DodonaphyVI(BaseModel):
             tip_labels=tip_labels,
             n_boosts=n_boosts,
         )
-        param_init = mymod.hydra_init(dists=dists_data)
+        param_init = mymod.hydra_init(
+            dists_data,
+            dim,
+            curvature,
+            internals_exist=mymod.internals_exist,
+            cv=0.01,
+            cv_base="closest",
+        )
 
         # learn
         mymod.learn(
