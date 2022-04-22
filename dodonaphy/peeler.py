@@ -161,7 +161,7 @@ def nj_torch(pdm, tau=None):
         tuple: (peel, blens)
     """
     if tau is None:
-        return nj_np(pdm)
+        return Cpeeler.nj_np(pdm)
     leaf_node_count = len(pdm)
     node_count = 2 * leaf_node_count - 2
 
@@ -223,8 +223,7 @@ def compute_Q(pdm, mask=False, fill_value=None):
     mask_2d = ~torch.outer(~mask, ~mask)
     sum_pdm = torch.sum(pdm * ~mask_2d, axis=1, keepdims=True)
     sum_i = torch.repeat_interleave(sum_pdm, n_pdm, dim=1)
-    sum_j = torch.repeat_interleave(sum_pdm.T, n_pdm, dim=0)
-    Q = (n_active - 2) * pdm - sum_i - sum_j
+    Q = (n_active - 2) * pdm - sum_i - sum_i.T
 
     if fill_value is None:
         fill_value = torch.finfo(torch.double).max / 2.0
