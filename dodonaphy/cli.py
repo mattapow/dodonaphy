@@ -225,3 +225,10 @@ def init_parser():
         "--death", default=0.5, type=float, help="Simu: Death rate of simulated tree."
     )
     return parser
+
+def validate(args):
+    if args.infer in ("vi", "ml", "map", "hmap", "hlaplace"):
+        if args.temp is None:
+            raise ValueError("--temp not be None.")
+        if args.temp <= 0.0:
+             raise ValueError("--temp must be greater than 0.")

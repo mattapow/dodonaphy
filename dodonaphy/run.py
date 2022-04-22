@@ -87,7 +87,6 @@ def run(args):
             write_dists=args.write_dists,
         )
     elif args.infer == "vi":
-        assert args.temp > 0.0, "Temperature must be greater than 0."
         DodonaphyVI.run(
             args.dim,
             partials[:],
@@ -106,7 +105,6 @@ def run(args):
             n_boosts=args.boosts,
         )
     elif args.infer == "ml":
-        assert args.temp > 0.0, "Temperature must be greater than 0."
         partials, weights = compress_alignment(dna)
         mymod = MAP(
             partials[:],
@@ -120,7 +118,6 @@ def run(args):
         mymod.learn(epochs=args.epochs, learn_rate=args.learn, path_write=path_write)
 
     elif args.infer == "map":
-        assert args.temp > 0.0, "Temperature must be greater than 0."
         partials, weights = compress_alignment(dna)
         mymod = MAP(
             partials[:],
@@ -134,7 +131,6 @@ def run(args):
         mymod.learn(epochs=args.epochs, learn_rate=args.learn, path_write=path_write)
 
     elif args.infer == "hmap":
-        assert args.temp > 0.0, "Temperature must be greater than 0."
         partials, weights = compress_alignment(dna)
         mymod = HMAP(
             partials[:],
@@ -150,7 +146,6 @@ def run(args):
         mymod.learn(epochs=args.epochs, learn_rate=args.learn, path_write=path_write)
 
     elif args.infer == "hlaplace":
-        assert args.temp > 0.0, "Temperature must be greater than 0."
         partials, weights = compress_alignment(dna)
         mymod = HMAP(
             partials[:],
@@ -172,7 +167,7 @@ def run(args):
         #TODO: what inputs required
         mymod = Brute()
         mymod.run(
-            dim,
+            args.dim,
             partials,
             weights,
             path_write,
@@ -297,6 +292,7 @@ def main():
     """Main entry point"""
     parser = cli.init_parser()
     args = parser.parse_args()
+    cli.validate(args)
     run(args)
 
 
