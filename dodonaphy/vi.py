@@ -1,5 +1,6 @@
 import os
 from typing import Any, List
+import time
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -519,6 +520,7 @@ class DodonaphyVI(BaseModel):
         print("Using %s embedding with %s connections" % (embedder, connector))
 
         # Initialise model
+        start = time.time()
         mymod = DodonaphyVI(
             partials,
             weights,
@@ -563,6 +565,7 @@ class DodonaphyVI(BaseModel):
                     lp[0].item(),
                     ln_prior.item(),
                 )
+        mymod.save_final_info(path_write, time.time() - start)
 
     def save(self, fn):
         with open(fn, "w", encoding="UTF-8") as f:
@@ -585,6 +588,14 @@ class DodonaphyVI(BaseModel):
                             )
                         f.write("\n")
                     f.write("\n")
+    
+    def save_final_info(self, path_write, seconds):
+        """Save time taken to info file."""
+        file_name = path_write + "/" + "vi.info"
+        with open(file_name, "a", encoding="UTF-8") as file:
+            mins, secs = divmod(seconds, 60)
+            hrs, mins = divmod(mins, 60)
+            file.write(f"Total time: {int(hrs)}:{int(mins)}:{int(secs)}\n")
 
 
 def read(path_read, internals=True):
