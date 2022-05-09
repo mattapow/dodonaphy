@@ -9,7 +9,6 @@ from dodonaphy import tree as treeFunc
 from dodonaphy import Chyp_np, Cphylo, Cpeeler, Cutils, peeler
 from dodonaphy.base_model import BaseModel
 from dodonaphy.Chyp_np import tangent_to_hyper as t02hyp
-from dodonaphy.Chyp_np import tangent_to_hyper_jacobian as t02hyp_J
 
 
 class Chain(BaseModel):

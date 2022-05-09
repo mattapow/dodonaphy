@@ -7,7 +7,7 @@ import numpy as np
 import torch
 from torch.distributions.multivariate_normal import MultivariateNormal
 
-from dodonaphy import tree, utils, peeler, Ctransforms, Chyp_torch
+from dodonaphy import tree, utils, peeler, Chyp_torch
 from dodonaphy.base_model import BaseModel
 from dodonaphy.phylo import JC69_p_t, calculate_treelikelihood
 import hydraPlus
@@ -426,7 +426,6 @@ class DodonaphyVI(BaseModel):
             )
 
         if normalise_leaf:
-            # TODO Normalise everywhere as required
             # TODO: do we need normalise jacobian? The positions are inside the integral... so yes
             r_prop = torch.norm(loc_prop[0, :]).repeat(self.S)
             loc_prop = utils.normalise(loc_prop) * r_prop.repeat((self.D, 1)).T

@@ -1,5 +1,8 @@
-from dodonaphy.chain import Chain
+import math
+
 import numpy as np
+from dodonaphy.chain import Chain
+
 
 def test_prior_normal():
     dim = 3
@@ -13,7 +16,7 @@ def test_prior_normal():
         prior='normal',
     )
     ln_prior = chain.get_prior()
-    assert ln_prior != float("Nan")
+    assert not math.isnan(ln_prior)
 
 
 def test_prior_gammadir():
@@ -29,4 +32,4 @@ def test_prior_gammadir():
     )
     chain.blens = np.random.exponential(0.1, 5)
     ln_prior = chain.get_prior()
-    assert ln_prior != float("Nan")
+    assert not math.isnan(ln_prior)

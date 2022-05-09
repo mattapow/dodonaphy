@@ -233,4 +233,4 @@ def validate(args):
         if args.temp is None:
             raise ValueError("--temp not be None.")
         if args.temp <= 0.0:
-             raise ValueError("--temp must be greater than 0.")
+            raise ValueError("--temp must be greater than 0.")

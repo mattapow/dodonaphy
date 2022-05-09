@@ -239,7 +239,7 @@ class DodonaphyMCMC:
                             and j == n_dim - 1
                             and not self.chains[0].internals_exist
                         ):
-                            file.write(f", ")
+                            file.write(", ")
 
                 if self.chains[0].internals_exist:
                     for i in range(n_int):

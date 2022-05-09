@@ -165,7 +165,6 @@ def run(args):
     elif args.infer == "brute":
         partials, weights = compress_alignment(dna)
         path_write = './test_brute'
-        #TODO: what inputs required
         mymod = Brute()
         mymod.run(
             args.dim,
