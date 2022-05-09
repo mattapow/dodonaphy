@@ -85,6 +85,7 @@ def run(args):
             warm_up=args.warm_up,
             mcmc_alg=args.mcmc_alg,
             write_dists=args.write_dists,
+            prior=args.prior,
         )
     elif args.infer == "vi":
         DodonaphyVI.run(

@@ -27,8 +27,9 @@ def init_parser():
     parser.add_argument(
         "--prior",
         default="None",
-        choices=("None", "gammadir", "birthdeath"),
-        help=("Inf: Which prior to use: no prior, Gamma-Dirichlet or Birth-Death."),
+        choices=("None", "gammadir", "birthdeath", "normal"),
+        help=("Inf: Which prior to use: no prior, Gamma-Dirichlet, Birth-Death\
+        or normal embedding location."),
     )
     parser.add_argument(
         "--connect",
@@ -139,8 +140,9 @@ def init_parser():
     parser.add_argument(
         "--loss_fn",
         default="likelihood",
-        choices=("likelihood", "pair_likelihood", "hypHC"),
-        help="MCMC: Loss function for MCMC and MAP. Not implemented in VI.",
+        choices=("likelihood", "pair_likelihood", "hypHC", "none"),
+        help="MCMC: Loss function for MCMC and MAP. Not implemented in VI.\
+        Use none for no model, prior only.",
     )
     parser.add_argument(
         "--swap_period",

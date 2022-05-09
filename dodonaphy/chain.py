@@ -38,6 +38,7 @@ class Chain(BaseModel):
         warm_up=100,
         mcmc_alg="RAM",
         write_dists=False,
+        prior='normal',
     ):
         super().__init__(
             partials,
@@ -57,7 +58,7 @@ class Chain(BaseModel):
         self.int_x = int_x  # S-2 x D
         self.jacobian = np.zeros(1)
         if leaf_x is not None:
-            self.S = leaf_x.shape()[0]
+            self.S = leaf_x.shape[0]
             self.X_bar = leaf_x.flatten()
         self.step_scale = step_scale
         self.cov = np.eye(self.S * self.D, dtype=np.double) * step_scale
@@ -77,9 +78,24 @@ algorithm, got {warm_up}."
         self.more_tune = True
 
         self.ln_p = self.get_loss()
-        self.ln_prior = Cphylo.compute_prior_gamma_dir_np(self.blens)
+        self.prior = prior
+        self.ln_prior = self.get_prior()
         self.rng = np.random.default_rng()
         self.write_dists = write_dists
+
+    def get_prior(self):
+        if self.prior == "gammadir":
+            if len(self.blens) == 0:
+                self.ln_prior = -np.inf
+            else:
+                self.ln_prior = Cphylo.compute_prior_gamma_dir_np(self.blens)
+        elif self.prior == "birthdeath":
+            self.ln_prior = self.compute_prior_birthdeath(self.peel, self.blen)
+        elif self.prior == "normal":
+            self.ln_prior = self.compute_prior_normal(self.leaf_x)
+        else:
+            raise ValueError("Prior must be one of 'gammadir', 'normal' or 'birthdeath'")
+        return self.ln_prior
 
     def get_loss(self):
         """Get the current loss according to the objective.
@@ -97,6 +113,8 @@ algorithm, got {warm_up}."
         elif self.loss_fn == "hypHC" and self.leaf_x is not None:
             pdm = Chyp_np.get_pdm(self.leaf_x, curvature=self.curvature)
             self.ln_p = self.compute_hypHC(pdm, self.leaf_x)
+        elif self.loss_fn == "none":
+            self.ln_p = 0
         else:
             self.ln_p = -np.finfo(np.double).max
         return self.ln_p
@@ -120,8 +138,7 @@ algorithm, got {warm_up}."
             )
 
         self.ln_p = self.get_loss()
-        # self.ln_prior = self.compute_prior_birthdeath(self.peel, self.blens, **self.prior)
-        self.ln_prior = Cphylo.compute_prior_gamma_dir_np(self.blens)
+        self.ln_prior = self.get_prior()
 
     def evolve(self):
         """Propose new embedding with regular MCMC."""
@@ -316,7 +333,7 @@ algorithm, got {warm_up}."
             )
 
         ln_p = Cphylo.compute_LL_np(self.partials, self.weights, peel, blens)
-        ln_prior = Cphylo.compute_prior_gamma_dir_np(blens)
+        ln_prior = self.get_prior()
 
         proposal = {
             "leaf_x": leaf_x_prop,

@@ -34,6 +34,7 @@ class DodonaphyMCMC:
         warm_up=100,
         mcmc_alg="RAM",
         write_dists=False,
+        prior='normal',
     ):
         self.n_chains = n_chains
         self.chains = []
@@ -64,6 +65,7 @@ class DodonaphyMCMC:
                     warm_up=warm_up,
                     mcmc_alg=mcmc_alg,
                     write_dists=write_dists,
+                    prior=prior,
                 )
             )
 
@@ -175,16 +177,17 @@ class DodonaphyMCMC:
             file.write(f"Unique sites:  {self.chains[0].L}\n")
             file.write(f"\nChains:  {self.n_chains}\n")
             for chain in self.chains:
-                file.write(f"\nChain temp:  {chain.chain_temp}\n")
-                file.write(f"Convergence length: {chain.converge_length}\n")
-                file.write(f"Connect Mthd:  {chain.connector}\n")
-                file.write(f"Embed Mthd:  {chain.embedder}\n")
-                file.write(f"Curvature: {chain.curvature}\n")
-                file.write(f"Normalise Leaf: {chain.normalise_leaf}\n")
-                file.write(f"Loss function: {chain.loss_fn}\n")
-                file.write(f"Matsumoto adustment: {chain.matsumoto}\n")
-                file.write(f"Warm-up period: {chain.warm_up}\n")
-                file.write(f"MCMC algorithm: {chain.mcmc_alg}\n")
+                file.write(f"\n\tChain temp:  {chain.chain_temp}\n")
+                file.write(f"\tConvergence length: {chain.converge_length}\n")
+                file.write(f"\tConnect Mthd:  {chain.connector}\n")
+                file.write(f"\tEmbed Mthd:  {chain.embedder}\n")
+                file.write(f"\tCurvature: {chain.curvature}\n")
+                file.write(f"\tNormalise Leaf: {chain.normalise_leaf}\n")
+                file.write(f"\tLoss function: {chain.loss_fn}\n")
+                file.write(f"\tPrior: {chain.prior}\n")
+                file.write(f"\tMatsumoto adustment: {chain.matsumoto}\n")
+                file.write(f"\tWarm-up period: {chain.warm_up}\n")
+                file.write(f"\tMCMC algorithm: {chain.mcmc_alg}\n")
 
     def save_final_info(self, path_write, swaps, seconds):
         """Save tail of info file with acceptance and time taken."""
@@ -339,6 +342,7 @@ class DodonaphyMCMC:
         warm_up=100,
         mcmc_alg="RAM",
         write_dists=False,
+        prior="normal",
     ):
         """Run Dodonaphy's MCMC."""
         print("\nRunning Dodonaphy MCMC")
@@ -373,6 +377,7 @@ class DodonaphyMCMC:
             warm_up=warm_up,
             mcmc_alg=mcmc_alg,
             write_dists=write_dists,
+            prior=prior,
         )
 
         mymod.initialise_chains(emm_tips, normalise_leaf)

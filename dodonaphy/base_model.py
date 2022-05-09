@@ -2,6 +2,7 @@
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
+from torch.distributions.multivariate_normal import MultivariateNormal
 from dendropy import Tree
 from dendropy.model.birthdeath import birth_death_likelihood
 
@@ -55,7 +56,6 @@ class BaseModel(object):
         else:
             self.blens = np.zeros(self.bcount, dtype=np.double)
         self.normalise_leaf = normalise_leaf
-        assert loss_fn in ("likelihood", "pair_likelihood", "hypHC")
         self.loss_fn = loss_fn
         self.matsumoto = matsumoto
         if tip_labels is None:
@@ -265,6 +265,36 @@ class BaseModel(object):
             death_rate=death_rate,
         )
         return torch.tensor(LL)
+
+    @staticmethod
+    def compute_prior_normal(locations, scale=0.1):
+        """Multivariate Normal prior on locations.
+        Centered at origin.
+
+        Args:
+            locations (ndarray or tensor): Locations n_points x n_dimensions
+            scale (float, optional): Covariance scalar. Defaults to 0.01.
+
+        Returns:
+            _type_: Log probability of locations under Normal prior distribution.
+        """
+        np_flag = False
+        if type(locations).__module__ == np.__name__:
+            np_flag = True
+            locations = torch.from_numpy(locations)
+        if locations is None:
+            return -np.infty
+
+        n_taxa, dim = locations.size()
+        cov = scale * torch.eye(n_taxa * dim, dtype=torch.double)
+        mean = torch.zeros((n_taxa * dim), dtype=torch.double)
+        prior_dist = MultivariateNormal(mean, covariance_matrix=cov)
+        ln_prior = prior_dist.log_prob(locations.flatten())
+
+        if np_flag:
+            ln_prior = ln_prior.detach().numpy()
+        return ln_prior
+
 
     @staticmethod
     def compute_prior_gamma_dir(
