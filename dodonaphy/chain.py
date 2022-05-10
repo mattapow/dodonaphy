@@ -59,6 +59,7 @@ class Chain(BaseModel):
         if leaf_x is not None:
             self.S = leaf_x.shape[0]
             self.X_bar = leaf_x.flatten()
+
         self.step_scale = step_scale
         self.cov = np.eye(self.S * self.D, dtype=np.double) * step_scale
         self.mcmc_alg = mcmc_alg
@@ -66,6 +67,7 @@ class Chain(BaseModel):
             err_msg = f"Warm up period must be stricly greater than 2 for AM \
 algorithm, got {warm_up}."
             raise ValueError(err_msg)
+
         self.warm_up = warm_up
         self.chain_temp = chain_temp
         self.accepted = 0
@@ -76,68 +78,81 @@ algorithm, got {warm_up}."
             self.converged = [False] * converge_length
         self.more_tune = True
 
-        self.ln_p = self.get_loss()
         self.prior = prior
-        self.ln_prior = self.get_prior()
         self.rng = np.random.default_rng()
         self.write_dists = write_dists
+    
+    def set_probability(self, leaf_x):
+        self.leaf_x = leaf_x
+        self.n_points = self.leaf_x.shape[0]
+        self.peel, self.blens, self.int_x = self.connect(self.leaf_x)
+        self.ln_p = self.get_loss(self.peel, self.blens)
+        self.ln_prior = self.get_prior()
 
     def get_prior(self):
         if self.prior == "gammadir":
-            if len(self.blens) == 0:
-                self.ln_prior = -np.inf
-            else:
-                self.ln_prior = Cphylo.compute_prior_gamma_dir_np(self.blens)
+            ln_prior = Cphylo.compute_prior_gamma_dir_np(self.blens)
         elif self.prior == "birthdeath":
-            self.ln_prior = self.compute_prior_birthdeath(self.peel, self.blen)
+            ln_prior = self.compute_prior_birthdeath(self.peel, self.blen)
         elif self.prior == "normal":
-            self.ln_prior = self.compute_prior_normal(self.leaf_x)
+            ln_prior = self.compute_prior_normal(self.leaf_x)
+        elif self.prior == "None":
+            ln_prior = 0
         else:
-            raise ValueError("Prior must be one of 'gammadir', 'normal' or 'birthdeath'")
-        return self.ln_prior
+            raise ValueError("Prior must be one of 'gammadir', 'normal', 'birthdeath' or 'None'")
+        return ln_prior
 
-    def get_loss(self):
+    def get_loss(self, peel, blens):
         """Get the current loss according to the objective.
+        Must provide peel and blens to get loss of proposal,
+        not just current state.
+
+        Args:
+            peel (ndarray int): Postorder traversal
+            blens (ndarray double): Branch lengths
 
         Returns:
             float: The loss value.
         """
         if self.loss_fn == "likelihood":
-            self.ln_p = Cphylo.compute_LL_np(
-                self.partials, self.weights, self.peel, self.blens
+            ln_p = Cphylo.compute_LL_np(
+                self.partials, self.weights, peel, blens
             )
         elif self.loss_fn == "pair_likelihood" and self.leaf_x is not None:
             pdm = Chyp_np.get_pdm(self.leaf_x, curvature=self.curvature)
-            self.ln_p = self.compute_log_a_like(pdm)
+            ln_p = self.compute_log_a_like(pdm)
         elif self.loss_fn == "hypHC" and self.leaf_x is not None:
             pdm = Chyp_np.get_pdm(self.leaf_x, curvature=self.curvature)
-            self.ln_p = self.compute_hypHC(pdm, self.leaf_x)
+            ln_p = self.compute_hypHC(pdm, self.leaf_x)
         elif self.loss_fn == "none":
-            self.ln_p = 0
+            ln_p = 0
         else:
-            self.ln_p = -np.finfo(np.double).max
-        return self.ln_p
+            ln_p = -np.finfo(np.double).max
+        return ln_p
 
-    def set_probability(self):
-        """Initialise likelihood and prior values of embedding"""
+    def connect(self, leaf_x):
+        """Connect tips into a tree"""
+        if leaf_x is None:
+            return None, None, None
         if self.connector == "geodesics":
-            self.peel, self.int_x = peeler.make_hard_peel_geodesic(self.leaf_x)
-        elif self.connector == "nj":
-            pdm = Chyp_np.get_pdm(self.leaf_x, curvature=self.curvature)
-            self.peel, self.blens = Cpeeler.nj_np(pdm)
+            peel, int_x = peeler.make_hard_peel_geodesic(leaf_x)
+        else:
+            int_x = None
+
+        if self.connector == "nj":
+            pdm = Chyp_np.get_pdm(leaf_x, curvature=self.curvature)
+            peel, blens = Cpeeler.nj_np(pdm)
 
         if self.connector != "nj":
-            self.blens = Cphylo.compute_branch_lengths_np(
+            blens = Cphylo.compute_branch_lengths_np(
                 self.S,
-                self.peel,
-                self.leaf_x,
-                self.int_x,
+                peel,
+                leaf_x,
+                int_x,
                 curvature=self.curvature,
                 matsumoto=self.matsumoto,
             )
-
-        self.ln_p = self.get_loss()
-        self.ln_prior = self.get_prior()
+        return peel, blens, int_x
 
     def evolve(self):
         """Propose new embedding with regular MCMC."""
@@ -316,22 +331,8 @@ algorithm, got {warm_up}."
         """
         leaf_x_prop, log_abs_det_jacobian = self.sample_loc_np(leaf_loc, leaf_cov)
 
-        int_x_prop = None
-        if self.connector == "nj":
-            pdm = Chyp_np.get_pdm(leaf_x_prop, curvature=self.curvature)
-            peel, blens = Cpeeler.nj_np(pdm)
-        elif self.connector == "geodesics":
-            peel, int_x_prop = peeler.make_hard_peel_geodesic(leaf_loc)
-            blens = Cphylo.compute_branch_lengths_np(
-                self.S,
-                peel,
-                leaf_x_prop,
-                int_x_prop,
-                self.curvature,
-                matsumoto=self.matsumoto,
-            )
-
-        ln_p = Cphylo.compute_LL_np(self.partials, self.weights, peel, blens)
+        peel, blens, int_x_prop = self.connect(leaf_x_prop)
+        ln_p = self.get_loss(peel, blens)
         ln_prior = self.get_prior()
 
         proposal = {

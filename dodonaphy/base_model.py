@@ -273,7 +273,7 @@ class BaseModel(object):
 
         Args:
             locations (ndarray or tensor): Locations n_points x n_dimensions
-            scale (float, optional): Covariance scalar. Defaults to 0.01.
+            scale (float, optional): Covariance scalar. Defaults to 0.1.
 
         Returns:
             _type_: Log probability of locations under Normal prior distribution.

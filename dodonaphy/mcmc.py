@@ -120,9 +120,6 @@ class DodonaphyMCMC:
             self.save_info(info_file, epochs, burnin, self.save_period)
             tree.save_tree_head(path_write, "samples", self.chains[0].tip_labels)
 
-        for chain in self.chains:
-            chain.set_probability()
-
         if burnin > 0:
             self.run_burnin(burnin)
 
@@ -313,10 +310,10 @@ class DodonaphyMCMC:
         for chain in self.chains:
             if normalise_leaf:
                 radius = np.linalg.norm(emm["X"], axis=1)[0]
-                chain.leaf_x = Cutils.normalise_np(emm["X"]) * radius
+                leaf_x = Cutils.normalise_np(emm["X"]) * radius
             else:
-                chain.leaf_x = emm["X"]
-            chain.n_points = chain.leaf_x.shape[0]
+                leaf_x = emm["X"]
+            chain.set_probability(leaf_x)
 
     @staticmethod
     def run(
