@@ -127,7 +127,7 @@ def init_parser():
     parser.add_argument(
         "--step",
         "-x",
-        default=0.1,
+        default=0.001,
         type=float,
         help="MCMC: Initial step scale for MCMC.",
     )
@@ -146,13 +146,13 @@ def init_parser():
     )
     parser.add_argument(
         "--swap_period",
-        default=1000,
+        default=100,
         type=int,
         help="MCMC: Number MCMC generations before considering swapping chains.",
     )
     parser.add_argument(
         "--n_swaps",
-        default=10,
+        default=5,
         type=int,
         help="MCMC: Number of MCMC chain swap moves considered every swap_period.",
     )

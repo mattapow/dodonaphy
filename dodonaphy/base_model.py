@@ -267,13 +267,13 @@ class BaseModel(object):
         return torch.tensor(LL)
 
     @staticmethod
-    def compute_prior_normal(locations, scale=0.1):
+    def compute_prior_normal(locations, scale=0.01):
         """Multivariate Normal prior on locations.
         Centered at origin.
 
         Args:
             locations (ndarray or tensor): Locations n_points x n_dimensions
-            scale (float, optional): Covariance scalar. Defaults to 0.1.
+            scale (float, optional): Covariance scalar. Defaults to 0.01.
 
         Returns:
             _type_: Log probability of locations under Normal prior distribution.

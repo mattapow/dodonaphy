@@ -81,19 +81,31 @@ algorithm, got {warm_up}."
         self.prior = prior
         self.rng = np.random.default_rng()
         self.write_dists = write_dists
-    
+
+        self.ln_p = -np.inf
+        self.ln_prior = -np.inf
+
     def set_probability(self, leaf_x):
+        """Set the initial probabilities
+
+        Args:
+            leaf_x (_type_): Embedding locations
+        """
         self.leaf_x = leaf_x
-        self.n_points = self.leaf_x.shape[0]
         self.peel, self.blens, self.int_x = self.connect(self.leaf_x)
         self.ln_p = self.get_loss(self.peel, self.blens)
         self.ln_prior = self.get_prior()
 
     def get_prior(self):
+        """Compute the prior probability.
+
+        Returns:
+            float: Probability of the tree embedding under the prior.
+        """
         if self.prior == "gammadir":
             ln_prior = Cphylo.compute_prior_gamma_dir_np(self.blens)
         elif self.prior == "birthdeath":
-            ln_prior = self.compute_prior_birthdeath(self.peel, self.blen)
+            ln_prior = self.compute_prior_birthdeath(self.peel, self.blens)
         elif self.prior == "normal":
             ln_prior = self.compute_prior_normal(self.leaf_x)
         elif self.prior == "None":
@@ -127,7 +139,7 @@ algorithm, got {warm_up}."
         elif self.loss_fn == "none":
             ln_p = 0
         else:
-            ln_p = -np.finfo(np.double).max
+            raise ValueError("Unrecogognised loss function")
         return ln_p
 
     def connect(self, leaf_x):
