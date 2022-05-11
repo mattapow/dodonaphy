@@ -4,7 +4,7 @@ import time
 
 import numpy as np
 from dodonaphy import tree, Cphylo, Cutils
-import hydraPlus
+from hydraPlus import hydraPlus
 from dodonaphy.chain import Chain
 
 
