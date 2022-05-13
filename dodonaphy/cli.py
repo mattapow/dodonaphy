@@ -27,9 +27,9 @@ def init_parser():
     parser.add_argument(
         "--prior",
         default="None",
-        choices=("None", "gammadir", "birthdeath", "normal"),
+        choices=("None", "gammadir", "birthdeath", "normal", "uniform"),
         help=("Inf: Which prior to use: no prior, Gamma-Dirichlet, Birth-Death\
-        or normal embedding location."),
+         , normal or uniform embedding location."),
     )
     parser.add_argument(
         "--connect",

@@ -37,7 +37,7 @@ class Chain(BaseModel):
         warm_up=100,
         mcmc_alg="RAM",
         write_dists=False,
-        prior='normal',
+        prior="normal",
     ):
         super().__init__(
             partials,
@@ -103,15 +103,20 @@ algorithm, got {warm_up}."
             float: Probability of the tree embedding under the prior.
         """
         if self.prior == "gammadir":
-            ln_prior = Cphylo.compute_prior_gamma_dir_np(self.blens)
+            ln_prior = Cphylo.compuƒte_prior_gamma_dir_np(self.blens)
         elif self.prior == "birthdeath":
             ln_prior = self.compute_prior_birthdeath(self.peel, self.blens)
         elif self.prior == "normal":
             ln_prior = self.compute_prior_normal(self.leaf_x)
+        elif self.prior == "uniform":
+            ln_prior = self.compute_prior_unif(self.leaf_x)
         elif self.prior == "None":
             ln_prior = 0
         else:
-            raise ValueError("Prior must be one of 'gammadir', 'normal', 'birthdeath' or 'None'")
+            raise ValueError(
+                "Prior must be one of 'gammadir', 'normal',\
+            'uniform', 'birthdeath' or 'None'"
+            )
         return ln_prior
 
     def get_loss(self, peel, blens):
@@ -127,9 +132,7 @@ algorithm, got {warm_up}."
             float: The loss value.
         """
         if self.loss_fn == "likelihood":
-            ln_p = Cphylo.compute_LL_np(
-                self.partials, self.weights, peel, blens
-            )
+            ln_p = Cphylo.compute_LL_np(self.partials, self.weights, peel, blens)
         elif self.loss_fn == "pair_likelihood" and self.leaf_x is not None:
             pdm = Chyp_np.get_pdm(self.leaf_x, curvature=self.curvature)
             ln_p = self.compute_log_a_like(pdm)
@@ -248,7 +251,7 @@ algorithm, got {warm_up}."
         """Based on an Adaptive Metropolis Algoirthm, Haario 2001"""
         X = self.leaf_x.flatten()
         t = self.iterations
-        s_d = 2.4 ** 2 / (self.S * self.D)
+        s_d = 2.4**2 / (self.S * self.D)
         X_bar_last = self.X_bar
         self.X_bar = X_bar_last + 1 / (t + 1) * (X - X_bar_last)
 
@@ -294,20 +297,24 @@ algorithm, got {warm_up}."
         cov_full = self.cov * (np.eye(n) + eta * accept_diff * U_out) * self.cov.T
         self.cov = np.linalg.cholesky(cov_full)
         self.iterations += 1
-    
+
     def write_prop_dist(self, proposal, path_write, accept):
         """Write to file the symmetric difference to the proposal"""
         if path_write is not None and self.chain_temp == 1:
             newick1 = treeFunc.tree_to_newick(self.tip_labels, self.peel, self.blens)
             tree1 = Tree.get(data=newick1, schema="newick")
-            newick2 = treeFunc.tree_to_newick(self.tip_labels, proposal["peel"], proposal["blens"])
-            tree2 = Tree.get(data=newick2, schema="newick", taxon_namespace=tree1.taxon_namespace)
+            newick2 = treeFunc.tree_to_newick(
+                self.tip_labels, proposal["peel"], proposal["blens"]
+            )
+            tree2 = Tree.get(
+                data=newick2, schema="newick", taxon_namespace=tree1.taxon_namespace
+            )
 
             rfl = rf_dist(tree1, tree2)
             sym_diff = symmetric_difference(tree1, tree2)
 
-            path_rfl = os.path.join(path_write, 'rfl.txt')
-            path_sym_diff = os.path.join(path_write, 'sym_diff.txt')
+            path_rfl = os.path.join(path_write, "rfl.txt")
+            path_sym_diff = os.path.join(path_write, "sym_diff.txt")
             with open(path_rfl, "a", encoding="UTF-8") as file:
                 file.write(f"{str(rfl)}\t{int(accept)}\n")
             with open(path_sym_diff, "a", encoding="UTF-8") as file:
@@ -385,9 +392,9 @@ algorithm, got {warm_up}."
 
         elif self.embedder == "wrap":
             zero = np.zeros(n_vars, dtype=np.double)
-            sample_t0 = self.rng.multivariate_normal(zero, cov, method="cholesky").reshape(
-                (n_locs, self.D)
-            )
+            sample_t0 = self.rng.multivariate_normal(
+                zero, cov, method="cholesky"
+            ).reshape((n_locs, self.D))
             for i in range(n_locs):
                 mu_hyp = Chyp_np.project_up(loc_low[i, :])
                 loc_low_prop[i, :] = t02hyp(mu_hyp, sample_t0[i, :], self.D)[1:]

@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 from torch.distributions.multivariate_normal import MultivariateNormal
+from torch.distributions.uniform import Uniform
 from dendropy import Tree
 from dendropy.model.birthdeath import birth_death_likelihood
 
@@ -295,6 +296,32 @@ class BaseModel(object):
             ln_prior = ln_prior.detach().numpy()
         return ln_prior
 
+    @staticmethod
+    def compute_prior_unif(locations, scale=1.0):
+        """Multivariate Normal prior on locations.
+        Centered at origin.
+
+        Args:
+            locations (ndarray or tensor): Locations n_points x n_dimensions
+            scale (float, optional): Covariance scalar. Defaults to 0.01.
+
+        Returns:
+            _type_: Log probability of locations under Normal prior distribution.
+        """
+        np_flag = False
+        if type(locations).__module__ == np.__name__:
+            np_flag = True
+            locations = torch.from_numpy(locations)
+        if locations is None:
+            return -np.infty
+
+        _scale = torch.tensor(scale)
+        prior_dist = Uniform(-_scale, _scale)
+        ln_prior = torch.sum(prior_dist.log_prob(locations.flatten()))
+
+        if np_flag:
+            ln_prior = ln_prior.detach().numpy()
+        return ln_prior
 
     @staticmethod
     def compute_prior_gamma_dir(
@@ -360,6 +387,7 @@ class BaseModel(object):
         plt.hist(like_hist)
         plt.title("Likelihood histogram")
         plt.savefig(path_write + "/likelihood_hist.png")
+
 
 def normalise_LADJ(loc):
     """Return the log of the absolute value of the determinant of the jacobian.
