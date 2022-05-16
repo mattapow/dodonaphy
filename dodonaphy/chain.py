@@ -103,7 +103,7 @@ algorithm, got {warm_up}."
             float: Probability of the tree embedding under the prior.
         """
         if self.prior == "gammadir":
-            ln_prior = Cphylo.compuƒte_prior_gamma_dir_np(self.blens)
+            ln_prior = Cphylo.compute_prior_gamma_dir_np(self.blens)
         elif self.prior == "birthdeath":
             ln_prior = self.compute_prior_birthdeath(self.peel, self.blens)
         elif self.prior == "normal":
@@ -263,10 +263,19 @@ algorithm, got {warm_up}."
         )
 
     def check_proposal(self, proposal, ln_r_accept):
+        """Accept or reject proposal
+
+        Args:
+            proposal (dict): Proposal state
+            ln_r_accept (float): Log probability of acceptance
+
+        Returns:
+            Boolean: Accepted new state
+        """
         accept = False
         if ln_r_accept >= 0:
             accept = True
-        elif -np.random.exponential(scale=1.0) < ln_r_accept:
+        elif np.random.uniform() < np.exp(ln_r_accept):
             accept = True
         if accept:
             self.leaf_x = proposal["leaf_x"]
@@ -280,9 +289,9 @@ algorithm, got {warm_up}."
             self.accepted += 1
         return accept
 
-    def evolve_RAM(self, path_write):
-        """Based on Robust Adaptive Metropolis, Vihola 2012"""
-        proposal = self.sample_leaf_np(self.leaf_x, self.cov)
+    def evolve_ram(self, path_write):
+        """Evolve MCMC state based on "Robust Adaptive Metropolis", Vihola 2012"""
+        proposal = self.sample_leaf_np(self.leaf_x, self.cov * self.cov.T)
         ln_r_accept = self.ln_accept_ratio(proposal)
         U = proposal["leaf_x"].flatten() - self.leaf_x.flatten()
 
@@ -291,7 +300,7 @@ algorithm, got {warm_up}."
             self.write_prop_dist(proposal, path_write, accept)
 
         n = self.S * self.D
-        eta = (self.iterations + 1) ** (-0.5)
+        eta = (self.iterations - self.warm_up + 2) ** (-0.5)
         accept_diff = np.exp(ln_r_accept) - self.target_acceptance
         U_out = np.outer(U, U) / np.linalg.norm(U) ** 2
         cov_full = self.cov * (np.eye(n) + eta * accept_diff * U_out) * self.cov.T

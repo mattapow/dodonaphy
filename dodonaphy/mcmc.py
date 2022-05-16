@@ -136,7 +136,7 @@ class DodonaphyMCMC:
                     chain.evolve()
                     chain.tune_step()
                 elif chain.mcmc_alg == "RAM":
-                    chain.evolve_RAM(path_write)
+                    chain.evolve_ram(path_write)
                 elif chain.mcmc_alg == "tune":
                     chain.evolve()
                     chain.tune_step()
@@ -284,23 +284,13 @@ class DodonaphyMCMC:
         ln_r_accept = np.minimum(0, prob1 + prob2)
 
         # swap with probability r
-        if ln_r_accept > -np.random.exponential(scale=1.0):
-            # swap the locations and current probability
-            chain_i.leaf_x, chain_j.leaf_x = (
-                chain_j.leaf_x,
-                chain_i.leaf_x,
-            )
-            chain_i.int_x, chain_j.int_x = (
-                chain_j.int_x,
-                chain_i.int_x,
-            )
-            chain_i.ln_p, chain_j.ln_p = (
-                chain_j.ln_p,
-                chain_i.ln_p,
-            )
-            chain_i.ln_prior, chain_j.ln_prior = (
-                chain_j.ln_prior,
-                chain_i.ln_prior,
+        if np.random.uniform() < np.exp(ln_r_accept):
+            # swap the chains
+            chain_i, chain_j = (chain_j, chain_i)
+            # except put the temperatures back
+            chain_i.chain_temp, chain_j.chain_temp = (
+                chain_j.chain_temp,
+                chain_i.chain_temp,
             )
             return 1
         return 0
