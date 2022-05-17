@@ -36,7 +36,7 @@ class DodonaphyMCMC:
         warm_up=100,
         mcmc_alg="RAM",
         write_dists=False,
-        prior='normal',
+        prior="normal",
     ):
         self.n_chains = n_chains
         self.chains = []
@@ -296,7 +296,7 @@ class DodonaphyMCMC:
             return 1
         return 0
 
-    def initialise_chains(self, emm, normalise_leaf):
+    def initialise_chains(self, emm, normalise_leaf, peel=None):
         """initialise each chain"""
         for chain in self.chains:
             if normalise_leaf:
@@ -304,7 +304,7 @@ class DodonaphyMCMC:
                 leaf_x = Cutils.normalise_np(emm["X"]) * radius
             else:
                 leaf_x = emm["X"]
-            chain.set_probability(leaf_x)
+            chain.set_probability(leaf_x, peel)
 
     @staticmethod
     def run(
@@ -319,6 +319,7 @@ class DodonaphyMCMC:
         burnin=0,
         n_chains=1,
         connector="nj",
+        peel=None,
         embedder="up",
         curvature=-1.0,
         normalise_leaf=False,
@@ -334,7 +335,6 @@ class DodonaphyMCMC:
     ):
         """Run Dodonaphy's MCMC."""
         print("\nRunning Dodonaphy MCMC")
-        assert connector in ["geodesics", "nj"]
 
         # embed tips with distances using HydraPlus
         hydra_crv = min(curvature, -1e-10)
@@ -344,7 +344,6 @@ class DodonaphyMCMC:
             raise ValueError("hydra+ cannot embed. Try decreasing the curvature.")
         print(f"Embedding stress of tips (hydra+) = {emm_tips['stress_hydraPlus']:.4}")
 
-        partials = [partial.detach().numpy() for partial in partials]
         weights = weights.detach().numpy()
         mymod = DodonaphyMCMC(
             partials,
@@ -368,5 +367,5 @@ class DodonaphyMCMC:
             prior=prior,
         )
 
-        mymod.initialise_chains(emm_tips, normalise_leaf)
+        mymod.initialise_chains(emm_tips, normalise_leaf, peel=peel)
         mymod.learn(epochs, burnin=burnin, path_write=path_write)

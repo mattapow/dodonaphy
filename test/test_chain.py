@@ -1,6 +1,7 @@
 import math
 
 import numpy as np
+import torch
 from dodonaphy.chain import Chain
 
 
@@ -8,7 +9,7 @@ def test_prior_normal():
     dim = 3
     leaf_x = np.random.randn(5, dim)
     chain = Chain(
-        partials=[np.ones((5, 1, 1))],
+        partials=[torch.ones((5, 1, 1))],
         weights=np.ones(1, dtype=int),
         dim=dim,
         leaf_x=leaf_x,
@@ -23,7 +24,7 @@ def test_prior_gammadir():
     dim = 3
     leaf_x = np.random.randn(5, dim)
     chain = Chain(
-        partials=[np.ones((5, 1, 1))],
+        partials=[torch.ones((5, 1, 1))],
         weights=np.ones(1, dtype=int),
         dim=dim,
         leaf_x=leaf_x,

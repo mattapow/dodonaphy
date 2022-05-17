@@ -27,6 +27,7 @@ class Chain(BaseModel):
         chain_temp=1,
         target_acceptance=0.234,
         connector="nj",
+        peel=None,
         embedder="up",
         curvature=-1.0,
         converge_length=500,
@@ -85,13 +86,15 @@ algorithm, got {warm_up}."
         self.ln_p = -np.inf
         self.ln_prior = -np.inf
 
-    def set_probability(self, leaf_x):
+    def set_probability(self, leaf_x, peel=None):
         """Set the initial probabilities
 
         Args:
             leaf_x (_type_): Embedding locations
         """
         self.leaf_x = leaf_x
+        if peel is not None:
+            self.peel = peel
         self.peel, self.blens, self.int_x = self.connect(self.leaf_x)
         self.ln_p = self.get_loss(self.peel, self.blens)
         self.ln_prior = self.get_prior()
@@ -151,14 +154,6 @@ algorithm, got {warm_up}."
             return None, None, None
         if self.connector == "geodesics":
             peel, int_x = peeler.make_hard_peel_geodesic(leaf_x)
-        else:
-            int_x = None
-
-        if self.connector == "nj":
-            pdm = Chyp_np.get_pdm(leaf_x, curvature=self.curvature)
-            peel, blens = Cpeeler.nj_np(pdm)
-
-        if self.connector != "nj":
             blens = Cphylo.compute_branch_lengths_np(
                 self.S,
                 peel,
@@ -167,6 +162,17 @@ algorithm, got {warm_up}."
                 curvature=self.curvature,
                 matsumoto=self.matsumoto,
             )
+        elif self.connector == "nj":
+            pdm = Chyp_np.get_pdm(leaf_x, curvature=self.curvature)
+            peel, blens = Cpeeler.nj_np(pdm)
+            int_x = None
+        elif self.connector == "fix":
+            peel = self.peel
+            pdm = Chyp_np.get_pdm(leaf_x, curvature=self.curvature)
+            _, blens = Cpeeler.nj_np(pdm)
+            int_x = None
+        else:
+            raise ValueError(f"Connection must be one of 'nj', 'geodesics', 'fix'. Got {self.connector}")
         return peel, blens, int_x
 
     def evolve(self):

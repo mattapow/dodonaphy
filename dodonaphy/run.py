@@ -10,7 +10,7 @@ from dendropy.model.birthdeath import birth_death_likelihood
 from dendropy.model.discrete import simulate_discrete_chars
 from dendropy.simulate import treesim
 
-from dodonaphy import utils, cli
+from dodonaphy import utils, cli, tree
 from dodonaphy.mcmc import DodonaphyMCMC as mcmc
 from dodonaphy.map import MAP
 from dodonaphy.hmap import HMAP
@@ -60,6 +60,11 @@ def run(args):
         dists = np.arccosh(np.exp(dists))
     save_period = max(int(args.epochs / args.draws), 1)
 
+    if args.connect == "fix":
+        peel, _ = tree.dendrophy_to_pb(start_tree)
+    else:
+        peel = None
+
     start = time.time()
     if args.infer == "mcmc":
         mcmc.run(
@@ -74,6 +79,7 @@ def run(args):
             n_chains=args.chains,
             burnin=args.burn,
             connector=args.connect,
+            peel=peel,
             embedder=args.embed,
             curvature=args.curv,
             normalise_leaf=args.normalise_leaves,

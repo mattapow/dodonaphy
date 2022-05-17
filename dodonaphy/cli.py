@@ -35,8 +35,10 @@ def init_parser():
         "--connect",
         "-C",
         default="nj",
-        choices=("nj", "geodesics"),
-        help="Inf: Connection method to form a tree from embedded points.",
+        choices=("nj", "geodesics", "fix"),
+        help="Inf: Connection method to form a tree from embedded points.\
+        Fixing the topology requires inputting a --start tree. Warning: fixed \
+        topology is experimental and start tree must have integer taxa names.",
     )
 
     # i/o

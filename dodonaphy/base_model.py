@@ -48,7 +48,7 @@ class BaseModel(object):
         self.epoch = 0
         assert embedder in ("wrap", "up")
         self.embedder = embedder
-        assert connector in ("geodesics", "nj")
+        assert connector in ("geodesics", "nj", "fix")
         self.connector = connector
         self.internals_exist = False
         self.peel = np.zeros((self.S - 1, 3), dtype=int)
@@ -77,6 +77,8 @@ class BaseModel(object):
                         (1, 4, self.L), dtype=torch.float64, requires_grad=False
                     )
                 )
+        if not require_grad:
+            self.partials = [partial.detach().numpy() for partial in self.partials]
 
     @staticmethod
     def compute_branch_lengths(
