@@ -50,7 +50,6 @@ class HMAP(BaseModel):
         }
         self.ln_p = self.compute_ln_likelihood()
         self.current_epoch = 0
-        assert prior in ("None", "birth_death", "gammadir"), "Invalid prior requested."
         self.prior = prior
         self.ln_prior = self.compute_ln_prior()
         self.matsumoto = matsumoto
@@ -73,7 +72,9 @@ class HMAP(BaseModel):
 
         def closure():
             optimizer.zero_grad()
-            self.loss = -self.compute_ln_likelihood() - self.compute_ln_prior()
+            self.ln_prior = self.compute_ln_prior()
+            self.ln_p = self.compute_ln_likelihood()
+            self.loss = - self.ln_prior - self.ln_p
             self.loss.backward()
             return self.loss
 
@@ -143,6 +144,8 @@ class HMAP(BaseModel):
         """Compute prior of current tree."""
         if self.prior == "None":
             return torch.zeros(1)
+        elif self.prior == "normal":
+            return self.compute_prior_normal(self.params["leaf_loc"])
         elif self.prior == "gammadir":
             return self.compute_prior_gamma_dir(self.blens)
         elif self.prior == "birthdeath":
