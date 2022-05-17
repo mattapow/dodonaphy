@@ -7,6 +7,8 @@ from dodonaphy import tree, Cphylo, Cutils
 from hydraPlus import hydraPlus
 from dodonaphy.chain import Chain
 
+rng = np.random.default_rng()
+
 
 class DodonaphyMCMC:
     """Markov Chain Monte Carlo"""
@@ -268,8 +270,7 @@ class DodonaphyMCMC:
         """randomly swap states in 2 chains according to MCMCMC"""
 
         # Pick two adjacent chains
-        rng = np.random.default_rng()
-        i = rng.multinomial(1, np.ones(self.n_chains - 1) / (self.n_chains - 1))[0] - 1
+        i = rng.integers(self.n_chains - 1)
         j = i + 1
         chain_i = self.chains[i]
         chain_j = self.chains[j]
@@ -286,11 +287,11 @@ class DodonaphyMCMC:
         # swap with probability r
         if np.random.uniform() < np.exp(ln_r_accept):
             # swap the chains
-            chain_i, chain_j = (chain_j, chain_i)
-            # except put the temperatures back
-            chain_i.chain_temp, chain_j.chain_temp = (
-                chain_j.chain_temp,
-                chain_i.chain_temp,
+            self.chains[i], self.chains[j] = (self.chains[j], self.chains[i])
+            # except keep the temperatures
+            self.chains[i].chain_temp, self.chains[j].chain_temp = (
+                self.chains[j].chain_temp,
+                self.chains[i].chain_temp,
             )
             return 1
         return 0
@@ -339,7 +340,7 @@ class DodonaphyMCMC:
         hydra_crv = min(curvature, -1e-10)
         hp_obj = hydraPlus.HydraPlus(dists_data, dim=dim, curvature=hydra_crv)
         emm_tips = hp_obj.embed(equi_adj=0.0)
-        if emm_tips['stress_hydraPlus'] is np.nan:
+        if emm_tips["stress_hydraPlus"] is np.nan:
             raise ValueError("hydra+ cannot embed. Try decreasing the curvature.")
         print(f"Embedding stress of tips (hydra+) = {emm_tips['stress_hydraPlus']:.4}")
 
