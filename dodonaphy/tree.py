@@ -48,6 +48,8 @@ class taxon():
 
 def dendrophy_to_pb(tree):
     """Convert Dendrophy tree to peels and blens.
+    Taxon names must be indexes, starting from 1.
+
     Parameters
     ----------
     tree : A Dendrophy tree
@@ -69,29 +71,22 @@ def dendrophy_to_pb(tree):
     # Get peel
     nds = [nd for nd in tree.postorder_internal_node_iter()]
     for i, nd in enumerate(tree.postorder_internal_node_iter()):
-        nd.taxon = taxon(i+S)
+        nd.taxon = taxon(i+S+1)
     n_int_nds = len(nds)
-    peel = np.zeros((n_int_nds, 3), dtype=int)
-    visited = [False] * (2*S-3)
+    peel = np.zeros((n_int_nds+1, 3), dtype=int)
     for i in range(n_int_nds):
         try:
             c0, c1 = nds[i].child_nodes()
         except ValueError:
             c0, c1, c2 = nds[i].child_nodes()
-            if visited[int(c0.taxon.label)]:
-                c0 = c2
-            elif visited[int(c1.taxon.label)]:
-                c1 = c2
-            elif visited[int(c2.taxon.label)]:
-                pass
-            else:
-                raise ValueError("Haven't visited any child nodes of root.")
         peel[i, 0] = int(c0.taxon.label) - 1
         peel[i, 1] = int(c1.taxon.label) - 1
         peel[i, 2] = int(nds[i].taxon.label) - 1
 
-        visited[int(c0.taxon.label)-1] = True
-        visited[int(c1.taxon.label)-1] = True
+    # add fake root
+    peel[i+1, 0] = int(c2.taxon.label) - 1
+    peel[i+1, 1] = peel[i, 2]
+    peel[i+1, 2] = n_int_nds + S
     return peel, blens.double()
 
 
