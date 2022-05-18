@@ -58,20 +58,14 @@ def dendrophy_to_pb(tree):
     peel : adjacencies of internal nodes (left child, right child, node)
     blens : branch lengths
     """
-    tree.isrooted = True
-    # Get branch lengths
-    S = len(tree)
-    n_edges = 2 * S - 2
+    n_taxa = len(tree)
+    n_edges = 2 * n_taxa - 2
     blens = torch.zeros(n_edges)
-    for i in range(n_edges):
-        length = tree.bipartition_edge_map[tree.bipartition_encoding[i]].length
-        if length is not None:
-            blens[i] = length
 
     # Get peel
     nds = [nd for nd in tree.postorder_internal_node_iter()]
     for i, nd in enumerate(tree.postorder_internal_node_iter()):
-        nd.taxon = taxon(i+S+1)
+        nd.taxon = taxon(i+n_taxa+1)
     n_int_nds = len(nds)
     peel = np.zeros((n_int_nds+1, 3), dtype=int)
     for i in range(n_int_nds):
@@ -79,14 +73,23 @@ def dendrophy_to_pb(tree):
             c0, c1 = nds[i].child_nodes()
         except ValueError:
             c0, c1, c2 = nds[i].child_nodes()
-        peel[i, 0] = int(c0.taxon.label) - 1
-        peel[i, 1] = int(c1.taxon.label) - 1
-        peel[i, 2] = int(nds[i].taxon.label) - 1
+        
+        chld0 = int(c0.taxon.label) - 1
+        chld1 = int(c1.taxon.label) - 1
+        parent = int(nds[i].taxon.label) - 1
+        peel[i, 0] = chld0
+        peel[i, 1] = chld1
+        peel[i, 2] = parent
 
-    # add fake root
-    peel[i+1, 0] = int(c2.taxon.label) - 1
-    peel[i+1, 1] = peel[i, 2]
-    peel[i+1, 2] = n_int_nds + S
+        blens[chld0] = c0.edge_length
+        blens[chld1] = c1.edge_length
+
+    # add fake root above last parent and remaining taxon
+    chld2 = int(c2.taxon.label) - 1
+    peel[i+1, 0] = chld2
+    peel[i+1, 1] = parent
+    peel[i+1, 2] = n_int_nds + n_taxa
+    blens[chld2] = c2.edge_length
     return peel, blens.double()
 
 
