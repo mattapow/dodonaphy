@@ -464,7 +464,7 @@ cpdef project_up(loc):
     Location in R^n+1 on Hyperboloid
 
     """
-    z = torch.sqrt(torch.sum(torch.pow(loc, 2), -1, keepdim=True) + 1)
+    z = torch.sqrt(torch.sum(torch.pow(loc.clone(), 2), -1, keepdim=True) + 1)
     return torch.cat((z, loc), dim=-1)
 
 cpdef project_up_2d(loc):
@@ -484,5 +484,5 @@ cpdef project_up_2d(loc):
     """
     if loc.ndim == 1:
         return project_up(loc).unsqueeze(-1)
-    z = torch.unsqueeze(torch.sqrt(torch.sum(torch.pow(loc, 2), 1) + 1), 1)
+    z = torch.unsqueeze(torch.sqrt(torch.sum(torch.pow(loc.clone(), 2), 1) + 1), 1)
     return torch.cat((z, loc), axis=1)

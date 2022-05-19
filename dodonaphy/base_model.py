@@ -357,13 +357,12 @@ class BaseModel(object):
         n_leaf = int(n_branch / 2 + 1)
 
         # Dirichlet prior
-        ln_prior = LogDirPrior(blen, aT, bT, a, c)
+        ln_dir = LogDirPrior(blen, aT, bT, a, c)
 
         # with prefactor
         lgamma = torch.lgamma
-        ln_prior = (
-            ln_prior
-            + (aT) * torch.log(bT)
+        ln_prefactor = (
+            (aT) * torch.log(bT)
             - lgamma(aT)
             + lgamma(a * n_leaf + a * c * (n_leaf - 3))
             - n_leaf * lgamma(a)
@@ -371,7 +370,9 @@ class BaseModel(object):
         )
 
         # uniform prior on topologies
-        ln_prior = ln_prior - torch.sum(torch.log(torch.arange(n_leaf * 2 - 5, 0, -2)))
+        ln_topo = torch.sum(torch.log(torch.arange(n_leaf * 2 - 5, 0, -2)))
+
+        ln_prior = ln_dir + ln_prefactor - ln_topo
 
         return ln_prior
 

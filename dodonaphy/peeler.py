@@ -3,7 +3,7 @@ from heapq import heapify, heappop, heappush
 import numpy as np
 import torch
 
-from dodonaphy import poincare, utils, Chyp_np
+from dodonaphy import poincare, utils, Chyp_np, Cpeeler
 from dodonaphy.node import Node
 from dodonaphy.edge import Edge
 
