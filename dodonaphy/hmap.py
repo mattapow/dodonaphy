@@ -29,13 +29,15 @@ class HMAP(BaseModel):
         prior="None",
         tip_labels=None,
         matsumoto=False,
+        connector="nj",
+        peel=None,
     ):
         super().__init__(
             partials,
             weights,
             dim=dim,
             soft_temp=soft_temp,
-            connector="nj",
+            connector=connector,
             curvature=curvature,
             loss_fn=loss_fn,
             tip_labels=tip_labels,
@@ -54,6 +56,7 @@ class HMAP(BaseModel):
         self.ln_prior = self.compute_ln_prior()
         self.matsumoto = matsumoto
         self.loss = torch.zeros(1)
+        self.peel = peel,
 
     def learn(self, epochs, learn_rate, path_write):
         """Optimise params["dists"]"."""
@@ -75,7 +78,7 @@ class HMAP(BaseModel):
             self.ln_prior = self.compute_ln_prior()
             self.ln_p = self.compute_ln_likelihood()
             self.loss = - self.ln_prior - self.ln_p
-            self.loss.backward()
+            self.loss.backward(retain_graph=True)
             return self.loss
 
         print(f"Running for {epochs} iterations.")
@@ -124,20 +127,30 @@ class HMAP(BaseModel):
             header=print_header,
         )
 
+    def connect(self):
+        """Connect tips into a tree"""
+        if self.connector == "geodesics":
+            peel, _, blens = peeler.make_soft_peel_tips(self.params["leaf_loc"], connector="geodesics", curvature=self.curvature)
+        elif self.connector == "nj":
+            pdm = Chyp_torch.get_pdm(self.params["leaf_loc"], curvature=self.curvature)
+            peel, blens = peeler.nj_torch(pdm, tau=self.soft_temp)
+        elif self.connector == "fix":
+            peel = self.peel
+            pdm = Chyp_torch.get_pdm(self.params["leaf_loc"], curvature=self.curvature)
+            _, blens = peeler.nj_torch(pdm, tau=self.soft_temp)
+        else:
+            raise ValueError(f"Connection must be one of 'nj', 'geodesics', 'fix'. Got {self.connector}")
+        return peel, blens, pdm
+
     def compute_ln_likelihood(self):
         """Compute likelihood of current tree, reducing soft_temp as required."""
-        dist_2d = Chyp_torch.get_pdm(
-            self.params["leaf_loc"], curvature=self.curvature, matsumoto=self.matsumoto
-        )
-
+        self.peel, self.blens, pdm = self.connect()
         if self.loss_fn == "likelihood":
-            self.peel, self.blens = peeler.nj_torch(dist_2d, tau=self.soft_temp)
             self.ln_p = self.compute_LL(self.peel, self.blens)
             loss = self.ln_p
         elif self.loss_fn == "pair_likelihood":
-            self.peel, self.blens = peeler.nj_torch(dist_2d, tau=None)
             self.ln_p = self.compute_LL(self.peel, self.blens)
-            loss = self.compute_log_a_like(dist_2d)
+            loss = self.compute_log_a_like(pdm)
         return loss
 
     def compute_ln_prior(self):
@@ -146,6 +159,8 @@ class HMAP(BaseModel):
             return torch.zeros(1)
         elif self.prior == "normal":
             return self.compute_prior_normal(self.params["leaf_loc"])
+        elif self.prior == "uniform":
+            return self.compute_prior_unif(self.params["leaf_loc"], scale=1.0)
         elif self.prior == "gammadir":
             return self.compute_prior_gamma_dir(self.blens)
         elif self.prior == "birthdeath":
