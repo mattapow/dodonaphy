@@ -1,4 +1,4 @@
-"""Maximum A Posteriori Module"""
+"""Maximum A Posteriori of Distance matrix"""
 import os
 
 import numpy as np
@@ -9,7 +9,7 @@ from dodonaphy.base_model import BaseModel
 
 
 class MAP(BaseModel):
-    """Maximum A Posteriori class"""
+    """Maximum A Posteriori class for estimating the distance matrix."""
 
     def __init__(
         self,

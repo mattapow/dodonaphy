@@ -12,13 +12,12 @@ def init_parser():
         "--infer",
         "-i",
         default="mcmc",
-        choices=("mcmc", "vi", "ml", "map", "hmap", "hlaplace", "simulate", "brute"),
+        choices=("mcmc", "vi", "dmap", "hmap", "hlaplace", "simulate", "brute"),
         help="Inf: Inference method for Bayesian inference:\
         [mcmc]: MCMC\
         [vi]: Variational bayesian inference.\
-        Use [map] to maximise the posterior of a distance matrix.\
-        Use [ml] to maximise likelihood of distance matrix (map with no prior).\
-        Use [hmap] to maximise the posterior of the embedding.\
+        Use [dmap] to maximise the posterior of a distance matrix.\
+        Use [hmap] to maximise the posterior of the hyperbolic embedding.\
         Use [hlaplace] to maximise the posterior of the embedding (hmap) and\
         then draw samples from a laplace approximation around the map.\
         Use [simulate] to simulate dna from a birth death tree.\

@@ -111,20 +111,8 @@ def run(args):
             tip_labels=tip_labels,
             n_boosts=args.boosts,
         )
-    elif args.infer == "ml":
-        partials, weights = compress_alignment(dna)
-        mymod = MAP(
-            partials[:],
-            weights,
-            dists=dists,
-            soft_temp=args.temp,
-            loss_fn=args.loss_fn,
-            prior="None",
-            tip_labels=tip_labels,
-        )
-        mymod.learn(epochs=args.epochs, learn_rate=args.learn, path_write=path_write)
 
-    elif args.infer == "map":
+    elif args.infer == "dmap":
         partials, weights = compress_alignment(dna)
         mymod = MAP(
             partials[:],
@@ -149,6 +137,8 @@ def run(args):
             prior=args.prior,
             tip_labels=tip_labels,
             matsumoto=args.matsumoto,
+            connector=args.connect,
+            peel=peel,
         )
         mymod.learn(epochs=args.epochs, learn_rate=args.learn, path_write=path_write)
 
@@ -223,7 +213,7 @@ def get_path(root_dir, args):
             method_dir, f"d{args.dim}_k{ln_crv}{args.suffix}"
         )
 
-    elif args.infer in ("ml", "map", "hmap", "hlaplace"):
+    elif args.infer in ("dmap", "hmap", "hlaplace"):
         ln_rate = -int(np.log10(args.learn))
         ln_tau = -int(np.log10(args.temp))
         method_dir = os.path.join(root_dir, args.infer, args.connect)
