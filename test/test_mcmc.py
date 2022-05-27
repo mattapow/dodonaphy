@@ -7,6 +7,7 @@ from dendropy.simulate import treesim
 from dodonaphy.mcmc import DodonaphyMCMC as mcmc
 from dodonaphy import phylo
 from dodonaphy.utils import tip_distances
+from pytest import approx
 
 
 def test_mcmc_geodesics():
@@ -251,3 +252,29 @@ def test_mcmc_wrap_nj():
         connector=connector,
         embedder=embedder,
     )
+
+
+def test_swap():
+    rng = random.Random(1)
+    simtree = treesim.birth_death_tree(
+        birth_rate=2.,
+        death_rate=0.5,
+        num_extant_tips=4,
+        rng=rng,
+    )
+    dna = simulate_discrete_chars(
+        seq_len=400, tree_model=simtree, seq_model=dendropy.model.discrete.Jc69(), rng=rng
+    )
+    partials, weights = phylo.compress_alignment(dna)
+    mymcmc = mcmc(partials, weights, dim=3, n_chains=2)
+    mymcmc.chains[0].ln_p = -1e10
+    mymcmc.chains[0].ln_prior = 0
+    mymcmc.chains[1].ln_p = 1
+    mymcmc.chains[1].ln_prior = 2
+    mymcmc.swap()
+    assert mymcmc.chains[0].ln_p == approx(1)
+    assert mymcmc.chains[0].ln_prior == approx(2)
+    assert mymcmc.chains[0].chain_temp == approx(1)
+    assert mymcmc.chains[1].ln_p == approx(-1e10)
+    assert mymcmc.chains[1].ln_prior == approx(0)
+    assert mymcmc.chains[1].chain_temp == approx(1.0 / (1 + 0.1))
