@@ -285,7 +285,7 @@ class DodonaphyMCMC:
         ln_r_accept = np.minimum(0, prob1 + prob2)
 
         # swap with probability r
-        if np.random.uniform() < np.exp(ln_r_accept):
+        if ln_r_accept > -np.random.exponential(scale=1.0):
             # swap the chains
             self.chains[i], self.chains[j] = (self.chains[j], self.chains[i])
             # except keep the temperatures

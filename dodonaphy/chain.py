@@ -281,7 +281,7 @@ algorithm, got {warm_up}."
         accept = False
         if ln_r_accept >= 0:
             accept = True
-        elif np.random.uniform() < np.exp(ln_r_accept):
+        elif -np.random.exponential(scale=1.0) < ln_r_accept:
             accept = True
         if accept:
             self.leaf_x = proposal["leaf_x"]
