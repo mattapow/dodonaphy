@@ -138,6 +138,8 @@ class DodonaphyMCMC:
                     chain.evolve()
                     chain.tune_step()
                 elif chain.mcmc_alg == "RAM":
+                    if epoch == chain.warm_up:
+                        chain.cov = np.sqrt(chain.cov)
                     chain.evolve_ram(path_write)
                 elif chain.mcmc_alg == "tune":
                     chain.evolve()

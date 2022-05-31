@@ -297,7 +297,7 @@ algorithm, got {warm_up}."
 
     def evolve_ram(self, path_write):
         """Evolve MCMC state based on "Robust Adaptive Metropolis", Vihola 2012"""
-        proposal = self.sample_leaf_np(self.leaf_x, self.cov * self.cov.T)
+        proposal = self.sample_leaf_np(self.leaf_x, self.cov)
         ln_r_accept = self.ln_accept_ratio(proposal)
         U = proposal["leaf_x"].flatten() - self.leaf_x.flatten()
 
