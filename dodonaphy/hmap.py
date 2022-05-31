@@ -58,8 +58,13 @@ class HMAP(BaseModel):
         self.loss = torch.zeros(1)
         self.peel = peel,
 
-    def learn(self, epochs, learn_rate, path_write):
-        """Optimise params["dists"]"."""
+    def learn(self, epochs, learn_rate, path_write, start):
+        """Optimise params["dists"].
+
+        NB: start is just a string for printing: which tree was used to
+        generate the original distance matrix.
+        
+        """
 
         def lr_lambda(epoch):
             return 1.0 / (epoch + 1.0) ** 0.5
@@ -67,17 +72,26 @@ class HMAP(BaseModel):
         optimizer = torch.optim.Adam(params=list(self.params.values()), lr=learn_rate)
         scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lr_lambda)
         post_hist = []
+        self.best_posterior = -np.inf
 
         if path_write is not None:
             emm_path = os.path.join(path_write, "embedding")
             post_path = os.path.join(path_write, "posterior.txt")
             os.mkdir(emm_path)
+            self.save(path_write, epochs, learn_rate, start)
 
         def closure():
             optimizer.zero_grad()
             self.ln_prior = self.compute_ln_prior()
             self.ln_p = self.compute_ln_likelihood()
             self.loss = - self.ln_prior - self.ln_p
+            if self.loss < -self.best_posterior:
+                self.best_posterior = -self.loss
+                self.best_ln_p = self.ln_p
+                self.best_ln_prior = self.ln_prior
+                self.best_peel = self.peel
+                self.best_blens = self.blens
+                self.best_epoch = self.current_epoch
             self.loss.backward(retain_graph=True)
             return self.loss
 
@@ -101,15 +115,32 @@ class HMAP(BaseModel):
             tree.save_tree(
                 path_write,
                 "mape",
-                self.peel,
-                self.blens,
-                i + 1,
-                self.ln_p.item(),
-                self.ln_prior.item(),
+                self.best_peel,
+                self.best_blens,
+                self.best_epoch + 1,
+                self.best_ln_p.item(),
+                self.best_ln_prior.item(),
             )
 
         if epochs > 0 and path_write is not None:
             HMAP.trace(epochs, post_hist, path_write)
+
+    def save(self, path_write, epochs, learn_rate, start):
+        fn = path_write + "/" + "map.log"
+        with open(fn, "w", encoding="UTF-8") as file:
+            file.write("%-12s: %i\n" % ("# epochs", epochs))
+            file.write("%-12s: %i\n" % ("Curvature", self.curvature))
+            file.write("%-12s: %i\n" % ("Matsumoto", self.matsumoto))
+            file.write("%s: %i\n" % ("Normalise Leaf", self.normalise_leaf))
+            file.write("%-12s: %i\n" % ("Dimensions", self.D))
+            file.write("%-12s: %i\n" % ("# Taxa", self.S))
+            file.write("%-12s: %i\n" % ("# Patterns", self.L))
+            file.write("%-12s: %f\n" % ("Learn Rate", learn_rate))
+            file.write("%-12s: %f\n" % ("Soft temp", self.soft_temp))
+            file.write("%-12s: %s\n" % ("Embed Mthd", self.embedder))
+            file.write("%-12s: %s\n" % ("Connect Mthd", self.connector))
+            file.write("%-12s: %s\n" % ("Loss function", self.loss_fn))
+            file.write("%-12s: %s\n" % ("Start Tree", start))
 
     def save_epoch(self, i, emm_path, post_path):
         "Save posterior value and leaf locations to file."

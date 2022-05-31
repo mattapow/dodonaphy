@@ -140,7 +140,7 @@ def run(args):
             connector=args.connect,
             peel=peel,
         )
-        mymod.learn(epochs=args.epochs, learn_rate=args.learn, path_write=path_write)
+        mymod.learn(epochs=args.epochs, learn_rate=args.learn, path_write=path_write, start=args.start)
 
     elif args.infer == "hlaplace":
         partials, weights = compress_alignment(dna)
