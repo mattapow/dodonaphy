@@ -58,7 +58,7 @@ class HMAP(BaseModel):
         self.loss = torch.zeros(1)
         self.peel = peel,
 
-    def learn(self, epochs, learn_rate, path_write, start):
+    def learn(self, epochs, learn_rate, path_write, start=""):
         """Optimise params["dists"].
 
         NB: start is just a string for printing: which tree was used to

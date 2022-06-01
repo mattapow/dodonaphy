@@ -299,7 +299,6 @@ algorithm, got {warm_up}."
         """Evolve MCMC state based on "Robust Adaptive Metropolis", Vihola 2012"""
         proposal = self.sample_leaf_np(self.leaf_x, self.cov)
         ln_r_accept = self.ln_accept_ratio(proposal)
-        U = proposal["leaf_x"].flatten() - self.leaf_x.flatten()
 
         accept = self.check_proposal(proposal, ln_r_accept)
         if self.write_dists:
@@ -308,7 +307,7 @@ algorithm, got {warm_up}."
         n = self.S * self.D
         eta = (self.iterations - self.warm_up + 2) ** (-0.5)
         accept_diff = np.exp(ln_r_accept) - self.target_acceptance
-        U_out = np.outer(U, U) / np.linalg.norm(U) ** 2
+        U_out = np.outer(proposal["u"], proposal["u"]) / np.linalg.norm(proposal["u"]) ** 2
         cov_full = self.cov * (np.eye(n) + eta * accept_diff * U_out) * self.cov.T
         self.cov = np.linalg.cholesky(cov_full)
         self.iterations += 1
@@ -363,7 +362,7 @@ algorithm, got {warm_up}."
 
         A dictionary is  returned containing information about this sampled tree.
         """
-        leaf_x_prop, log_abs_det_jacobian = self.sample_loc_np(leaf_loc, leaf_cov)
+        leaf_x_prop, log_abs_det_jacobian, u = self.sample_loc_np(leaf_loc, leaf_cov)
 
         peel, blens, int_x_prop = self.connect(leaf_x_prop)
         ln_p = self.get_loss(peel, blens)
@@ -376,6 +375,7 @@ algorithm, got {warm_up}."
             "jacobian": log_abs_det_jacobian,
             "ln_p": ln_p,
             "ln_prior": ln_prior,
+            "u": u,
         }
         if int_x_prop is not None:
             proposal["int_x"] = int_x_prop
@@ -398,12 +398,14 @@ algorithm, got {warm_up}."
         n_vars = n_locs * self.D
         loc_low_prop = np.zeros((n_locs, self.D))
         log_abs_det_jacobian = 0.0
+        u = np.NaN
 
         if self.embedder == "up":
-            sample_hyp = self.rng.multivariate_normal(
-                loc_low.flatten(), cov, method="cholesky"
+            u = self.rng.multivariate_normal(
+                np.zeros(n_vars), np.eye(n_vars), method="cholesky"
             )
-            loc_low_prop = sample_hyp.reshape((n_locs, self.D))
+            sample_low = loc_low.flatten() + cov @ u 
+            loc_low_prop = sample_low.reshape((n_locs, self.D))
 
         elif self.embedder == "wrap":
             zero = np.zeros(n_vars, dtype=np.double)
@@ -418,4 +420,4 @@ algorithm, got {warm_up}."
             radius = np.linalg.norm(loc_low, axis=1)[0]
             loc_low_prop = Cutils.normalise_np(loc_low_prop) * radius
 
-        return loc_low_prop, log_abs_det_jacobian
+        return loc_low_prop, log_abs_det_jacobian, u
