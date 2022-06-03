@@ -216,7 +216,7 @@ def get_path(root_dir, args):
     elif args.infer in ("dmap", "hmap", "hlaplace"):
         ln_rate = -int(np.log10(args.learn))
         ln_tau = -int(np.log10(args.temp))
-        method_dir = os.path.join(root_dir, args.infer, args.connect)
+        method_dir = os.path.join(root_dir, args.infer, args.connect, args.prior)
         path_write = os.path.join(method_dir, f"lr{ln_rate}_tau{ln_tau}{args.suffix}")
 
     if path_write is not None:

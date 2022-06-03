@@ -44,6 +44,12 @@ class HMAP(BaseModel):
         )
         hp_obj = hydraPlus.HydraPlus(dists, dim=self.D, curvature=curvature)
         emm_tips = hp_obj.embed(equi_adj=0.0)
+        print(
+            "Embedding Strain (tips only) = {:.4}".format(emm_tips["stress_hydra"])
+        )
+        print(
+            "Embedding Stress (tips only) = {:.4}".format(emm_tips["stress_hydraPlus"])
+        )
 
         self.params = {
             "leaf_loc": torch.tensor(
@@ -140,6 +146,7 @@ class HMAP(BaseModel):
             file.write("%-12s: %s\n" % ("Embed Mthd", self.embedder))
             file.write("%-12s: %s\n" % ("Connect Mthd", self.connector))
             file.write("%-12s: %s\n" % ("Loss function", self.loss_fn))
+            file.write("%-12s: %s\n" % ("Prior", self.prior))
             file.write("%-12s: %s\n" % ("Start Tree", start))
 
     def save_epoch(self, i, emm_path, post_path):

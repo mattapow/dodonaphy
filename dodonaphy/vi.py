@@ -10,7 +10,7 @@ from torch.distributions.multivariate_normal import MultivariateNormal
 from dodonaphy import tree, utils, peeler, Chyp_torch
 from dodonaphy.base_model import BaseModel
 from dodonaphy.phylo import JC69_p_t, calculate_treelikelihood
-import hydraPlus
+from hydraPlus import hydraPlus
 
 
 class DodonaphyVI(BaseModel):
@@ -231,7 +231,7 @@ class DodonaphyVI(BaseModel):
                 file.write("%-12s: %i\n" % ("# mixtures", self.n_boosts))
                 file.write("%-12s: %i\n" % ("Curvature", self.curvature))
                 file.write("%-12s: %i\n" % ("Matsumoto", self.matsumoto))
-                file.write("%-12s: %i\n" % ("Soft temp", self.soft_temp))
+                file.write("%-12s: %f\n" % ("Soft temp", self.soft_temp))
                 file.write("%s: %i\n" % ("Normalise Leaf", self.normalise_leaf))
                 file.write("%-12s: %i\n" % ("Dimensions", self.D))
                 file.write("%-12s: %i\n" % ("# Taxa", self.S))
