@@ -17,6 +17,7 @@ import numpy as np
 cimport numpy as np
 from dodonaphy import Ctransforms
 from dodonaphy.edge import Edge
+import warnings
 
 cdef np.double_t eps = np.finfo(np.double).eps
 
@@ -270,17 +271,29 @@ cdef lorentz_product(
 cpdef get_pdm(
     np.ndarray[np.double_t, ndim=2] x,
     np.double_t curvature=-1.0,
-    bint matsumoto=False
+    bint matsumoto=False,
+    bint get_jacobian=False
     ):
-    """ Given points in H^dim (not including z coordinate),
+    """
+    Given points in H^dim (not including z coordinate),
     compute their pairwise distance.
+
+    Returns:
+    (ndarray) Distances
+    (ndarray) Jacobian matrix
     """
     cdef np.ndarray[np.double_t, ndim=2] D
     if curvature == 0.0:
         D = np.sum( (x[:, None] - x)**2, axis=-1)**0.5
         if matsumoto:
             D = np.log(np.cosh(D))
+        if get_jacobian:
+            warnings.warn("Jacobian not implemented for curvature=0")
+            return D, np.eye(D.shape[0])
         return D
+    
+    if matsumoto and get_jacobian:
+        raise NotImplementedError("Jacobian is not implemented for Matsumoto metric.")
 
     cdef np.ndarray[np.double_t, ndim=2] x_sheet = project_up_2d(x)
     cdef np.ndarray[np.double_t, ndim=2] X = x_sheet @ x_sheet.T
@@ -288,9 +301,28 @@ cpdef get_pdm(
     cdef np.ndarray[np.double_t, ndim=2] H = X - np.outer(u_tilde, u_tilde)
     H = np.minimum(H, -(1 + eps))
     D = 1 / np.sqrt(-curvature) * np.arccosh(-H)
+
+    cdef np.ndarray[np.double_t, ndim=2] ln_jacobian = np.zeros_like(D)
+    if get_jacobian and x.shape[0] > 0:
+        jacobian = get_pdm_jacobian(x, u_tilde, H, curvature)
+        return D, jacobian
     if matsumoto:
         D = np.log(np.cosh(D))
     return D
+
+cdef get_pdm_jacobian(
+    np.ndarray[np.double_t, ndim=2] x,
+    np.ndarray[np.double_t, ndim=1] u_tilde,
+    np.ndarray[np.double_t, ndim=2] H,
+    np.double_t curvature=-1.0,
+    ):
+    cdef int dim = x.shape[1]
+    cdef np.ndarray[np.double_t, ndim=2] A = 1. / np.sqrt(-curvature * (H ** 2 - 1))
+    np.fill_diagonal(A, 0.)
+    cdef np.ndarray[np.double_t, ndim=2] B = np.outer((1. / u_tilde), u_tilde)
+    cdef np.ndarray[np.double_t, ndim=2] AB_sum = np.tile(np.sum(A * B, axis=1), (dim, 1)).T
+    cdef np.ndarray[np.double_t, ndim=2] G = AB_sum * x - A @ x
+    return G
 
 cpdef poincare_to_hyper(np.ndarray[np.double_t, ndim=1] location):
     """
