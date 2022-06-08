@@ -224,7 +224,7 @@ class DodonaphyVI(BaseModel):
             )
 
         if path_write is not None:
-            fn = path_write + "/" + "vi.info"
+            fn = path_write + "/" + "vi.log"
             with open(fn, "w", encoding="UTF-8") as file:
                 file.write("%-12s: %i\n" % ("# epochs", epochs))
                 file.write("%-12s: %i\n" % ("Importance", importance_samples))
@@ -283,7 +283,7 @@ class DodonaphyVI(BaseModel):
         if path_write is not None:
             final_elbo = self.elbo_siwae(100).item()
             print("Final ELBO: {}".format(final_elbo))
-            fn = os.path.join(path_write, "vi.info")
+            fn = os.path.join(path_write, "vi.log")
             with open(fn, "a", encoding="UTF-8") as file:
                 file.write("%-12s: %i\n" % ("Final ELBO (100 samples)", final_elbo))
 
@@ -590,7 +590,7 @@ class DodonaphyVI(BaseModel):
     
     def save_final_info(self, path_write, seconds):
         """Save time taken to info file."""
-        file_name = path_write + "/" + "vi.info"
+        file_name = path_write + "/" + "vi.log"
         with open(file_name, "a", encoding="UTF-8") as file:
             mins, secs = divmod(seconds, 60)
             hrs, mins = divmod(mins, 60)
