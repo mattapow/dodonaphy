@@ -18,6 +18,7 @@ cimport numpy as np
 from dodonaphy import Ctransforms
 from dodonaphy.edge import Edge
 import warnings
+from math import comb
 
 cdef np.double_t eps = np.finfo(np.double).eps
 
@@ -200,6 +201,38 @@ cpdef hyper_to_poincare_jacobian(np.ndarray[np.double_t, ndim=1] location):
     return np.log(np.abs(det))
 
 
+cpdef project_up_jacobian(np.ndarray[np.double_t, ndim=2] loc):
+    cdef int n_locs = loc.shape[0]
+    cdef int dim = loc.shape[1]
+    cdef np.ndarray[np.double_t, ndim=2] hyp_norm = np.sqrt(np.sum(loc**2, axis=1, keepdims=True) + 1)
+    cdef np.ndarray[np.double_t, ndim=2] column = loc / hyp_norm
+    blocks = []
+    for i in range(n_locs):
+        blocks.append(np.concatenate((np.expand_dims(column[i, :], axis=0), np.eye(dim)), axis=0))
+    return block_diag(blocks)
+
+def block_diag(arrs):
+    """Create a block diagonal matrix from the provided arrays.
+    """
+    if arrs == ():
+        arrs = ([],)
+    arrs = [np.atleast_2d(a) for a in arrs]
+
+    bad_args = [k for k in range(len(arrs)) if arrs[k].ndim > 2]
+    if bad_args:
+        raise ValueError("arguments in the following positions have dimension "
+                            "greater than 2: %s" % bad_args) 
+
+    shapes = np.array([a.shape for a in arrs])
+    out = np.zeros(np.sum(shapes, axis=0), dtype=arrs[0].dtype)
+
+    r, c = 0, 0
+    for i, (rr, cc) in enumerate(shapes):
+        out[r:r + rr, c:c + cc] = arrs[i]
+        r += rr
+        c += cc
+    return out
+
 cpdef project_up(np.ndarray[np.double_t, ndim=1] loc):
     """Project directly up onto the hyperboloid
 
@@ -302,10 +335,16 @@ cpdef get_pdm(
     H = np.minimum(H, -(1 + eps))
     D = 1 / np.sqrt(-curvature) * np.arccosh(-H)
 
+    cdef np.ndarray[np.double_t, ndim=2] jacobian_pairs
     cdef np.ndarray[np.double_t, ndim=2] ln_jacobian = np.zeros_like(D)
-    if get_jacobian and x.shape[0] > 0:
-        jacobian = get_pdm_jacobian(x, u_tilde, H, curvature)
-        return D, jacobian
+    cdef int n = x.shape[0]
+    cdef int dim = x.shape[1]
+    cdef int k = 0
+    if get_jacobian and n > 0:
+        jacobian_linear = get_pdm_jacobian(x_sheet, u_tilde, H, curvature)
+        jacobian_pairs = get_pdm_jacobian_pairs(x_sheet, u_tilde, H, curvature)
+        return D, jacobian_pairs
+
     if matsumoto:
         D = np.log(np.cosh(D))
     return D
@@ -316,13 +355,38 @@ cdef get_pdm_jacobian(
     np.ndarray[np.double_t, ndim=2] H,
     np.double_t curvature=-1.0,
     ):
-    cdef int dim = x.shape[1]
+    cdef int dim = x.shape[1] - 1
     cdef np.ndarray[np.double_t, ndim=2] A = 1. / np.sqrt(-curvature * (H ** 2 - 1))
     np.fill_diagonal(A, 0.)
     cdef np.ndarray[np.double_t, ndim=2] B = np.outer((1. / u_tilde), u_tilde)
-    cdef np.ndarray[np.double_t, ndim=2] AB_sum = np.tile(np.sum(A * B, axis=1), (dim, 1)).T
+    cdef np.ndarray[np.double_t, ndim=2] AB_sum = np.tile(np.sum(A * B, axis=1), (dim+1, 1)).T
     cdef np.ndarray[np.double_t, ndim=2] G = AB_sum * x - A @ x
     return G
+
+cdef get_pdm_jacobian_pairs(
+    np.ndarray[np.double_t, ndim=2] x,
+    np.ndarray[np.double_t, ndim=1] u_tilde,
+    np.ndarray[np.double_t, ndim=2] H,
+    np.double_t curvature=-1.0,
+    ):
+    cdef int n = x.shape[0]
+    cdef int dim = x.shape[1] - 1
+    cdef np.ndarray[np.double_t, ndim=2] A = 1. / np.sqrt(-curvature * (H ** 2 - 1))
+    np.fill_diagonal(A, 0.)
+    cdef np.ndarray[np.double_t, ndim=2] B = np.outer((1. / u_tilde), u_tilde)
+    cdef int nC2 = (comb(n, 2))
+    cdef np.ndarray[np.double_t, ndim=2] G = np.zeros((nC2, n*(dim+1)))
+    cdef int k = 0
+    cdef np.ndarray[np.double_t, ndim=2] AB_sum = np.tile(np.sum(A * B, axis=1), (dim+1, 1)).T
+    for i in range(n):
+        for j in range(n):
+            if j <= i:
+                continue
+            G[k, i*(dim+1):(i+1)*(dim+1)] = A[i, j] * (B[i, j] * x[i, :] - x[j, :])
+            G[k, j*(dim+1):(j+1)*(dim+1)] = A[j, i] * (B[j, i] * x[j, :] - x[i, :])
+            k+= 1
+    return G
+
 
 cpdef poincare_to_hyper(np.ndarray[np.double_t, ndim=1] location):
     """

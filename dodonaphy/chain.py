@@ -95,7 +95,10 @@ algorithm, got {warm_up}."
         self.leaf_x = leaf_x
         if peel is not None:
             self.peel = peel
-        self.peel, self.blens, self.int_x = self.connect(self.leaf_x)
+        self.peel, self.blens, self.int_x = self.connect(self.leaf_x, get_jacobian=False)
+        self.jacobian = np.eye(1)
+        determinant = np.sqrt(np.linalg.det(self.jacobian.T @ self.jacobian))
+        self.ln_det_jacobian = np.log(determinant)
         self.ln_p = self.get_loss(self.peel, self.blens)
         self.ln_prior = self.get_prior()
 
@@ -148,10 +151,11 @@ algorithm, got {warm_up}."
             raise ValueError("Unrecogognised loss function")
         return ln_p
 
-    def connect(self, leaf_x):
+    def connect(self, leaf_x, get_jacobian=False):
         """Connect tips into a tree"""
         if leaf_x is None:
             return None, None, None
+        jacobian = np.eye(1)
         if self.connector == "geodesics":
             peel, int_x = peeler.make_hard_peel_geodesic(leaf_x)
             blens = Cphylo.compute_branch_lengths_np(
@@ -163,16 +167,24 @@ algorithm, got {warm_up}."
                 matsumoto=self.matsumoto,
             )
         elif self.connector == "nj":
-            pdm = Chyp_np.get_pdm(leaf_x, curvature=self.curvature)
+            if get_jacobian: 
+                pdm, jacobian = Chyp_np.get_pdm(leaf_x, curvature=self.curvature, get_jacobian=get_jacobian)
+            else:
+                pdm = Chyp_np.get_pdm(leaf_x, curvature=self.curvature, get_jacobian=get_jacobian)
             peel, blens = Cpeeler.nj_np(pdm)
             int_x = None
         elif self.connector == "fix":
             peel = self.peel
-            pdm = Chyp_np.get_pdm(leaf_x, curvature=self.curvature)
+            if get_jacobian: 
+                pdm, jacobian = Chyp_np.get_pdm(leaf_x, curvature=self.curvature, get_jacobian=get_jacobian)
+            else:
+                pdm = Chyp_np.get_pdm(leaf_x, curvature=self.curvature, get_jacobian=get_jacobian)
             _, blens = Cpeeler.nj_np(pdm)
             int_x = None
         else:
             raise ValueError(f"Connection must be one of 'nj', 'geodesics', 'fix'. Got {self.connector}")
+        if get_jacobian:
+            return peel, blens, int_x, jacobian
         return peel, blens, int_x
 
     def evolve(self):
@@ -204,7 +216,7 @@ algorithm, got {warm_up}."
         """
         ln_like_diff = prop["ln_p"] - self.ln_p
         ln_prior_diff = prop["ln_prior"] - self.ln_prior
-        ln_jacob_diff = prop["jacobian"] - self.jacobian
+        ln_jacob_diff = prop["jacobian"] - self.ln_det_jacobian
         ln_hastings_diff = 0.0
 
         ln_r_accept = (
@@ -362,9 +374,14 @@ algorithm, got {warm_up}."
 
         A dictionary is  returned containing information about this sampled tree.
         """
-        leaf_x_prop, log_abs_det_jacobian, u = self.sample_loc_np(leaf_loc, leaf_cov)
+        leaf_x_prop, u = self.sample_loc_np(leaf_loc, leaf_cov, get_jacobian=False)
+        peel, blens, int_x_prop = self.connect(leaf_x_prop, get_jacobian=False)
+        # if self.embedder == "up" and self.connector == "nj" and self.curvature < 0.:
+        #     jacobian_total = (jacobian2 @ jacobian1)
+        #     determinant = np.sqrt(np.linalg.det(jacobian_total.T @ jacobian_total))
+        #     log_abs_det_jacobian = np.log(determinant)
+        log_abs_det_jacobian = 0.
 
-        peel, blens, int_x_prop = self.connect(leaf_x_prop)
         ln_p = self.get_loss(peel, blens)
         ln_prior = self.get_prior()
 
@@ -381,7 +398,7 @@ algorithm, got {warm_up}."
             proposal["int_x"] = int_x_prop
         return proposal
 
-    def sample_loc_np(self, loc_low, cov):
+    def sample_loc_np(self, loc_low, cov, get_jacobian=False):
         """Sample points on hyperboloid.
 
         Points on the hyperboloid satisfy - x0^2 + x1^2 + ... + xdim^2= -1
@@ -397,7 +414,7 @@ algorithm, got {warm_up}."
         n_locs = loc_low.shape[0]
         n_vars = n_locs * self.D
         loc_low_prop = np.zeros((n_locs, self.D))
-        log_abs_det_jacobian = 0.0
+        jacobian = np.ones(1)
         u = np.NaN
 
         if self.embedder == "up":
@@ -406,6 +423,8 @@ algorithm, got {warm_up}."
             )
             sample_low = loc_low.flatten() + cov @ u 
             loc_low_prop = sample_low.reshape((n_locs, self.D))
+            if get_jacobian:
+                jacobian = Chyp_np.project_up_jacobian(loc_low_prop)
 
         elif self.embedder == "wrap":
             zero = np.zeros(n_vars, dtype=np.double)
@@ -420,4 +439,6 @@ algorithm, got {warm_up}."
             radius = np.linalg.norm(loc_low, axis=1)[0]
             loc_low_prop = Cutils.normalise_np(loc_low_prop) * radius
 
-        return loc_low_prop, log_abs_det_jacobian, u
+        if get_jacobian:
+            return loc_low_prop, u, jacobian
+        return loc_low_prop, u
