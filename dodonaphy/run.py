@@ -49,6 +49,14 @@ def run(args):
         start_tree.write(path=tree_path, schema="nexus")
         dists = utils.tip_distances(start_tree, args.taxa)
         tip_labels = start_tree.taxon_namespace.labels()
+    elif args.start == "Random":
+        n_tips = len(dna)
+        nC2 = n_tips * (n_tips - 1) / 2
+        dists_linear = np.random.exponential(scale=0.1, size=int(nC2))
+        dists = np.zeros((n_tips, n_tips))
+        dists[np.tril_indices(n_tips, k=-1)] = dists_linear
+        dists[np.triu_indices(n_tips, k=+1)] = dists_linear
+        tip_labels = dna.taxon_namespace.labels()
     else:
         start_tree = read_tree(root_dir, file_name=args.start)
         args.taxa = len(start_tree)
