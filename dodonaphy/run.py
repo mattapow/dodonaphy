@@ -118,6 +118,7 @@ def run(args):
             soft_temp=args.temp,
             tip_labels=tip_labels,
             n_boosts=args.boosts,
+            start=args.start,
         )
 
     elif args.infer == "dmap":

@@ -155,8 +155,11 @@ class HMAP(BaseModel):
         ln_p = self.ln_p.item()
         ln_prior = self.ln_prior.item()
         ln_post = ln_p + ln_prior
+        if not os.path.isfile(post_path):
+            with open(post_path, "w", encoding="UTF-8") as file:
+                file.write("log prior, log likelihood, log posterior\n")
         with open(post_path, "a", encoding="UTF-8") as file:
-            file.write(f"{ln_post} = {ln_p} + {ln_prior}\n")
+            file.write(f"{ln_p}, {ln_prior}, {ln_post}\n")
         emm_fn = os.path.join(emm_path, f"dists_hist_{i}.txt")
         np.savetxt(
             emm_fn,

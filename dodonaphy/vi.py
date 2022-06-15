@@ -27,6 +27,7 @@ class DodonaphyVI(BaseModel):
         truncate=None,
         tip_labels=None,
         n_boosts=1,
+        start="",
     ):
         super().__init__(
             partials,
@@ -49,6 +50,7 @@ class DodonaphyVI(BaseModel):
         self.noise = noise
         self.truncate = truncate
         self.ln_p = self.compute_LL(self.peel, self.blens)
+        self.start = start
 
         if not self.internals_exist:
             self.VariationalParams = {
@@ -239,6 +241,7 @@ class DodonaphyVI(BaseModel):
                 file.write("%-12s: %f\n" % ("Learn Rate", lr))
                 file.write("%-12s: %s\n" % ("Embed Mthd", self.embedder))
                 file.write("%-12s: %s\n" % ("Connect Mthd", self.connector))
+                file.write("%-12s: %s\n" % ("Start Tree", self.start))
 
             vi_path = os.path.join(path_write, "vi_params")
             os.mkdir(vi_path)
@@ -508,6 +511,7 @@ class DodonaphyVI(BaseModel):
         connector="nj",
         soft_temp=None,
         tip_labels=None,
+        start="",
     ):
         """Initialise and run Dodonaphy's variational inference
 
@@ -519,7 +523,7 @@ class DodonaphyVI(BaseModel):
         print("Using %s embedding with %s connections" % (embedder, connector))
 
         # Initialise model
-        start = time.time()
+        start_time = time.time()
         mymod = DodonaphyVI(
             partials,
             weights,
@@ -530,6 +534,7 @@ class DodonaphyVI(BaseModel):
             curvature=curvature,
             tip_labels=tip_labels,
             n_boosts=n_boosts,
+            start=start,
         )
         param_init = mymod.hydra_init(
             dists_data,
@@ -564,7 +569,7 @@ class DodonaphyVI(BaseModel):
                     lp[0].item(),
                     ln_prior.item(),
                 )
-        mymod.save_final_info(path_write, time.time() - start)
+        mymod.save_final_info(path_write, time.time() - start_time)
 
     def save(self, fn):
         with open(fn, "w", encoding="UTF-8") as f:
