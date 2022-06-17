@@ -75,6 +75,7 @@ class HMAP(BaseModel):
         def lr_lambda(epoch):
             return 1.0 / (epoch + 1.0) ** 0.5
 
+        # Consider using LBFGS, but appears to not perform as well.
         optimizer = torch.optim.Adam(params=list(self.params.values()), lr=learn_rate)
         scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lr_lambda)
         post_hist = []

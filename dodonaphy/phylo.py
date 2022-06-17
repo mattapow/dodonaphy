@@ -63,6 +63,7 @@ def calculate_pairwise_distance(dna, adjust=None):
         array: A 2d array of the pairwise evolutionary distances.
     """
     dna_np = np.array(dna.sequences())
+    # TODO: gaps '-' are counted as different to characters (e.g. 'A')?
     rho = (dna_np[:, None] != dna_np).sum(axis=2) / len(dna[0])
     if adjust is None:
         return rho

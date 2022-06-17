@@ -1,13 +1,14 @@
 import os
-from typing import Any, List
 import time
+import warnings
+from typing import Any, List
 
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
 from torch.distributions.multivariate_normal import MultivariateNormal
 
-from dodonaphy import tree, utils, peeler, Chyp_torch
+from dodonaphy import Chyp_torch, peeler, tree, utils
 from dodonaphy.base_model import BaseModel
 from dodonaphy.phylo import JC69_p_t, calculate_treelikelihood
 from hydraPlus import hydraPlus
@@ -129,17 +130,17 @@ class DodonaphyVI(BaseModel):
                     ) * self.VariationalParams["int_sigma"][mix_idx].exp().reshape(
                         n_int_params
                     )
-                    sample = self.rsample(leaf_loc, leaf_cov, int_loc, int_cov)
+                    sample = self.rsample_tree(leaf_loc, leaf_cov, int_loc, int_cov)
                 else:
-                    sample = self.rsample(leaf_loc, leaf_cov)
+                    sample = self.rsample_tree(leaf_loc, leaf_cov)
 
                 peel.append(sample["peel"])
                 blens.append(sample["blens"])
                 location.append(
-                    sample["leaf_x"],
+                    sample["leaf_locs"],
                 )
                 if self.internals_exist:
-                    location.append(sample["int_x"])
+                    location.append(sample["int_locs"])
 
                 if kwargs.get("lp"):
                     LL = calculate_treelikelihood(
@@ -166,20 +167,23 @@ class DodonaphyVI(BaseModel):
             float: The evidence lower bound of a sample from q
         """
         n_tip_params = torch.numel(self.VariationalParams["leaf_mu"][mix_idx])
-        leaf_loc = self.VariationalParams["leaf_mu"][mix_idx].reshape(n_tip_params)
+        leaf_locs = self.VariationalParams["leaf_mu"][mix_idx].reshape(n_tip_params)
         leaf_cov = torch.eye(n_tip_params, dtype=torch.double) * self.VariationalParams[
             "leaf_sigma"
         ][mix_idx].exp().reshape(n_tip_params)
         if self.internals_exist:
             n_int_params = torch.numel(self.VariationalParams["int_mu"][mix_idx])
-            int_loc = self.VariationalParams["int_mu"][mix_idx].reshape(n_int_params)
+            int_locs = self.VariationalParams["int_mu"][mix_idx].reshape(n_int_params)
             int_cov = torch.eye(
                 n_int_params, dtype=torch.double
             ) * self.VariationalParams["int_sigma"][mix_idx].exp().reshape(n_int_params)
-            sample = self.rsample(leaf_loc, leaf_cov, int_loc, int_cov)
+            sample = self.rsample_tree(leaf_locs, leaf_cov, int_locs, int_cov)
         else:
-            sample = self.rsample(leaf_loc, leaf_cov)
+            sample = self.rsample_tree(leaf_locs, leaf_cov)
 
+        if sample["jacobian"] == -torch.inf:
+            warnings.warn("Jacobian determinant set to zero.")
+            sample["jacobian"] = 0.
         return sample["ln_p"] + sample["ln_prior"] - sample["logQ"] + sample["jacobian"]
 
     def learn(
@@ -253,6 +257,7 @@ class DodonaphyVI(BaseModel):
         def lr_lambda(epoch):
             return 1.0 / np.sqrt(epoch + 1)
 
+        # Consider using LBFGS, but appears to not perform as well.
         optimizer = torch.optim.Adam(list(self.VariationalParams.values()), lr=lr)
         scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lr_lambda)
 
@@ -284,7 +289,8 @@ class DodonaphyVI(BaseModel):
             self.trace(epochs, path_write, hist_dat, elbo_hist)
 
         if path_write is not None:
-            final_elbo = self.elbo_siwae(100).item()
+            with torch.no_grad():
+                final_elbo = self.elbo_siwae(100).item()
             print("Final ELBO: {}".format(final_elbo))
             fn = os.path.join(path_write, "vi.log")
             with open(fn, "a", encoding="UTF-8") as file:
@@ -312,13 +318,10 @@ class DodonaphyVI(BaseModel):
         )
         return torch.mean(loss)
 
-    def rsample(
+    def rsample_tree(
         self,
-        leaf_loc,
+        leaf_locs,
         leaf_cov,
-        int_loc=None,
-        int_cov=None,
-        soft=True,
         normalise_leaf=False,
     ):
         """Sample a nearby tree embedding.
@@ -329,50 +332,47 @@ class DodonaphyVI(BaseModel):
 
         A dictionary is  returned containing information about this sampled tree.
         """
+        if self.internals_exist:
+            # int_cov = torch.eye((self.S - 2) * self.D, dtype=torch.double) * int_cov
+            raise DeprecationWarning("Only embed tips.")
+
         # reshape covariance if single number
         if torch.numel(leaf_cov) == 1:
             leaf_cov = torch.eye(self.S * self.D, dtype=torch.double) * leaf_cov
-        if int_cov is not None and torch.numel(int_cov) == 1:
-            int_cov = torch.eye((self.S - 2) * self.D, dtype=torch.double) * int_cov
 
-        leaf_locs, log_abs_det_jacobian, log_Q = self.rsample_loc(
-            leaf_loc, leaf_cov, is_internal=False, normalise_leaf=normalise_leaf
+        # sample Euclidean location
+        leaf_locs, log_Q = self.rsample_Euclid(
+            leaf_locs, leaf_cov, is_internal=False, normalise_loc=normalise_leaf
+        )
+        # transform into tree
+        peel, blens, pdm = self.connect(leaf_locs)
+
+        # get jacobian
+        def get_blens(locs_t0):
+            locs_t0_2d = locs_t0.reshape((self.S, self.D))
+            _, blens, _ = self.connect(locs_t0_2d)
+            return blens
+
+        jacobian = torch.autograd.functional.jacobian(get_blens, (leaf_locs.flatten()))
+        log_abs_det_jacobian = torch.log(
+            torch.sqrt(torch.abs(torch.linalg.det(jacobian @ jacobian.T)))
         )
 
-        if self.internals_exist:
-            (int_locs, log_abs_det_jacobian_int, log_Q_int,) = self.rsample_loc(
-                int_loc, int_cov, is_internal=True, normalise_leaf=False
-            )
-            log_abs_det_jacobian = log_abs_det_jacobian + log_abs_det_jacobian_int
-            log_Q = log_Q + log_Q_int
+        # get loss
+        ln_p, ln_prior = self.get_loss(peel, blens, pdm, leaf_locs)
 
-        # internal nodes and peel for geodesics
-        if self.connector == "geodesics":
-            if isinstance(leaf_locs, torch.Tensor):
-                peel, int_locs, blens = peeler.make_soft_peel_tips(
-                    leaf_locs, connector="geodesics", curvature=self.curvature
-                )
-            else:
-                peel, int_locs = peeler.make_hard_peel_geodesic(leaf_locs)
+        sample = {
+            "leaf_locs": leaf_locs,
+            "peel": peel,
+            "blens": blens,
+            "jacobian": log_abs_det_jacobian,
+            "logQ": log_Q,
+            "ln_p": ln_p,
+            "ln_prior": ln_prior,
+        }
+        return sample
 
-        # get peels
-        if self.connector == "nj":
-            pdm = Chyp_torch.get_pdm(leaf_locs, curvature=self.curvature)
-            if soft:
-                peel, blens = peeler.nj_torch(pdm, tau=self.soft_temp)
-            else:
-                peel, blens = peeler.nj_torch(pdm)
-
-        # get proposal branch lengths
-        if self.connector != "nj":
-            blens = self.compute_branch_lengths(
-                self.S,
-                peel,
-                leaf_locs,
-                int_locs,
-                useNP=False,
-            )
-
+    def get_loss(self, peel, blens, pdm, leaf_locs):
         if self.loss_fn == "likelihood":
             ln_p = self.compute_LL(peel, blens)
         elif self.loss_fn == "pair_likelihood":
@@ -381,58 +381,52 @@ class DodonaphyVI(BaseModel):
             ln_p = self.compute_hypHC(pdm, leaf_locs)
 
         ln_prior = self.compute_prior_gamma_dir(blens)
+        return ln_p, ln_prior
 
-        # TODO rename leaf_x to leaf_locs
-        proposal = {
-            "leaf_x": leaf_locs,
-            "peel": peel,
-            "blens": blens,
-            "jacobian": log_abs_det_jacobian,
-            "logQ": log_Q,
-            "ln_p": ln_p,
-            "ln_prior": ln_prior,
-        }
-        if self.internals_exist:
-            proposal["int_x"] = int_locs
-        return proposal
+    def rsample_Euclid(self, locs, cov, is_internal=False, normalise_loc=False):
+        """Sample points in Multi-dimensional Euclidean space
 
-    def rsample_loc(self, loc, cov, is_internal, normalise_leaf=False):
-        """Given locations in poincare ball, transform them to Euclidean
-        space, sample from a Normal and transform sample back."""
+        Args:
+            locs (tensor): Mean
+            cov (tensor): Covariance
+            is_internal (bool): If true, samples n_locs - 2 points.
+
+        Returns:
+            tuple: locations, log probability
+        """
         if is_internal:
             n_locs = self.S - 2
         else:
             n_locs = self.S
         n_vars = n_locs * self.D
-        if self.embedder == "up":
-            normal_dist = MultivariateNormal(loc.reshape(n_vars).squeeze(), cov)
-            sample = normal_dist.rsample()
-            log_Q = normal_dist.log_prob(sample)
-            loc_prop = sample.reshape((n_locs, self.D))
-            log_abs_det_jacobian = torch.zeros(1)
+        normal_dist = MultivariateNormal(locs.reshape(n_vars).squeeze(), cov)
+        sample = normal_dist.rsample()
+        loc_t0 = sample.reshape((n_locs, self.D))
 
-        elif self.embedder == "wrap":
-            # transform ints to R^n
-            loc_t0, jacobian = Chyp_torch.p2t0(loc, get_jacobian=True)
-            loc_t0 = loc_t0.clone()
-            log_abs_det_jacobian = -jacobian
+        if normalise_loc:
+            r_prop = torch.norm(loc_t0[0, :]).repeat(self.S)
+            loc_t0 = utils.normalise(loc_t0) * r_prop.repeat((self.D, 1)).T
 
-            # propose new int nodes from normal in R^n
-            normal_dist = MultivariateNormal(
-                torch.zeros(n_vars, dtype=torch.double), cov
+        log_Q = normal_dist.log_prob(loc_t0.flatten())
+        return loc_t0, log_Q
+
+    def connect(self, locs_t0):
+        """Transform embedding locations into a NJ tree.
+
+        Args:
+            locs_t0 (tensor): Embedding locations in the tanget space
+
+        Returns:
+            tensor: post order tranversal, branch lengths
+        """
+        pdm = Chyp_torch.get_pdm(locs_t0, curvature=self.curvature)
+        if self.connector == "geodesics":
+            peel, int_locs, blens = peeler.make_soft_peel_tips(
+                locs_t0, connector="geodesics", curvature=self.curvature
             )
-            sample = normal_dist.rsample()
-            log_Q = normal_dist.log_prob(sample)
-            loc_prop = Chyp_torch.t02p(
-                sample.reshape(n_locs, self.D),
-                loc_t0.reshape(n_locs, self.D),
-            )
-
-        if normalise_leaf:
-            # TODO: do we need normalise jacobian? The positions are inside the integral... so yes
-            r_prop = torch.norm(loc_prop[0, :]).repeat(self.S)
-            loc_prop = utils.normalise(loc_prop) * r_prop.repeat((self.D, 1)).T
-        return loc_prop, log_abs_det_jacobian, log_Q
+        elif self.connector == "nj":
+            peel, blens = peeler.nj_torch(pdm, tau=self.soft_temp)
+        return peel, blens, pdm
 
     @staticmethod
     def hydra_init(
@@ -592,7 +586,7 @@ class DodonaphyVI(BaseModel):
                             )
                         f.write("\n")
                     f.write("\n")
-    
+
     def save_final_info(self, path_write, seconds):
         """Save time taken to info file."""
         file_name = path_write + "/" + "vi.log"

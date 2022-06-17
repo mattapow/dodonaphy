@@ -35,50 +35,11 @@ def run(args):
     path_write = get_path(root_dir, args)
     dna = read_dna(root_dir, args.path_dna)
     partials, weights = compress_alignment(dna)
-    n_taxa = len(dna)
 
-    if args.start == "None":
-        print("Computing distances from sequences:", end="", flush=True)
-        dists = calculate_pairwise_distance(dna, adjust=None)
-        print(" done.", flush=True)
-        tip_labels = dna.taxon_namespace.labels()
-    elif args.start == "NJ":
-        print("Computing distances from sequences:", end="", flush=True)
-        dists_hamming = calculate_pairwise_distance(dna, adjust=None)
-        print(" done.", flush=True)
-        peel, blens = Cpeeler.nj_np(dists_hamming)
-        tipnames = [str(i) for i in range(n_taxa)]
-        nwk = tree.tree_to_newick(tipnames, peel, blens)
-        start_tree = dendropy.Tree.get(data=nwk, schema="newick")
-        dists = utils.tip_distances(start_tree, n_taxa)
-        tip_labels = start_tree.taxon_namespace.labels()
-    elif args.start == "RAxML":
-        print("Finding RAxML tree.")
-        rax = raxml.RaxmlRunner()
-        start_tree = rax.estimate_tree(char_matrix=dna, raxml_args=["--no-bfgs"])
-        tree_path = os.path.join(root_dir, "start_tree.nex")
-        start_tree.write(path=tree_path, schema="nexus")
-        dists = utils.tip_distances(start_tree, n_taxa)
-        tip_labels = start_tree.taxon_namespace.labels()
-    elif args.start == "Random":
-        n_tips = len(dna)
-        nC2 = n_tips * (n_tips - 1) / 2
-        dists_linear = np.random.exponential(scale=0.1, size=int(nC2))
-        dists = np.zeros((n_tips, n_tips))
-        dists[np.tril_indices(n_tips, k=-1)] = dists_linear
-        dists[np.triu_indices(n_tips, k=+1)] = dists_linear
-        tip_labels = dna.taxon_namespace.labels()
-    else:
-        start_tree = read_tree(root_dir, file_name=args.start)
-        args.taxa = len(start_tree)
-        dists = utils.tip_distances(start_tree, args.taxa)
-        tip_labels = start_tree.taxon_namespace.labels()
-    tip_labels = [label.replace(" ", "_") for label in tip_labels]
-
-    if args.matsumoto:
-        dists = np.arccosh(np.exp(dists))
+    dists, tip_labels, start_tree = get_start_dists(
+        args.start, dna, root_dir, args.matsumoto
+    )
     save_period = max(int(args.epochs / args.draws), 1)
-
     if args.connect == "fix":
         peel, _ = tree.dendrophy_to_pb(start_tree)
     else:
@@ -160,7 +121,12 @@ def run(args):
             connector=args.connect,
             peel=peel,
         )
-        mymod.learn(epochs=args.epochs, learn_rate=args.learn, path_write=path_write, start=args.start)
+        mymod.learn(
+            epochs=args.epochs,
+            learn_rate=args.learn,
+            path_write=path_write,
+            start=args.start,
+        )
 
     elif args.infer == "hlaplace":
         partials, weights = compress_alignment(dna)
@@ -177,10 +143,10 @@ def run(args):
         )
         mymod.learn(epochs=args.epochs, learn_rate=args.learn, path_write=path_write)
         mymod.laplace(path_write, n_samples=args.draws)
-    
+
     elif args.infer == "brute":
         partials, weights = compress_alignment(dna)
-        path_write = './test_brute'
+        path_write = "./test_brute"
         mymod = Brute()
         mymod.run(
             args.dim,
@@ -206,6 +172,51 @@ def run(args):
     )
 
 
+def get_start_dists(method, dna, root_dir, matsumoto=False):
+    n_taxa = len(dna)
+    start_tree = None
+    if method == "None":
+        print("Computing distances from sequences:", end="", flush=True)
+        dists = calculate_pairwise_distance(dna, adjust=None)
+        print(" done.", flush=True)
+        tip_labels = dna.taxon_namespace.labels()
+    elif method == "NJ":
+        print("Computing distances from sequences:", end="", flush=True)
+        dists_hamming = calculate_pairwise_distance(dna, adjust=None)
+        print(" done.", flush=True)
+        peel, blens = Cpeeler.nj_np(dists_hamming)
+        tipnames = [str(i) for i in range(n_taxa)]
+        nwk = tree.tree_to_newick(tipnames, peel, blens)
+        start_tree = dendropy.Tree.get(data=nwk, schema="newick")
+        dists = utils.tip_distances(start_tree, n_taxa)
+        tip_labels = start_tree.taxon_namespace.labels()
+    elif method == "RAxML":
+        print("Finding RAxML tree.")
+        rax = raxml.RaxmlRunner()
+        start_tree = rax.estimate_tree(char_matrix=dna, raxml_args=["--no-bfgs"])
+        tree_path = os.path.join(root_dir, "start_tree.nex")
+        start_tree.write(path=tree_path, schema="nexus")
+        dists = utils.tip_distances(start_tree, n_taxa)
+        tip_labels = start_tree.taxon_namespace.labels()
+    elif method == "Random":
+        n_tips = len(dna)
+        nC2 = n_tips * (n_tips - 1) / 2
+        dists_linear = np.random.exponential(scale=0.1, size=int(nC2))
+        dists = np.zeros((n_tips, n_tips))
+        dists[np.tril_indices(n_tips, k=-1)] = dists_linear
+        dists[np.triu_indices(n_tips, k=+1)] = dists_linear
+        tip_labels = dna.taxon_namespace.labels()
+    else:
+        start_tree = read_tree(root_dir, file_name=start_tree)
+        dists = utils.tip_distances(start_tree, n_taxa)
+        tip_labels = start_tree.taxon_namespace.labels()
+    tip_labels = [label.replace(" ", "_") for label in tip_labels]
+
+    if matsumoto:
+        dists = np.arccosh(np.exp(dists))
+    return dists, tip_labels, start_tree
+
+
 def get_path(root_dir, args):
     """Generate and return experiment path"""
     if args.no_save is True:
@@ -225,13 +236,11 @@ def get_path(root_dir, args):
 
     elif args.infer == "mcmc":
         method_dir = os.path.join(root_dir, "mcmc", exp_method)
-        if args.curv < 0: 
+        if args.curv < 0:
             ln_crv = int(np.log10(-args.curv))
         else:
             ln_crv = str(np.log10(-args.curv))
-        path_write = os.path.join(
-            method_dir, f"d{args.dim}_k{ln_crv}{args.suffix}"
-        )
+        path_write = os.path.join(method_dir, f"d{args.dim}_k{ln_crv}{args.suffix}")
 
     elif args.infer in ("dmap", "hmap", "hlaplace"):
         ln_rate = -int(np.log10(args.learn))
