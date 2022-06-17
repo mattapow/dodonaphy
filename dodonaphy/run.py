@@ -10,7 +10,7 @@ from dendropy.model.birthdeath import birth_death_likelihood
 from dendropy.model.discrete import simulate_discrete_chars
 from dendropy.simulate import treesim
 
-from dodonaphy import utils, cli, tree
+from dodonaphy import utils, cli, tree, Cpeeler
 from dodonaphy.mcmc import DodonaphyMCMC as mcmc
 from dodonaphy.map import MAP
 from dodonaphy.hmap import HMAP
@@ -35,19 +35,30 @@ def run(args):
     path_write = get_path(root_dir, args)
     dna = read_dna(root_dir, args.path_dna)
     partials, weights = compress_alignment(dna)
+    n_taxa = len(dna)
 
     if args.start == "None":
         print("Computing distances from sequences:", end="", flush=True)
         dists = calculate_pairwise_distance(dna, adjust=None)
         print(" done.", flush=True)
         tip_labels = dna.taxon_namespace.labels()
+    elif args.start == "NJ":
+        print("Computing distances from sequences:", end="", flush=True)
+        dists_hamming = calculate_pairwise_distance(dna, adjust=None)
+        print(" done.", flush=True)
+        peel, blens = Cpeeler.nj_np(dists_hamming)
+        tipnames = [str(i) for i in range(n_taxa)]
+        nwk = tree.tree_to_newick(tipnames, peel, blens)
+        start_tree = dendropy.Tree.get(data=nwk, schema="newick")
+        dists = utils.tip_distances(start_tree, n_taxa)
+        tip_labels = start_tree.taxon_namespace.labels()
     elif args.start == "RAxML":
         print("Finding RAxML tree.")
         rax = raxml.RaxmlRunner()
         start_tree = rax.estimate_tree(char_matrix=dna, raxml_args=["--no-bfgs"])
         tree_path = os.path.join(root_dir, "start_tree.nex")
         start_tree.write(path=tree_path, schema="nexus")
-        dists = utils.tip_distances(start_tree, args.taxa)
+        dists = utils.tip_distances(start_tree, n_taxa)
         tip_labels = start_tree.taxon_namespace.labels()
     elif args.start == "Random":
         n_tips = len(dna)

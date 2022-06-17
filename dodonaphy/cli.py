@@ -48,7 +48,9 @@ def init_parser():
         help="I/O: Path to starting tree in nexus format. Path is relative to\
         path_root. If set to RAxML, a RAxML tree will be found and used. If\
         set to 'None' the distances will be inferred from the sequences. If\
-        set to 'Random, random exponentially distributed distances will be used.",
+        set to 'Random, random exponentially distributed distances will be\
+        used. If set to 'NJ' the neighbour joining tree will be formed from\
+        the hamming distances, then the patristic distances on this tree are used.",
     )
     parser.add_argument(
         "--path_root",
