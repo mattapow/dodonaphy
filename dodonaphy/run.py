@@ -207,7 +207,7 @@ def get_start_dists(method, dna, root_dir, matsumoto=False):
         dists[np.triu_indices(n_tips, k=+1)] = dists_linear
         tip_labels = dna.taxon_namespace.labels()
     else:
-        start_tree = read_tree(root_dir, file_name=start_tree)
+        start_tree = read_tree(root_dir, file_name=method)
         dists = utils.tip_distances(start_tree, n_taxa)
         tip_labels = start_tree.taxon_namespace.labels()
     tip_labels = [label.replace(" ", "_") for label in tip_labels]
