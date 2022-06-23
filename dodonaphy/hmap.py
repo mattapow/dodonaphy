@@ -1,5 +1,6 @@
 """Maximum A Posteriori Module on hyperboloid sheet."""
 import os
+import time
 
 import numpy as np
 import torch
@@ -69,6 +70,7 @@ class HMAP(BaseModel):
         generate the original distance matrix.
 
         """
+        start = time.time()
 
         def lr_lambda(epoch):
             return 1.0 / (epoch + 1.0) ** 0.5
@@ -90,13 +92,7 @@ class HMAP(BaseModel):
             self.ln_prior = self.compute_ln_prior()
             self.ln_p = self.compute_ln_likelihood()
             self.loss = -self.ln_prior - self.ln_p
-            if self.loss < -self.best_posterior:
-                self.best_posterior = -self.loss
-                self.best_ln_p = self.ln_p
-                self.best_ln_prior = self.ln_prior
-                self.best_peel = self.peel
-                self.best_blens = self.blens
-                self.best_epoch = self.current_epoch
+            self.record_if_best()
             self.loss.backward(retain_graph=True)
             return self.loss
 
@@ -115,6 +111,15 @@ class HMAP(BaseModel):
             if path_write is not None:
                 self.save_epoch(i, state_path)
 
+        print(f"\\Best tree log posterior joint found: {self.best_posterior.item():.3f}")
+        if path_write is not None:
+            file_name = os.path.join(path_write, "map.log")
+            seconds = time.time() - start
+            mins, secs = divmod(seconds, 60)
+            hrs, mins = divmod(mins, 60)
+            with open(file_name, "a", encoding="UTF-8") as file:
+                file.write(f"Total time: {int(hrs)}:{int(mins)}:{int(secs)}\n")
+
         if path_write is not None:
             tree.save_tree_head(path_write, "mape", self.tip_labels)
             tree.save_tree(
@@ -122,13 +127,22 @@ class HMAP(BaseModel):
                 "mape",
                 self.best_peel,
                 self.best_blens,
-                self.best_epoch + 1,
+                self.best_epoch,
                 self.best_ln_p.item(),
                 self.best_ln_prior.item(),
             )
 
         if epochs > 0 and path_write is not None:
-            HMAP.trace(epochs + 1, post_hist, path_write)
+            HMAP.trace(epochs + 1, post_hist, path_write)        
+
+    def record_if_best(self):
+        if self.loss < -self.best_posterior:
+            self.best_posterior = -self.loss
+            self.best_ln_p = self.ln_p
+            self.best_ln_prior = self.ln_prior
+            self.best_peel = self.peel
+            self.best_blens = self.blens
+            self.best_epoch = self.current_epoch
 
     def save(self, path_write, epochs, learn_rate, start):
         fn = path_write + "/" + "map.log"
@@ -151,9 +165,6 @@ class HMAP(BaseModel):
     def save_epoch(self, i, state_path):
         "Save posterior value and leaf locations to file."
         path_post = os.path.join(state_path, "posterior.txt")
-        # emm_path = os.path.join(state_path, "embeddings")
-
-        # print_header = str([f"dim{i}, " for i in range(self.D)])
         ln_p = self.ln_p.item()
         ln_prior = self.ln_prior.item()
         ln_post = ln_p + ln_prior
@@ -162,13 +173,19 @@ class HMAP(BaseModel):
                 file.write("log prior, log likelihood, log posterior\n")
         with open(path_post, "a", encoding="UTF-8") as file:
             file.write(f"{ln_p}, {ln_prior}, {ln_post}\n")
-        # emm_fn = os.path.join(emm_path, f"dists_hist_{i}.txt")
-        # np.savetxt(
-        #     emm_fn,
-        #     self.params["leaf_loc"].detach().numpy(),
-        #     delimiter=", ",
-        #     header=print_header,
-        # )
+        
+        emm_path = os.path.join(state_path, "location")
+        if not os.path.isdir(emm_path):
+            os.mkdir(emm_path)
+        emm_fn = os.path.join(emm_path, f"location_{i}.csv")
+        print_header = ''.join([f"dim{i}, " for i in range(self.D)])
+
+        np.savetxt(
+            emm_fn,
+            self.params["leaf_loc"].detach().numpy(),
+            delimiter=", ",
+            header=print_header,
+        )
         tree.save_tree(
             state_path,
             "samples",
