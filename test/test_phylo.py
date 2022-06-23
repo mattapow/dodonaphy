@@ -100,6 +100,24 @@ def test_dna_alphabet():
     assert (sum(weights) / len(weights)) == 1, "Weights incorrectly read alphabet."
 
 
+def test_calculate_pairwise_distance():
+    dna = dendropy.DnaCharacterMatrix.get(
+        data=">T1\nAAAAAAAAA\n>T2\nAAAAAAAAD\n\n", schema="fasta"
+    )
+    dists = phylo.calculate_pairwise_distance(dna, adjust=None)
+    true_dists = (np.ones(2) - np.eye(2)) / 9
+    assert np.allclose(dists, true_dists)
+
+
+def test_calculate_pairwise_distance_gaps():
+    dna = dendropy.DnaCharacterMatrix.get(
+        data=">T1\n-AAAAAAAA\n>T2\nAAAAAAAAD\n\n", schema="fasta"
+    )
+    dists = phylo.calculate_pairwise_distance(dna, adjust=None)
+    true_dists = (np.ones(2) - np.eye(2)) * 2 / 9
+    assert np.allclose(dists, true_dists)
+
+
 def test_likelihood_alphabet():
     blen = torch.ones(3, dtype=torch.double) / 10
     post_indexing = [[0, 1, 2]]
@@ -155,7 +173,7 @@ def test_prior_mrbayes_1():
 
 
 def test_likelihood_mrbayes_torch():
-    """"Tree and likelihood copied from MrBayes output."""
+    """ "Tree and likelihood copied from MrBayes output."""
     data = "(24:4.561809e-03,((22:4.904862e-03,10:9.550327e-03):5.704741e-03,(((15:1.985269e-02,(((((2:5.486892e-03,23:9.486339e-03):3.878666e-03,26:7.583491e-03):6.373763e-04,(5:1.661778e-02,((21:3.649255e-03,19:4.450261e-03):4.958361e-03,(((9:7.469533e-04,3:1.707387e-02):2.598443e-03,13:5.465068e-03):3.836386e-03,14:1.029500e-02):3.334175e-03):3.110589e-03):5.036948e-03):6.302069e-03,((4:1.227562e-02,12:1.724676e-02):2.311179e-03,((6:1.464740e-02,17:1.531754e-02):8.259293e-03,8:2.203792e-02):8.089750e-03):2.968914e-03):9.012311e-03,27:3.346403e-03):1.134159e-02):1.279327e-02,((11:1.221072e-03,(20:6.189060e-03,16:4.987891e-03):1.805937e-03):4.928884e-03,18:3.861566e-03):2.671721e-02):9.188388e-03,(25:9.749763e-03,7:7.646632e-03):1.097835e-02):8.034396e-03):1.869811e-03,1:1.815073e-03);"
     tree = dendropy.Tree.get(data=data, schema="newick")
     post_indexing, blens = treeFunc.dendrophy_to_pb(tree)
@@ -165,7 +183,7 @@ def test_likelihood_mrbayes_torch():
     L = partials[0].shape[1]
     for _ in range(27 - 1):
         partials.append(torch.zeros((1, 4, L), dtype=torch.float64))
-    
+
     mats = phylo.JC69_p_t(blens)
     freqs = torch.full([4], 0.25, dtype=torch.float64)
 
@@ -183,13 +201,15 @@ def test_likelihood_mrbayes_numpy():
     L = partials[0].shape[1]
     for _ in range(27 - 1):
         partials.append(torch.zeros((1, 4, L), dtype=torch.float64))
-    
+
     mats = phylo.JC69_p_t(blens)
     freqs_np = np.full([4], 0.25)
 
     partials_np = [partial.detach().numpy() for partial in partials]
     weights_np = weights.detach().numpy()
     mats_np = mats.detach().numpy()
-    ln_p = Cphylo.calculate_treelikelihood(partials_np, weights_np, post_indexing, mats_np, freqs_np)
+    ln_p = Cphylo.calculate_treelikelihood(
+        partials_np, weights_np, post_indexing, mats_np, freqs_np
+    )
 
     assert ln_p == approx(-6904.632, abs=1e-3)

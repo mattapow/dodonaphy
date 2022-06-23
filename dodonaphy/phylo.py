@@ -53,6 +53,7 @@ def calculate_pairwise_distance(dna, adjust=None):
     The evolutionary distance rho is the number of substitutions per site.
     These distance can be corrected under a JC69 model:
         d = - 3/4 ln(1 - 4/3 rho).
+    Treats gaps as characters which may count towards the difference.
 
     Args:
         dna (DnaCharacterMatrix): From Dendropy.
@@ -63,7 +64,6 @@ def calculate_pairwise_distance(dna, adjust=None):
         array: A 2d array of the pairwise evolutionary distances.
     """
     dna_np = np.array(dna.sequences())
-    # TODO: gaps '-' are counted as different to characters (e.g. 'A')?
     rho = (dna_np[:, None] != dna_np).sum(axis=2) / len(dna[0])
     if adjust is None:
         return rho
