@@ -238,6 +238,7 @@ class DodonaphyVI(BaseModel):
                 file.write("%-12s: %i\n" % ("Curvature", self.curvature))
                 file.write("%-12s: %i\n" % ("Matsumoto", self.matsumoto))
                 file.write("%-12s: %f\n" % ("Soft temp", self.soft_temp))
+                file.write("%-12s: %f\n" % ("Log10 Soft temp", np.log10(self.soft_temp)))
                 file.write("%s: %i\n" % ("Normalise Leaf", self.normalise_leaf))
                 file.write("%-12s: %i\n" % ("Dimensions", self.D))
                 file.write("%-12s: %i\n" % ("# Taxa", self.S))
@@ -249,7 +250,7 @@ class DodonaphyVI(BaseModel):
 
             vi_path = os.path.join(path_write, "vi_params")
             os.mkdir(vi_path)
-            fn = os.path.join(vi_path, f"vi_{0}.csv")
+            fn = os.path.join(vi_path, f"start.csv")
             self.save(fn)
 
             elbo_fn = os.path.join(path_write, "elbo.txt")
@@ -282,8 +283,11 @@ class DodonaphyVI(BaseModel):
             if path_write is not None:
                 with open(elbo_fn, "a", encoding="UTF-8") as f:
                     f.write("%f\n" % elbo_hist[-1])
-                fn = os.path.join(path_write, "vi_params", f"vi_{epoch+1}.csv")
+                fn = os.path.join(path_write, "vi_params", f"latest.csv")
                 self.save(fn)
+                fn = os.path.join(path_write, "vi_params", f"iteration.txt")
+                with open(fn, "w", encoding="UTF-8") as file:
+                    file.write(f"Epoch: {epoch} / {epochs}")
 
         if epochs > 0 and path_write is not None:
             self.trace(epochs, path_write, hist_dat, elbo_hist)

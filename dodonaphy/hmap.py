@@ -32,6 +32,7 @@ class HMAP(BaseModel):
         matsumoto=False,
         connector="nj",
         peel=None,
+        start=""
     ):
         super().__init__(
             partials,
@@ -70,7 +71,7 @@ class HMAP(BaseModel):
         generate the original distance matrix.
 
         """
-        start = time.time()
+        start_time = time.time()
 
         def lr_lambda(epoch):
             return 1.0 / (epoch + 1.0) ** 0.5
@@ -111,10 +112,10 @@ class HMAP(BaseModel):
             if path_write is not None:
                 self.save_epoch(i, state_path)
 
-        print(f"\\Best tree log posterior joint found: {self.best_posterior.item():.3f}")
+        print(f"\nBest tree log posterior joint found: {self.best_posterior.item():.3f}")
         if path_write is not None:
             file_name = os.path.join(path_write, "map.log")
-            seconds = time.time() - start
+            seconds = time.time() - start_time
             mins, secs = divmod(seconds, 60)
             hrs, mins = divmod(mins, 60)
             with open(file_name, "a", encoding="UTF-8") as file:
