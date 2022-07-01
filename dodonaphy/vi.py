@@ -183,7 +183,7 @@ class DodonaphyVI(BaseModel):
 
         if sample["jacobian"] == -torch.inf:
             warnings.warn("Jacobian determinant set to zero.")
-            sample["jacobian"] = 0.
+            sample["jacobian"] = 0.0
         return sample["ln_p"] + sample["ln_prior"] - sample["logQ"] + sample["jacobian"]
 
     def learn(
@@ -238,7 +238,9 @@ class DodonaphyVI(BaseModel):
                 file.write("%-12s: %i\n" % ("Curvature", self.curvature))
                 file.write("%-12s: %i\n" % ("Matsumoto", self.matsumoto))
                 file.write("%-12s: %f\n" % ("Soft temp", self.soft_temp))
-                file.write("%-12s: %f\n" % ("Log10 Soft temp", np.log10(self.soft_temp)))
+                file.write(
+                    "%-12s: %f\n" % ("Log10 Soft temp", np.log10(self.soft_temp))
+                )
                 file.write("%s: %i\n" % ("Normalise Leaf", self.normalise_leaf))
                 file.write("%-12s: %i\n" % ("Dimensions", self.D))
                 file.write("%-12s: %i\n" % ("# Taxa", self.S))
@@ -571,19 +573,32 @@ class DodonaphyVI(BaseModel):
 
     def save(self, fn):
         with open(fn, "w", encoding="UTF-8") as f:
+            f.write(f"Mix weights:\n")
+            f.write( f"{self.VariationalParams['mix_weights'].detach().numpy()}\n\n")
+            f.write(f"Leaf Locations (# taxa x  # dimensions):\n")
             for k in range(self.n_boosts):
+                f.write(f"Mix {k}:\n")
                 for i in range(self.S):
                     for d in range(self.D):
                         f.write("%f\t" % self.VariationalParams["leaf_mu"][k, i, d])
+                    f.write("\n")
+                f.write("\n")
+            f.write(f"Leaf Sigmas (# taxa x  # dimensions):\n")
+            for k in range(self.n_boosts):
+                f.write(f"Mix {k}:\n")
+                for i in range(self.S):
                     for d in range(self.D):
                         f.write("%f\t" % self.VariationalParams["leaf_sigma"][k, i, d])
                     f.write("\n")
                 f.write("\n")
 
                 if self.internals_exist:
+                    f.write(f"Internal Locations (# taxa x  # dimensions):\n")
                     for i in range(self.S - 2):
                         for d in range(self.D):
                             f.write("%f\t" % self.VariationalParams["int_mu"][k, i, d])
+                    f.write(f"Internal Sigmas (# taxa x  # dimensions):\n")
+                    for i in range(self.S - 2):
                         for d in range(self.D):
                             f.write(
                                 "%f\t" % self.VariationalParams["int_sigma"][k, i, d]
