@@ -10,6 +10,13 @@ from dodonaphy import Chyp_np, Cphylo, Cpeeler, Cutils, peeler
 from dodonaphy.base_model import BaseModel
 from dodonaphy.Chyp_np import tangent_to_hyper as t02hyp
 
+import importlib
+
+dt_spec = importlib.util.find_spec("pydecenttree")
+found_dt = dt_spec is not None
+if found_dt:
+    import pydecenttree as dt
+
 
 class Chain(BaseModel):
     """A Markov Chain class"""
@@ -54,6 +61,7 @@ class Chain(BaseModel):
             matsumoto=matsumoto,
             tip_labels=tip_labels,
         )
+        self.int_labels = [x[1:] for x in self.tip_labels]
         self.leaf_x = leaf_x  # S x D
         self.int_x = int_x  # S-2 x D
         self.jacobian = np.zeros(1)
@@ -86,6 +94,11 @@ algorithm, got {warm_up}."
         self.ln_p = -np.inf
         self.ln_prior = -np.inf
 
+        if self.connector == "nj-r" and not found_dt:
+            raise ImportError(
+                "pydecenttree needed for RapidNJ not found. Install it with pip."
+            )
+
     def set_probability(self, leaf_x, peel=None):
         """Set the initial probabilities
 
@@ -95,7 +108,9 @@ algorithm, got {warm_up}."
         self.leaf_x = leaf_x
         if peel is not None:
             self.peel = peel
-        self.peel, self.blens, self.int_x = self.connect(self.leaf_x, get_jacobian=False)
+        self.peel, self.blens, self.int_x = self.connect(
+            self.leaf_x, get_jacobian=False
+        )
         self.jacobian = np.eye(1)
         determinant = np.sqrt(np.linalg.det(self.jacobian.T @ self.jacobian))
         self.ln_det_jacobian = np.log(determinant)
@@ -166,23 +181,39 @@ algorithm, got {warm_up}."
                 curvature=self.curvature,
                 matsumoto=self.matsumoto,
             )
-        elif self.connector == "nj":
-            if get_jacobian: 
-                pdm, jacobian = Chyp_np.get_pdm(leaf_x, curvature=self.curvature, get_jacobian=get_jacobian)
+        elif self.connector == "nj" or self.connector == "nj-r":
+            if get_jacobian:
+                pdm, jacobian = Chyp_np.get_pdm(
+                    leaf_x, curvature=self.curvature, get_jacobian=get_jacobian
+                )
             else:
-                pdm = Chyp_np.get_pdm(leaf_x, curvature=self.curvature, get_jacobian=get_jacobian)
-            peel, blens = Cpeeler.nj_np(pdm)
+                pdm = Chyp_np.get_pdm(
+                    leaf_x, curvature=self.curvature, get_jacobian=get_jacobian
+                )
             int_x = None
+            if self.connector == "nj":
+                peel, blens = Cpeeler.nj_np(pdm)
+            elif self.connector == "nj-r":
+                nwk = dt.constructTree("NJ-R", self.int_labels, pdm.tolist(), 1)
+                dendro_tree = Tree.get(data=nwk, schema="newick")
+                peel, blens = treeFunc.dendrophy_to_pb(dendro_tree)
+                blens = blens.detach().numpy()
         elif self.connector == "fix":
             peel = self.peel
-            if get_jacobian: 
-                pdm, jacobian = Chyp_np.get_pdm(leaf_x, curvature=self.curvature, get_jacobian=get_jacobian)
+            if get_jacobian:
+                pdm, jacobian = Chyp_np.get_pdm(
+                    leaf_x, curvature=self.curvature, get_jacobian=get_jacobian
+                )
             else:
-                pdm = Chyp_np.get_pdm(leaf_x, curvature=self.curvature, get_jacobian=get_jacobian)
+                pdm = Chyp_np.get_pdm(
+                    leaf_x, curvature=self.curvature, get_jacobian=get_jacobian
+                )
             _, blens = Cpeeler.nj_np(pdm)
             int_x = None
         else:
-            raise ValueError(f"Connection must be one of 'nj', 'geodesics', 'fix'. Got {self.connector}")
+            raise ValueError(
+                f"Connection must be one of 'nj', 'geodesics', 'fix'. Got {self.connector}"
+            )
         if get_jacobian:
             return peel, blens, int_x, jacobian
         return peel, blens, int_x
@@ -319,7 +350,9 @@ algorithm, got {warm_up}."
         n = self.S * self.D
         eta = (self.iterations - self.warm_up + 2) ** (-0.5)
         accept_diff = np.exp(ln_r_accept) - self.target_acceptance
-        U_out = np.outer(proposal["u"], proposal["u"]) / np.linalg.norm(proposal["u"]) ** 2
+        U_out = (
+            np.outer(proposal["u"], proposal["u"]) / np.linalg.norm(proposal["u"]) ** 2
+        )
         cov_full = self.cov * (np.eye(n) + eta * accept_diff * U_out) * self.cov.T
         self.cov = np.linalg.cholesky(cov_full)
         self.iterations += 1
@@ -380,7 +413,7 @@ algorithm, got {warm_up}."
         #     jacobian_total = (jacobian2 @ jacobian1)
         #     determinant = np.sqrt(np.linalg.det(jacobian_total.T @ jacobian_total))
         #     log_abs_det_jacobian = np.log(determinant)
-        log_abs_det_jacobian = 0.
+        log_abs_det_jacobian = 0.0
 
         ln_p = self.get_loss(peel, blens)
         ln_prior = self.get_prior()
@@ -421,7 +454,7 @@ algorithm, got {warm_up}."
             u = self.rng.multivariate_normal(
                 np.zeros(n_vars), np.eye(n_vars), method="cholesky"
             )
-            sample_low = loc_low.flatten() + cov @ u 
+            sample_low = loc_low.flatten() + cov @ u
             loc_low_prop = sample_low.reshape((n_locs, self.D))
             if get_jacobian:
                 jacobian = Chyp_np.project_up_jacobian(loc_low_prop)

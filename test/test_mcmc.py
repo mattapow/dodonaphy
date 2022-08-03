@@ -90,7 +90,6 @@ def test_mcmc_geodesics_wrap():
         curvature=-2.0,
     )
 
-
 def test_mcmc_project_up_nj():
     # Simulation parameters
     dim = 2  # number of dimensions for embedding
@@ -144,6 +143,7 @@ def test_mcmc_project_up_nj():
         embedder=embedder,
         warm_up=0,
     )
+
 
 def test_mcmc_project_up_nj_euclid():
     # Simulation parameters

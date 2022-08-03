@@ -1,5 +1,6 @@
 import argparse
 
+
 def init_parser():
     """Initialise argument parser."""
     parser = argparse.ArgumentParser(
@@ -27,17 +28,21 @@ def init_parser():
         "--prior",
         default="None",
         choices=("None", "gammadir", "birthdeath", "normal", "uniform"),
-        help=("Inf: Which prior to use: no prior, Gamma-Dirichlet, Birth-Death\
-         , normal or uniform embedding location."),
+        help=(
+            "Inf: Which prior to use: no prior, Gamma-Dirichlet, Birth-Death\
+         , normal or uniform embedding location."
+        ),
     )
     parser.add_argument(
         "--connect",
         "-C",
         default="nj",
-        choices=("nj", "geodesics", "fix"),
+        choices=("nj", "geodesics", "fix", "nj-r"),
         help="Inf: Connection method to form a tree from embedded points.\
         Fixing the topology requires inputting a --start tree. Warning: fixed \
-        topology is experimental and start tree must have integer taxa names.",
+        topology is experimental and start tree must have integer taxa names.\
+        nj-r: Dodonaphy can use decenttree's implementation of to RapidNJ. First\
+        pydecenttree must be installed from https://github.com/iqtree/decenttree.",
     )
 
     # i/o
@@ -213,7 +218,7 @@ def init_parser():
         "--boosts",
         default=1,
         type=int,
-        help="VI: Total number of mixtures to boost variational distribution."
+        help="VI: Total number of mixtures to boost variational distribution.",
     )
 
     # Tree simulation parameters
@@ -231,6 +236,7 @@ def init_parser():
         "--death", default=0.5, type=float, help="Simu: Death rate of simulated tree."
     )
     return parser
+
 
 def validate(args):
     if args.infer in ("vi", "ml", "map", "hmap", "hlaplace"):

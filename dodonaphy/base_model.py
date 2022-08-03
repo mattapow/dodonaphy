@@ -48,7 +48,7 @@ class BaseModel(object):
         self.epoch = 0
         assert embedder in ("wrap", "up")
         self.embedder = embedder
-        assert connector in ("geodesics", "nj", "fix")
+        assert connector in ("geodesics", "nj", "nj-r", "fix")
         self.connector = connector
         self.internals_exist = False
         self.peel = np.zeros((self.S - 1, 3), dtype=int)
