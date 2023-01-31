@@ -61,7 +61,8 @@ class Chain(BaseModel):
             matsumoto=matsumoto,
             tip_labels=tip_labels,
         )
-        self.int_labels = [x[1:] for x in self.tip_labels]
+        enum_labels = enumerate(self.tip_labels)
+        self.int_labels = dict((k, v) for (k, v) in enum_labels)
         self.leaf_x = leaf_x  # S x D
         self.int_x = int_x  # S-2 x D
         self.jacobian = np.zeros(1)
@@ -194,7 +195,7 @@ algorithm, got {warm_up}."
             if self.connector == "nj":
                 peel, blens = Cpeeler.nj_np(pdm)
             elif self.connector == "nj-r":
-                nwk = dt.constructTree("NJ-R", self.int_labels, pdm.tolist(), 1)
+                nwk = dt.constructTree("NJ-R", self.int_labels.keys(), pdm.tolist(), 1)
                 dendro_tree = Tree.get(data=nwk, schema="newick")
                 peel, blens = treeFunc.dendrophy_to_pb(dendro_tree)
                 blens = blens.detach().numpy()
