@@ -12,3 +12,4 @@ build
 *.html
 *.c
 *profile
+tmp_test_io/test_data.csv

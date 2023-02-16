@@ -26,6 +26,7 @@ class HMAP(BaseModel):
         dists,
         soft_temp,
         loss_fn,
+        path_write,
         curvature=-1.0,
         prior="None",
         tip_labels=None,
@@ -62,8 +63,17 @@ class HMAP(BaseModel):
         self.matsumoto = matsumoto
         self.loss = torch.zeros(1)
         self.peel = (peel,)
+        self.path_write = path_write
+        self.log("Embedding Strain (tips only) = {:.4}\n".format(emm_tips["stress_hydra"]))
+        self.log("Embedding Stress (tips only) = {:.4}\n".format(emm_tips["stress_hydraPlus"]))
 
-    def learn(self, epochs, learn_rate, path_write, start=""):
+    def log(self, message):
+        if self.path_write is not None:
+            file_name = os.path.join(self.path_write, "hmap.log")
+            with open(file_name, "a", encoding="UTF-8") as file:
+                file.write(message)
+
+    def learn(self, epochs, learn_rate, start=""):
         """Optimise params["dists"].
 
         NB: start is just a string for printing: which tree was used to
@@ -82,10 +92,8 @@ class HMAP(BaseModel):
         post_hist = [-self.loss.item()]
         self.best_posterior = -np.inf
 
-        if path_write is not None:
-            state_path = os.path.join(path_write, "states")
-            os.mkdir(state_path)
-            self.save(path_write, epochs, learn_rate, start)
+        if self.path_write is not None:
+            self.save(epochs, learn_rate, start)
 
         def closure():
             optimizer.zero_grad()
@@ -108,22 +116,20 @@ class HMAP(BaseModel):
             )
             if int(i + 1) % 10 == 9:
                 print("")
-            if path_write is not None:
-                self.save_epoch(i, state_path)
+            if self.path_write is not None:
+                self.save_epoch(i)
 
         print(f"\nBest tree log posterior joint found: {self.best_posterior.item():.3f}")
-        if path_write is not None:
-            file_name = os.path.join(path_write, "map.log")
+        if self.path_write is not None:
             seconds = time.time() - start_time
             mins, secs = divmod(seconds, 60)
             hrs, mins = divmod(mins, 60)
-            with open(file_name, "a", encoding="UTF-8") as file:
-                file.write(f"Total time: {int(hrs)}:{int(mins)}:{int(secs)}\n")
+            self.log(f"Total time: {int(hrs)}:{int(mins)}:{int(secs)}\n")
 
-        if path_write is not None:
-            tree.save_tree_head(path_write, "mape", self.tip_labels)
+        if self.path_write is not None:
+            tree.save_tree_head(self.path_write, "mape", self.tip_labels)
             tree.save_tree(
-                path_write,
+                self.path_write,
                 "mape",
                 self.best_peel,
                 self.best_blens,
@@ -132,8 +138,8 @@ class HMAP(BaseModel):
                 self.best_ln_prior.item(),
             )
 
-        if epochs > 0 and path_write is not None:
-            HMAP.trace(epochs + 1, post_hist, path_write)        
+        if epochs > 0 and self.path_write is not None:
+            HMAP.trace(epochs + 1, post_hist, self.path_write, plot_hist=False)
 
     def record_if_best(self):
         if self.loss < -self.best_posterior:
@@ -144,27 +150,26 @@ class HMAP(BaseModel):
             self.best_blens = self.blens
             self.best_epoch = self.current_epoch
 
-    def save(self, path_write, epochs, learn_rate, start):
-        fn = path_write + "/" + "map.log"
-        with open(fn, "w", encoding="UTF-8") as file:
-            file.write("%-12s: %i\n" % ("# epochs", epochs))
-            file.write("%-12s: %i\n" % ("Curvature", self.curvature))
-            file.write("%-12s: %i\n" % ("Matsumoto", self.matsumoto))
-            file.write("%s: %i\n" % ("Normalise Leaf", self.normalise_leaf))
-            file.write("%-12s: %i\n" % ("Dimensions", self.D))
-            file.write("%-12s: %i\n" % ("# Taxa", self.S))
-            file.write("%-12s: %i\n" % ("# Patterns", self.L))
-            file.write("%-12s: %f\n" % ("Learn Rate", learn_rate))
-            file.write("%-12s: %f\n" % ("Soft temp", self.soft_temp))
-            file.write("%-12s: %s\n" % ("Embed Mthd", self.embedder))
-            file.write("%-12s: %s\n" % ("Connect Mthd", self.connector))
-            file.write("%-12s: %s\n" % ("Loss function", self.loss_fn))
-            file.write("%-12s: %s\n" % ("Prior", self.prior))
-            file.write("%-12s: %s\n" % ("Start Tree", start))
+    def save(self, epochs, learn_rate, start):
 
-    def save_epoch(self, i, state_path):
+        self.log("%-12s: %i\n" % ("# epochs", epochs))
+        self.log("%-12s: %i\n" % ("Curvature", self.curvature))
+        self.log("%-12s: %i\n" % ("Matsumoto", self.matsumoto))
+        self.log("%s: %i\n" % ("Normalise Leaf", self.normalise_leaf))
+        self.log("%-12s: %i\n" % ("Dimensions", self.D))
+        self.log("%-12s: %i\n" % ("# Taxa", self.S))
+        self.log("%-12s: %i\n" % ("# Patterns", self.L))
+        self.log("%-12s: %f\n" % ("Learn Rate", learn_rate))
+        self.log("%-12s: %f\n" % ("Soft temp", self.soft_temp))
+        self.log("%-12s: %s\n" % ("Embed Mthd", self.embedder))
+        self.log("%-12s: %s\n" % ("Connect Mthd", self.connector))
+        self.log("%-12s: %s\n" % ("Loss function", self.loss_fn))
+        self.log("%-12s: %s\n" % ("Prior", self.prior))
+        self.log("%-12s: %s\n" % ("Start Tree", start))
+
+    def save_epoch(self, i, save_locations=False):
         "Save posterior value and leaf locations to file."
-        path_post = os.path.join(state_path, "posterior.txt")
+        path_post = os.path.join(self.path_write, "posterior.txt")
         ln_p = self.ln_p.item()
         ln_prior = self.ln_prior.item()
         ln_post = ln_p + ln_prior
@@ -172,37 +177,40 @@ class HMAP(BaseModel):
             with open(path_post, "w", encoding="UTF-8") as file:
                 file.write("log prior, log likelihood, log posterior\n")
         with open(path_post, "a", encoding="UTF-8") as file:
-            file.write(f"{ln_p}, {ln_prior}, {ln_post}\n")
+            file.write(f"{ln_prior}, {ln_p}, {ln_post}\n")
         
-        emm_path = os.path.join(state_path, "location")
+        emm_path = os.path.join(self.path_write, "location")
         if not os.path.isdir(emm_path):
             os.mkdir(emm_path)
         emm_fn = os.path.join(emm_path, f"location_{i}.csv")
         print_header = ''.join([f"dim{i}, " for i in range(self.D)])
 
-        np.savetxt(
-            emm_fn,
-            self.params["leaf_loc"].detach().numpy(),
-            delimiter=", ",
-            header=print_header,
-        )
+        if save_locations:
+            np.savetxt(
+                emm_fn,
+                self.params["leaf_loc"].detach().numpy(),
+                delimiter=", ",
+                header=print_header,
+            )
         tree.save_tree(
-            state_path,
+            self.path_write,
             "samples",
             self.peel,
             self.blens,
             i,
-            self.ln_p,
             self.ln_prior,
+            self.ln_p,
             tip_labels=None,
         )
 
-    def connect(self):
+    def connect(self, get_pdm=False):
         """Connect tips into a tree"""
         if self.connector == "geodesics":
             peel, _, blens = peeler.make_soft_peel_tips(
                 self.params["leaf_loc"], connector="geodesics", curvature=self.curvature
             )
+            if get_pdm:
+                pdm = Chyp_torch.get_pdm(self.params["leaf_loc"], curvature=self.curvature)    
         elif self.connector == "nj":
             pdm = Chyp_torch.get_pdm(self.params["leaf_loc"], curvature=self.curvature)
             peel, blens = peeler.nj_torch(pdm, tau=self.soft_temp)
@@ -214,15 +222,18 @@ class HMAP(BaseModel):
             raise ValueError(
                 f"Connection must be one of 'nj', 'geodesics', 'fix'. Got {self.connector}"
             )
-        return peel, blens, pdm
+        if get_pdm:
+            return peel, blens, pdm
+        return peel, blens
 
     def compute_ln_likelihood(self):
         """Compute likelihood of current tree, reducing soft_temp as required."""
-        self.peel, self.blens, pdm = self.connect()
         if self.loss_fn == "likelihood":
+            self.peel, self.blens = self.connect()
             self.ln_p = self.compute_LL(self.peel, self.blens)
             loss = self.ln_p
         elif self.loss_fn == "pair_likelihood":
+            self.peel, self.blens, pdm = self.connect(get_pdm=True)
             self.ln_p = self.compute_LL(self.peel, self.blens)
             loss = self.compute_log_a_like(pdm)
         return loss
@@ -258,11 +269,10 @@ class HMAP(BaseModel):
         ln_prior = self.compute_prior_gamma_dir(blens)
         return ln_p + ln_prior
 
-    def laplace(self, path_write, n_samples=100):
+    def laplace(self, n_samples=100):
         """Generate a laplace approximation around the current embedding.
 
         Args:
-            path_write (string): Save trees in this directory.
             n (int, optional): Number of samples. Defaults to 100.
         """
         hessian = torch.autograd.functional.hessian
@@ -270,7 +280,7 @@ class HMAP(BaseModel):
 
         print("Generating laplace approximation: ", end="", flush=True)
         filename = "laplace_samples"
-        tree.save_tree_head(path_write, filename, self.tip_labels)
+        tree.save_tree_head(self.path_write, filename, self.tip_labels)
         mean = self.params["leaf_loc"].view(-1)
         for smp_i in range(n_samples):
             res = hessian(self.get_ln_posterior, mean, vectorize=True)
@@ -284,9 +294,9 @@ class HMAP(BaseModel):
             blens = torch.tensor(blens)
             ln_p = self.compute_LL(peel, blens)
             ln_prior = self.compute_prior_gamma_dir(blens)
-            if path_write is not None:
+            if self.path_write is not None:
                 tree.save_tree(
-                    path_write,
+                    self.path_write,
                     filename,
                     peel,
                     blens,

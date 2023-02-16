@@ -57,7 +57,7 @@ This creates a directory contained in ```mcmc/up_nj/d3_k0```, signifying the emb
 This directory has:
 - ```samples.t``` containing sampled trees in the posterior
 - ```locations.csv``` containing the tip embedding locations
-- ```mcmc.info``` with information about the MCMC invoked.
+- ```mcmc.log``` with information about the MCMC invoked.
 
 
 

@@ -118,7 +118,7 @@ class DodonaphyMCMC:
 
         start = time.time()
         if path_write is not None:
-            info_file = path_write + "/" + "mcmc.info"
+            info_file = path_write + "/" + "mcmc.log"
             self.save_info(info_file, epochs, burnin, self.save_period)
             tree.save_tree_head(path_write, "samples", self.chains[0].tip_labels)
 
@@ -190,7 +190,7 @@ class DodonaphyMCMC:
 
     def save_final_info(self, path_write, swaps, seconds):
         """Save tail of info file with acceptance and time taken."""
-        file_name = path_write + "/" + "mcmc.info"
+        file_name = path_write + "/" + "mcmc.log"
         with open(file_name, "a", encoding="UTF-8") as file:
             for c_id, chain in enumerate(self.chains):
                 final_accept = chain.accepted / chain.iterations

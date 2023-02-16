@@ -115,6 +115,7 @@ def run(args):
             dists=dists,
             soft_temp=args.temp,
             loss_fn=args.loss_fn,
+            path_write=path_write,
             prior=args.prior,
             tip_labels=tip_labels,
             matsumoto=args.matsumoto,
@@ -124,7 +125,6 @@ def run(args):
         mymod.learn(
             epochs=args.epochs,
             learn_rate=args.learn,
-            path_write=path_write,
             start=args.start,
         )
 
@@ -286,7 +286,7 @@ def simulate_tree(root_dir, birth_rate, death_rate, n_taxa, seq_len):
         rng=rng,
     )
 
-    tree_info_path = os.path.join(root_dir, "start_tree.info")
+    tree_info_path = os.path.join(root_dir, "start_tree.log")
     tree_path = os.path.join(root_dir, "start_tree.nex")
     dna_path = os.path.join(root_dir, "dna.nex")
 
