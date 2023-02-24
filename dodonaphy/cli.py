@@ -39,8 +39,7 @@ def init_parser():
         default="nj",
         choices=("nj", "geodesics", "fix", "nj-r"),
         help="Inf: Connection method to form a tree from embedded points.\
-        Fixing the topology requires inputting a --start tree. Warning: fixed \
-        topology is experimental and start tree must have integer taxa names.\
+        Fixing the topology is experimental and requires inputting a --start tree. \
         nj-r: Dodonaphy can use decenttree's implementation of to RapidNJ. First\
         pydecenttree must be installed from https://github.com/iqtree/decenttree.",
     )

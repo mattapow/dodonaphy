@@ -2,6 +2,7 @@
 import os
 import random
 import time
+import warnings
 
 import dendropy
 import numpy as np
@@ -41,6 +42,8 @@ def run(args):
     )
     save_period = max(int(args.epochs / args.draws), 1)
     if args.connect == "fix":
+        warnings.warn("Fixed topology is experimental and start tree must have integer taxa names.")
+        tree.rename_labels(start_tree)
         peel, _ = tree.dendrophy_to_pb(start_tree)
     else:
         peel = None

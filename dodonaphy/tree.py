@@ -46,13 +46,33 @@ class taxon():
         self.label = label
 
 
-def dendrophy_to_pb(tree):
-    """Convert Dendrophy tree to peels and blens.
-    Taxon names must be indexes, starting from 1.
+def rename_labels(tree, offset=0, get_label_map=False):
+    """Given a DendroPy tree, relabel its taxa to integers, starting from the value of offset.
+
+    Args:
+    tree (Tree): A DendroPy tree
+
+    Returns:
+    label_map (dict): A dictionary with labels as values and their indexes as keys.
+    """
+    labels = tree.taxon_namespace.labels()
+    label_map = dict()
+    for (i, label) in enumerate(labels):
+        node_to_change = tree.find_node_with_taxon_label(label)
+        node_to_change.taxon.label = str(i+offset)
+        label_map[label] = str(i+offset)
+    if get_label_map:
+        return label_map
+
+
+def dendrophy_to_pb(tree, offset=0):
+    """Convert Dendropy tree to peels and blens.
+    Taxon names must be indexes, starting from offset (will get converted to 0 indexing).
 
     Parameters
     ----------
     tree : A Dendrophy tree
+
     Returns
     -------
     peel : adjacencies of internal nodes (left child, right child, node)
@@ -74,9 +94,9 @@ def dendrophy_to_pb(tree):
         except ValueError:
             c0, c1, c2 = nds[i].child_nodes()
         
-        chld0 = int(c0.taxon.label) - 1
-        chld1 = int(c1.taxon.label) - 1
-        parent = int(nds[i].taxon.label) - 1
+        chld0 = int(c0.taxon.label) - offset
+        chld1 = int(c1.taxon.label) - offset
+        parent = int(nds[i].taxon.label) - offset
         peel[i, 0] = chld0
         peel[i, 1] = chld1
         peel[i, 2] = parent

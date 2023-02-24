@@ -1,6 +1,7 @@
 """Maximum A Posteriori Module on hyperboloid sheet."""
 import os
 import time
+import warnings
 
 import numpy as np
 import torch
@@ -45,7 +46,7 @@ class HMAP(BaseModel):
             tip_labels=tip_labels,
         )
         hp_obj = hydraPlus.HydraPlus(dists, dim=self.D, curvature=curvature)
-        emm_tips = hp_obj.embed(equi_adj=0.0, alpha=1.1)
+        emm_tips = hp_obj.embed(equi_adj=0.0, alpha=1.1, isotropic_adj=True)
         print("Embedding Strain (tips only) = {:.4}".format(emm_tips["stress_hydra"]))
         print(
             "Embedding Stress (tips only) = {:.4}".format(emm_tips["stress_hydraPlus"])
@@ -62,10 +63,10 @@ class HMAP(BaseModel):
         self.ln_prior = self.compute_ln_prior()
         self.matsumoto = matsumoto
         self.loss = torch.zeros(1)
-        self.peel = (peel,)
+        self.peel = peel
         self.path_write = path_write
-        self.log("Embedding Strain (tips only) = {:.4}\n".format(emm_tips["stress_hydra"]))
-        self.log("Embedding Stress (tips only) = {:.4}\n".format(emm_tips["stress_hydraPlus"]))
+        self.log(f"Embedding Strain (tips only) = {emm_tips['stress_hydra']}\n")
+        self.log(f"Embedding Stress (tips only) = {emm_tips['stress_hydraPlus']}\n")
 
     def log(self, message):
         if self.path_write is not None:
@@ -90,7 +91,7 @@ class HMAP(BaseModel):
         scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lr_lambda)
         self.loss = -self.compute_ln_prior() - self.compute_ln_likelihood()
         post_hist = [-self.loss.item()]
-        self.best_posterior = -np.inf
+        self.best_posterior = torch.tensor(-np.inf)
 
         if self.path_write is not None:
             self.save(epochs, learn_rate, start)
@@ -138,6 +139,9 @@ class HMAP(BaseModel):
                 self.best_ln_prior.item(),
             )
 
+            self.log(f"Best log likelihood: {self.best_ln_p}\n")
+            self.log(f"Best log prior: {self.best_ln_prior.item()}\n")
+
         if epochs > 0 and self.path_write is not None:
             HMAP.trace(epochs + 1, post_hist, self.path_write, plot_hist=False)
 
@@ -180,12 +184,11 @@ class HMAP(BaseModel):
             file.write(f"{ln_prior}, {ln_p}, {ln_post}\n")
         
         emm_path = os.path.join(self.path_write, "location")
-        if not os.path.isdir(emm_path):
-            os.mkdir(emm_path)
-        emm_fn = os.path.join(emm_path, f"location_{i}.csv")
-        print_header = ''.join([f"dim{i}, " for i in range(self.D)])
-
         if save_locations:
+            if not os.path.isdir(emm_path):
+                os.mkdir(emm_path)
+            emm_fn = os.path.join(emm_path, f"location_{i}.csv")
+            print_header = ''.join([f"dim{i}, " for i in range(self.D)])
             np.savetxt(
                 emm_fn,
                 self.params["leaf_loc"].detach().numpy(),
@@ -217,7 +220,8 @@ class HMAP(BaseModel):
         elif self.connector == "fix":
             peel = self.peel
             pdm = Chyp_torch.get_pdm(self.params["leaf_loc"], curvature=self.curvature)
-            _, blens = peeler.nj_torch(pdm, tau=self.soft_temp)
+            warnings.warn("NJ algorithm for branch lengths on fixed topology not guaranteed to work.")
+            _, blens = peeler.nj_torch(pdm, tau=self.soft_temp, get_peel=False)
         else:
             raise ValueError(
                 f"Connection must be one of 'nj', 'geodesics', 'fix'. Got {self.connector}"
