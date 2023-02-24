@@ -212,8 +212,6 @@ def get_start_dists(method, dna, root_dir, matsumoto=False):
         tip_labels = start_tree.taxon_namespace.labels()
     tip_labels = [label.replace(" ", "_") for label in tip_labels]
 
-    if matsumoto:
-        dists = np.arccosh(np.exp(dists))
     return dists, tip_labels, start_tree
 
 
