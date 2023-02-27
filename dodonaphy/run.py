@@ -128,6 +128,7 @@ def run(args):
         mymod.learn(
             epochs=args.epochs,
             learn_rate=args.learn,
+            save_locations=args.write_dists,
             start=args.start,
         )
 

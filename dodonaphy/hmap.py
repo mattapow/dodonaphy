@@ -74,7 +74,7 @@ class HMAP(BaseModel):
             with open(file_name, "a", encoding="UTF-8") as file:
                 file.write(message)
 
-    def learn(self, epochs, learn_rate, start=""):
+    def learn(self, epochs, learn_rate, save_locations, start=""):
         """Optimise params["dists"].
 
         NB: start is just a string for printing: which tree was used to
@@ -118,7 +118,7 @@ class HMAP(BaseModel):
             if int(i + 1) % 10 == 9:
                 print("")
             if self.path_write is not None:
-                self.save_epoch(i)
+                self.save_epoch(i, save_locations=save_locations)
 
         print(f"\nBest tree log posterior joint found: {self.best_posterior.item():.3f}")
         if self.path_write is not None:

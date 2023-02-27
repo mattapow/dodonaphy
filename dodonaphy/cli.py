@@ -86,7 +86,7 @@ def init_parser():
         "--write-dists",
         dest="write_dists",
         action="store_true",
-        help="I/O MCMC: Save MCMC proposal distances.",
+        help="I/O: In MCMC mode, save proposal distances. In hmap mode, save the embedding locations at each step.",
     )
     parser.set_defaults(write_dists=False)
 
