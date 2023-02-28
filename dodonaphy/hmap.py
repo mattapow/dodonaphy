@@ -137,6 +137,7 @@ class HMAP(BaseModel):
                 self.best_epoch,
                 self.best_ln_p.item(),
                 self.best_ln_prior.item(),
+                last_tree=True,
             )
 
             self.log(f"Best log likelihood: {self.best_ln_p}\n")

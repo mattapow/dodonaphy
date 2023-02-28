@@ -165,6 +165,7 @@ def save_tree(
     lnL,
     lnPr,
     tip_labels=None,
+    last_tree=False,
 ):
     if root_dir is None:
         return
@@ -177,6 +178,9 @@ def save_tree(
         file.write("\ttree STATE_" + str(iteration))
         file.write(" [&lnL=%f, &lnPr=%f] = [&U] " % (lnL, lnPr))
         file.write(tree + "\n")
+        if last_tree:
+            file.write("End;\n")
+
 
 
 def end_tree_file(path_write):
