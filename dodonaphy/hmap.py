@@ -95,6 +95,7 @@ class HMAP(BaseModel):
 
         if self.path_write is not None:
             self.save(epochs, learn_rate, start)
+            self.record_if_best()
 
         def closure():
             optimizer.zero_grad()
