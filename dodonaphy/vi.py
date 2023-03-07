@@ -233,6 +233,7 @@ class DodonaphyVI(BaseModel):
             fn = path_write + "/" + "vi.log"
             with open(fn, "w", encoding="UTF-8") as file:
                 file.write("%-12s: %i\n" % ("# epochs", epochs))
+                file.write("%-12s: %s\n" % ("prior", "Gamma Dirichlet"))
                 file.write("%-12s: %i\n" % ("Importance", importance_samples))
                 file.write("%-12s: %i\n" % ("# mixtures", self.n_boosts))
                 file.write("%-12s: %i\n" % ("Curvature", self.curvature))
@@ -273,7 +274,7 @@ class DodonaphyVI(BaseModel):
             loss = -self.elbo_siwae(importance_samples)
             if loss.requires_grad:
                 loss.backward()
-            elbo_hist.append(-loss.item())
+            elbo_hist.append(-loss.detach().item())
             return loss
 
         for epoch in range(epochs):
@@ -482,7 +483,7 @@ class DodonaphyVI(BaseModel):
         return param_init
 
     @staticmethod
-    def trace(epochs, path_write, hist_dat, elbo_hist):
+    def trace(epochs, path_write, elbo_hist):
         plt.figure()
         plt.plot(range(1, epochs), elbo_hist[1:], "r", label="elbo")
         plt.title("Elbo values")
@@ -490,9 +491,6 @@ class DodonaphyVI(BaseModel):
         plt.ylabel("elbo")
         plt.legend()
         plt.savefig(path_write + "/elbo_trace.png")
-        plt.clf()
-        plt.hist(hist_dat)
-        plt.savefig(path_write + "/elbo_hist.png")
 
     @staticmethod
     def run(
