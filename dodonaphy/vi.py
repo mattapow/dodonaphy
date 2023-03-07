@@ -292,7 +292,7 @@ class DodonaphyVI(BaseModel):
                     file.write(f"Epoch: {epoch} / {epochs}")
 
         if epochs > 0 and path_write is not None:
-            self.trace(epochs, path_write, hist_dat, elbo_hist)
+            self.trace(epochs, path_write, elbo_hist)
 
         if path_write is not None:
             with torch.no_grad():

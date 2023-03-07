@@ -180,12 +180,12 @@ def get_start_dists(method, dna, root_dir, matsumoto=False):
     n_taxa = len(dna)
     start_tree = None
     if method == "None":
-        print("Computing distances from sequences:", end="", flush=True)
-        dists = calculate_pairwise_distance(dna, adjust=None)
+        print("Computing adjusted distances from sequences:", end="", flush=True)
+        dists = calculate_pairwise_distance(dna, adjust="JC69")
         print(" done.", flush=True)
         tip_labels = dna.taxon_namespace.labels()
     elif method == "NJ":
-        print("Computing distances from sequences:", end="", flush=True)
+        print("Computing raw distances from tree file:", end="", flush=True)
         dists_hamming = calculate_pairwise_distance(dna, adjust=None)
         print(" done.", flush=True)
         peel, blens = Cpeeler.nj_np(dists_hamming)

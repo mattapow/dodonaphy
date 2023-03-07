@@ -114,9 +114,35 @@ def test_calculate_pairwise_distance_gaps():
         data=">T1\n-AAAAAAAA\n>T2\nAAAAAAAAD\n\n", schema="fasta"
     )
     dists = phylo.calculate_pairwise_distance(dna, adjust=None)
-    true_dists = (np.ones(2) - np.eye(2)) * 2 / 9
+    true_dists = (np.ones(2) - np.eye(2)) * 1 / 9
     assert np.allclose(dists, true_dists)
 
+def test_simple_dists_compare_decenttree_uncorrected():
+    dna = dendropy.DnaCharacterMatrix.get(path="test/data/simple/dna.fasta", schema="fasta")
+    dists = phylo.calculate_pairwise_distance(dna)
+    # compare to decenttree via 
+    # decenttree -fasta dna.fasta -out nj_uncorrected.newick -t NJ -dist-out NJ_dist_uncorrected.csv -uncorrected
+    true_dists = np.genfromtxt("test/data/simple/NJ_dist_uncorrected.csv", skip_header=1)
+    true_dists[np.isnan(true_dists)] = 0
+    assert np.allclose(dists, true_dists[:, 1:])
+
+def test_simple_dists_compare_decenttree_uncorrected_gaps():
+    dna = dendropy.DnaCharacterMatrix.get(path="test/data/simple_gap/dna.fasta", schema="fasta")
+    dists = phylo.calculate_pairwise_distance(dna)
+    # compare to decenttree via 
+    # decenttree -fasta dna.fasta -out nj_uncorrected.newick -t NJ -dist-out NJ_dist_uncorrected.csv -uncorrected
+    true_dists = np.genfromtxt("test/data/simple_gap/NJ_dist_uncorrected.csv", skip_header=1)
+    true_dists[np.isnan(true_dists)] = 0
+    assert np.allclose(dists, true_dists[:, 1:])
+
+def test_simple_dists_compare_decenttree():
+    dna = dendropy.DnaCharacterMatrix.get(path="test/data/simple/dna.fasta", schema="fasta")
+    dists = phylo.calculate_pairwise_distance(dna, adjust="JC69")
+    # compare to decenttree via 
+    # decenttree -fasta dna.fasta -out nj.newick -t NJ -dist-out NJ_dist.csv
+    true_dists = np.genfromtxt("test/data/simple/NJ_dist.csv", skip_header=1)
+    true_dists[np.isnan(true_dists)] = 0
+    assert np.allclose(dists, true_dists[:, 1:])
 
 def test_likelihood_alphabet():
     blen = torch.ones(3, dtype=torch.double) / 10
@@ -178,7 +204,7 @@ def test_likelihood_mrbayes_torch():
     tree = dendropy.Tree.get(data=data, schema="newick")
     post_indexing, blens = treeFunc.dendrophy_to_pb(tree, offset=1)
 
-    dna = dendropy.DnaCharacterMatrix.get(path="./test/dna.nex", schema="nexus")
+    dna = dendropy.DnaCharacterMatrix.get(path="./test/data/ds1/dna.nex", schema="nexus")
     partials, weights = phylo.compress_alignment(dna)
     L = partials[0].shape[1]
     for _ in range(27 - 1):
@@ -196,7 +222,7 @@ def test_likelihood_mrbayes_numpy():
     tree = dendropy.Tree.get(data=data, schema="newick")
     post_indexing, blens = treeFunc.dendrophy_to_pb(tree, offset=1)
 
-    dna = dendropy.DnaCharacterMatrix.get(path="./test/dna.nex", schema="nexus")
+    dna = dendropy.DnaCharacterMatrix.get(path="./test/data/ds1/dna.nex", schema="nexus")
     partials, weights = phylo.compress_alignment(dna)
     L = partials[0].shape[1]
     for _ in range(27 - 1):

@@ -47,28 +47,51 @@ def compress_alignment(alignment):
     return partials, torch.tensor(np.array(weights))
 
 
-def calculate_pairwise_distance(dna, adjust=None):
+def calculate_pairwise_distance(dna, adjust=None, omit_unkown=False):
     """Calculate the pairwise evolutionary distances.
 
     The evolutionary distance rho is the number of substitutions per site.
     These distance can be corrected under a JC69 model:
         d = - 3/4 ln(1 - 4/3 rho).
-    Treats gaps as characters which may count towards the difference.
+    Treats gaps as no distance, but does count towards the total alignment length.
 
     Args:
         dna (DnaCharacterMatrix): From Dendropy.
         adjust (String, optional): Set to 'JC69' to adjust for JC69 distances.
         Defaults to None.
+        omit_unkown (Boolean, optional): Reduce total length if either sequence
+        has unknwon. Defaults to False.
 
     Returns:
         array: A 2d array of the pairwise evolutionary distances.
     """
-    dna_np = np.array(dna.sequences())
-    rho = (dna_np[:, None] != dna_np).sum(axis=2) / len(dna[0])
+    n_taxa = len(dna)
+    seq_len = len(dna[0])
+    obs_dist = np.zeros((n_taxa, n_taxa))
+    count_unknown = np.zeros((n_taxa, n_taxa))
+    for i in range(n_taxa):
+        seq_i = dna[i]
+        for j in range(i+1, n_taxa):
+            seq_j = dna[j]
+            # count the number of different characters, excluding any gaps
+            count = sum(seq_i[k] != seq_j[k] and not seq_i[k].is_gap_state and not seq_j[k].is_gap_state for k in range(seq_len))
+            obs_dist[i, j] += count
+            obs_dist[j, i] += count
+            # count how many gaps are in either sequence
+            count_unknown[i, j] = sum(seq_i[k].is_gap_state or seq_j[k].is_gap_state for k in range(seq_len))
+            count_unknown[j, i] = count_unknown[i, j]
+    
+    # adjust the length of the alignment for unkown characters, for each pair of sequences
+    if omit_unkown:
+        seq_len = seq_len - count_unknown
+        np.fill_diagonal(seq_len, 0)
+    obs_dist /= seq_len
+    np.fill_diagonal(obs_dist, 0)
+
     if adjust is None:
-        return rho
+        return obs_dist
     elif adjust == "JC69":
-        return -3 / 4 * np.log(1 - 4 / 3 * rho)
+        return - 3 / 4 * np.log(1.0 - 4 / 3 * obs_dist)
     else:
         raise ValueError("adjust must be None or 'JC69'")
 
