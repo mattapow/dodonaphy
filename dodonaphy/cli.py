@@ -111,11 +111,11 @@ def init_parser():
             embedding. Currently only implemented in MCMC.",
     )
     parser.add_argument(
-        "--free_leaf",
+        "--circle_leaf",
         dest="normalise_leaves",
-        action="store_false",
+        action="store_true",
         help="Embed: Whether to normalise the leaves to a single raduis. Currently\
-        only implemented in MCMC.",
+        only implemented in MCMC and HMAP.",
     )
     parser.set_defaults(normalise_leaves=False)
     parser.add_argument(
@@ -124,7 +124,7 @@ def init_parser():
         action="store_true",
         help="Embed: Apply the Matsumoto et al 2020 distance adjustment. NB: hydra+\
             does not account for this which could lead to a bad initial\
-            embedding. Currently ony implemented in MCMC.",
+            embedding. Only implemented in MCMC and HMAP.",
     )
     parser.set_defaults(matsumoto=False)
 

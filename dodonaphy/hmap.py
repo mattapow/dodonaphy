@@ -6,7 +6,7 @@ import warnings
 import numpy as np
 import torch
 
-from dodonaphy import Chyp_torch, peeler, tree
+from dodonaphy import Chyp_torch, peeler, tree, Cutils
 from hydraPlus import hydraPlus
 from dodonaphy.base_model import BaseModel
 
@@ -34,6 +34,7 @@ class HMAP(BaseModel):
         matsumoto=False,
         connector="nj",
         peel=None,
+        normalise_leaves=False
     ):
         super().__init__(
             partials,
@@ -51,12 +52,20 @@ class HMAP(BaseModel):
         print(
             "Embedding Stress (tips only) = {:.4}".format(emm_tips["stress_hydraPlus"])
         )
-
-        self.params = {
-            "leaf_loc": torch.tensor(
-                emm_tips["X"], requires_grad=True, dtype=torch.float64
-            )
-        }
+        if normalise_leaves:
+            radius = np.mean(np.linalg.norm(emm_tips["X"], axis=1))
+            directionals = Cutils.normalise_np(emm_tips["X"])
+            self.params = {
+                "radius": torch.tensor(radius, requires_grad=True, dtype=torch.float64),
+                "directionals": torch.tensor(directionals, requires_grad=True, dtype=torch.float64)
+            }
+        else:
+            self.params = {
+                "leaf_loc": torch.tensor(
+                    emm_tips["X"], requires_grad=True, dtype=torch.float64
+                )
+            }
+        self.normalise_leaves = normalise_leaves
         self.ln_p = self.compute_ln_likelihood()
         self.current_epoch = 0
         self.prior = prior
@@ -84,11 +93,12 @@ class HMAP(BaseModel):
         start_time = time.time()
 
         def lr_lambda(epoch):
-            return 1.0 / (epoch + 1.0) ** 0.5
+            return 1.0 / (epoch + 1.0) ** 0.0
 
         # Consider using LBFGS, but appears to not perform as well.
         optimizer = torch.optim.Adam(params=list(self.params.values()), lr=learn_rate)
         scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lr_lambda)
+        # scheduler = torch.optim.lr_scheduler.CyclicLR(optimizer, base_lr=learn_rate/100, max_lr=learn_rate, step_size_up=100)
         self.loss = -self.compute_ln_prior() - self.compute_ln_likelihood()
         post_hist = [-self.loss.item()]
         self.best_posterior = torch.tensor(-np.inf)
@@ -191,9 +201,10 @@ class HMAP(BaseModel):
                 os.mkdir(emm_path)
             emm_fn = os.path.join(emm_path, f"location_{i}.csv")
             print_header = ''.join([f"dim{i}, " for i in range(self.D)])
+            locs = self.get_locs().detach().numpy()
             np.savetxt(
                 emm_fn,
-                self.params["leaf_loc"].detach().numpy(),
+                locs,
                 delimiter=", ",
                 header=print_header,
             )
@@ -208,20 +219,30 @@ class HMAP(BaseModel):
             tip_labels=None,
         )
 
+    def get_locs(self):
+        """Get current tip locations"""
+        if self.normalise_leaves:
+            locs = self.params["radius"] * self.params["directionals"]
+        else:
+            locs = self.params["leaf_loc"]
+        return locs
+
     def connect(self, get_pdm=False):
         """Connect tips into a tree"""
+        locs = self.get_locs()
+
         if self.connector == "geodesics":
             peel, _, blens = peeler.make_soft_peel_tips(
-                self.params["leaf_loc"], connector="geodesics", curvature=self.curvature
+                locs, connector="geodesics", curvature=self.curvature
             )
             if get_pdm:
-                pdm = Chyp_torch.get_pdm(self.params["leaf_loc"], curvature=self.curvature)    
+                pdm = Chyp_torch.get_pdm(locs, curvature=self.curvature)    
         elif self.connector == "nj":
-            pdm = Chyp_torch.get_pdm(self.params["leaf_loc"], curvature=self.curvature)
+            pdm = Chyp_torch.get_pdm(locs, curvature=self.curvature)
             peel, blens = peeler.nj_torch(pdm, tau=self.soft_temp)
         elif self.connector == "fix":
             peel = self.peel
-            pdm = Chyp_torch.get_pdm(self.params["leaf_loc"], curvature=self.curvature)
+            pdm = Chyp_torch.get_pdm(locs, curvature=self.curvature)
             warnings.warn("NJ algorithm for branch lengths on fixed topology not guaranteed to work.")
             _, blens = peeler.nj_torch(pdm, tau=self.soft_temp, get_peel=False)
         else:
@@ -249,9 +270,11 @@ class HMAP(BaseModel):
         if self.prior == "None":
             return torch.zeros(1)
         elif self.prior == "normal":
-            return self.compute_prior_normal(self.params["leaf_loc"])
+            locs = self.get_locs()
+            return self.compute_prior_normal(locs)
         elif self.prior == "uniform":
-            return self.compute_prior_unif(self.params["leaf_loc"], scale=1.0)
+            locs = self.get_locs()
+            return self.compute_prior_unif(locs, scale=1.0)
         elif self.prior == "gammadir":
             return self.compute_prior_gamma_dir(self.blens)
         elif self.prior == "birthdeath":
@@ -287,7 +310,7 @@ class HMAP(BaseModel):
         print("Generating laplace approximation: ", end="", flush=True)
         filename = "laplace_samples"
         tree.save_tree_head(self.path_write, filename, self.tip_labels)
-        mean = self.params["leaf_loc"].view(-1)
+        mean = self.get_locs().view(-1)
         for smp_i in range(n_samples):
             res = hessian(self.get_ln_posterior, mean, vectorize=True)
             cov = -torch.linalg.inv(res)
