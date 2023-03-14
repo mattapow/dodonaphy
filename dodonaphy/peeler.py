@@ -192,7 +192,9 @@ def nj_torch(pdm, tau=None):
         peel[int_i, 2] = parent
 
         blens[node_map[left]] = dist_pl
-        blens[node_map[right]] = torch.clamp(dist_lr - dist_pl, min=eps)
+        dist_pr = torch.tensor([dist_lr - dist_pl, eps]).unsqueeze(dim=0).unsqueeze(dim=-1)
+        dist_pr = soft_sort(dist_pr, tau).squeeze()[0, :] @ dist_pr
+        blens[node_map[right]] = dist_pr
 
         # replace right by dist_p in the pdm
         pdm = torch.vstack((pdm[:right, :], dist_p, pdm[right + 1 :, :]))
