@@ -47,7 +47,7 @@ class HMAP(BaseModel):
             tip_labels=tip_labels,
         )
         hp_obj = hydraPlus.HydraPlus(dists, dim=self.D, curvature=curvature)
-        emm_tips = hp_obj.embed(equi_adj=0.0, alpha=1.1, isotropic_adj=True)
+        emm_tips = hp_obj.embed(equi_adj=0.0, alpha=1.1)
         print("Embedding Strain (tips only) = {:.4}".format(emm_tips["stress_hydra"]))
         print(
             "Embedding Stress (tips only) = {:.4}".format(emm_tips["stress_hydraPlus"])

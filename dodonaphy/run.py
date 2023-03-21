@@ -35,10 +35,11 @@ def run(args):
 
     path_write = get_path(root_dir, args)
     dna = read_dna(root_dir, args.path_dna)
-    partials, weights = compress_alignment(dna)
+    partials, weights, tip_namespace = compress_alignment(dna, get_namespace=True)
+    tip_labels = tip_namespace.labels()
 
-    dists, tip_labels, start_tree = get_start_dists(
-        args.start, dna, root_dir, args.matsumoto
+    dists, start_tree = get_start_dists(
+        args.start, dna, root_dir, tip_namespace, args.matsumoto
     )
     save_period = max(int(args.epochs / args.draws), 1)
     if args.connect == "fix":
@@ -177,14 +178,13 @@ def run(args):
     )
 
 
-def get_start_dists(method, dna, root_dir, matsumoto=False):
+def get_start_dists(method, dna, root_dir, taxon_namespace, matsumoto=False):
     n_taxa = len(dna)
     start_tree = None
     if method == "None":
         print("Computing adjusted distances from sequences:", end="", flush=True)
         dists = calculate_pairwise_distance(dna, adjust="JC69")
         print(" done.", flush=True)
-        tip_labels = dna.taxon_namespace.labels()
     elif method == "NJ":
         print("Computing raw distances from tree file:", end="", flush=True)
         dists_hamming = calculate_pairwise_distance(dna, adjust=None)
@@ -194,7 +194,6 @@ def get_start_dists(method, dna, root_dir, matsumoto=False):
         nwk = tree.tree_to_newick(tipnames, peel, blens)
         start_tree = dendropy.Tree.get(data=nwk, schema="newick")
         dists = utils.tip_distances(start_tree, n_taxa)
-        tip_labels = start_tree.taxon_namespace.labels()
     elif method == "RAxML":
         print("Finding RAxML tree.")
         rax = raxml.RaxmlRunner()
@@ -202,7 +201,6 @@ def get_start_dists(method, dna, root_dir, matsumoto=False):
         tree_path = os.path.join(root_dir, "start_tree.nex")
         start_tree.write(path=tree_path, schema="nexus")
         dists = utils.tip_distances(start_tree, n_taxa)
-        tip_labels = start_tree.taxon_namespace.labels()
     elif method == "Random":
         n_tips = len(dna)
         nC2 = n_tips * (n_tips - 1) / 2
@@ -210,14 +208,11 @@ def get_start_dists(method, dna, root_dir, matsumoto=False):
         dists = np.zeros((n_tips, n_tips))
         dists[np.tril_indices(n_tips, k=-1)] = dists_linear
         dists[np.triu_indices(n_tips, k=+1)] = dists_linear
-        tip_labels = dna.taxon_namespace.labels()
     else:
-        start_tree = read_tree(root_dir, file_name=method)
+        start_tree = read_tree(root_dir, taxon_namespace, file_name=method)
         dists = utils.tip_distances(start_tree, n_taxa)
-        tip_labels = start_tree.taxon_namespace.labels()
-    tip_labels = [label.replace(" ", "_") for label in tip_labels]
 
-    return dists, tip_labels, start_tree
+    return dists, start_tree
 
 
 def get_path(root_dir, args):
@@ -303,10 +298,13 @@ def simulate_tree(root_dir, birth_rate, death_rate, n_taxa, seq_len):
         simtree.write_ascii_plot(file)
 
 
-def read_tree(root_dir, file_name="start_tree.nex"):
+def read_tree(root_dir, taxon_namespace, file_name="start_tree.nex"):
     """Read a saved nexus tree using dendropy."""
     tree_path = os.path.join(root_dir, file_name)
-    return dendropy.Tree.get(path=tree_path, schema="nexus")
+    return dendropy.Tree.get(path=tree_path,
+        schema="nexus",
+        preserve_underscores=True,
+        taxon_namespace=taxon_namespace)
 
 
 def read_dna(root_dir, file_name="dna.nex"):

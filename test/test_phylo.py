@@ -170,7 +170,7 @@ def test_prior_mrbayes_0():
     data = "(6:2.000000e-02,((5:2.000000e-02,2:2.000000e-02):2.000000e-02,\
         (4:2.000000e-02,3:2.000000e-02):2.000000e-02):2.000000e-02,1:2.000000e-02);"
     dendo_tree = dendropy.Tree.get(data=data, schema="newick")
-    _, blens = treeFunc.dendrophy_to_pb(dendo_tree)
+    _, blens, _ = treeFunc.dendrophy_to_pb(dendo_tree)
 
     lnPrior = BaseModel.compute_prior_gamma_dir(
         blens,
@@ -186,7 +186,7 @@ def test_prior_mrbayes_1():
     data = "((2:1.179257e-01,(6:1.047047e-03,3:1.426334e-03):7.713732e-02):\
         7.894008e-02,(4:2.848264e-03,5:2.711671e-03):1.879317e-03,1:4.419083e-03);"
     dendo_tree = dendropy.Tree.get(data=data, schema="newick")
-    _, blens = treeFunc.dendrophy_to_pb(dendo_tree)
+    _, blens, _ = treeFunc.dendrophy_to_pb(dendo_tree)
 
     lnPrior = BaseModel.compute_prior_gamma_dir(
         blens,
@@ -199,13 +199,14 @@ def test_prior_mrbayes_1():
 
 
 def test_likelihood_mrbayes_torch():
-    """ "Tree and likelihood copied from MrBayes output."""
-    data = "(24:4.561809e-03,((22:4.904862e-03,10:9.550327e-03):5.704741e-03,(((15:1.985269e-02,(((((2:5.486892e-03,23:9.486339e-03):3.878666e-03,26:7.583491e-03):6.373763e-04,(5:1.661778e-02,((21:3.649255e-03,19:4.450261e-03):4.958361e-03,(((9:7.469533e-04,3:1.707387e-02):2.598443e-03,13:5.465068e-03):3.836386e-03,14:1.029500e-02):3.334175e-03):3.110589e-03):5.036948e-03):6.302069e-03,((4:1.227562e-02,12:1.724676e-02):2.311179e-03,((6:1.464740e-02,17:1.531754e-02):8.259293e-03,8:2.203792e-02):8.089750e-03):2.968914e-03):9.012311e-03,27:3.346403e-03):1.134159e-02):1.279327e-02,((11:1.221072e-03,(20:6.189060e-03,16:4.987891e-03):1.805937e-03):4.928884e-03,18:3.861566e-03):2.671721e-02):9.188388e-03,(25:9.749763e-03,7:7.646632e-03):1.097835e-02):8.034396e-03):1.869811e-03,1:1.815073e-03);"
-    tree = dendropy.Tree.get(data=data, schema="newick")
-    post_indexing, blens = treeFunc.dendrophy_to_pb(tree, offset=1)
-
     dna = dendropy.DnaCharacterMatrix.get(path="./test/data/ds1/dna.nex", schema="nexus")
-    partials, weights = phylo.compress_alignment(dna)
+    partials, weights, taxon_namespace = phylo.compress_alignment(dna, get_namespace=True)
+
+    """ "Tree and likelihood copied from MrBayes output."""
+    tree = dendropy.Tree.get(path="./test/data/ds1/mb_tree300000.nex", schema="nexus", taxon_namespace=taxon_namespace)
+    post_indexing, blens, name_id = treeFunc.dendrophy_to_pb(tree)
+
+    # append space for internal node partials
     L = partials[0].shape[1]
     for _ in range(27 - 1):
         partials.append(torch.zeros((1, 4, L), dtype=torch.float64))
@@ -218,12 +219,14 @@ def test_likelihood_mrbayes_torch():
 
 
 def test_likelihood_mrbayes_numpy():
-    data = "(24:4.561809e-03,((22:4.904862e-03,10:9.550327e-03):5.704741e-03,(((15:1.985269e-02,(((((2:5.486892e-03,23:9.486339e-03):3.878666e-03,26:7.583491e-03):6.373763e-04,(5:1.661778e-02,((21:3.649255e-03,19:4.450261e-03):4.958361e-03,(((9:7.469533e-04,3:1.707387e-02):2.598443e-03,13:5.465068e-03):3.836386e-03,14:1.029500e-02):3.334175e-03):3.110589e-03):5.036948e-03):6.302069e-03,((4:1.227562e-02,12:1.724676e-02):2.311179e-03,((6:1.464740e-02,17:1.531754e-02):8.259293e-03,8:2.203792e-02):8.089750e-03):2.968914e-03):9.012311e-03,27:3.346403e-03):1.134159e-02):1.279327e-02,((11:1.221072e-03,(20:6.189060e-03,16:4.987891e-03):1.805937e-03):4.928884e-03,18:3.861566e-03):2.671721e-02):9.188388e-03,(25:9.749763e-03,7:7.646632e-03):1.097835e-02):8.034396e-03):1.869811e-03,1:1.815073e-03);"
-    tree = dendropy.Tree.get(data=data, schema="newick")
-    post_indexing, blens = treeFunc.dendrophy_to_pb(tree, offset=1)
-
     dna = dendropy.DnaCharacterMatrix.get(path="./test/data/ds1/dna.nex", schema="nexus")
-    partials, weights = phylo.compress_alignment(dna)
+    partials, weights, taxon_namespace = phylo.compress_alignment(dna, get_namespace=True)
+
+    # example tree
+    tree = dendropy.Tree.get(path="./test/data/ds1/mb_tree300000.nex", schema="nexus", taxon_namespace=taxon_namespace)
+    post_indexing, blens, name_id = treeFunc.dendrophy_to_pb(tree)
+
+    # append space for internal node partials
     L = partials[0].shape[1]
     for _ in range(27 - 1):
         partials.append(torch.zeros((1, 4, L), dtype=torch.float64))
