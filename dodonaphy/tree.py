@@ -65,9 +65,8 @@ def rename_labels(tree, offset=0, get_label_map=False):
         return label_map
 
 
-def dendrophy_to_pb(tree, offset=0):
+def dendrophy_to_pb(tree):
     """Convert Dendropy tree to peels and blens.
-    Taxon names must be indexes, starting from offset (will get converted to 0 indexing).
 
     Parameters
     ----------
@@ -77,40 +76,46 @@ def dendrophy_to_pb(tree, offset=0):
     -------
     peel : adjacencies of internal nodes (left child, right child, node)
     blens : branch lengths
+    name_id: a dictionary of taxa names to their indicies used in peel
     """
     n_taxa = len(tree)
     n_edges = 2 * n_taxa - 2
-    blens = torch.zeros(n_edges)
+    blens = torch.zeros(n_edges, dtype=torch.double)
+
+    # make dict of all nodes
+    taxon_names = tree.taxon_namespace.labels()
+    name_dict = {name: id for id, name in enumerate(taxon_names)}
+    for i, nd in enumerate(tree.postorder_internal_node_iter()):
+        nd.taxon = taxon(f"internal{i}")
+        name_dict[nd.taxon.label] = n_taxa + i
+    name_dict["root"] = n_edges
 
     # Get peel
     nds = [nd for nd in tree.postorder_internal_node_iter()]
-    for i, nd in enumerate(tree.postorder_internal_node_iter()):
-        nd.taxon = taxon(i+n_taxa+1)
     n_int_nds = len(nds)
     peel = np.zeros((n_int_nds+1, 3), dtype=int)
-    for i in range(n_int_nds):
+    for i, nd in enumerate(nds):
         try:
-            c0, c1 = nds[i].child_nodes()
+            c0, c1 = nd.child_nodes()
         except ValueError:
-            c0, c1, c2 = nds[i].child_nodes()
+            c0, c1, c2 = nd.child_nodes()
         
-        chld0 = int(c0.taxon.label) - offset
-        chld1 = int(c1.taxon.label) - offset
-        parent = int(nds[i].taxon.label) - offset
+        chld0 = name_dict[c0.taxon.label]
+        chld1 = name_dict[c1.taxon.label]
+        parent = name_dict[nd.taxon.label]
         peel[i, 0] = chld0
         peel[i, 1] = chld1
         peel[i, 2] = parent
-
         blens[chld0] = c0.edge_length
         blens[chld1] = c1.edge_length
 
     # add fake root above last parent and remaining taxon
-    chld2 = int(c2.taxon.label) - 1
+    chld2 = name_dict[c2.taxon.label]
     peel[i+1, 0] = chld2
     peel[i+1, 1] = parent
-    peel[i+1, 2] = n_int_nds + n_taxa
+    peel[i+1, 2] = name_dict["root"]
     blens[chld2] = c2.edge_length
-    return peel, blens.double()
+    return peel, blens, name_dict
 
 
 def plot_tree(ax, peel, X_torch, color=(0, 0, 0), labels=True, radius=1):
@@ -189,41 +194,56 @@ def end_tree_file(path_write):
         file.write("end;\n")
 
 
-def tree_to_newick(tipnames, peel_row, blen_row):
+def tree_to_newick(name_id, peel, blens, rooted=True):
     """This function returns a Tree in newick format from given peel and branch lengths
 
     Args:
-        tipnames (List): List of Taxa labels
-        peel_row (List of List): Peel in post-order indexing
-        blen_row (List): Branch lengths
+        name_id (Dict): A dictionary of taxa names to their indicies used in peel. name: id
+        peel (List of List): Peel in post-order indexing
+        blens (Pytorch array): Branch lengths
+        rooted (Bool): Whether the nwk tree should be rooted. Unrooted will collapse the final zero-length branch into a trifurcation.
 
     Returns:
         Newick String: A Tree
     """
-    chunks = {}
-    plen = tipnames.__len__() - 1
-    for p in range(plen):
-        n1 = peel_row[p][0]
-        n2 = peel_row[p][1]
-        n3 = peel_row[p][2]
-        if n1 <= plen:
-            chunks[n1] = tipnames[n1] + ":" + str(blen_row[n1].item())
-        if n2 <= plen:
-            chunks[n2] = tipnames[n2] + ":" + str(blen_row[n2].item())
+    assert type(name_id) is dict
+    # Swap dict from name: id to id: name
+    id_name = {value: key for key, value in name_id.items()}
 
-        if p == (plen - 1):
-            chunks[n3] = "(" + chunks[n1] + "," + chunks[n2] + ")" + ";"
-        else:
-            chunks[n3] = (
-                "("
-                + chunks[n1]
-                + ","
-                + chunks[n2]
-                + ")"
-                + ":"
-                + str(blen_row[n3].item())
-            )
-    return str(chunks[peel_row[-1][2]])
+    blens = torch.cat((blens, torch.ones(1)))
+    n_tips = int(len(blens) / 2 + 1)
+    if rooted:
+        n_parents = n_tips - 1
+    else:
+        n_parents = n_tips - 2
+
+    chunks = {}
+    for parent in range(n_parents):
+        n1 = peel[parent][0]
+        n2 = peel[parent][1]
+        n3 = peel[parent][2]
+        if n1 < n_tips:
+            chunks[n1] = id_name[n1] + ":" + str(blens[n1].item())
+        if n2 < n_tips:
+            chunks[n2] = id_name[n2] + ":" + str(blens[n2].item())
+        # append this bifurcation using a colon :
+        chunks[n3] = (
+            "("
+            + chunks[n1]
+            + ","
+            + chunks[n2]
+            + ")"
+            + ":"
+            + str(blens[n3].item())
+        )
+    
+    if rooted:
+        # for the last chunck, close with a semicolon instead of a colon.
+        nwk = str("(" + chunks[n1] + "," + chunks[n2] + ")" + ";")
+    else:
+        n3 = peel[parent+1][0]
+        nwk = str("(" + chunks[n1] + "," + chunks[n2] + "," + chunks[n3] + ")" + ";")
+    return nwk
 
 
 def save_tree_head(path_write, filename, tip_labels, formatter="MrBayes"):

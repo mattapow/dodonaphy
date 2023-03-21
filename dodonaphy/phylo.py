@@ -4,7 +4,8 @@ import numpy as np
 import torch
 
 
-def compress_alignment(alignment):
+
+def compress_alignment(alignment, get_namespace=False):
     sequences = [str(sequence) for sequence in alignment.sequences()]
     taxa = alignment.taxon_namespace.labels()
     count_dict = Counter(list(zip(*sequences)))
@@ -44,6 +45,8 @@ def compress_alignment(alignment):
                 )
             )
         )
+    if get_namespace:
+        return partials, torch.tensor(np.array(weights)), alignment.taxon_namespace
     return partials, torch.tensor(np.array(weights))
 
 
