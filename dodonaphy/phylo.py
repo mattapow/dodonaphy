@@ -3,6 +3,12 @@ from collections import Counter
 import numpy as np
 import torch
 
+import importlib
+bito_spec = importlib.util.find_spec("bito")
+bito_found = bito_spec is not None
+if bito_found:
+    import bito
+    from dodonaphy import tree as treeFunc
 
 
 def compress_alignment(alignment, get_namespace=False):
@@ -116,3 +122,24 @@ def JC69_p_t(branch_lengths):
     return torch.cat((a, b, b, b, b, a, b, b, b, b, a, b, b, b, b, a), -1).reshape(
         d.shape[0], d.shape[1], 4, 4
     )
+
+
+def calculate_treelikelihood_bito(bito_inst, taxa_name_dict, post_indexing, blens, model_specification):
+    # TODO: use OfParentIdVector to avoid saving to file, in this case input a topology
+    # [bito.UnrootedTree.of_parent_id_vector([3, 3, 3])],
+    #     ["mars", "saturn", "jupiter"]
+    # blens[-1] = 1e-15
+    nwk = treeFunc.tree_to_newick(taxa_name_dict, post_indexing, blens, rooted=False)
+    tmp_file = "tmp.nwk"
+    with open(tmp_file, 'w') as f:
+        f.write(nwk)
+    # TODO: delete this file
+    # TODO: avoid making this file
+
+    bito_inst.read_newick_file(tmp_file)  # read tree
+    bito_inst.prepare_for_phylo_likelihood(model_specification, 1)
+    
+    ll = np.array(bito_inst.log_likelihoods())
+    jac_bito = bito_inst.phylo_gradients()
+    jac = np.array(jac_bito[0].gradient['branch_lengths'])
+    return ll, jac

@@ -60,7 +60,7 @@ def test_compute_likelihood_bito_pb():
     # read into dendropy
     tree = dendropy.Tree.get(path=tree_file, schema="newick", preserve_underscores=True)
     # convert into dodonaphy (peel, blens)
-    post_indexing, blens, name_id = treeFunc.dendropy_to_pb(tree)
+    post_indexing, blens, name_id = treeFunc.dendrophy_to_pb(tree)
     # initisalise bito instance
     inst = bito.unrooted_instance("dodonaphy")
     inst.read_fasta_file(msa_file)  # read alignment
@@ -77,7 +77,7 @@ def get_log_likelihood_dodonaphy(msa_file_nex, tree_file):
     dna = dendropy.DnaCharacterMatrix.get(path=msa_file_nex, schema="nexus")
     partials, weights, taxon_namespace = phylo.compress_alignment(dna, get_namespace=True)
     tree = dendropy.Tree.get(path=tree_file, schema="newick", taxon_namespace=taxon_namespace)
-    post_indexing, blens, name_id = treeFunc.dendropy_to_pb(tree)
+    post_indexing, blens, name_id = treeFunc.dendrophy_to_pb(tree)
     L = partials[0].shape[1]
     for _ in range(27 - 1):
         partials.append(torch.zeros((1, 4, L), dtype=torch.float64))

@@ -18,7 +18,9 @@ cimport numpy as np
 from dodonaphy import Ctransforms
 from dodonaphy.edge import Edge
 import warnings
-from math import comb
+import sys
+from math import factorial
+
 
 cdef np.double_t eps = np.finfo(np.double).eps
 
@@ -362,6 +364,11 @@ cdef get_pdm_jacobian(
     cdef np.ndarray[np.double_t, ndim=2] AB_sum = np.tile(np.sum(A * B, axis=1), (dim+1, 1)).T
     cdef np.ndarray[np.double_t, ndim=2] G = AB_sum * x - A @ x
     return G
+
+cdef comb(n, k):
+    if k > n:
+        return 0.0
+    return factorial(n) / (factorial(k) * factorial(n - k))
 
 cdef get_pdm_jacobian_pairs(
     np.ndarray[np.double_t, ndim=2] x,

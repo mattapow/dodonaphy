@@ -7,7 +7,7 @@ This code is under active research & development and not intended for production
 ## Installing with Conda and Pip
 First install the Python version of hydra+ from https://github.com/mattapow/hydraPlus.
 
-On Mac OS Catalina, CommandLineTools (possibly used in setuptools) has an error in python==3.8.2. So use python 3.9 or 3.10.
+Use python version 3.7 in order to use the bito package (for more models and to make use of BEAGLE).
 
 ```
 conda create --name dodonaphy python=3.9
