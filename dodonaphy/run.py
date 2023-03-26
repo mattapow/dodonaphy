@@ -25,7 +25,7 @@ def run(args):
     Using an embedding for MCMC, or embedding variational inference,
     or using a distance matrix for maximum likelihood."""
     if args.path_root == "":
-        root_dir = os.path.abspath(os.path.join("./data", f"T{args.taxa}"))
+        root_dir = os.path.abspath("./analysis")
     else:
         root_dir = os.path.abspath(args.path_root)
 
@@ -45,7 +45,7 @@ def run(args):
     if args.connect == "fix":
         warnings.warn("Fixed topology is experimental and start tree must have integer taxa names.")
         tree.rename_labels(start_tree)
-        peel, _ = tree.dendrophy_to_pb(start_tree)
+        peel, _ = tree.dendropy_to_pb(start_tree)
     else:
         peel = None
 

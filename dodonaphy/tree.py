@@ -65,12 +65,12 @@ def rename_labels(tree, offset=0, get_label_map=False):
         return label_map
 
 
-def dendrophy_to_pb(tree):
+def dendropy_to_pb(tree):
     """Convert Dendropy tree to peels and blens.
 
     Parameters
     ----------
-    tree : A Dendrophy tree
+    tree : A Dendropy tree
 
     Returns
     -------

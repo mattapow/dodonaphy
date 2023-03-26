@@ -170,7 +170,7 @@ def test_prior_mrbayes_0():
     data = "(6:2.000000e-02,((5:2.000000e-02,2:2.000000e-02):2.000000e-02,\
         (4:2.000000e-02,3:2.000000e-02):2.000000e-02):2.000000e-02,1:2.000000e-02);"
     dendo_tree = dendropy.Tree.get(data=data, schema="newick")
-    _, blens, _ = treeFunc.dendrophy_to_pb(dendo_tree)
+    _, blens, _ = treeFunc.dendropy_to_pb(dendo_tree)
 
     lnPrior = BaseModel.compute_prior_gamma_dir(
         blens,
@@ -186,7 +186,7 @@ def test_prior_mrbayes_1():
     data = "((2:1.179257e-01,(6:1.047047e-03,3:1.426334e-03):7.713732e-02):\
         7.894008e-02,(4:2.848264e-03,5:2.711671e-03):1.879317e-03,1:4.419083e-03);"
     dendo_tree = dendropy.Tree.get(data=data, schema="newick")
-    _, blens, _ = treeFunc.dendrophy_to_pb(dendo_tree)
+    _, blens, _ = treeFunc.dendropy_to_pb(dendo_tree)
 
     lnPrior = BaseModel.compute_prior_gamma_dir(
         blens,
@@ -204,7 +204,7 @@ def test_likelihood_mrbayes_torch():
 
     """ "Tree and likelihood copied from MrBayes output."""
     tree = dendropy.Tree.get(path="./test/data/ds1/mb_tree300000.nex", schema="nexus", taxon_namespace=taxon_namespace)
-    post_indexing, blens, name_id = treeFunc.dendrophy_to_pb(tree)
+    post_indexing, blens, name_id = treeFunc.dendropy_to_pb(tree)
 
     # append space for internal node partials
     L = partials[0].shape[1]
@@ -224,7 +224,7 @@ def test_likelihood_mrbayes_numpy():
 
     # example tree
     tree = dendropy.Tree.get(path="./test/data/ds1/mb_tree300000.nex", schema="nexus", taxon_namespace=taxon_namespace)
-    post_indexing, blens, name_id = treeFunc.dendrophy_to_pb(tree)
+    post_indexing, blens, name_id = treeFunc.dendropy_to_pb(tree)
 
     # append space for internal node partials
     L = partials[0].shape[1]
