@@ -6,6 +6,12 @@ import warnings
 import numpy as np
 import torch
 
+import importlib
+bito_spec = importlib.util.find_spec("bito")
+bito_found = bito_spec is not None
+if bito_found:
+    import bito
+
 from dodonaphy import Chyp_torch, peeler, tree, Cutils
 from hydraPlus import hydraPlus
 from dodonaphy.base_model import BaseModel
@@ -28,6 +34,7 @@ class HMAP(BaseModel):
         soft_temp,
         loss_fn,
         path_write,
+        msa_file,  # needed for bito
         curvature=-1.0,
         prior="None",
         tip_labels=None,
@@ -65,6 +72,13 @@ class HMAP(BaseModel):
                     emm_tips["X"], requires_grad=True, dtype=torch.float64
                 )
             }
+        # bito parameters
+        self.bito_inst = bito.unrooted_instance("dodonaphy")
+        self.bito_inst.read_fasta_file(str(msa_file))  # read alignment
+        self.taxa_name_dict = {name: id for (id, name) in enumerate(tip_labels)}
+        # TODO: only JC69 model for now. Will need to also change optimiser's params.
+        self.model_specification = bito.PhyloModelSpecification(substitution="JC69", site="constant", clock="strict")
+        # dodonaphy parameters
         self.normalise_leaves = normalise_leaves
         self.ln_p = self.compute_ln_likelihood()
         self.current_epoch = 0
@@ -257,7 +271,8 @@ class HMAP(BaseModel):
         """Compute likelihood of current tree, reducing soft_temp as required."""
         if self.loss_fn == "likelihood":
             self.peel, self.blens = self.connect()
-            self.ln_p = self.compute_LL(self.peel, self.blens)
+            # self.ln_p = self.compute_LL(self.peel, self.blens)
+            self.ln_p = self.compute_LL_bito()
             loss = self.ln_p
         elif self.loss_fn == "pair_likelihood":
             self.peel, self.blens, pdm = self.connect(get_pdm=True)

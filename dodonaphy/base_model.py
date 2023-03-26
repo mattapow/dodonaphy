@@ -9,7 +9,7 @@ from dendropy.model.birthdeath import birth_death_likelihood
 
 from dodonaphy import poincare
 
-from dodonaphy import Chyp_np, Chyp_torch
+from dodonaphy import Chyp_np, Chyp_torch, phylo
 from dodonaphy import tree as treeFunc
 from dodonaphy.phylo import JC69_p_t, calculate_treelikelihood
 from dodonaphy.utils import LogDirPrior
@@ -136,6 +136,10 @@ class BaseModel(object):
                 blens[peel[b][i]] = torch.clamp(hd, min=eps)
 
         return blens
+    
+    def compute_LL_bito(self):
+        return phylo.TreeLikelihood.apply(self.blens, self.bito_inst, self.taxa_name_dict, self.peel, self.model_specification)
+
 
     def compute_LL(self, peel, blen):
         """Compute likelihood of tree.

@@ -16,6 +16,8 @@ def test_learn():
     dna = simulate_discrete_chars(
         seq_len=100, tree_model=sim_tree, seq_model=dendropy.model.discrete.Jc69()
     )
+    msa_file = "test/tmp_learn.fasta"
+    dna.write(path=msa_file, schema="fasta")
     partials, weights = compress_alignment(dna)
     dists = calculate_pairwise_distance(dna)
     mymod = HMAP(
@@ -26,6 +28,7 @@ def test_learn():
         soft_temp=1e-6,
         loss_fn="likelihood",
         path_write=None,
+        msa_file=msa_file,
         curvature=-1.0,
         prior="None",
         tip_labels=sim_tree.taxon_namespace.labels(),

@@ -3,12 +3,7 @@ from collections import Counter
 import numpy as np
 import torch
 
-import importlib
-bito_spec = importlib.util.find_spec("bito")
-bito_found = bito_spec is not None
-if bito_found:
-    import bito
-    from dodonaphy import tree as treeFunc
+from dodonaphy import tree as treeFunc
 
 
 def compress_alignment(alignment, get_namespace=False):
@@ -135,6 +130,7 @@ def calculate_treelikelihood_bito(bito_inst, taxa_name_dict, post_indexing, blen
         f.write(nwk)
     # TODO: delete this file
     # TODO: avoid making this file
+    # TODO: remove this function (and associated tests as unused)
 
     bito_inst.read_newick_file(tmp_file)  # read tree
     bito_inst.prepare_for_phylo_likelihood(model_specification, 1)
@@ -143,3 +139,35 @@ def calculate_treelikelihood_bito(bito_inst, taxa_name_dict, post_indexing, blen
     jac_bito = bito_inst.phylo_gradients()
     jac = np.array(jac_bito[0].gradient['branch_lengths'])
     return ll, jac
+
+
+class TreeLikelihood(torch.autograd.Function):
+
+    @staticmethod
+    def forward(ctx, blens, bito_inst, taxa_name_dict, post_indexing, model_specification) -> torch.Tensor :
+        nwk = treeFunc.tree_to_newick(taxa_name_dict, post_indexing, blens, rooted=False)
+        # use TemporaryFile?
+        tmp_file = "tmp.nwk"
+        with open(tmp_file, 'w') as f:
+            f.write(nwk)
+        bito_inst.read_newick_file(tmp_file)
+        bito_inst.prepare_for_phylo_likelihood(model_specification, 1)
+        log_likelihood = torch.from_numpy(np.array(bito_inst.log_likelihoods()))
+        print(log_likelihood)
+
+        # compute jacobian in forwards pass. Apparently save_for_backward can only save variables
+        jacobian_bito = bito_inst.phylo_gradients()
+        jacobian_bito_blens = jacobian_bito[0].gradient['branch_lengths']
+        jacobian_blens = torch.from_numpy(np.array(jacobian_bito_blens, copy=False))
+        # prune fake edge
+        jacobian_blens = jacobian_blens[:-1]
+        ctx.save_for_backward(jacobian_blens)
+        return log_likelihood
+        
+    @staticmethod
+    def backward(ctx, grad_output):
+        jacobian_blens, = ctx.saved_tensors
+        print(grad_output)
+        print(jacobian_blens)
+        return (grad_output * jacobian_blens, None, None, None, None)
+

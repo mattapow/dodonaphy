@@ -112,11 +112,14 @@ def run(args):
 
     elif args.infer == "hmap":
         partials, weights = compress_alignment(dna)
+        msa_file = os.path.join(root_dir, args.path_dna)
+        msa_file = os.path.abspath(msa_file)
         mymod = HMAP(
             partials[:],
             weights,
             dim=args.dim,
             dists=dists,
+            msa_file=msa_file,
             soft_temp=args.temp,
             loss_fn=args.loss_fn,
             path_write=path_write,
