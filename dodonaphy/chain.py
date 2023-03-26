@@ -197,7 +197,7 @@ algorithm, got {warm_up}."
             elif self.connector == "nj-r":
                 nwk = dt.constructTree("NJ-R", self.int_labels.keys(), pdm.tolist(), 1)
                 dendro_tree = Tree.get(data=nwk, schema="newick")
-                peel, blens = treeFunc.dendrophy_to_pb(dendro_tree)
+                peel, blens = treeFunc.dendropy_to_pb(dendro_tree)
                 blens = blens.detach().numpy()
         elif self.connector == "fix":
             peel = self.peel

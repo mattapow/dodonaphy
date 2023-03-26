@@ -28,7 +28,7 @@ def test_learn():
         path_write=None,
         curvature=-1.0,
         prior="None",
-        tip_labels=None,
+        tip_labels=sim_tree.taxon_namespace.labels(),
         matsumoto=False,
     )
     mymod.learn(epochs=2, learn_rate=0.001, save_locations=False)

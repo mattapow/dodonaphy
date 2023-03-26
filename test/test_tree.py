@@ -11,7 +11,7 @@ def test_dendropy_to_pb_simple():
         (crocodile:4.000000e-02,emu:3.000000e-02):18.000000e-02):19.000000e-02,kangaroo:1.000000e-02);"
     dendo_tree = Tree.get(data=data, schema="newick")
     dendo_tree.print_plot()
-    peel, blens, name_id = treeFunc.dendrophy_to_pb(dendo_tree)
+    peel, blens, name_id = treeFunc.dendropy_to_pb(dendo_tree)
 
     # compare to hard code
     true_peel = np.array(
@@ -42,7 +42,8 @@ def test_dendropy_to_pb_ds1():
         rooting="force-unrooted",
         taxon_namespace=taxa,
         preserve_underscores=True)
-    post_indexing, blens, name_id = treeFunc.dendrophy_to_pb(dendro_tree)
+
+    post_indexing, blens, name_id = treeFunc.dendropy_to_pb(dendro_tree)
 
     # compare to putting back into newick and then dendropy
     nwk = treeFunc.tree_to_newick(name_id, post_indexing, blens)
