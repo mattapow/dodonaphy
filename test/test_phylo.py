@@ -272,3 +272,31 @@ def test_likelihood_mrbayes_numpy():
     )
 
     assert ln_p == approx(-6904.632, abs=1e-3)
+
+
+def test_GTR_equals_JC69():
+    blens = torch.tensor(np.array([0.1]), dtype=torch.double)
+    mats_JC = phylo.JC69_p_t(blens)
+
+    sub_rates = torch.full([6], 1.0, dtype=torch.double)
+    freqs = torch.full([4], 0.25, dtype=torch.double)
+    mats_GTR = phylo.GTR_p_t(blens, sub_rates, freqs)
+
+    assert torch.allclose(mats_JC, mats_GTR)
+
+
+@pytest.mark.parametrize(
+    "blens_in,size",
+    [
+        ([[1.0, 1.0]], [1, 2, 4, 4]),
+        ([[1.0]], [1, 1, 4, 4]),
+        ([[1.0], [1.0]], [2, 1, 4, 4]),
+        ([[1.0, 1.0], [1.0, 1.0], [1.0, 1.0]], [3, 2, 4, 4]),
+    ],
+)
+def test_GTR_mats_size(blens_in, size):
+    sub_rates = torch.full([6], 1.0, dtype=torch.double)
+    freqs = torch.full([4], 0.25, dtype=torch.double)
+    blens = torch.tensor(np.array(blens_in), dtype=torch.double)
+    mats_GTR = phylo.GTR_p_t(blens, sub_rates, freqs)
+    assert mats_GTR.shape == torch.Size(size)

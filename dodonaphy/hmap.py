@@ -34,7 +34,8 @@ class HMAP(BaseModel):
         matsumoto=False,
         connector="nj",
         peel=None,
-        normalise_leaves=False
+        normalise_leaves=False,
+        model_name="JC69"
     ):
         super().__init__(
             partials,
@@ -45,6 +46,7 @@ class HMAP(BaseModel):
             curvature=curvature,
             loss_fn=loss_fn,
             tip_labels=tip_labels,
+            model_name=model_name,
         )
         hp_obj = hydraPlus.HydraPlus(dists, dim=self.D, curvature=curvature)
         emm_tips = hp_obj.embed(equi_adj=0.0, alpha=1.1)
@@ -63,8 +65,11 @@ class HMAP(BaseModel):
             self.params = {
                 "leaf_loc": torch.tensor(
                     emm_tips["X"], requires_grad=True, dtype=torch.float64
-                )
+                ),
             }
+        self.params["sub_rates"] = self.sub_rates.clone().detach().requires_grad_(True)
+        if self.model_name == "GTR":
+            self.params["freqs"] = self.freqs.clone().detach().requires_grad_(True)
         self.normalise_leaves = normalise_leaves
         self.ln_p = self.compute_ln_likelihood()
         self.current_epoch = 0
@@ -82,6 +87,17 @@ class HMAP(BaseModel):
             file_name = os.path.join(self.path_write, "hmap.log")
             with open(file_name, "a", encoding="UTF-8") as file:
                 file.write(message)
+
+    def get_model_freqs(self):
+        # Overrides basemodel get freqs in numpy
+        if self.model_name == "JC69":
+            # freqs is fixed
+            return super().get_model_freqs()
+        elif self.model_name == "GTR":
+            # freqs is a parameter to be optimised
+            return self.params["freqs"]
+        else:
+            raise ValueError("Undefined freqs for model.")
 
     def learn(self, epochs, learn_rate, save_locations, start=""):
         """Optimise params["dists"].
@@ -267,6 +283,11 @@ class HMAP(BaseModel):
         return loss
 
     def compute_ln_prior(self):
+        if self.prior == "None":
+            return torch.zeros(1)
+        return self.compute_ln_prior_model() + self.compute_ln_tree_prior()
+
+    def compute_ln_tree_prior(self):
         """Compute prior of current tree."""
         if self.prior == "None":
             return torch.zeros(1)

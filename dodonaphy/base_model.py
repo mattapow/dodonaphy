@@ -11,7 +11,7 @@ from dodonaphy import poincare
 
 from dodonaphy import Chyp_np, Chyp_torch
 from dodonaphy import tree as treeFunc
-from dodonaphy.phylo import JC69_p_t, calculate_treelikelihood
+from dodonaphy.phylo import JC69_p_t, GTR_p_t, calculate_treelikelihood
 from dodonaphy.utils import LogDirPrior
 
 
@@ -32,6 +32,7 @@ class BaseModel(object):
         require_grad=True,
         matsumoto=False,
         tip_labels=None,
+        model_name="JC69",
     ):
         self.partials = partials.copy()
         self.weights = weights
@@ -79,6 +80,33 @@ class BaseModel(object):
                 )
         if not require_grad:
             self.partials = [partial.detach().numpy() for partial in self.partials]
+        self.model_name = model_name
+        self.set_model_substitution_rates()
+        self.set_model_freqs()
+
+    def set_model_freqs(self):
+        self.freqs = torch.full([4], 0.25, dtype=torch.double)
+
+    def get_model_freqs(self):
+        return self.freqs
+
+    def set_model_substitution_rates(self):
+        if self.model_name == "JC69":
+            self.sub_rates = torch.empty([])
+        elif self.model_name == "GTR":
+            self.prior_dist = torch.distributions.dirichlet.Dirichlet(
+                torch.tensor([1.0, 1.0, 1.0, 1.0, 1.0, 1.0])
+            )
+            self.sub_rates = self.prior_dist.sample()
+        else:
+            raise RuntimeError("Model not implemented")
+
+    def compute_ln_prior_model(self):
+        if self.model_name == "JC69":
+            return torch.zeros(1)
+        elif self.model_name == "GTR":
+            # Only dirichlet prior implemented here
+            return self.prior_dist.log_prob(self.sub_rates)
 
     @staticmethod
     def compute_branch_lengths(
@@ -147,14 +175,25 @@ class BaseModel(object):
         Returns:
             [type]: [description]
         """
-        mats = JC69_p_t(blen)
+        mats = self.get_transition_mats(blen)
         return calculate_treelikelihood(
             self.partials,
             self.weights,
             peel,
             mats,
-            torch.full([4], 0.25, dtype=torch.float64),
+            self.get_model_freqs(),
         )
+
+    def get_transition_mats(self, blens):
+        if self.model_name == "JC69":
+            mats = JC69_p_t(blens)
+        elif self.model_name == "GTR":
+            mats = GTR_p_t(blens, self.sub_rates, self.get_model_freqs())
+        else:
+            raise ValueError(
+                f"Model {self.model_name} has no transition matrix implementation."
+            )
+        return mats
 
     def compute_log_a_like(self, pdm):
         """Compute the log-a-like function of the embedding.

@@ -127,7 +127,8 @@ def run(args):
             matsumoto=args.matsumoto,
             connector=args.connect,
             peel=peel,
-            normalise_leaves=args.normalise_leaves
+            normalise_leaves=args.normalise_leaves,
+            model_name=args.model,
         )
         mymod.learn(
             epochs=args.epochs,

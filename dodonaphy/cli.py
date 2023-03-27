@@ -34,6 +34,15 @@ def init_parser():
         ),
     )
     parser.add_argument(
+        "--model",
+        "-m",
+        default="JC69",
+        choices=("JC69", "GTR"),
+        help="Inf: Markov model of bucleotide of evolution. GTR model is only\
+            available for hmap mode of inference."
+
+    )
+    parser.add_argument(
         "--connect",
         "-C",
         default="nj",
