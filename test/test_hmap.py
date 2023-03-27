@@ -1,6 +1,3 @@
-import os
-import pytest
-
 import dendropy
 from dendropy.model.discrete import simulate_discrete_chars
 from dendropy.simulate import treesim
@@ -118,6 +115,7 @@ def test_geodesics():
         connector="geodesics"
     )
     mymod.learn(epochs=2, learn_rate=0.001, save_locations=False)
+
 
 def test_geodesics_pair_likelihood():
     n_taxa = 6

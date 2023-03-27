@@ -43,7 +43,9 @@ def run(args):
     )
     save_period = max(int(args.epochs / args.draws), 1)
     if args.connect == "fix":
-        warnings.warn("Fixed topology is experimental and start tree must have integer taxa names.")
+        warnings.warn(
+            "Fixed topology is experimental and start tree must have integer taxa names."
+        )
         tree.rename_labels(start_tree)
         peel, _ = tree.dendropy_to_pb(start_tree)
     else:
@@ -301,10 +303,12 @@ def simulate_tree(root_dir, birth_rate, death_rate, n_taxa, seq_len):
 def read_tree(root_dir, taxon_namespace, file_name="start_tree.nex"):
     """Read a saved nexus tree using dendropy."""
     tree_path = os.path.join(root_dir, file_name)
-    return dendropy.Tree.get(path=tree_path,
+    return dendropy.Tree.get(
+        path=tree_path,
         schema="nexus",
-        preserve_underscores=True,
-        taxon_namespace=taxon_namespace)
+        preserve_underscores=False,
+        taxon_namespace=taxon_namespace,
+    )
 
 
 def read_dna(root_dir, file_name="dna.nex"):

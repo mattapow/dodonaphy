@@ -98,7 +98,8 @@ class HMAP(BaseModel):
         # Consider using LBFGS, but appears to not perform as well.
         optimizer = torch.optim.Adam(params=list(self.params.values()), lr=learn_rate)
         scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lr_lambda)
-        # scheduler = torch.optim.lr_scheduler.CyclicLR(optimizer, base_lr=learn_rate/100, max_lr=learn_rate, step_size_up=100)
+        # scheduler = torch.optim.lr_scheduler.CyclicLR(
+        #   optimizer, base_lr=learn_rate/100, max_lr=learn_rate, step_size_up=100)
         self.loss = -self.compute_ln_prior() - self.compute_ln_likelihood()
         post_hist = [-self.loss.item()]
         self.best_posterior = torch.tensor(-np.inf)
@@ -194,7 +195,7 @@ class HMAP(BaseModel):
                 file.write("log prior, log likelihood, log posterior\n")
         with open(path_post, "a", encoding="UTF-8") as file:
             file.write(f"{ln_prior}, {ln_p}, {ln_post}\n")
-        
+
         emm_path = os.path.join(self.path_write, "location")
         if save_locations:
             if not os.path.isdir(emm_path):
@@ -236,7 +237,7 @@ class HMAP(BaseModel):
                 locs, connector="geodesics", curvature=self.curvature
             )
             if get_pdm:
-                pdm = Chyp_torch.get_pdm(locs, curvature=self.curvature)    
+                pdm = Chyp_torch.get_pdm(locs, curvature=self.curvature)
         elif self.connector == "nj":
             pdm = Chyp_torch.get_pdm(locs, curvature=self.curvature)
             peel, blens = peeler.nj_torch(pdm, tau=self.soft_temp)

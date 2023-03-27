@@ -5,6 +5,7 @@ from dodonaphy import phylo, Cphylo
 from dodonaphy import tree as treeFunc
 from dodonaphy.base_model import BaseModel
 from pytest import approx
+import pytest
 
 
 def test_dna_alphabet():
@@ -117,32 +118,46 @@ def test_calculate_pairwise_distance_gaps():
     true_dists = (np.ones(2) - np.eye(2)) * 1 / 9
     assert np.allclose(dists, true_dists)
 
+
 def test_simple_dists_compare_decenttree_uncorrected():
-    dna = dendropy.DnaCharacterMatrix.get(path="test/data/simple/dna.fasta", schema="fasta")
+    dna = dendropy.DnaCharacterMatrix.get(
+        path="test/data/simple/dna.fasta", schema="fasta"
+    )
     dists = phylo.calculate_pairwise_distance(dna)
-    # compare to decenttree via 
+    # compare to decenttree via
     # decenttree -fasta dna.fasta -out nj_uncorrected.newick -t NJ -dist-out NJ_dist_uncorrected.csv -uncorrected
-    true_dists = np.genfromtxt("test/data/simple/NJ_dist_uncorrected.csv", skip_header=1)
+    true_dists = np.genfromtxt(
+        "test/data/simple/NJ_dist_uncorrected.csv", skip_header=1
+    )
     true_dists[np.isnan(true_dists)] = 0
     assert np.allclose(dists, true_dists[:, 1:])
+
 
 def test_simple_dists_compare_decenttree_uncorrected_gaps():
-    dna = dendropy.DnaCharacterMatrix.get(path="test/data/simple_gap/dna.fasta", schema="fasta")
+    dna = dendropy.DnaCharacterMatrix.get(
+        path="test/data/simple_gap/dna.fasta", schema="fasta"
+    )
     dists = phylo.calculate_pairwise_distance(dna)
-    # compare to decenttree via 
+    # compare to decenttree via
     # decenttree -fasta dna.fasta -out nj_uncorrected.newick -t NJ -dist-out NJ_dist_uncorrected.csv -uncorrected
-    true_dists = np.genfromtxt("test/data/simple_gap/NJ_dist_uncorrected.csv", skip_header=1)
+    true_dists = np.genfromtxt(
+        "test/data/simple_gap/NJ_dist_uncorrected.csv", skip_header=1
+    )
     true_dists[np.isnan(true_dists)] = 0
     assert np.allclose(dists, true_dists[:, 1:])
 
+
 def test_simple_dists_compare_decenttree():
-    dna = dendropy.DnaCharacterMatrix.get(path="test/data/simple/dna.fasta", schema="fasta")
+    dna = dendropy.DnaCharacterMatrix.get(
+        path="test/data/simple/dna.fasta", schema="fasta"
+    )
     dists = phylo.calculate_pairwise_distance(dna, adjust="JC69")
-    # compare to decenttree via 
+    # compare to decenttree via
     # decenttree -fasta dna.fasta -out nj.newick -t NJ -dist-out NJ_dist.csv
     true_dists = np.genfromtxt("test/data/simple/NJ_dist.csv", skip_header=1)
     true_dists[np.isnan(true_dists)] = 0
     assert np.allclose(dists, true_dists[:, 1:])
+
 
 def test_likelihood_alphabet():
     blen = torch.ones(3, dtype=torch.double) / 10
@@ -198,11 +213,19 @@ def test_prior_mrbayes_1():
 
 
 def test_likelihood_mrbayes_torch():
-    dna = dendropy.DnaCharacterMatrix.get(path="./test/data/ds1/dna.nex", schema="nexus")
-    partials, weights, taxon_namespace = phylo.compress_alignment(dna, get_namespace=True)
+    dna = dendropy.DnaCharacterMatrix.get(
+        path="./test/data/ds1/dna.nex", schema="nexus"
+    )
+    partials, weights, taxon_namespace = phylo.compress_alignment(
+        dna, get_namespace=True
+    )
 
     """ "Tree and likelihood copied from MrBayes output."""
-    tree = dendropy.Tree.get(path="./test/data/ds1/mb_tree300000.nex", schema="nexus", taxon_namespace=taxon_namespace)
+    tree = dendropy.Tree.get(
+        path="./test/data/ds1/mb_tree300000.nex",
+        schema="nexus",
+        taxon_namespace=taxon_namespace,
+    )
     post_indexing, blens, name_id = treeFunc.dendropy_to_pb(tree)
 
     # append space for internal node partials
@@ -218,11 +241,19 @@ def test_likelihood_mrbayes_torch():
 
 
 def test_likelihood_mrbayes_numpy():
-    dna = dendropy.DnaCharacterMatrix.get(path="./test/data/ds1/dna.nex", schema="nexus")
-    partials, weights, taxon_namespace = phylo.compress_alignment(dna, get_namespace=True)
+    dna = dendropy.DnaCharacterMatrix.get(
+        path="./test/data/ds1/dna.nex", schema="nexus"
+    )
+    partials, weights, taxon_namespace = phylo.compress_alignment(
+        dna, get_namespace=True
+    )
 
     # example tree
-    tree = dendropy.Tree.get(path="./test/data/ds1/mb_tree300000.nex", schema="nexus", taxon_namespace=taxon_namespace)
+    tree = dendropy.Tree.get(
+        path="./test/data/ds1/mb_tree300000.nex",
+        schema="nexus",
+        taxon_namespace=taxon_namespace,
+    )
     post_indexing, blens, name_id = treeFunc.dendropy_to_pb(tree)
 
     # append space for internal node partials
