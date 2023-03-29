@@ -79,6 +79,7 @@ def run(args):
             write_dists=args.write_dists,
             prior=args.prior,
         )
+
     elif args.infer == "vi":
         DodonaphyVI.run(
             args.dim,
@@ -99,19 +100,6 @@ def run(args):
             start=args.start,
             model_name=args.model,
         )
-
-    elif args.infer == "dmap":
-        partials, weights = compress_alignment(dna)
-        mymod = MAP(
-            partials[:],
-            weights,
-            dists=dists,
-            soft_temp=args.temp,
-            loss_fn=args.loss_fn,
-            prior=args.prior,
-            tip_labels=tip_labels,
-        )
-        mymod.learn(epochs=args.epochs, learn_rate=args.learn, path_write=path_write)
 
     elif args.infer == "hmap":
         partials, weights = compress_alignment(dna)
@@ -245,7 +233,7 @@ def get_path(root_dir, args):
             ln_crv = str(np.log10(-args.curv))
         path_write = os.path.join(method_dir, f"d{args.dim}_k{ln_crv}{args.suffix}")
 
-    elif args.infer in ("dmap", "hmap", "hlaplace"):
+    elif args.infer in ("hmap", "hlaplace"):
         ln_rate = -int(np.log10(args.learn))
         ln_tau = -int(np.log10(args.temp))
         method_dir = os.path.join(root_dir, args.infer, args.connect, args.prior)
