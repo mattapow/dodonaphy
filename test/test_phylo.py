@@ -4,7 +4,9 @@ import numpy as np
 from dodonaphy import phylo, Cphylo
 from dodonaphy import tree as treeFunc
 from dodonaphy.base_model import BaseModel
+from dodonaphy.phylomodel import PhyloModel
 from pytest import approx
+import pytest
 
 
 def test_dna_alphabet():
@@ -117,37 +119,51 @@ def test_calculate_pairwise_distance_gaps():
     true_dists = (np.ones(2) - np.eye(2)) * 1 / 9
     assert np.allclose(dists, true_dists)
 
+
 def test_simple_dists_compare_decenttree_uncorrected():
-    dna = dendropy.DnaCharacterMatrix.get(path="test/data/simple/dna.fasta", schema="fasta")
+    dna = dendropy.DnaCharacterMatrix.get(
+        path="test/data/simple/dna.fasta", schema="fasta"
+    )
     dists = phylo.calculate_pairwise_distance(dna)
-    # compare to decenttree via 
+    # compare to decenttree via
     # decenttree -fasta dna.fasta -out nj_uncorrected.newick -t NJ -dist-out NJ_dist_uncorrected.csv -uncorrected
-    true_dists = np.genfromtxt("test/data/simple/NJ_dist_uncorrected.csv", skip_header=1)
+    true_dists = np.genfromtxt(
+        "test/data/simple/NJ_dist_uncorrected.csv", skip_header=1
+    )
     true_dists[np.isnan(true_dists)] = 0
     assert np.allclose(dists, true_dists[:, 1:])
+
 
 def test_simple_dists_compare_decenttree_uncorrected_gaps():
-    dna = dendropy.DnaCharacterMatrix.get(path="test/data/simple_gap/dna.fasta", schema="fasta")
+    dna = dendropy.DnaCharacterMatrix.get(
+        path="test/data/simple_gap/dna.fasta", schema="fasta"
+    )
     dists = phylo.calculate_pairwise_distance(dna)
-    # compare to decenttree via 
+    # compare to decenttree via
     # decenttree -fasta dna.fasta -out nj_uncorrected.newick -t NJ -dist-out NJ_dist_uncorrected.csv -uncorrected
-    true_dists = np.genfromtxt("test/data/simple_gap/NJ_dist_uncorrected.csv", skip_header=1)
+    true_dists = np.genfromtxt(
+        "test/data/simple_gap/NJ_dist_uncorrected.csv", skip_header=1
+    )
     true_dists[np.isnan(true_dists)] = 0
     assert np.allclose(dists, true_dists[:, 1:])
 
+
 def test_simple_dists_compare_decenttree():
-    dna = dendropy.DnaCharacterMatrix.get(path="test/data/simple/dna.fasta", schema="fasta")
+    dna = dendropy.DnaCharacterMatrix.get(
+        path="test/data/simple/dna.fasta", schema="fasta"
+    )
     dists = phylo.calculate_pairwise_distance(dna, adjust="JC69")
-    # compare to decenttree via 
+    # compare to decenttree via
     # decenttree -fasta dna.fasta -out nj.newick -t NJ -dist-out NJ_dist.csv
     true_dists = np.genfromtxt("test/data/simple/NJ_dist.csv", skip_header=1)
     true_dists[np.isnan(true_dists)] = 0
     assert np.allclose(dists, true_dists[:, 1:])
 
+
 def test_likelihood_alphabet():
     blen = torch.ones(3, dtype=torch.double) / 10
     post_indexing = [[0, 1, 2]]
-    mats = phylo.JC69_p_t(blen)
+    mats = PhyloModel.JC69_p_t(blen)
     freqs = torch.full([4], 0.25, dtype=torch.float64)
 
     dna = dendropy.DnaCharacterMatrix.get(
@@ -187,7 +203,6 @@ def test_prior_mrbayes_1():
         7.894008e-02,(4:2.848264e-03,5:2.711671e-03):1.879317e-03,1:4.419083e-03);"
     dendo_tree = dendropy.Tree.get(data=data, schema="newick")
     _, blens, _ = treeFunc.dendropy_to_pb(dendo_tree)
-
     lnPrior = BaseModel.compute_prior_gamma_dir(
         blens,
         aT=torch.ones(1),
@@ -199,11 +214,19 @@ def test_prior_mrbayes_1():
 
 
 def test_likelihood_mrbayes_torch():
-    dna = dendropy.DnaCharacterMatrix.get(path="./test/data/ds1/dna.nex", schema="nexus")
-    partials, weights, taxon_namespace = phylo.compress_alignment(dna, get_namespace=True)
+    dna = dendropy.DnaCharacterMatrix.get(
+        path="./test/data/ds1/dna.nex", schema="nexus"
+    )
+    partials, weights, taxon_namespace = phylo.compress_alignment(
+        dna, get_namespace=True
+    )
 
     """ "Tree and likelihood copied from MrBayes output."""
-    tree = dendropy.Tree.get(path="./test/data/ds1/mb_tree300000.nex", schema="nexus", taxon_namespace=taxon_namespace)
+    tree = dendropy.Tree.get(
+        path="./test/data/ds1/mb_tree300000.nex",
+        schema="nexus",
+        taxon_namespace=taxon_namespace,
+    )
     post_indexing, blens, name_id = treeFunc.dendropy_to_pb(tree)
 
     # append space for internal node partials
@@ -211,7 +234,7 @@ def test_likelihood_mrbayes_torch():
     for _ in range(27 - 1):
         partials.append(torch.zeros((1, 4, L), dtype=torch.float64))
 
-    mats = phylo.JC69_p_t(blens)
+    mats = PhyloModel.JC69_p_t(blens)
     freqs = torch.full([4], 0.25, dtype=torch.float64)
 
     ln_p = phylo.calculate_treelikelihood(partials, weights, post_indexing, mats, freqs)
@@ -219,11 +242,19 @@ def test_likelihood_mrbayes_torch():
 
 
 def test_likelihood_mrbayes_numpy():
-    dna = dendropy.DnaCharacterMatrix.get(path="./test/data/ds1/dna.nex", schema="nexus")
-    partials, weights, taxon_namespace = phylo.compress_alignment(dna, get_namespace=True)
+    dna = dendropy.DnaCharacterMatrix.get(
+        path="./test/data/ds1/dna.nex", schema="nexus"
+    )
+    partials, weights, taxon_namespace = phylo.compress_alignment(
+        dna, get_namespace=True
+    )
 
     # example tree
-    tree = dendropy.Tree.get(path="./test/data/ds1/mb_tree300000.nex", schema="nexus", taxon_namespace=taxon_namespace)
+    tree = dendropy.Tree.get(
+        path="./test/data/ds1/mb_tree300000.nex",
+        schema="nexus",
+        taxon_namespace=taxon_namespace,
+    )
     post_indexing, blens, name_id = treeFunc.dendropy_to_pb(tree)
 
     # append space for internal node partials
@@ -231,7 +262,7 @@ def test_likelihood_mrbayes_numpy():
     for _ in range(27 - 1):
         partials.append(torch.zeros((1, 4, L), dtype=torch.float64))
 
-    mats = phylo.JC69_p_t(blens)
+    mats = PhyloModel.JC69_p_t(blens)
     freqs_np = np.full([4], 0.25)
 
     partials_np = [partial.detach().numpy() for partial in partials]
@@ -242,3 +273,31 @@ def test_likelihood_mrbayes_numpy():
     )
 
     assert ln_p == approx(-6904.632, abs=1e-3)
+
+
+def test_GTR_equals_JC69():
+    blens = torch.tensor(np.array([0.1]), dtype=torch.double)
+    mats_JC = PhyloModel.JC69_p_t(blens)
+
+    sub_rates = torch.full([6], 1.0, dtype=torch.double)
+    freqs = torch.full([4], 0.25, dtype=torch.double)
+    mats_GTR = PhyloModel.GTR_p_t(blens, sub_rates, freqs)
+
+    assert torch.allclose(mats_JC, mats_GTR)
+
+
+@pytest.mark.parametrize(
+    "blens_in,size",
+    [
+        ([[1.0, 1.0]], [1, 2, 4, 4]),
+        ([[1.0]], [1, 1, 4, 4]),
+        ([[1.0], [1.0]], [2, 1, 4, 4]),
+        ([[1.0, 1.0], [1.0, 1.0], [1.0, 1.0]], [3, 2, 4, 4]),
+    ],
+)
+def test_GTR_mats_size(blens_in, size):
+    sub_rates = torch.full([6], 1.0, dtype=torch.double)
+    freqs = torch.full([4], 0.25, dtype=torch.double)
+    blens = torch.tensor(np.array(blens_in), dtype=torch.double)
+    mats_GTR = PhyloModel.GTR_p_t(blens, sub_rates, freqs)
+    assert mats_GTR.shape == torch.Size(size)

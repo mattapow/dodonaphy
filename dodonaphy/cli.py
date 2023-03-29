@@ -13,11 +13,10 @@ def init_parser():
         "--infer",
         "-i",
         default="mcmc",
-        choices=("mcmc", "vi", "dmap", "hmap", "hlaplace", "simulate", "brute"),
+        choices=("mcmc", "vi", "hmap", "hlaplace", "simulate", "brute"),
         help="Inf: Inference method for Bayesian inference:\
         [mcmc]: MCMC\
         [vi]: Variational bayesian inference.\
-        Use [dmap] to maximise the posterior of a distance matrix.\
         Use [hmap] to maximise the posterior of the hyperbolic embedding.\
         Use [hlaplace] to maximise the posterior of the embedding (hmap) and\
         then draw samples from a laplace approximation around the map.\
@@ -32,6 +31,14 @@ def init_parser():
             "Inf: Which prior to use: no prior, Gamma-Dirichlet, Birth-Death\
          , normal or uniform embedding location."
         ),
+    )
+    parser.add_argument(
+        "--model",
+        "-m",
+        default="JC69",
+        choices=("JC69", "GTR"),
+        help="Inf: Markov model of nucleotide of evolution."
+
     )
     parser.add_argument(
         "--connect",
@@ -240,6 +247,9 @@ def init_parser():
 def validate(args):
     if args.infer in ("vi", "ml", "map", "hmap", "hlaplace"):
         if args.temp is None:
-            raise ValueError("--temp not be None.")
+            raise ValueError("--temp not be None for this mode of inference.")
         if args.temp <= 0.0:
-            raise ValueError("--temp must be greater than 0.")
+            raise ValueError("--temp must be greater than 0 for this mode of inference.")
+    if args.connect == "fix":
+        if args.start is None:
+            raise ValueError("--start tree cannot be None when the topology is fixed (--connect fix).")

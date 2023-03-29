@@ -7,7 +7,9 @@ from dodonaphy.vi import DodonaphyVI
 
 
 class Brute(DodonaphyVI):
-    """Brute force learn an Embedding"""
+    """Brute force learn an Embedding
+    Beware: untested.
+    """
 
     @staticmethod
     def run(

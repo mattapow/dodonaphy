@@ -10,7 +10,7 @@ from torch.distributions.multivariate_normal import MultivariateNormal
 
 from dodonaphy import Chyp_torch, peeler, tree, utils
 from dodonaphy.base_model import BaseModel
-from dodonaphy.phylo import JC69_p_t, calculate_treelikelihood
+from dodonaphy.phylo import calculate_treelikelihood
 from hydraPlus import hydraPlus
 
 
@@ -29,6 +29,7 @@ class DodonaphyVI(BaseModel):
         tip_labels=None,
         n_boosts=1,
         start="",
+        model_name="JC69",
     ):
         super().__init__(
             partials,
@@ -39,56 +40,104 @@ class DodonaphyVI(BaseModel):
             connector=connector,
             curvature=curvature,
             tip_labels=tip_labels,
+            model_name=model_name,
         )
         print("Initialising variational model.\n")
 
         # Store distribution centres mu in hyperboloid projected onto R^dim.
         # The last coordinate in R^(dim+1) is determined.
         self.n_boosts = n_boosts
-        mix_weights = np.full((n_boosts), 1 / n_boosts)
-        leaf_sigma = np.random.exponential(size=(self.n_boosts, self.S, self.D))
-        int_sigma = np.random.exponential(size=(self.n_boosts, self.S - 2, self.D))
+
         self.noise = noise
         self.truncate = truncate
-        self.ln_p = self.compute_LL(self.peel, self.blens)
         self.start = start
+        # Variational parameters must be set using set_variationalParams() or set_variationalParams_random()
+        self.VariationalParams = dict()
 
-        if not self.internals_exist:
-            self.VariationalParams = {
-                "leaf_mu": torch.randn(
-                    (self.n_boosts, self.S, self.D),
-                    requires_grad=True,
-                    dtype=torch.float64,
-                ),
-                "leaf_sigma": torch.tensor(
-                    leaf_sigma, requires_grad=True, dtype=torch.float64
-                ),
-                "mix_weights": torch.tensor(
-                    mix_weights, requires_grad=True, dtype=torch.float64
-                ),
-            }
+    def set_variationalParams_random(self):
+        mix_weights = np.full((self.n_boosts), 1 / self.n_boosts)
+        leaf_sigma = np.random.exponential(size=(self.n_boosts, self.S, self.D))
+        int_sigma = np.random.exponential(size=(self.n_boosts, self.S - 2, self.D))
+
+        self.VariationalParams = {
+            "leaf_mu": torch.randn(
+                (self.n_boosts, self.S, self.D),
+                requires_grad=True,
+                dtype=torch.float64,
+            ),
+            "leaf_sigma": torch.tensor(
+                leaf_sigma, requires_grad=True, dtype=torch.float64
+            ),
+            "mix_weights": torch.tensor(
+                mix_weights, requires_grad=True, dtype=torch.float64
+            ),
+        }
+        if self.internals_exist:
+            self.VariationalParams["int_mu"] = torch.randn(
+                (self.n_boosts, self.S - 2, self.D),
+                requires_grad=True,
+                dtype=torch.float64,
+            )
+            self.VariationalParams["int_sigma"] = torch.tensor(
+                int_sigma, requires_grad=True, dtype=torch.float64
+            )
+        # set evolutionary model parameters to optimise
+        if not self.phylo_model.fix_sub_rates:
+            self.VariationalParams["sub_rates"] = self.phylo_model.sub_rates.clone().detach().requires_grad_(True)
+        if not self.phylo_model.fix_freqs:
+            self.VariationalParams["freqs"] = self.phylo_model.freqs.clone().detach().requires_grad_(True)
+
+    def set_variationalParams(self, param_init):
+        # set dimensions of input
+        if param_init["leaf_mu"].ndim == 2:
+            param_init["leaf_mu"].unsqueeze(0)
+        if param_init["leaf_sigma"].ndim == 2:
+            param_init["leaf_sigma"].unsqueeze(0)
+        # set leaf mean locations
+        self.VariationalParams["leaf_mu"] = (
+            param_init["leaf_mu"].repeat((self.n_boosts, 1, 1)).requires_grad_()
+        )
+        # set leaf scale (sigma in normal distribution)
+        self.VariationalParams["leaf_sigma"] = (
+            param_init["leaf_sigma"].repeat((self.n_boosts, 1, 1)).requires_grad_()
+        )
+        if self.internals_exist:
+            if param_init["int_mu"].ndim == 2:
+                param_init["int_mu"].unsqueeze(0)
+            if param_init["int_sigma"].ndim == 2:
+                param_init["int_sigma"].unsqueeze(0)
+            self.VariationalParams["int_mu"] = (
+                param_init["int_mu"].repeat((self.n_boosts, 1, 1)).requires_grad_()
+            )
+            self.VariationalParams["int_sigma"] = (
+                param_init["int_sigma"].repeat((self.n_boosts, 1, 1)).requires_grad_()
+            )
+        
+        if "mix_weights" in param_init.keys():
+            self.VariationalParams["mix_weights"] = param_init["mix_weights"].requires_grad_()
         else:
-            self.VariationalParams = {
-                "leaf_mu": torch.randn(
-                    (self.n_boosts, self.S, self.D),
-                    requires_grad=True,
-                    dtype=torch.float64,
-                ),
-                "leaf_sigma": torch.tensor(
-                    leaf_sigma, requires_grad=True, dtype=torch.float64
-                ),
-                "int_mu": torch.randn(
-                    (self.n_boosts, self.S - 2, self.D),
-                    requires_grad=True,
-                    dtype=torch.float64,
-                ),
-                "int_sigma": torch.tensor(
-                    int_sigma, requires_grad=True, dtype=torch.float64
-                ),
-                "mix_weights": torch.tensor(
-                    mix_weights, requires_grad=True, dtype=torch.float64
-                ),
-            }
+            # default to 1 mixture
+            self.VariationalParams["mix_weights"] = torch.tensor(np.ones((1)), dtype=torch.float64).requires_grad_()
+
+        # set evolutionary model parameters to optimise
+        if not self.phylo_model.fix_sub_rates:
+            self.VariationalParams["sub_rates"] = (self.phylo_model.sub_rates.clone().detach().requires_grad_(True))
+        if not self.phylo_model.fix_freqs:
+            self.VariationalParams["freqs"] = (self.phylo_model.freqs.clone().detach().requires_grad_(True))
+
+    def get_model_freqs(self):
+        if self.phylo_model.fix_freqs:
+            # freqs is a fixed array
+            return self.phylo_model.freqs
+        else:
+            # freqs is a parameter to be optimised
+            return self.VariationalParams["freqs"]
+
+    def get_sub_rates(self):
+        if self.phylo_model.fix_sub_rates:
+            return self.phylo_model.sub_rates
+        else:
+            return self.VariationalParams["sub_rates"]
 
     def draw_sample(self, nSample=100, **kwargs):
         """Draw samples from the variational posterior distribution
@@ -143,12 +192,16 @@ class DodonaphyVI(BaseModel):
                     location.append(sample["int_locs"])
 
                 if kwargs.get("lp"):
+                    mats = self.phylo_model.get_transition_mats(
+                        sample["blens"], self.get_sub_rates(), self.get_model_freqs()
+                    )
+                    freqs = torch.full([4], 0.25, dtype=torch.float64)
                     LL = calculate_treelikelihood(
                         self.partials,
                         self.weights,
                         sample["peel"],
-                        JC69_p_t(sample["blens"]),
-                        torch.full([4], 0.25, dtype=torch.float64),
+                        mats,
+                        freqs,
                     )
                     lp.append(LL)
 
@@ -188,7 +241,6 @@ class DodonaphyVI(BaseModel):
 
     def learn(
         self,
-        param_init,
         epochs=1000,
         importance_samples=1,
         path_write="./out",
@@ -205,29 +257,6 @@ class DodonaphyVI(BaseModel):
         print(f"Using {importance_samples} tree samples at each epoch.")
         print(f"Using {self.n_boosts} variational distributions for boosting.")
         print(f"Running for {epochs} epochs.\n")
-
-        # initialise variational parameters
-        if param_init["leaf_mu"].ndim == 2:
-            param_init["leaf_mu"].unsqueeze(0)
-        if param_init["leaf_sigma"].ndim == 2:
-            param_init["leaf_sigma"].unsqueeze(0)
-        self.VariationalParams["leaf_mu"] = (
-            param_init["leaf_mu"].repeat((self.n_boosts, 1, 1)).requires_grad_()
-        )
-        self.VariationalParams["leaf_sigma"] = (
-            param_init["leaf_sigma"].repeat((self.n_boosts, 1, 1)).requires_grad_()
-        )
-        if self.internals_exist:
-            if param_init["int_mu"].ndim == 2:
-                param_init["int_mu"].unsqueeze(0)
-            if param_init["int_sigma"].ndim == 2:
-                param_init["int_sigma"].unsqueeze(0)
-            self.VariationalParams["int_mu"] = (
-                param_init["int_mu"].repeat((self.n_boosts, 1, 1)).requires_grad_()
-            )
-            self.VariationalParams["int_sigma"] = (
-                param_init["int_sigma"].repeat((self.n_boosts, 1, 1)).requires_grad_()
-            )
 
         if path_write is not None:
             fn = path_write + "/" + "vi.log"
@@ -253,7 +282,7 @@ class DodonaphyVI(BaseModel):
 
             vi_path = os.path.join(path_write, "vi_params")
             os.mkdir(vi_path)
-            fn = os.path.join(vi_path, f"start.csv")
+            fn = os.path.join(vi_path, "start.csv")
             self.save(fn)
 
             elbo_fn = os.path.join(path_write, "elbo.txt")
@@ -286,9 +315,9 @@ class DodonaphyVI(BaseModel):
             if path_write is not None:
                 with open(elbo_fn, "a", encoding="UTF-8") as f:
                     f.write("%f\n" % elbo_hist[-1])
-                fn = os.path.join(path_write, "vi_params", f"latest.csv")
+                fn = os.path.join(path_write, "vi_params", "latest.csv")
                 self.save(fn)
-                fn = os.path.join(path_write, "vi_params", f"iteration.txt")
+                fn = os.path.join(path_write, "vi_params", f"iteration_{epoch+1}.txt")
                 with open(fn, "w", encoding="UTF-8") as file:
                     file.write(f"Epoch: {epoch} / {epochs}")
 
@@ -360,6 +389,7 @@ class DodonaphyVI(BaseModel):
             _, blens, _ = self.connect(locs_t0_2d)
             return blens
 
+        # TODO: use analytical form
         jacobian = torch.autograd.functional.jacobian(get_blens, (leaf_locs.flatten()))
         log_abs_det_jacobian = torch.log(
             torch.sqrt(torch.abs(torch.linalg.det(jacobian @ jacobian.T)))
@@ -381,7 +411,7 @@ class DodonaphyVI(BaseModel):
 
     def get_loss(self, peel, blens, pdm, leaf_locs):
         if self.loss_fn == "likelihood":
-            ln_p = self.compute_LL(peel, blens)
+            ln_p = self.compute_LL(peel, blens, self.get_sub_rates(), self.get_model_freqs())
         elif self.loss_fn == "pair_likelihood":
             ln_p = self.compute_log_a_like(pdm)
         elif self.loss_fn == "hypHC":
@@ -443,7 +473,7 @@ class DodonaphyVI(BaseModel):
         Set the coefficient of variation base as either the 'closest' distance or 'norm'.
         """
         valid_cv_base = ("closest", "norm")
-        if not cv_base in valid_cv_base:
+        if cv_base not in valid_cv_base:
             raise ValueError(f"Coefficient of variation must be in {valid_cv_base}")
 
         # embed tips with distances using HydraPlus
@@ -510,6 +540,7 @@ class DodonaphyVI(BaseModel):
         soft_temp=None,
         tip_labels=None,
         start="",
+        model_name="JC69",
     ):
         """Initialise and run Dodonaphy's variational inference
 
@@ -533,6 +564,7 @@ class DodonaphyVI(BaseModel):
             tip_labels=tip_labels,
             n_boosts=n_boosts,
             start=start,
+            model_name=model_name,
         )
         param_init = mymod.hydra_init(
             dists_data,
@@ -571,9 +603,9 @@ class DodonaphyVI(BaseModel):
 
     def save(self, fn):
         with open(fn, "w", encoding="UTF-8") as f:
-            f.write(f"Mix weights:\n")
-            f.write( f"{self.VariationalParams['mix_weights'].detach().numpy()}\n\n")
-            f.write(f"Leaf Locations (# taxa x  # dimensions):\n")
+            f.write("Mix weights:\n")
+            f.write("{self.VariationalParams['mix_weights'].detach().numpy()}\n\n")
+            f.write("Leaf Locations (# taxa x  # dimensions):\n")
             for k in range(self.n_boosts):
                 f.write(f"Mix {k}:\n")
                 for i in range(self.S):
@@ -581,7 +613,7 @@ class DodonaphyVI(BaseModel):
                         f.write("%f\t" % self.VariationalParams["leaf_mu"][k, i, d])
                     f.write("\n")
                 f.write("\n")
-            f.write(f"Leaf Sigmas (# taxa x  # dimensions):\n")
+            f.write("Leaf Sigmas (# taxa x  # dimensions):\n")
             for k in range(self.n_boosts):
                 f.write(f"Mix {k}:\n")
                 for i in range(self.S):
@@ -591,11 +623,11 @@ class DodonaphyVI(BaseModel):
                 f.write("\n")
 
                 if self.internals_exist:
-                    f.write(f"Internal Locations (# taxa x  # dimensions):\n")
+                    f.write("Internal Locations (# taxa x  # dimensions):\n")
                     for i in range(self.S - 2):
                         for d in range(self.D):
                             f.write("%f\t" % self.VariationalParams["int_mu"][k, i, d])
-                    f.write(f"Internal Sigmas (# taxa x  # dimensions):\n")
+                    f.write("Internal Sigmas (# taxa x  # dimensions):\n")
                     for i in range(self.S - 2):
                         for d in range(self.D):
                             f.write(

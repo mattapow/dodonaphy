@@ -42,6 +42,7 @@ def test_dendropy_to_pb_ds1():
         rooting="force-unrooted",
         taxon_namespace=taxa,
         preserve_underscores=True)
+
     post_indexing, blens, name_id = treeFunc.dendropy_to_pb(dendro_tree)
 
     # compare to putting back into newick and then dendropy

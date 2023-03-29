@@ -5,7 +5,6 @@ import torch
 
 from dodonaphy import tree as treeFunc
 
-
 def compress_alignment(alignment, get_namespace=False):
     sequences = [str(sequence) for sequence in alignment.sequences()]
     taxa = alignment.taxon_namespace.labels()
@@ -75,16 +74,23 @@ def calculate_pairwise_distance(dna, adjust=None, omit_unkown=False):
     count_unknown = np.zeros((n_taxa, n_taxa))
     for i in range(n_taxa):
         seq_i = dna[i]
-        for j in range(i+1, n_taxa):
+        for j in range(i + 1, n_taxa):
             seq_j = dna[j]
             # count the number of different characters, excluding any gaps
-            count = sum(seq_i[k] != seq_j[k] and not seq_i[k].is_gap_state and not seq_j[k].is_gap_state for k in range(seq_len))
+            count = sum(
+                seq_i[k] != seq_j[k]
+                and not seq_i[k].is_gap_state
+                and not seq_j[k].is_gap_state
+                for k in range(seq_len)
+            )
             obs_dist[i, j] += count
             obs_dist[j, i] += count
             # count how many gaps are in either sequence
-            count_unknown[i, j] = sum(seq_i[k].is_gap_state or seq_j[k].is_gap_state for k in range(seq_len))
+            count_unknown[i, j] = sum(
+                seq_i[k].is_gap_state or seq_j[k].is_gap_state for k in range(seq_len)
+            )
             count_unknown[j, i] = count_unknown[i, j]
-    
+
     # adjust the length of the alignment for unkown characters, for each pair of sequences
     if omit_unkown:
         seq_len = seq_len - count_unknown
@@ -95,7 +101,7 @@ def calculate_pairwise_distance(dna, adjust=None, omit_unkown=False):
     if adjust is None:
         return obs_dist
     elif adjust == "JC69":
-        return - 3 / 4 * np.log(1.0 - 4 / 3 * obs_dist)
+        return -3 / 4 * np.log(1.0 - 4 / 3 * obs_dist)
     else:
         raise ValueError("adjust must be None or 'JC69'")
 

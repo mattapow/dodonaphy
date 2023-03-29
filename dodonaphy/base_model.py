@@ -11,8 +11,9 @@ from dodonaphy import poincare
 
 from dodonaphy import Chyp_np, Chyp_torch, phylo
 from dodonaphy import tree as treeFunc
-from dodonaphy.phylo import JC69_p_t, calculate_treelikelihood
+from dodonaphy.phylo import calculate_treelikelihood
 from dodonaphy.utils import LogDirPrior
+from dodonaphy.phylomodel import PhyloModel
 
 
 class BaseModel(object):
@@ -32,6 +33,7 @@ class BaseModel(object):
         require_grad=True,
         matsumoto=False,
         tip_labels=None,
+        model_name="JC69",
     ):
         self.partials = partials.copy()
         self.weights = weights
@@ -79,6 +81,7 @@ class BaseModel(object):
                 )
         if not require_grad:
             self.partials = [partial.detach().numpy() for partial in self.partials]
+        self.phylo_model = PhyloModel(model_name)
 
     @staticmethod
     def compute_branch_lengths(
@@ -141,26 +144,29 @@ class BaseModel(object):
         return phylo.TreeLikelihood.apply(self.blens, self.bito_inst, self.taxa_name_dict, self.peel, self.model_specification)
 
 
-    def compute_LL(self, peel, blen):
+    def compute_LL(self, peel, blen, sub_rates, freqs):
         """Compute likelihood of tree.
 
         Args:
             peel ([type]): [description]
             blen ([type]): [description]
+            sub_rates ([type]): [description]
+            freqs ([type]): [description]
 
         Returns:
             [type]: [description]
         """
-        mats = JC69_p_t(blen)
+        mats = self.phylo_model.get_transition_mats(blen, sub_rates, freqs)
         return calculate_treelikelihood(
             self.partials,
             self.weights,
             peel,
             mats,
-            torch.full([4], 0.25, dtype=torch.float64),
+            # TODO: This method isn't implemented in this class. Exists in subclasses: hmap, vi, mcmc?
+            self.get_model_freqs(),
         )
 
-    def compute_log_a_like(self, pdm):
+    def compute_log_a_like(self, pdm, sub_rates, freqs):
         """Compute the log-a-like function of the embedding.
 
         The log-probability of all the pairwise taxa.
@@ -169,8 +175,8 @@ class BaseModel(object):
         P = torch.zeros((4, 4, self.L))
 
         for i in range(self.S):
-            mats = JC69_p_t(pdm[i])
-            for j in range(i - 1):
+            mats = self.phylo_model.get_transition_mats(pdm[i], sub_rates, freqs)
+            for j in range(self.S):
                 P = P + torch.log(
                     torch.clamp(torch.matmul(mats[j], self.partials[i]), min=eps)
                 )
@@ -179,13 +185,13 @@ class BaseModel(object):
         return torch.sum(P * self.weights) / L
 
     def compute_likelihood_hypHC(
-        self, dists_data, leaf_X, temperature=0.05, n_triplets=100
+        self, dists_data, leaf_X, sub_rates, freqs, temperature=0.05, n_triplets=100
     ):
         eps = torch.finfo(torch.double).eps
         likelihood_dist = torch.zeros_like(dists_data)
         for i in range(self.S):
-            mats = JC69_p_t(dists_data[i])
-            for j in range(i - 1):
+            mats = self.phylo_model.get_transition_mats(dists_data[i], sub_rates, freqs)
+            for j in range(self.S):
                 P_ij = torch.log(
                     torch.clamp(torch.matmul(mats[j], self.partials[i]), min=eps)
                 )

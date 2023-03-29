@@ -25,7 +25,7 @@ def run(args):
     Using an embedding for MCMC, or embedding variational inference,
     or using a distance matrix for maximum likelihood."""
     if args.path_root == "":
-        root_dir = os.path.abspath("./analysis")
+        root_dir = os.path.abspath(".")
     else:
         root_dir = os.path.abspath(args.path_root)
 
@@ -43,7 +43,9 @@ def run(args):
     )
     save_period = max(int(args.epochs / args.draws), 1)
     if args.connect == "fix":
-        warnings.warn("Fixed topology is experimental and start tree must have integer taxa names.")
+        warnings.warn(
+            "Fixed topology is experimental and start tree must have integer taxa names."
+        )
         tree.rename_labels(start_tree)
         peel, _ = tree.dendropy_to_pb(start_tree)
     else:
@@ -77,6 +79,7 @@ def run(args):
             write_dists=args.write_dists,
             prior=args.prior,
         )
+
     elif args.infer == "vi":
         DodonaphyVI.run(
             args.dim,
@@ -95,20 +98,8 @@ def run(args):
             tip_labels=tip_labels,
             n_boosts=args.boosts,
             start=args.start,
+            model_name=args.model,
         )
-
-    elif args.infer == "dmap":
-        partials, weights = compress_alignment(dna)
-        mymod = MAP(
-            partials[:],
-            weights,
-            dists=dists,
-            soft_temp=args.temp,
-            loss_fn=args.loss_fn,
-            prior=args.prior,
-            tip_labels=tip_labels,
-        )
-        mymod.learn(epochs=args.epochs, learn_rate=args.learn, path_write=path_write)
 
     elif args.infer == "hmap":
         partials, weights = compress_alignment(dna)
@@ -128,7 +119,8 @@ def run(args):
             matsumoto=args.matsumoto,
             connector=args.connect,
             peel=peel,
-            normalise_leaves=args.normalise_leaves
+            normalise_leaves=args.normalise_leaves,
+            model_name=args.model,
         )
         mymod.learn(
             epochs=args.epochs,
@@ -149,6 +141,7 @@ def run(args):
             prior=args.prior,
             tip_labels=tip_labels,
             matsumoto=args.matsumoto,
+            model_name=args.model,
         )
         mymod.learn(epochs=args.epochs, learn_rate=args.learn, path_write=path_write)
         mymod.laplace(path_write, n_samples=args.draws)
@@ -243,7 +236,7 @@ def get_path(root_dir, args):
             ln_crv = str(np.log10(-args.curv))
         path_write = os.path.join(method_dir, f"d{args.dim}_k{ln_crv}{args.suffix}")
 
-    elif args.infer in ("dmap", "hmap", "hlaplace"):
+    elif args.infer in ("hmap", "hlaplace"):
         ln_rate = -int(np.log10(args.learn))
         ln_tau = -int(np.log10(args.temp))
         method_dir = os.path.join(root_dir, args.infer, args.connect, args.prior)
@@ -304,10 +297,12 @@ def simulate_tree(root_dir, birth_rate, death_rate, n_taxa, seq_len):
 def read_tree(root_dir, taxon_namespace, file_name="start_tree.nex"):
     """Read a saved nexus tree using dendropy."""
     tree_path = os.path.join(root_dir, file_name)
-    return dendropy.Tree.get(path=tree_path,
+    return dendropy.Tree.get(
+        path=tree_path,
         schema="nexus",
-        preserve_underscores=True,
-        taxon_namespace=taxon_namespace)
+        preserve_underscores=False,
+        taxon_namespace=taxon_namespace,
+    )
 
 
 def read_dna(root_dir, file_name="dna.nex"):
