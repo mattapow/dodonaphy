@@ -4,6 +4,7 @@ import numpy as np
 from dodonaphy import phylo, Cphylo
 from dodonaphy import tree as treeFunc
 from dodonaphy.base_model import BaseModel
+from dodonaphy.phylomodel import PhyloModel
 from pytest import approx
 import pytest
 
@@ -162,7 +163,7 @@ def test_simple_dists_compare_decenttree():
 def test_likelihood_alphabet():
     blen = torch.ones(3, dtype=torch.double) / 10
     post_indexing = [[0, 1, 2]]
-    mats = phylo.JC69_p_t(blen)
+    mats = PhyloModel.JC69_p_t(blen)
     freqs = torch.full([4], 0.25, dtype=torch.float64)
 
     dna = dendropy.DnaCharacterMatrix.get(
@@ -233,7 +234,7 @@ def test_likelihood_mrbayes_torch():
     for _ in range(27 - 1):
         partials.append(torch.zeros((1, 4, L), dtype=torch.float64))
 
-    mats = phylo.JC69_p_t(blens)
+    mats = PhyloModel.JC69_p_t(blens)
     freqs = torch.full([4], 0.25, dtype=torch.float64)
 
     ln_p = phylo.calculate_treelikelihood(partials, weights, post_indexing, mats, freqs)
@@ -261,7 +262,7 @@ def test_likelihood_mrbayes_numpy():
     for _ in range(27 - 1):
         partials.append(torch.zeros((1, 4, L), dtype=torch.float64))
 
-    mats = phylo.JC69_p_t(blens)
+    mats = PhyloModel.JC69_p_t(blens)
     freqs_np = np.full([4], 0.25)
 
     partials_np = [partial.detach().numpy() for partial in partials]
@@ -276,11 +277,11 @@ def test_likelihood_mrbayes_numpy():
 
 def test_GTR_equals_JC69():
     blens = torch.tensor(np.array([0.1]), dtype=torch.double)
-    mats_JC = phylo.JC69_p_t(blens)
+    mats_JC = PhyloModel.JC69_p_t(blens)
 
     sub_rates = torch.full([6], 1.0, dtype=torch.double)
     freqs = torch.full([4], 0.25, dtype=torch.double)
-    mats_GTR = phylo.GTR_p_t(blens, sub_rates, freqs)
+    mats_GTR = PhyloModel.GTR_p_t(blens, sub_rates, freqs)
 
     assert torch.allclose(mats_JC, mats_GTR)
 
@@ -298,5 +299,5 @@ def test_GTR_mats_size(blens_in, size):
     sub_rates = torch.full([6], 1.0, dtype=torch.double)
     freqs = torch.full([4], 0.25, dtype=torch.double)
     blens = torch.tensor(np.array(blens_in), dtype=torch.double)
-    mats_GTR = phylo.GTR_p_t(blens, sub_rates, freqs)
+    mats_GTR = PhyloModel.GTR_p_t(blens, sub_rates, freqs)
     assert mats_GTR.shape == torch.Size(size)

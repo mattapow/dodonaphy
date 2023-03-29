@@ -11,8 +11,9 @@ from dodonaphy import poincare
 
 from dodonaphy import Chyp_np, Chyp_torch
 from dodonaphy import tree as treeFunc
-from dodonaphy.phylo import JC69_p_t, GTR_p_t, calculate_treelikelihood
+from dodonaphy.phylo import calculate_treelikelihood
 from dodonaphy.utils import LogDirPrior
+from dodonaphy.phylomodel import PhyloModel
 
 
 class BaseModel(object):
@@ -80,33 +81,7 @@ class BaseModel(object):
                 )
         if not require_grad:
             self.partials = [partial.detach().numpy() for partial in self.partials]
-        self.model_name = model_name
-        self.set_model_substitution_rates()
-        self.set_model_freqs()
-
-    def set_model_freqs(self):
-        self.freqs = torch.full([4], 0.25, dtype=torch.double)
-
-    def get_model_freqs(self):
-        return self.freqs
-
-    def set_model_substitution_rates(self):
-        if self.model_name == "JC69":
-            self.sub_rates = torch.empty([])
-        elif self.model_name == "GTR":
-            self.prior_dist = torch.distributions.dirichlet.Dirichlet(
-                torch.tensor([1.0, 1.0, 1.0, 1.0, 1.0, 1.0])
-            )
-            self.sub_rates = self.prior_dist.sample()
-        else:
-            raise RuntimeError("Model not implemented")
-
-    def compute_ln_prior_model(self):
-        if self.model_name == "JC69":
-            return torch.zeros(1)
-        elif self.model_name == "GTR":
-            # Only dirichlet prior implemented here
-            return self.prior_dist.log_prob(self.sub_rates)
+        self.phylo_model = PhyloModel(model_name)
 
     @staticmethod
     def compute_branch_lengths(
@@ -165,37 +140,29 @@ class BaseModel(object):
 
         return blens
 
-    def compute_LL(self, peel, blen):
+    def compute_LL(self, peel, blen, sub_rates, freqs):
         """Compute likelihood of tree.
 
         Args:
             peel ([type]): [description]
             blen ([type]): [description]
+            sub_rates ([type]): [description]
+            freqs ([type]): [description]
 
         Returns:
             [type]: [description]
         """
-        mats = self.get_transition_mats(blen)
+        mats = self.phylo_model.get_transition_mats(blen, sub_rates, freqs)
         return calculate_treelikelihood(
             self.partials,
             self.weights,
             peel,
             mats,
+            # TODO: This method isn't implemented in this class. Exists in subclasses: hmap, vi, mcmc?
             self.get_model_freqs(),
         )
 
-    def get_transition_mats(self, blens):
-        if self.model_name == "JC69":
-            mats = JC69_p_t(blens)
-        elif self.model_name == "GTR":
-            mats = GTR_p_t(blens, self.sub_rates, self.get_model_freqs())
-        else:
-            raise ValueError(
-                f"Model {self.model_name} has no transition matrix implementation."
-            )
-        return mats
-
-    def compute_log_a_like(self, pdm):
+    def compute_log_a_like(self, pdm, sub_rates, freqs):
         """Compute the log-a-like function of the embedding.
 
         The log-probability of all the pairwise taxa.
@@ -204,7 +171,7 @@ class BaseModel(object):
         P = torch.zeros((4, 4, self.L))
 
         for i in range(self.S):
-            mats = JC69_p_t(pdm[i])
+            mats = self.phylo_model.get_transition_mats(pdm[i], sub_rates, freqs)
             for j in range(self.S):
                 P = P + torch.log(
                     torch.clamp(torch.matmul(mats[j], self.partials[i]), min=eps)
@@ -214,12 +181,12 @@ class BaseModel(object):
         return torch.sum(P * self.weights) / L
 
     def compute_likelihood_hypHC(
-        self, dists_data, leaf_X, temperature=0.05, n_triplets=100
+        self, dists_data, leaf_X, sub_rates, freqs, temperature=0.05, n_triplets=100
     ):
         eps = torch.finfo(torch.double).eps
         likelihood_dist = torch.zeros_like(dists_data)
         for i in range(self.S):
-            mats = JC69_p_t(dists_data[i])
+            mats = self.phylo_model.get_transition_mats(dists_data[i], sub_rates, freqs)
             for j in range(self.S):
                 P_ij = torch.log(
                     torch.clamp(torch.matmul(mats[j], self.partials[i]), min=eps)

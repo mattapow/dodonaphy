@@ -38,8 +38,7 @@ def init_parser():
         "-m",
         default="JC69",
         choices=("JC69", "GTR"),
-        help="Inf: Markov model of bucleotide of evolution. GTR model is only\
-            available for hmap mode of inference."
+        help="Inf: Markov model of nucleotide of evolution."
 
     )
     parser.add_argument(
@@ -249,6 +248,9 @@ def init_parser():
 def validate(args):
     if args.infer in ("vi", "ml", "map", "hmap", "hlaplace"):
         if args.temp is None:
-            raise ValueError("--temp not be None.")
+            raise ValueError("--temp not be None for this mode of inference.")
         if args.temp <= 0.0:
-            raise ValueError("--temp must be greater than 0.")
+            raise ValueError("--temp must be greater than 0 for this mode of inference.")
+    if args.connect == "fix":
+        if args.start is None:
+            raise ValueError("--start tree cannot be None when the topology is fixed (--connect fix).")

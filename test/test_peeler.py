@@ -257,7 +257,7 @@ def test_compute_Q_dendropy():
             nd1._nj_xsub += dist
 
     for idx1, nd1 in enumerate(node_pool[:-1]):
-        for _, nd2 in enumerate(node_pool[idx1 + 1 :]):
+        for _, nd2 in enumerate(node_pool[idx1 + 1:]):
             v1 = (n_pool - 2) * nd1._nj_distances[nd2.taxon]
             qvalue = v1 - nd1._nj_xsub - nd2._nj_xsub
             Q[nd1.taxon, nd2.taxon] = qvalue
@@ -335,7 +335,7 @@ def test_nj_soft():
         assert torch.isclose(
             sum(blens).float(), torch.tensor(3.2927).float(), atol=0.05
         ), f"Iteration: {i}. Incorrect total branch length"
-        assert blens.requires_grad == True, "Branch lengths must carry gradients."
+        assert blens.requires_grad is True, "Branch lengths must carry gradients."
 
 
 def test_nj_soft_all_even():
@@ -508,15 +508,21 @@ def test_soft_geodesic1():
         peel_check.append(np.allclose(peel, [[0, 1, 4], [3, 2, 5], [4, 5, 6]]))
         peel_check.append(np.allclose(peel, [[0, 1, 4], [3, 2, 5], [4, 5, 6]]))
         assert sum(peel_check), f"Iteration {i}. Possibly incorrect peel: {peel}"
-        assert int_locs.requires_grad == True
-        assert blens.requires_grad == True
+        assert int_locs.requires_grad is True
+        assert blens.requires_grad is True
 
 
 def test_soft_geodesic_optim():
     leaf_r = torch.tensor([0.8, 0.8, 0.5, 0.5])
     leaf_theta = torch.tensor([np.pi / 4, -np.pi / 7, np.pi * 7 / 10, -np.pi * 9 / 10])
     leaf_dir = utils.angle_to_directional(leaf_theta)
-    params = {"leaf_locs": utils.dir_to_cart(leaf_r, leaf_dir).requires_grad_(True)}
+    leaf_locs = utils.dir_to_cart(leaf_r, leaf_dir)
+    mix_weights = np.ones((1))
+    params = {
+        "leaf_mu": leaf_locs.double().requires_grad_(True),
+        "leaf_sigma": leaf_locs.double().requires_grad_(True),
+        "mix_weights": torch.tensor(mix_weights, dtype=torch.float64)
+    }
     simtree = treesim.birth_death_tree(
         birth_rate=1.0, death_rate=0.5, num_extant_tips=4
     )
@@ -525,6 +531,8 @@ def test_soft_geodesic_optim():
     )
     partials, weights = compress_alignment(dna)
     mymod = DodonaphyVI(partials, weights, dim=2, embedder="up", connector="geodesics")
+    # initialise variational parameters
+    mymod.set_variationalParams(params)
     optimizer = torch.optim.Adam(list(params.values()), lr=1)
     optimizer.zero_grad()
     loss = -mymod.elbo_siwae(1)

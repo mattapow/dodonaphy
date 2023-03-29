@@ -25,7 +25,7 @@ def run(args):
     Using an embedding for MCMC, or embedding variational inference,
     or using a distance matrix for maximum likelihood."""
     if args.path_root == "":
-        root_dir = os.path.abspath("./analysis")
+        root_dir = os.path.abspath(".")
     else:
         root_dir = os.path.abspath(args.path_root)
 
@@ -97,6 +97,7 @@ def run(args):
             tip_labels=tip_labels,
             n_boosts=args.boosts,
             start=args.start,
+            model_name=args.model,
         )
 
     elif args.infer == "dmap":
@@ -149,6 +150,7 @@ def run(args):
             prior=args.prior,
             tip_labels=tip_labels,
             matsumoto=args.matsumoto,
+            model_name=args.model,
         )
         mymod.learn(epochs=args.epochs, learn_rate=args.learn, path_write=path_write)
         mymod.laplace(path_write, n_samples=args.draws)

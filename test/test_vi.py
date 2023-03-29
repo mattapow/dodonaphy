@@ -6,14 +6,20 @@ import pytest
 import torch
 from dendropy.model.discrete import simulate_discrete_chars
 from dendropy.simulate import treesim
+from hydraPlus import hydraPlus
 from dodonaphy import vi
-from dodonaphy.phylo import compress_alignment
+from dodonaphy.phylo import calculate_pairwise_distance, compress_alignment
 from dodonaphy.vi import DodonaphyVI
 from numpy import allclose
+from dodonaphy.phylomodel import PhyloModel
 
 
-@pytest.mark.skip(reason="Remove geodesics fuctionality?")
-def test_draws_different_vi_project_up_geodesics():
+@pytest.mark.parametrize("embedder,connector",
+                         [("up", "geodesics"),
+                          ("up", "nj"),
+                          ("wrap", "nj"),
+                          ("wrap", "geodesics")])
+def test_draws_different_vi(embedder, connector):
     """Each draw from the sample should be different in likelihood."""
     simtree = treesim.birth_death_tree(
         birth_rate=1.0, death_rate=0.5, num_extant_tips=6
@@ -23,16 +29,18 @@ def test_draws_different_vi_project_up_geodesics():
     )
     partials, weights = compress_alignment(dna)
     mymod = DodonaphyVI(
-        partials, weights, dim=3, embedder="up", connector="geodesics", soft_temp=1e-8
+        partials, weights, dim=3, embedder=embedder, connector=connector, soft_temp=1e-8
     )
-
+    mix_weights = np.ones((1))
     leaf_loc_hyp = np.random.randn(6, 3)
     leaf_sigma = np.abs(leaf_loc_hyp) * 0.01
     param_init = {
         "leaf_mu": torch.from_numpy(leaf_loc_hyp).double(),
         "leaf_sigma": torch.from_numpy(leaf_sigma).double(),
+        "mix_weights": torch.tensor(mix_weights, dtype=torch.float64),
     }
-    mymod.learn(param_init, epochs=2, path_write=None, importance_samples=3)
+    mymod.set_variationalParams(param_init)
+    mymod.learn(epochs=2, path_write=None, importance_samples=3)
 
     _, blens, _, lp__ = mymod.draw_sample(3, lp=True)
     assert not torch.equal(blens[0], blens[1])
@@ -44,118 +52,40 @@ def test_draws_different_vi_project_up_geodesics():
     assert not torch.equal(lp__[1], lp__[2])
 
 
-@pytest.mark.skip(reason="Remove geodesics fuctionality?")
-def test_draws_different_vi_project_up_geodesics_init():
-    """Each draw from the sample should be different in likelihood."""
-    simtree = treesim.birth_death_tree(
-        birth_rate=1.0, death_rate=0.5, num_extant_tips=6
-    )
-    dna = simulate_discrete_chars(
-        seq_len=1000, tree_model=simtree, seq_model=dendropy.model.discrete.Jc69()
-    )
+@pytest.mark.parametrize(
+    "model_name",
+    ("JC69", "GTR"),
+)
+def test_models_ds1(model_name):
+    dna = dendropy.DnaCharacterMatrix.get(path="./test/data/ds1/dna.nex", schema="nexus")
     partials, weights = compress_alignment(dna)
+    dim = 3
     mymod = DodonaphyVI(
-        partials, weights, dim=2, embedder="up", connector="geodesics", soft_temp=1e-8
+        partials, weights, dim, embedder="up", connector="nj", soft_temp=1e-8, model_name=model_name
     )
-
+    dists = calculate_pairwise_distance(dna, adjust="JC69")
+    hp_obj = hydraPlus.HydraPlus(dists, dim=dim, curvature=-1.0)
+    emm_tips = hp_obj.embed(equi_adj=0.0, alpha=1.1)
+    coef_var = 0.1
+    leaf_sigma = emm_tips["X"] * coef_var
     mix_weights = np.ones((1))
-    leaf_sigma = np.random.exponential(size=(1, 6, 2))
     param_init = {
-        "leaf_mu": torch.randn(
-            (1, 6, 2),
-            dtype=torch.float64,
+        "leaf_mu": torch.tensor(
+            emm_tips["X"], dtype=torch.float64
         ),
-        "leaf_sigma": torch.tensor(leaf_sigma, dtype=torch.float64),
+        "leaf_sigma": torch.tensor(
+            leaf_sigma, dtype=torch.float64
+        ),
         "mix_weights": torch.tensor(mix_weights, dtype=torch.float64),
     }
+    phylo_model = PhyloModel(model_name)
+    if not phylo_model.fix_sub_rates:
+        param_init["sub_rates"] = phylo_model.sub_rates.clone().detach()
+    if not phylo_model.fix_freqs:
+        param_init["freqs"] = phylo_model.freqs.clone().detach()
+    mymod.set_variationalParams(param_init)
+    mymod.learn(epochs=2, path_write=None, importance_samples=3)
 
-    mymod.learn(epochs=2, path_write=None, importance_samples=3, param_init=param_init)
-
-    _, blens, _, lp__ = mymod.draw_sample(3, lp=True)
-    assert not torch.equal(blens[0], blens[1])
-    assert not torch.equal(blens[0], blens[2])
-    assert not torch.equal(blens[1], blens[2])
-
-    assert not torch.equal(lp__[0], lp__[1])
-    assert not torch.equal(lp__[0], lp__[2])
-    assert not torch.equal(lp__[1], lp__[2])
-
-
-def test_draws_different_vi_project_up_nj():
-    """Each draw from the sample should be different in likelihood."""
-    dim = 2  # number of dimensions for embedding
-    nseqs = 6  # number of sequences to simulate
-    seqlen = 1000  # length of sequences to simulate
-
-    simtree = treesim.birth_death_tree(
-        birth_rate=1.0, death_rate=0.5, num_extant_tips=nseqs
-    )
-    dna = simulate_discrete_chars(
-        seq_len=seqlen, tree_model=simtree, seq_model=dendropy.model.discrete.Jc69()
-    )
-
-    partials, weights = compress_alignment(dna)
-    mymod = DodonaphyVI(
-        partials, weights, dim, embedder="up", connector="nj", soft_temp=1e-8
-    )
-    leaf_loc_hyp = np.random.randn(6, 2)
-    leaf_sigma = np.abs(leaf_loc_hyp) * 0.01
-    param_init = {
-        "leaf_mu": torch.from_numpy(leaf_loc_hyp).double(),
-        "leaf_sigma": torch.from_numpy(leaf_sigma).double(),
-    }
-    mymod.learn(param_init, epochs=2, path_write=None, importance_samples=3)
-
-    # draw
-    nsamples = 3
-    _, blens, _, lp__ = mymod.draw_sample(nsamples, lp=True)
-    assert not torch.equal(blens[0], blens[1])
-    assert not torch.equal(blens[0], blens[2])
-    assert not torch.equal(blens[1], blens[2])
-
-    assert not torch.equal(lp__[0], lp__[1])
-    assert not torch.equal(lp__[0], lp__[2])
-    assert not torch.equal(lp__[1], lp__[2])
-
-
-def test_draws_different_vi_project_up_nj_boost():
-    """Each draw from the sample should be different in likelihood."""
-    dim = 2  # number of dimensions for embedding
-    nseqs = 6  # number of sequences to simulate
-    seqlen = 1000  # length of sequences to simulate
-
-    simtree = treesim.birth_death_tree(
-        birth_rate=1.0, death_rate=0.5, num_extant_tips=nseqs
-    )
-    dna = simulate_discrete_chars(
-        seq_len=seqlen, tree_model=simtree, seq_model=dendropy.model.discrete.Jc69()
-    )
-    partials, weights = compress_alignment(dna)
-    mymod = DodonaphyVI(
-        partials, weights, dim, embedder="up", connector="nj", soft_temp=1e-8
-    )
-    mix_weights = np.ones((1))
-    leaf_sigma = np.random.exponential(size=(1, 6, 2))
-    param_init = {
-        "leaf_mu": torch.randn(
-            (1, 6, 2),
-            dtype=torch.float64,
-        ),
-        "leaf_sigma": torch.tensor(leaf_sigma, dtype=torch.float64),
-        "mix_weights": torch.tensor(mix_weights, dtype=torch.float64),
-    }
-    mymod.learn(epochs=2, path_write=None, importance_samples=3, param_init=param_init)
-
-    # draw
-    nsamples = 3
-    _, blens, _, lp__ = mymod.draw_sample(nsamples, lp=True)
-    assert not torch.equal(blens[0], blens[1])
-    assert not torch.equal(blens[0], blens[2])
-    assert not torch.equal(blens[1], blens[2])
-
-    assert not torch.equal(lp__[0], lp__[1])
-    assert not torch.equal(lp__[0], lp__[2])
-    assert not torch.equal(lp__[1], lp__[2])
 
 @pytest.mark.skip(reason="We don't have to read this in. Would need to fix the read function.")
 def test_vi_io():
@@ -186,55 +116,3 @@ def test_vi_io():
         mymod.VariationalParams["leaf_sigma"].detach().numpy(),
         atol=1e-6,
     )
-
-
-@pytest.mark.skip(reason="Remove wrapping functionality?")
-def test_draws_different_vi_project_wrap_nj():
-    """Each draw from the sample should be different in likelihood."""
-    simtree = treesim.birth_death_tree(
-        birth_rate=1.0, death_rate=0.5, num_extant_tips=6
-    )
-    dna = simulate_discrete_chars(
-        seq_len=1000, tree_model=simtree, seq_model=dendropy.model.discrete.Jc69()
-    )
-    partials, weights = compress_alignment(dna)
-    mymod = DodonaphyVI(
-        partials, weights, dim=2, embedder="wrap", connector="nj", soft_temp=1e-8
-    )
-
-    mymod.learn(epochs=2, path_write=None, importance_samples=3)
-
-    _, blens, _, lp__ = mymod.draw_sample(3, lp=True)
-    assert not torch.equal(blens[0], blens[1])
-    assert not torch.equal(blens[0], blens[2])
-    assert not torch.equal(blens[1], blens[2])
-
-    assert not torch.equal(lp__[0], lp__[1])
-    assert not torch.equal(lp__[0], lp__[2])
-    assert not torch.equal(lp__[1], lp__[2])
-
-
-@pytest.mark.skip(reason="Remove wrapping functionality?")
-def test_draws_different_vi_project_wrap_geodesics():
-    """Each draw from the sample should be different in likelihood."""
-    simtree = treesim.birth_death_tree(
-        birth_rate=1.0, death_rate=0.5, num_extant_tips=6
-    )
-    dna = simulate_discrete_chars(
-        seq_len=1000, tree_model=simtree, seq_model=dendropy.model.discrete.Jc69()
-    )
-    partials, weights = compress_alignment(dna)
-    mymod = DodonaphyVI(
-        partials, weights, dim=2, embedder="wrap", connector="geodesics", soft_temp=1e-8
-    )
-
-    mymod.learn(epochs=2, path_write=None, importance_samples=3)
-
-    _, blens, _, lp__ = mymod.draw_sample(3, lp=True)
-    assert not torch.equal(blens[0], blens[1])
-    assert not torch.equal(blens[0], blens[2])
-    assert not torch.equal(blens[1], blens[2])
-
-    assert not torch.equal(lp__[0], lp__[1])
-    assert not torch.equal(lp__[0], lp__[2])
-    assert not torch.equal(lp__[1], lp__[2])
