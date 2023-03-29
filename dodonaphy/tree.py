@@ -41,6 +41,7 @@ def post_order_traversal(adjacency, currentNode, peel, visited):
         peel.append(childs)
         return currentNode
 
+
 class taxon():
     def __init__(self, label):
         self.label = label
@@ -63,7 +64,6 @@ def rename_labels(tree, offset=0, get_label_map=False):
         label_map[label] = str(i+offset)
     if get_label_map:
         return label_map
-
 
 
 def dendropy_to_pb(tree):
@@ -175,7 +175,7 @@ def save_tree(
 ):
     if root_dir is None:
         return
-    if tip_labels == None:
+    if tip_labels is None:
         S = len(peel) + 1
         tip_labels = [str(x + 1) for x in range(S)]
     tree = tree_to_newick(tip_labels, peel, blens)
@@ -186,7 +186,6 @@ def save_tree(
         file.write(tree + "\n")
         if last_tree:
             file.write("End;\n")
-
 
 
 def end_tree_file(path_write):
@@ -202,7 +201,8 @@ def tree_to_newick(name_id, peel, blens, rooted=True):
         name_id (Dict): A dictionary of taxa names to their indicies used in peel. name: id
         peel (List of List): Peel in post-order indexing
         blens (Pytorch array): Branch lengths
-        rooted (Bool): Whether the nwk tree should be rooted. Unrooted will collapse the final zero-length branch into a trifurcation.
+        rooted (Bool): Whether the nwk tree should be rooted. Unrooted will collapse the final zero-length branch into
+        a trifurcation.
 
     Returns:
         Newick String: A Tree

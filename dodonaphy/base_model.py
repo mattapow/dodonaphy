@@ -205,7 +205,7 @@ class BaseModel(object):
 
         for i in range(self.S):
             mats = JC69_p_t(pdm[i])
-            for j in range(i - 1):
+            for j in range(self.S):
                 P = P + torch.log(
                     torch.clamp(torch.matmul(mats[j], self.partials[i]), min=eps)
                 )
@@ -220,7 +220,7 @@ class BaseModel(object):
         likelihood_dist = torch.zeros_like(dists_data)
         for i in range(self.S):
             mats = JC69_p_t(dists_data[i])
-            for j in range(i - 1):
+            for j in range(self.S):
                 P_ij = torch.log(
                     torch.clamp(torch.matmul(mats[j], self.partials[i]), min=eps)
                 )

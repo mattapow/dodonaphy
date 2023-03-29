@@ -221,7 +221,7 @@ def test_nj_implementations():
     _, blens1 = Cpeeler.nj_np_old(pdm)
 
     close01 = np.isclose(sum(blens0), sum(blens1))
-    assert(close01)
+    assert close01
     
 
 def test_compute_Q_dendropy():
