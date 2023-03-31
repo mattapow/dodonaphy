@@ -13,3 +13,5 @@ build
 *.c
 *profile
 tmp_test_io/test_data.csv
+test/tmp_learn.fasta
+tmp.nwk
