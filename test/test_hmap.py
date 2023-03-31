@@ -6,19 +6,24 @@ from dodonaphy.phylo import calculate_pairwise_distance, compress_alignment
 import pytest
 
 
-@pytest.mark.parametrize("model_name,loss_fn,prior,matsumoto", [
-    ("JC69", "likelihood", "None", False),
-    ("JC69", "likelihood", "None", True),
-    ("JC69", "likelihood", "gammadir", False),
-    ("JC69", "pair_likelihood", "None", False),
-    ("JC69", "hypHC", "None", False),
-    ("GTR", "likelihood", "None", False),
-    ("GTR", "likelihood", "None", True),
-    ("GTR", "likelihood", "gammadir", False),
-    ("GTR", "pair_likelihood", "None", False),
-    ("GTR", "hypHC", "None", False),
-])
-def test_learn(model_name, loss_fn, prior, matsumoto):
+@pytest.mark.parametrize(
+    "model_name,loss_fn,prior,matsumoto,use_bito",
+    [
+        ("JC69", "likelihood", "None", False, False),
+        ("JC69", "likelihood", "None", True, False),
+        ("JC69", "likelihood", "gammadir", False, False),
+        ("JC69", "pair_likelihood", "None", False, False),
+        ("JC69", "hypHC", "None", False, False),
+        ("GTR", "likelihood", "None", False, False),
+        ("GTR", "likelihood", "None", True, False),
+        ("GTR", "likelihood", "gammadir", False, False),
+        ("GTR", "pair_likelihood", "None", False, False),
+        ("GTR", "hypHC", "None", False, False),
+        ("JC69", "likelihood", "None", False, True),
+        ("GTR", "likelihood", "None", False, True),
+    ],
+)
+def test_learn(model_name, loss_fn, prior, matsumoto, use_bito):
     n_taxa = 6
     sim_tree = treesim.birth_death_tree(
         birth_rate=1.0, death_rate=0.5, num_extant_tips=n_taxa
@@ -38,20 +43,22 @@ def test_learn(model_name, loss_fn, prior, matsumoto):
         soft_temp=1e-6,
         loss_fn=loss_fn,
         path_write=None,
-        msa_file=msa_file,
         curvature=-1.0,
         prior=prior,
         tip_labels=sim_tree.taxon_namespace.labels(),
         matsumoto=matsumoto,
-        model_name=model_name
+        model_name=model_name,
     )
+    if use_bito:
+        mymod.init_bito(msa_file)
     mymod.learn(epochs=2, learn_rate=0.001, save_locations=False)
 
 
 def test_encode_decode():
-    dna = dendropy.DnaCharacterMatrix.get(path="./test/data/ds1/dna.nex", schema="nexus")
+    dna = dendropy.DnaCharacterMatrix.get(
+        path="./test/data/ds1/dna.nex", schema="nexus"
+    )
     partials, weights = compress_alignment(dna)
-
     dists = calculate_pairwise_distance(dna, adjust="JC69")
     mymod = HMAP(
         partials[:],
@@ -63,7 +70,7 @@ def test_encode_decode():
         path_write=None,
         curvature=-1.0,
         prior="None",
-        tip_labels=None,
+        tip_labels=dna.taxon_namespace.labels(),
         matsumoto=False,
     )
     mymod.learn(epochs=0, learn_rate=0.001, save_locations=False)
@@ -74,7 +81,7 @@ def test_encode_decode():
     log_likelihood_actual = -7130.968
     # Allow a tolerance since hydra+ is approximate
     tolerance = 30
-    log_likelihood = - mymod.loss.item()
+    log_likelihood = -mymod.loss.item()
     assert abs(log_likelihood - log_likelihood_actual) < tolerance
 
 

@@ -243,6 +243,7 @@ def tree_to_newick(name_id, peel, blens, rooted=True):
         nwk = str("(" + chunks[n1] + "," + chunks[n2] + ")" + ";")
     else:
         n3 = peel[parent+1][0]
+        chunks[n3] = id_name[n3] + ":" + str(blens[n3].item())
         nwk = str("(" + chunks[n1] + "," + chunks[n2] + "," + chunks[n3] + ")" + ";")
     return nwk
 

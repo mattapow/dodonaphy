@@ -13,16 +13,20 @@ class PhyloModel():
             return self.name == other
         return self.name == other.name
 
+    @property
+    def freqs(self):
+        freq4 = 1.0 - torch.sum(self._freqs, dim=0, keepdim=True)
+        return torch.cat((self._freqs, freq4))
+
+    @freqs.setter
+    def freqs(self, freqs):
+        self._freqs = freqs[:3]
+
     def init_freqs(self):
         self.freqs = torch.full([4], 0.25, dtype=torch.double)
         self.freqs_prior_dist = torch.distributions.dirichlet.Dirichlet(
             torch.tensor([1.0, 1.0, 1.0, 1.0])
         )
-
-    # TODO: work on Simplex
-    def set_freqs(self, freqs):
-        freq4 = 1.0 - sum(freqs)
-        self.freqs = (freqs, freq4)
 
     def init_sub_rates(self):
         if self == "JC69":

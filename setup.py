@@ -8,10 +8,10 @@ setup(
     name="dodonaphy",
     version="0.0.1",
     packages=find_packages(),
-    url="https://github.com/koadman/dodonaphy",
+    url="https://github.com/mattapow/dodonaphy",
     license="",
-    author="Mathieu Fourment",
-    author_email="mathieu.fourment@uts.edu.au",
+    author="Matthew Macaulay, Aaron Darling, Mathieu Fourment",
+    author_email="matthew.macaulay@uts.edu.au",
     description="Hyperbolic embedding of phylogenies in pytorch",
     install_requires=[
         line.strip()

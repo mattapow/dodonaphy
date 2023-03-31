@@ -4,6 +4,7 @@ import torch
 
 from dodonaphy import Chyp_torch, peeler, tree, utils, Cpeeler, Chyp_np
 from dodonaphy.vi import DodonaphyVI
+from hydraPlus import hydraPlus
 
 
 class Brute(DodonaphyVI):

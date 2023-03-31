@@ -4,6 +4,12 @@ import numpy as np
 import torch
 
 from dodonaphy import tree as treeFunc
+import importlib
+bito_spec = importlib.util.find_spec("bito")
+bito_found = bito_spec is not None
+if bito_found:
+    import bito.phylo_model_mapkeys as model_keys
+
 
 def compress_alignment(alignment, get_namespace=False):
     sequences = [str(sequence) for sequence in alignment.sequences()]
@@ -116,50 +122,23 @@ def calculate_treelikelihood(partials, weights, post_indexing, mats, freqs):
     )
 
 
-def JC69_p_t(branch_lengths):
-    d = torch.unsqueeze(branch_lengths, -1)
-    a = 0.25 + 3.0 / 4.0 * torch.exp(-4.0 / 3.0 * d)
-    b = 0.25 - 0.25 * torch.exp(-4.0 / 3.0 * d)
-    return torch.cat((a, b, b, b, b, a, b, b, b, b, a, b, b, b, b, a), -1).reshape(
-        d.shape[0], d.shape[1], 4, 4
-    )
-
-
-def calculate_treelikelihood_bito(bito_inst, taxa_name_dict, post_indexing, blens, model_specification):
-    # TODO: use OfParentIdVector to avoid saving to file, in this case input a topology
-    # [bito.UnrootedTree.of_parent_id_vector([3, 3, 3])],
-    #     ["mars", "saturn", "jupiter"]
-    # blens[-1] = 1e-15
-    nwk = treeFunc.tree_to_newick(taxa_name_dict, post_indexing, blens, rooted=False)
-    tmp_file = "tmp.nwk"
-    with open(tmp_file, 'w') as f:
-        f.write(nwk)
-    # TODO: delete this file
-    # TODO: avoid making this file
-    # TODO: remove this function (and associated tests as unused)
-
-    bito_inst.read_newick_file(tmp_file)  # read tree
-    bito_inst.prepare_for_phylo_likelihood(model_specification, 1)
-    
-    ll = np.array(bito_inst.log_likelihoods())
-    jac_bito = bito_inst.phylo_gradients()
-    jac = np.array(jac_bito[0].gradient['branch_lengths'])
-    return ll, jac
-
-
 class TreeLikelihood(torch.autograd.Function):
 
     @staticmethod
-    def forward(ctx, blens, bito_inst, taxa_name_dict, post_indexing, model_specification) -> torch.Tensor :
+    def forward(ctx, blens, post_indexing, bito_inst, taxa_name_dict, model_specification, sub_rates,
+                freqs) -> torch.Tensor:
         nwk = treeFunc.tree_to_newick(taxa_name_dict, post_indexing, blens, rooted=False)
-        # use TemporaryFile?
         tmp_file = "tmp.nwk"
         with open(tmp_file, 'w') as f:
             f.write(nwk)
         bito_inst.read_newick_file(tmp_file)
         bito_inst.prepare_for_phylo_likelihood(model_specification, 1)
+        phylo_model_param_block_map = bito_inst.get_phylo_model_param_block_map()
+        phylo_model_param_block_map[model_keys.SUBSTITUTION_MODEL_RATES][:] = sub_rates
+        phylo_model_param_block_map[model_keys.SUBSTITUTION_MODEL_FREQUENCIES][:] = freqs.detach().numpy()
+        print(bito_inst)
+        print(model_specification)
         log_likelihood = torch.from_numpy(np.array(bito_inst.log_likelihoods()))
-        print(log_likelihood)
 
         # compute jacobian in forwards pass. Apparently save_for_backward can only save variables
         jacobian_bito = bito_inst.phylo_gradients()
@@ -169,11 +148,10 @@ class TreeLikelihood(torch.autograd.Function):
         jacobian_blens = jacobian_blens[:-1]
         ctx.save_for_backward(jacobian_blens)
         return log_likelihood
-        
+
     @staticmethod
     def backward(ctx, grad_output):
         jacobian_blens, = ctx.saved_tensors
         print(grad_output)
         print(jacobian_blens)
         return (grad_output * jacobian_blens, None, None, None, None)
-

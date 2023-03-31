@@ -15,6 +15,13 @@ from dodonaphy.phylo import calculate_treelikelihood
 from dodonaphy.utils import LogDirPrior
 from dodonaphy.phylomodel import PhyloModel
 
+import importlib
+
+bito_spec = importlib.util.find_spec("bito")
+bito_found = bito_spec is not None
+if bito_found:
+    import bito
+
 
 class BaseModel(object):
     """Base Model for Inference"""
@@ -81,6 +88,8 @@ class BaseModel(object):
                 )
         if not require_grad:
             self.partials = [partial.detach().numpy() for partial in self.partials]
+        # phylogenetic model
+        self.use_bito = False
         self.phylo_model = PhyloModel(model_name)
 
     @staticmethod
@@ -139,10 +148,15 @@ class BaseModel(object):
                 blens[peel[b][i]] = torch.clamp(hd, min=eps)
 
         return blens
-    
-    def compute_LL_bito(self):
-        return phylo.TreeLikelihood.apply(self.blens, self.bito_inst, self.taxa_name_dict, self.peel, self.model_specification)
 
+    def init_bito(self, msa_file):
+        self.use_bito = True
+        self.bito_inst = bito.unrooted_instance("dodonaphy")
+        self.bito_inst.read_fasta_file(str(msa_file))  # read alignment
+        self.taxa_name_dict = {name: id for (id, name) in enumerate(self.tip_labels)}
+        self.model_specification = bito.PhyloModelSpecification(
+            substitution=self.phylo_model.name, site="constant", clock="strict"
+        )
 
     def compute_LL(self, peel, blen, sub_rates, freqs):
         """Compute likelihood of tree.
@@ -156,15 +170,26 @@ class BaseModel(object):
         Returns:
             [type]: [description]
         """
-        mats = self.phylo_model.get_transition_mats(blen, sub_rates, freqs)
-        return calculate_treelikelihood(
-            self.partials,
-            self.weights,
-            peel,
-            mats,
-            # TODO: This method isn't implemented in this class. Exists in subclasses: hmap, vi, mcmc?
-            self.get_model_freqs(),
-        )
+        if self.use_bito:
+            return phylo.TreeLikelihood.apply(
+                blen,
+                peel,
+                self.bito_inst,
+                self.taxa_name_dict,
+                self.model_specification,
+                sub_rates,
+                freqs
+            )
+        else:
+            mats = self.phylo_model.get_transition_mats(blen, sub_rates, freqs)
+            return calculate_treelikelihood(
+                self.partials,
+                self.weights,
+                peel,
+                mats,
+                # TODO: This method isn't implemented in this class. Exists in subclasses: hmap, vi, mcmc?
+                self.get_model_freqs(),
+            )
 
     def compute_log_a_like(self, pdm, sub_rates, freqs):
         """Compute the log-a-like function of the embedding.
@@ -217,10 +242,8 @@ class BaseModel(object):
         triplets = triplets.long()
         for i in range(n_triplets):
             triplets[i, :] = torch.multinomial(torch.ones((self.S,)), 3)
-            similarities[i, :] = torch.tensor(
-                self.get_similarities(
-                    triplets[i, [0, 0, 1]], triplets[i, [1, 2, 2]], dists_data
-                )
+            similarities[i, :] = self.get_similarities(
+                triplets[i, [0, 0, 1]], triplets[i, [1, 2, 2]], dists_data
             )
 
         triplets = np.array(triplets)

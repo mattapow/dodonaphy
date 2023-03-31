@@ -13,7 +13,6 @@ from dendropy.simulate import treesim
 
 from dodonaphy import utils, cli, tree, Cpeeler
 from dodonaphy.mcmc import DodonaphyMCMC as mcmc
-from dodonaphy.map import MAP
 from dodonaphy.hmap import HMAP
 from dodonaphy.phylo import compress_alignment, calculate_pairwise_distance
 from dodonaphy.vi import DodonaphyVI

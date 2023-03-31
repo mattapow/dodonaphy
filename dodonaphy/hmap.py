@@ -6,12 +6,6 @@ import warnings
 import numpy as np
 import torch
 
-import importlib
-bito_spec = importlib.util.find_spec("bito")
-bito_found = bito_spec is not None
-if bito_found:
-    import bito
-
 from dodonaphy import Chyp_torch, peeler, tree, Cutils
 from hydraPlus import hydraPlus
 from dodonaphy.base_model import BaseModel
@@ -34,7 +28,6 @@ class HMAP(BaseModel):
         soft_temp,
         loss_fn,
         path_write,
-        msa_file,  # needed for bito
         curvature=-1.0,
         prior="None",
         tip_labels=None,
@@ -55,15 +48,30 @@ class HMAP(BaseModel):
             tip_labels=tip_labels,
             model_name=model_name,
         )
+        self.path_write = path_write
+        self.normalise_leaves = normalise_leaves
+        self.init_embedding_params(dists)
+        self.init_model_params()
+        self.current_epoch = 0
+        self.prior = prior
+        self.ln_p = self.compute_ln_likelihood()
+        self.ln_prior = self.compute_ln_prior()
+        self.matsumoto = matsumoto
+        self.loss = torch.zeros(1)
+        self.peel = peel
+
+    def init_embedding_params(self, dists):
         # embed distances with hydra+
-        hp_obj = hydraPlus.HydraPlus(dists, dim=self.D, curvature=curvature)
+        hp_obj = hydraPlus.HydraPlus(dists, dim=self.D, curvature=np.array(self.curvature))
         emm_tips = hp_obj.embed(equi_adj=0.0, alpha=1.1)
         print("Embedding Strain (tips only) = {:.4}".format(emm_tips["stress_hydra"]))
         print(
             "Embedding Stress (tips only) = {:.4}".format(emm_tips["stress_hydraPlus"])
         )
+        self.log(f"Embedding Strain (tips only) = {emm_tips['stress_hydra']}\n")
+        self.log(f"Embedding Stress (tips only) = {emm_tips['stress_hydraPlus']}\n")
         # set locations as parameters to optimise
-        if normalise_leaves:
+        if self.normalise_leaves:
             radius = np.mean(np.linalg.norm(emm_tips["X"], axis=1))
             directionals = Cutils.normalise_np(emm_tips["X"])
             self.params = {
@@ -76,30 +84,14 @@ class HMAP(BaseModel):
                     emm_tips["X"], requires_grad=True, dtype=torch.float64
                 ),
             }
-        # bito parameters
-        self.bito_inst = bito.unrooted_instance("dodonaphy")
-        self.bito_inst.read_fasta_file(str(msa_file))  # read alignment
-        self.taxa_name_dict = {name: id for (id, name) in enumerate(tip_labels)}
-        # TODO: only JC69 model for now. Will need to also change optimiser's params.
-        self.model_specification = bito.PhyloModelSpecification(substitution="JC69", site="constant", clock="strict")
-        # dodonaphy parameters
-        # # set evolutionary model parameters to optimise
-        # if not self.phylo_model.fix_sub_rates:
-        #     self.params["sub_rates"] = self.phylo_model.sub_rates.clone().detach().requires_grad_(True)
-        # if not self.phylo_model.fix_freqs:
-        #     # TODO: work on Simplex
-        #     self.params["freqs"] = self.phylo_model.freqs.clone().detach().requires_grad_(True)
-        self.normalise_leaves = normalise_leaves
-        self.ln_p = self.compute_ln_likelihood()
-        self.current_epoch = 0
-        self.prior = prior
-        self.ln_prior = self.compute_ln_prior()
-        self.matsumoto = matsumoto
-        self.loss = torch.zeros(1)
-        self.peel = peel
-        self.path_write = path_write
-        self.log(f"Embedding Strain (tips only) = {emm_tips['stress_hydra']}\n")
-        self.log(f"Embedding Stress (tips only) = {emm_tips['stress_hydraPlus']}\n")
+
+    def init_model_params(self):
+        # set evolutionary model parameters to optimise
+        if not self.phylo_model.fix_sub_rates:
+            self.params["sub_rates"] = self.phylo_model.sub_rates.clone().detach().requires_grad_(True)
+        if not self.phylo_model.fix_freqs:
+            freqs_simplex = self.phylo_model.freqs[:-1]
+            self.params["freqs"] = freqs_simplex.clone().detach().requires_grad_(True)
 
     def log(self, message):
         if self.path_write is not None:
@@ -282,8 +274,7 @@ class HMAP(BaseModel):
         """Compute likelihood of current tree, reducing soft_temp as required."""
         if self.loss_fn == "likelihood":
             self.peel, self.blens = self.connect()
-            self.ln_p = self.compute_LL_bito()
-            # self.ln_p = self.compute_LL(self.peel, self.blens, self.get_model_sub_rates(), self.get_model_freqs())
+            self.ln_p = self.compute_LL(self.peel, self.blens, self.get_model_sub_rates(), self.get_model_freqs())
             loss = self.ln_p
         elif self.loss_fn == "pair_likelihood":
             self.peel, self.blens, pdm = self.connect(get_pdm=True)
@@ -302,7 +293,10 @@ class HMAP(BaseModel):
             return self.phylo_model.freqs
         else:
             # freqs is a parameter to be optimised
-            return self.params["freqs"]
+            freq4 = 1.0 - torch.sum(self.params["freqs"], dim=0, keepdim=True)
+            print(torch.cat((self.params["freqs"], freq4)))
+            print(sum(torch.cat((self.params["freqs"], freq4))))
+            return torch.cat((self.params["freqs"], freq4))
 
     def get_model_sub_rates(self):
         if self.phylo_model.fix_sub_rates:
