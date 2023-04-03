@@ -1,6 +1,7 @@
 import dendropy
 import numpy as np
 import torch
+import pytest
 from dendropy.model.discrete import simulate_discrete_chars
 from dendropy.simulate import treesim
 from dodonaphy import (
@@ -433,11 +434,28 @@ def test_soft_sort_2d():
     assert torch.allclose(sum(row2_argmax), torch.ones(1))
 
 
-def test_soft_argmin_one_hot():
-    input_arr_2d = torch.tensor(([4, 5, 10], [3, 4, 2.3], [20, 2, 8]))
-    one_hot_i, one_hot_j = peeler.soft_argmin_one_hot(input_arr_2d, tau=1e-4)
-    assert torch.allclose(one_hot_i, torch.tensor([0.0, 0.0, 1.0])), "wrong i index"
-    assert torch.allclose(one_hot_j, torch.tensor([0.0, 1.0, 0.0])), "wrong j index"
+def test_soft_sort():
+    s = torch.tensor([3, 2, 1], dtype=torch.double).unsqueeze(dim=0).unsqueeze(dim=-1)
+    tau = 0.5
+    expected = torch.tensor([2.8509, 2.0000, 1.1491], dtype=torch.double)
+    permute = peeler.soft_sort(s, tau)
+    calculated = permute @ s
+    assert torch.allclose(calculated.squeeze(), expected, rtol=1e-4)
+
+
+@pytest.mark.parametrize("a_2d, tau, expected_i, expected_j", [
+    (torch.tensor([[0.4, 0.2, 0.9], [0.1, 0.8, 0.6], [0.7, 0.5, 0.3]], dtype=torch.float64), 0.01,
+     torch.tensor([0, 1, 0], dtype=torch.float64), torch.tensor([1, 0, 0], dtype=torch.float64)),
+    (torch.tensor([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]], dtype=torch.float64), 0.01,
+     torch.tensor([1, 0, 0], dtype=torch.float64), torch.tensor([1, 0], dtype=torch.float64)),
+    (torch.tensor([[2.0, 3.0], [1.0, 4.0], [3.0, 2.0]], dtype=torch.float64), 0.01,
+     torch.tensor([0, 1, 0], dtype=torch.float64), torch.tensor([1, 0], dtype=torch.float64))
+])
+def test_soft_argmin_one_hot(a_2d, tau, expected_i, expected_j):
+    i, j = peeler.soft_argmin_one_hot(a_2d, tau)
+    print(i)
+    print(j)
+    assert torch.allclose(i, expected_i) and torch.allclose(j, expected_j)
 
 
 def test_geodesic():
