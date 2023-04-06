@@ -80,24 +80,34 @@ def run(args):
         )
 
     elif args.infer == "vi":
-        DodonaphyVI.run(
-            args.dim,
+        mymod = DodonaphyVI(
             partials[:],
             weights,
-            dists,
-            path_write,
+            args.dim,
+            embedder=args.embed,
+            connector=args.connector,
+            soft_temp=args.temp,
+            curvature=args.curv,
+            tip_labels=tip_labels,
+            n_boosts=args.boosts,
+            start=args.start,
+            model_name=args.model_name,
+        )
+
+        # initialise embedding parameters
+        mymod.embed_tree_distribtution(dists)
+
+        if args.use_bito:
+            msa_file = os.path.join(root_dir, args.path_dna)
+            msa_file = os.path.abspath(msa_file)
+            mymod.init_bito(msa_file, peel)
+
+        mymod.learn(
+            path_write=path_write,
             epochs=args.epochs,
             importance_samples=args.importance,
             n_draws=args.draws,
             lr=args.learn,
-            embedder=args.embed,
-            connector=args.connect,
-            curvature=args.curv,
-            soft_temp=args.temp,
-            tip_labels=tip_labels,
-            n_boosts=args.boosts,
-            start=args.start,
-            model_name=args.model,
         )
 
     elif args.infer == "hmap":

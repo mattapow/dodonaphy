@@ -246,18 +246,20 @@ class DodonaphyVI(BaseModel):
         importance_samples=1,
         path_write="./out",
         lr=1e-3,
+        n_draws=100,
     ):
         """Learn the variational parameters using Adam optimiser
         Args:
-            param_init (dict): Initial parameters. With "leaf_mu" (location)
-            and "leaf_sigma" (log covariance). Similar for "int_*" (optional).
             epochs (int, optional): Number of epochs. Defaults to 1000.
             importance_samples (int, optional): Number of tree samples at each
-            epoch. Defaults to 1.
+            path_write (str): to save output
+            lr (float): learning rate for Adam
+            n_draws(int): number of samples from final variational distribution
         """
         print(f"Using {importance_samples} tree samples at each epoch.")
         print(f"Using {self.n_boosts} variational distributions for boosting.")
         print(f"Running for {epochs} epochs.\n")
+        start_time = time.time()
 
         if path_write is not None:
             self.log_run_start(path_write, epochs, importance_samples, lr)
@@ -544,84 +546,19 @@ class DodonaphyVI(BaseModel):
         plt.legend()
         plt.savefig(path_write + "/elbo_trace.png")
 
-    @staticmethod
-    def run(
-        dim,
-        partials,
-        weights,
-        dists_data,
-        path_write,
-        epochs=1000,
-        n_boosts=1,
-        importance_samples=1,
-        n_draws=100,
-        embedder="wrap",
-        lr=1e-3,
-        curvature=-1.0,
-        connector="nj",
-        soft_temp=None,
-        tip_labels=None,
-        start="",
-        model_name="JC69",
-    ):
-        """Initialise and run Dodonaphy's variational inference
-
-        Initialise the emebedding with tips distances given to hydra+.
-        Internal nodes are in distributions at origin.
-
-        """
-        print("\nRunning Dodonaphy Variational Inference.")
-        print("Using %s embedding with %s connections" % (embedder, connector))
-
-        # Initialise model
-        start_time = time.time()
-        mymod = DodonaphyVI(
-            partials,
-            weights,
-            dim,
-            embedder=embedder,
-            connector=connector,
-            soft_temp=soft_temp,
-            curvature=curvature,
-            tip_labels=tip_labels,
-            n_boosts=n_boosts,
-            start=start,
-            model_name=model_name,
-        )
-        param_init = mymod.hydra_init(
-            dists_data,
-            dim,
-            curvature,
-            internals_exist=mymod.internals_exist,
-            cv=0.01,
-            cv_base="closest",
-        )
-
-        # learn
-        mymod.learn(
-            param_init=param_init,
-            epochs=epochs,
-            importance_samples=importance_samples,
-            path_write=path_write,
-            lr=lr,
-        )
-
-        # draw samples (one-by-one) and save them
-        if path_write is not None:
-            tree.save_tree_head(path_write, "samples", mymod.tip_labels)
-            for i in range(n_draws):
-                peels, blens, _, lp = mymod.draw_sample(1, lp=True)
-                ln_prior = mymod.compute_prior_gamma_dir(blens[0])
-                tree.save_tree(
-                    path_write,
-                    "samples",
-                    peels[0],
-                    blens[0],
-                    i,
-                    lp[0].item(),
-                    ln_prior.item(),
-                )
-        mymod.save_final_info(path_write, time.time() - start_time)
+    def embed_tree_distribtution(self, dists=None):
+        if dists is None:
+            self.set_variationalParams_random()
+        else:
+            param_init = self.hydra_init(
+                dists,
+                self.dim,
+                self.curvature,
+                internals_exist=self.internals_exist,
+                cv=0.01,
+                cv_base="closest",
+            )
+            self.set_variationalParams(param_init)
 
     def save(self, fn):
         with open(fn, "w", encoding="UTF-8") as f:
