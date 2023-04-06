@@ -1,4 +1,5 @@
 "Base model for MCMC and VI inference"
+import os
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
@@ -24,10 +25,11 @@ if bito_found:
 
 
 class BaseModel(object):
-    """Base Model for Inference"""
+    """Base Model for Inference of trees on the Hyperboloid."""
 
     def __init__(
         self,
+        inference_name,
         partials,
         weights,
         dim,
@@ -42,6 +44,7 @@ class BaseModel(object):
         tip_labels=None,
         model_name="JC69",
     ):
+        self.inference_name = inference_name
         self.partials = partials.copy()
         self.weights = weights
         self.S = len(self.partials)
@@ -150,6 +153,12 @@ class BaseModel(object):
         return blens
 
     def init_bito(self, msa_file):
+    def log(self, message):
+        if self.path_write is not None:
+            file_name = os.path.join(self.path_write, f"{self.inference_name}.log")
+            with open(file_name, "a", encoding="UTF-8") as file:
+                file.write(message)
+
         self.use_bito = True
         self.bito_inst = bito.unrooted_instance("dodonaphy")
         self.bito_inst.read_fasta_file(str(msa_file))  # read alignment

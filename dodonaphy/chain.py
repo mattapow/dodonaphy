@@ -48,6 +48,7 @@ class Chain(BaseModel):
         prior="normal",
     ):
         super().__init__(
+            "mcmc",
             partials,
             weights,
             dim,

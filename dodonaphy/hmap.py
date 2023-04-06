@@ -38,6 +38,7 @@ class HMAP(BaseModel):
         model_name="JC69"
     ):
         super().__init__(
+            "hmap",
             partials,
             weights,
             dim=dim,
@@ -92,12 +93,6 @@ class HMAP(BaseModel):
         if not self.phylo_model.fix_freqs:
             freqs_simplex = self.phylo_model.freqs[:-1]
             self.params["freqs"] = freqs_simplex.clone().detach().requires_grad_(True)
-
-    def log(self, message):
-        if self.path_write is not None:
-            file_name = os.path.join(self.path_write, "hmap.log")
-            with open(file_name, "a", encoding="UTF-8") as file:
-                file.write(message)
 
     def learn(self, epochs, learn_rate, save_locations, start=""):
         """Optimise params["dists"].

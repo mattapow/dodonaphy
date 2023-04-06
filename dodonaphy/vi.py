@@ -32,6 +32,7 @@ class DodonaphyVI(BaseModel):
         model_name="JC69",
     ):
         super().__init__(
+            "vi",
             partials,
             weights,
             dim,
@@ -259,33 +260,8 @@ class DodonaphyVI(BaseModel):
         print(f"Running for {epochs} epochs.\n")
 
         if path_write is not None:
-            fn = path_write + "/" + "vi.log"
-            with open(fn, "w", encoding="UTF-8") as file:
-                file.write("%-12s: %i\n" % ("# epochs", epochs))
-                file.write("%-12s: %s\n" % ("prior", "Gamma Dirichlet"))
-                file.write("%-12s: %i\n" % ("Importance", importance_samples))
-                file.write("%-12s: %i\n" % ("# mixtures", self.n_boosts))
-                file.write("%-12s: %i\n" % ("Curvature", self.curvature))
-                file.write("%-12s: %i\n" % ("Matsumoto", self.matsumoto))
-                file.write("%-12s: %f\n" % ("Soft temp", self.soft_temp))
-                file.write(
-                    "%-12s: %f\n" % ("Log10 Soft temp", np.log10(self.soft_temp))
-                )
-                file.write("%s: %i\n" % ("Normalise Leaf", self.normalise_leaf))
-                file.write("%-12s: %i\n" % ("Dimensions", self.D))
-                file.write("%-12s: %i\n" % ("# Taxa", self.S))
-                file.write("%-12s: %i\n" % ("Patterns", self.L))
-                file.write("%-12s: %f\n" % ("Learn Rate", lr))
-                file.write("%-12s: %s\n" % ("Embed Mthd", self.embedder))
-                file.write("%-12s: %s\n" % ("Connect Mthd", self.connector))
-                file.write("%-12s: %s\n" % ("Start Tree", self.start))
-
-            vi_path = os.path.join(path_write, "vi_params")
-            os.mkdir(vi_path)
-            fn = os.path.join(vi_path, "start.csv")
-            self.save(fn)
-
-            elbo_fn = os.path.join(path_write, "elbo.txt")
+            self.log_run_start(path_write, epochs, importance_samples, lr)
+            self.elbo_fn = os.path.join(path_write, "elbo.txt")
 
         def lr_lambda(epoch):
             return 1.0 / np.sqrt(epoch + 1)
@@ -313,8 +289,7 @@ class DodonaphyVI(BaseModel):
             hist_dat.append(elbo_hist[-1])
 
             if path_write is not None:
-                with open(elbo_fn, "a", encoding="UTF-8") as f:
-                    f.write("%f\n" % elbo_hist[-1])
+                self.log_elbo(elbo_hist[-1])
                 fn = os.path.join(path_write, "vi_params", "latest.csv")
                 self.save(fn)
                 fn = os.path.join(path_write, "vi_params", f"iteration_{epoch+1}.txt")
@@ -326,11 +301,58 @@ class DodonaphyVI(BaseModel):
 
         if path_write is not None:
             with torch.no_grad():
+                # log the final elbo/siwae estimate
                 final_elbo = self.elbo_siwae(100).item()
             print("Final ELBO: {}".format(final_elbo))
             fn = os.path.join(path_write, "vi.log")
-            with open(fn, "a", encoding="UTF-8") as file:
-                file.write("%-12s: %i\n" % ("Final ELBO (100 samples)", final_elbo))
+            self.log("%-12s: %i\n" % ("Final ELBO (100 samples)", final_elbo))
+
+            # draw samples (one-by-one) and save them
+            # TODO: combine the previous and these samples. only compute once
+            tree.save_tree_head(path_write, "samples", self.tip_labels)
+            for i in range(n_draws):
+                peels, blens, _, ln_like = self.draw_sample(1, lp=True)
+                ln_prior = self.compute_prior_gamma_dir(blens[0])
+                tree.save_tree(
+                    path_write,
+                    "samples",
+                    peels[0],
+                    blens[0],
+                    i,
+                    ln_like[0].item(),
+                    ln_prior.item(),
+                )
+            self.save_final_info(path_write, time.time() - start_time)
+
+    def log_run_start(self, path_write, epochs, importance_samples, lr):
+        fn = path_write + "/" + "vi.log"
+        self.log("%-12s: %i\n" % ("# epochs", epochs))
+        self.log("%-12s: %s\n" % ("prior", "Gamma Dirichlet"))
+        self.log("%-12s: %i\n" % ("Importance", importance_samples))
+        self.log("%-12s: %i\n" % ("# mixtures", self.n_boosts))
+        self.log("%-12s: %i\n" % ("Curvature", self.curvature))
+        self.log("%-12s: %i\n" % ("Matsumoto", self.matsumoto))
+        self.log("%-12s: %f\n" % ("Soft temp", self.soft_temp))
+        self.log(
+            "%-12s: %f\n" % ("Log10 Soft temp", np.log10(self.soft_temp))
+        )
+        self.log("%s: %i\n" % ("Normalise Leaf", self.normalise_leaf))
+        self.log("%-12s: %i\n" % ("Dimensions", self.D))
+        self.log("%-12s: %i\n" % ("# Taxa", self.S))
+        self.log("%-12s: %i\n" % ("Patterns", self.L))
+        self.log("%-12s: %f\n" % ("Learn Rate", lr))
+        self.log("%-12s: %s\n" % ("Embed Mthd", self.embedder))
+        self.log("%-12s: %s\n" % ("Connect Mthd", self.connector))
+        self.log("%-12s: %s\n" % ("Start Tree", self.start))
+
+        vi_path = os.path.join(path_write, "vi_params")
+        os.mkdir(vi_path)
+        fn = os.path.join(vi_path, "start.csv")
+        self.save(fn)
+
+    def log_elbo(self, elbo_value):
+        with open(self.elbo_fn, "a", encoding="UTF-8") as f:
+            f.write("%f\n" % elbo_value)
 
     def elbo_siwae(self, importance=1):
         """Compute the ELBO.
