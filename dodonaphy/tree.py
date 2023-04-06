@@ -86,24 +86,26 @@ def dendropy_to_pb(tree):
     # make dict of all nodes
     taxon_names = tree.taxon_namespace.labels()
     name_dict = {name: id for id, name in enumerate(taxon_names)}
+    # a copy with internal node names
+    name_dict_all = {name: id for id, name in enumerate(taxon_names)}
     for i, nd in enumerate(tree.postorder_internal_node_iter()):
         nd.taxon = taxon(f"internal{i}")
-        name_dict[nd.taxon.label] = n_taxa + i
-    name_dict["root"] = n_edges
+        name_dict_all[nd.taxon.label] = n_taxa + i
+    name_dict_all["root"] = n_edges
 
-    # Get peel
+    # Get postorder node iterater
     nds = [nd for nd in tree.postorder_internal_node_iter()]
-    n_int_nds = len(nds)
-    peel = np.zeros((n_int_nds+1, 3), dtype=int)
+    n_int_nds = len(nds) + 1
+    peel = np.zeros((n_int_nds, 3), dtype=int)
     for i, nd in enumerate(nds):
         try:
             c0, c1 = nd.child_nodes()
         except ValueError:
             c0, c1, c2 = nd.child_nodes()
-        
-        chld0 = name_dict[c0.taxon.label]
-        chld1 = name_dict[c1.taxon.label]
-        parent = name_dict[nd.taxon.label]
+
+        chld0 = name_dict_all[c0.taxon.label]
+        chld1 = name_dict_all[c1.taxon.label]
+        parent = name_dict_all[nd.taxon.label]
         peel[i, 0] = chld0
         peel[i, 1] = chld1
         peel[i, 2] = parent
@@ -111,10 +113,10 @@ def dendropy_to_pb(tree):
         blens[chld1] = c1.edge_length
 
     # add fake root above last parent and remaining taxon
-    chld2 = name_dict[c2.taxon.label]
+    chld2 = name_dict_all[c2.taxon.label]
     peel[i+1, 0] = chld2
     peel[i+1, 1] = parent
-    peel[i+1, 2] = name_dict["root"]
+    peel[i+1, 2] = name_dict_all["root"]
     blens[chld2] = c2.edge_length
     return peel, blens, name_dict
 
