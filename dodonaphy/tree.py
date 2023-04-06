@@ -210,6 +210,8 @@ def tree_to_newick(name_id, peel, blens, rooted=True):
         Newick String: A Tree
     """
     assert type(name_id) is dict
+    if len(peel) == 0:
+        return ";"
     # Swap dict from name: id to id: name
     id_name = {value: key for key, value in name_id.items()}
 

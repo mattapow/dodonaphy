@@ -7,6 +7,16 @@ from dodonaphy import tree as treeFunc
 
 
 def test_dendropy_to_pb_simple():
+
+def test_tree_to_newick_empty():
+    # Empty tree
+    name_id = {}
+    peel = []
+    blens = torch.Tensor([])
+    rooted = True
+    expected = ';'
+    assert treeFunc.tree_to_newick(name_id, peel, blens, rooted) == expected
+
     data = "(bird:6.000000e-02,((chimp:5.000000e-02,dog:2.000000e-02):17.000000e-02,\
         (crocodile:4.000000e-02,emu:3.000000e-02):18.000000e-02):19.000000e-02,kangaroo:1.000000e-02);"
     dendo_tree = Tree.get(data=data, schema="newick")
