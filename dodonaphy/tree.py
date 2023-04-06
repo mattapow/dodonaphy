@@ -224,31 +224,21 @@ def tree_to_newick(name_id, peel, blens, rooted=True):
 
     chunks = {}
     for parent in range(n_parents):
-        n1 = peel[parent][0]
-        n2 = peel[parent][1]
-        n3 = peel[parent][2]
+        n1, n2, n3 = peel[parent]
+
         if n1 < n_tips:
-            chunks[n1] = id_name[n1] + ":" + str(blens[n1].item())
+            chunks[n1] = f"{id_name[n1]}:{blens[n1]:.16f}"
         if n2 < n_tips:
-            chunks[n2] = id_name[n2] + ":" + str(blens[n2].item())
+            chunks[n2] = f"{id_name[n2]}:{blens[n2]:.16f}"
         # append this bifurcation using a colon :
-        chunks[n3] = (
-            "("
-            + chunks[n1]
-            + ","
-            + chunks[n2]
-            + ")"
-            + ":"
-            + str(blens[n3].item())
-        )
-    
+        chunks[n3] = f"({chunks[n1]},{chunks[n2]}):{blens[n3]:.16f}"
+
     if rooted:
-        # for the last chunck, close with a semicolon instead of a colon.
-        nwk = str("(" + chunks[n1] + "," + chunks[n2] + ")" + ";")
+        nwk = f"({chunks[n1]},{chunks[n2]});"
     else:
         n3 = peel[parent+1][0]
         chunks[n3] = id_name[n3] + ":" + str(blens[n3].item())
-        nwk = str("(" + chunks[n1] + "," + chunks[n2] + "," + chunks[n3] + ")" + ";")
+        nwk = f"({chunks[n1]},{chunks[n2]},{chunks[n3]};"
     return nwk
 
 

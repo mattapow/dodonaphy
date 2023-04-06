@@ -6,7 +6,7 @@ import torch
 from dodonaphy import tree as treeFunc
 
 
-def test_dendropy_to_pb_simple():
+# def test_dendropy_to_pb_simple():
 
 def test_tree_to_newick_empty():
     # Empty tree
