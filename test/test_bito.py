@@ -7,8 +7,8 @@ import pytest
 import torch
 
 from dodonaphy import Cphylo, phylo
+from dodonaphy.phylomodel import PhyloModel
 from dodonaphy import tree as treeFunc
-from dodonaphy.hmap import HMAP
 
 
 def test_compute_likelihood_bito_file():
@@ -27,6 +27,8 @@ def test_compute_likelihood_bito_file():
     n_blen = 27 * 2 - 3
     n_blen_fake = 2
     assert len(blens_jacobian) == n_blen + n_blen_fake
+    # comparing to value from first run
+    assert np.allclose(ll, -7130.96813417)
 
 
 def test_compute_likelihood_bito_file_gtr():
@@ -79,7 +81,7 @@ def get_log_likelihood_dodonaphy(msa_file_nex, tree_file):
     L = partials[0].shape[1]
     for _ in range(27 - 1):
         partials.append(torch.zeros((1, 4, L), dtype=torch.float64))
-    mats = phylo.JC69_p_t(blens)
+    mats = PhyloModel.JC69_p_t(blens)
     freqs_np = np.full([4], 0.25)
     partials_np = [partial.detach().numpy() for partial in partials]
     weights_np = weights.detach().numpy()
@@ -90,7 +92,8 @@ def get_log_likelihood_dodonaphy(msa_file_nex, tree_file):
     return dodo_log_likelihood
 
 
-def test_compute_LL_bito_forward():
+@pytest.mark.parametrize("torch_mode", ["forward", "backward"])
+def test_compute_LL_bito_JC69(torch_mode):
     # read tree into dendropy
     tree_file = "./test/data/ds1/dna.nj.newick"
     tree = dendropy.Tree.get(path=tree_file, schema="newick", preserve_underscores=True)
@@ -105,36 +108,36 @@ def test_compute_LL_bito_forward():
     model_specification = bito.PhyloModelSpecification(
         substitution="JC69", site="constant", clock="strict"
     )
-    # compute likelihood with bito
-    bito_log_likelihood = phylo.TreeLikelihood.apply(blens, peel, bito_inst, name_id, model_specification)
+    sub_rates = torch.full((6,), 1./6.)
+    freqs = torch.full((4,), 1./4.)
+    # need to load trees into inst before prepare_for_phylo_likelihood
+    # just read in the original tree even though we'll use the peel and blens
+    bito_inst.read_newick_file(tree_file)
+    bito_inst.prepare_for_phylo_likelihood(model_specification, 1)
 
-    # compare to calculation without bito
-    msa_file_nex = "./test/data/ds1/dna.nex"
-    dodo_log_likelihood = get_log_likelihood_dodonaphy(msa_file_nex, tree_file)
-    assert dodo_log_likelihood == pytest.approx(bito_log_likelihood)
+    if torch_mode == "forward":
+        # compute likelihood with bito
+        bito_log_likelihood = phylo.TreeLikelihood.apply(
+            blens, peel, bito_inst, sub_rates, freqs
+        )
+        # compare to calculation without bito
+        msa_file_nex = "./test/data/ds1/dna.nex"
+        dodo_log_likelihood = get_log_likelihood_dodonaphy(msa_file_nex, tree_file)
+        assert dodo_log_likelihood == pytest.approx(bito_log_likelihood.item())
+    elif torch_mode == "backward":
+        # initialise optimisation object
+        params = {"blens": blens.clone().detach().requires_grad_()}
+        optimizer = torch.optim.Adam(params=list(params.values()), lr=0.01)
+        # optimse the branch lengths
+        optimizer.zero_grad()
+        loss = phylo.TreeLikelihood.apply(
+            params["blens"], peel, bito_inst, sub_rates, freqs
+        )
+        loss.backward()
+        optimizer.step()
 
 
-def test_compute_LL_bito_backward():
-    # read tree into dendropy
-    tree_file = "./test/data/ds1/dna.nj.newick"
-    tree = dendropy.Tree.get(path=tree_file, schema="newick", preserve_underscores=True)
-    # convert into dodonaphy (peel, blens)
-    peel, blens, name_id = treeFunc.dendropy_to_pb(tree)
-
-    bito_inst = bito.unrooted_instance("testing")
-    # read msa
-    msa_file = "./test/data/ds1/dna.fasta"
-    bito_inst.read_fasta_file(msa_file)
-    # specify model
-    model_specification = bito.PhyloModelSpecification(
-        substitution="JC69", site="constant", clock="strict"
-    )
-
-    # initialise optimisation object
-    params = {"blens": blens.clone().detach().requires_grad_()}
-    optimizer = torch.optim.Adam(params=list(params.values()), lr=0.01)
-    # optimse the branch lengths
-    optimizer.zero_grad()
-    loss = phylo.TreeLikelihood.apply(params["blens"], peel, bito_inst, name_id, model_specification)
-    loss.backward()
-    optimizer.step()
+@pytest.mark.parametrize("torch_mode", ["forward", "backward"])
+def test_compute_LL_bito_GTR(torch_mode):
+    # TODO:
+    raise NotImplementedError

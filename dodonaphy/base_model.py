@@ -152,13 +152,13 @@ class BaseModel(object):
 
         return blens
 
-    def init_bito(self, msa_file):
     def log(self, message):
         if self.path_write is not None:
             file_name = os.path.join(self.path_write, f"{self.inference_name}.log")
             with open(file_name, "a", encoding="UTF-8") as file:
                 file.write(message)
 
+    def init_bito(self, msa_file, peel):
         self.use_bito = True
         self.bito_inst = bito.unrooted_instance("dodonaphy")
         self.bito_inst.read_fasta_file(str(msa_file))  # read alignment
@@ -166,9 +166,15 @@ class BaseModel(object):
         self.model_specification = bito.PhyloModelSpecification(
             substitution=self.phylo_model.name, site="constant", clock="strict"
         )
+        parent_id = phylo.get_parent_id_vector(peel, rooted=False)
+        tree = bito.UnrootedTree.of_parent_id_vector(parent_id)
+        self.bito_inst.tree_collection = bito.UnrootedTreeCollection([tree])
+        self.bito_inst.prepare_for_phylo_likelihood(self.model_specification, 1)
 
     def compute_LL(self, peel, blen, sub_rates, freqs):
         """Compute likelihood of tree.
+        Note that it will use the passed subsitution rates and frequencies even
+        if self has these properties.
 
         Args:
             peel ([type]): [description]
@@ -184,10 +190,8 @@ class BaseModel(object):
                 blen,
                 peel,
                 self.bito_inst,
-                self.taxa_name_dict,
-                self.model_specification,
                 sub_rates,
-                freqs
+                freqs,
             )
         else:
             mats = self.phylo_model.get_transition_mats(blen, sub_rates, freqs)
@@ -196,8 +200,7 @@ class BaseModel(object):
                 self.weights,
                 peel,
                 mats,
-                # TODO: This method isn't implemented in this class. Exists in subclasses: hmap, vi, mcmc?
-                self.get_model_freqs(),
+                freqs,
             )
 
     def compute_log_a_like(self, pdm, sub_rates, freqs):

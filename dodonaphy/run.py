@@ -121,6 +121,8 @@ def run(args):
             normalise_leaves=args.normalise_leaves,
             model_name=args.model,
         )
+        if args.use_bito:
+            mymod.init_bito(msa_file, peel)
         mymod.learn(
             epochs=args.epochs,
             learn_rate=args.learn,

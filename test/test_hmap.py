@@ -24,7 +24,7 @@ import pytest
     ],
 )
 def test_learn(model_name, loss_fn, prior, matsumoto, use_bito):
-    n_taxa = 6
+    n_taxa = 8
     sim_tree = treesim.birth_death_tree(
         birth_rate=1.0, death_rate=0.5, num_extant_tips=n_taxa
     )
@@ -35,7 +35,7 @@ def test_learn(model_name, loss_fn, prior, matsumoto, use_bito):
     dna.write(path=msa_file, schema="fasta")
     partials, weights = compress_alignment(dna)
     dists = calculate_pairwise_distance(dna)
-    mymod = HMAP(
+    hmap_inst = HMAP(
         partials[:],
         weights,
         dim=3,
@@ -50,8 +50,9 @@ def test_learn(model_name, loss_fn, prior, matsumoto, use_bito):
         model_name=model_name,
     )
     if use_bito:
-        mymod.init_bito(msa_file)
-    mymod.learn(epochs=2, learn_rate=0.001, save_locations=False)
+        peel, _ = hmap_inst.connect()
+        hmap_inst.init_bito(msa_file, peel)
+    hmap_inst.learn(epochs=2, learn_rate=0.001, save_locations=False)
 
 
 def test_encode_decode():
@@ -60,7 +61,7 @@ def test_encode_decode():
     )
     partials, weights = compress_alignment(dna)
     dists = calculate_pairwise_distance(dna, adjust="JC69")
-    mymod = HMAP(
+    hmap_inst = HMAP(
         partials[:],
         weights,
         dim=20,
@@ -73,7 +74,7 @@ def test_encode_decode():
         tip_labels=dna.taxon_namespace.labels(),
         matsumoto=False,
     )
-    mymod.learn(epochs=0, learn_rate=0.001, save_locations=False)
+    hmap_inst.learn(epochs=0, learn_rate=0.001, save_locations=False)
 
     # NJ tree from decenttree.
     # Then get the likelihood by loading into iq-tree and seeing the initial state.
@@ -81,7 +82,7 @@ def test_encode_decode():
     log_likelihood_actual = -7130.968
     # Allow a tolerance since hydra+ is approximate
     tolerance = 30
-    log_likelihood = -mymod.loss.item()
+    log_likelihood = -hmap_inst.loss.item()
     assert abs(log_likelihood - log_likelihood_actual) < tolerance
 
 
@@ -96,7 +97,7 @@ def test_laplace():
     )
     partials, weights = compress_alignment(dna)
     dists = calculate_pairwise_distance(dna)
-    mymod = HMAP(
+    hmap_inst = HMAP(
         partials[:],
         weights,
         dim=3,
@@ -109,5 +110,5 @@ def test_laplace():
         tip_labels=None,
         matsumoto=False,
     )
-    mymod.learn(epochs=5, learn_rate=0.001, save_locations=False)
-    mymod.laplace(n_samples=2)
+    hmap_inst.learn(epochs=5, learn_rate=0.001, save_locations=False)
+    hmap_inst.laplace(n_samples=2)

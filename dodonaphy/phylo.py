@@ -1,14 +1,14 @@
+import importlib
 from collections import Counter
 
 import numpy as np
 import torch
 
-from dodonaphy import tree as treeFunc
-import importlib
 bito_spec = importlib.util.find_spec("bito")
 bito_found = bito_spec is not None
 if bito_found:
     import bito.phylo_model_mapkeys as model_keys
+    import bito
 
 
 def compress_alignment(alignment, get_namespace=False):
@@ -122,36 +122,84 @@ def calculate_treelikelihood(partials, weights, post_indexing, mats, freqs):
     )
 
 
+def get_parent_id_vector(peel, rooted=False):
+    """Generate vector of parent id of each node in peel.
+
+    Args:
+        peel (array): A [n-1 * 3] array where each row is [child0, child1, parent]
+
+    Returns:
+        array: The parent id of each node in the tree.
+    """
+    n_nodes = len(peel) * 2
+    if not rooted:
+        n_nodes -= 1
+
+    parent_id_vector = [0] * n_nodes
+    parent_child_dict = {}
+
+    # create trifurcation in unrooted trees
+    fake_root = peel[-1][2]
+    real_root = peel[-2][2]
+
+    # create a dictionary of parent-child relationships
+    for child0, child1, parent in peel:
+        if not rooted and parent == fake_root:
+            parent = real_root
+        parent_child_dict[child1] = parent
+        parent_child_dict[child0] = parent
+
+    # set the parent of each internal node
+    for i in range(n_nodes):
+        if parent_id_vector[i] == 0 and i in parent_child_dict:
+            parent_id_vector[i] = parent_child_dict[i]
+
+    return parent_id_vector
+
+
 class TreeLikelihood(torch.autograd.Function):
 
     @staticmethod
-    def forward(ctx, blens, post_indexing, bito_inst, taxa_name_dict, model_specification, sub_rates,
-                freqs) -> torch.Tensor:
-        nwk = treeFunc.tree_to_newick(taxa_name_dict, post_indexing, blens, rooted=False)
-        tmp_file = "tmp.nwk"
-        with open(tmp_file, 'w') as f:
-            f.write(nwk)
-        bito_inst.read_newick_file(tmp_file)
-        bito_inst.prepare_for_phylo_likelihood(model_specification, 1)
+    def forward(ctx, blens, peel, bito_inst, sub_rates, freqs) -> torch.Tensor:
+        # set tree topology
+        parent_id = get_parent_id_vector(peel, rooted=False)
+        tree = bito.UnrootedTree.of_parent_id_vector(parent_id)
+        bito_inst.tree_collection = bito.UnrootedTreeCollection([tree])
+
+        branch_lengths = np.array(bito_inst.tree_collection.trees[0].branch_lengths, copy=False)
+        branch_lengths[:] = blens.numpy()
+
+        # set model parameters
         phylo_model_param_block_map = bito_inst.get_phylo_model_param_block_map()
-        phylo_model_param_block_map[model_keys.SUBSTITUTION_MODEL_RATES][:] = sub_rates
-        phylo_model_param_block_map[model_keys.SUBSTITUTION_MODEL_FREQUENCIES][:] = freqs.detach().numpy()
-        print(bito_inst)
-        print(model_specification)
+        if "substitution_model_rates" in phylo_model_param_block_map.keys():
+            phylo_model_param_block_map[model_keys.SUBSTITUTION_MODEL_RATES][:] = sub_rates.detach().numpy()
+        if "substitution_model_frequencies" in phylo_model_param_block_map.keys():
+            phylo_model_param_block_map[model_keys.SUBSTITUTION_MODEL_FREQUENCIES][:] = freqs.detach().numpy()
+        # compute likelihod
         log_likelihood = torch.from_numpy(np.array(bito_inst.log_likelihoods()))
 
-        # compute jacobian in forwards pass. Apparently save_for_backward can only save variables
-        jacobian_bito = bito_inst.phylo_gradients()
-        jacobian_bito_blens = jacobian_bito[0].gradient['branch_lengths']
-        jacobian_blens = torch.from_numpy(np.array(jacobian_bito_blens, copy=False))
-        # prune fake edge
-        jacobian_blens = jacobian_blens[:-1]
-        ctx.save_for_backward(jacobian_blens)
+        # compute gradients in forwards pass
+        if blens.requires_grad:
+            bito_grads = bito_inst.phylo_gradients()
+            bito_grads_blens = bito_grads[0].gradient['branch_lengths']
+            if "substitution_model_rates" in phylo_model_param_block_map.keys():
+                bito_grads_sub_rates = bito_grads[0].gradient['substitution_model_rates']
+            else:
+                bito_grads_sub_rates = 0.0
+            if "substitution_model_frequencies" in phylo_model_param_block_map.keys():
+                bito_grads_freqs = bito_grads[0].gradient['substitution_model_frequencies']
+            else:
+                bito_grads_freqs = 0.0
+
+            blens_grad = torch.from_numpy(np.array(bito_grads_blens, copy=False))
+            sub_rates_grad = torch.from_numpy(np.array(bito_grads_sub_rates, copy=False))
+            freqs_grad = torch.from_numpy(np.array(bito_grads_freqs, copy=False))
+            # prune fake edge
+            blens_grad = blens_grad[:-1]
+            ctx.save_for_backward(blens_grad, sub_rates_grad, freqs_grad)
         return log_likelihood
 
     @staticmethod
     def backward(ctx, grad_output):
-        jacobian_blens, = ctx.saved_tensors
-        print(grad_output)
-        print(jacobian_blens)
-        return (grad_output * jacobian_blens, None, None, None, None)
+        blens_grad, sub_rates_grad, freqs_grads = ctx.saved_tensors
+        return (grad_output * blens_grad, None, None, grad_output * sub_rates_grad, grad_output * freqs_grads)

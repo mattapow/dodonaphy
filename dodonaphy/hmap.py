@@ -289,8 +289,6 @@ class HMAP(BaseModel):
         else:
             # freqs is a parameter to be optimised
             freq4 = 1.0 - torch.sum(self.params["freqs"], dim=0, keepdim=True)
-            print(torch.cat((self.params["freqs"], freq4)))
-            print(sum(torch.cat((self.params["freqs"], freq4))))
             return torch.cat((self.params["freqs"], freq4))
 
     def get_model_sub_rates(self):

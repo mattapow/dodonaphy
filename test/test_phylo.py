@@ -301,3 +301,13 @@ def test_GTR_mats_size(blens_in, size):
     blens = torch.tensor(np.array(blens_in), dtype=torch.double)
     mats_GTR = PhyloModel.GTR_p_t(blens, sub_rates, freqs)
     assert mats_GTR.shape == torch.Size(size)
+
+
+@pytest.mark.parametrize("peel, rooted, expected", [
+    (np.array([[0, 1, 4], [2, 4, 5], [3, 5, 6]]), False, np.array([4, 4, 5, 5, 5])),
+    (np.array([[0, 1, 4], [2, 3, 5], [4, 5, 6]]), False, np.array([4, 4, 5, 5, 5])),
+    (np.array([[0, 1, 4], [2, 4, 5], [3, 5, 6]]), True, np.array([4, 4, 5, 6, 5, 6])),
+    (np.array([[0, 1, 4], [2, 3, 5], [4, 5, 6]]), True, np.array([4, 4, 5, 5, 6, 6])),
+])
+def test_get_parent_id_vector(peel, rooted, expected):
+    assert np.allclose(phylo.get_parent_id_vector(peel, rooted=rooted), expected)
