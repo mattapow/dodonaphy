@@ -113,11 +113,12 @@ def dendropy_to_pb(tree):
         blens[chld1] = c1.edge_length
 
     # add fake root above last parent and remaining taxon
-    chld2 = name_dict_all[c2.taxon.label]
-    peel[i+1, 0] = chld2
-    peel[i+1, 1] = parent
-    peel[i+1, 2] = name_dict_all["root"]
-    blens[chld2] = c2.edge_length
+    if c2 is not None:
+        chld2 = name_dict_all[c2.taxon.label]
+        peel[i+1, 0] = chld2
+        peel[i+1, 1] = parent
+        peel[i+1, 2] = name_dict_all["root"]
+        blens[chld2] = c2.edge_length
     return peel, blens, name_dict
 
 
@@ -209,18 +210,21 @@ def tree_to_newick(name_id, peel, blens, rooted=True):
     Returns:
         Newick String: A Tree
     """
-    assert type(name_id) is dict
-    if len(peel) == 0:
+    if not isinstance(name_id, dict):
+        raise TypeError("name_id must be a dictionary")
+
+    if len(name_id) == 0:
         return ";"
+    elif len(name_id) == 1:
+        name = next(iter(name_id))
+        return f"({name});"
+
     # Swap dict from name: id to id: name
     id_name = {value: key for key, value in name_id.items()}
 
     blens = torch.cat((blens, torch.ones(1)))
     n_tips = int(len(blens) / 2 + 1)
-    if rooted:
-        n_parents = n_tips - 1
-    else:
-        n_parents = n_tips - 2
+    n_parents = n_tips - 2
 
     chunks = {}
     for parent in range(n_parents):
@@ -229,15 +233,23 @@ def tree_to_newick(name_id, peel, blens, rooted=True):
         if n1 < n_tips:
             chunks[n1] = f"{id_name[n1]}:{blens[n1]:.16f}"
         if n2 < n_tips:
-            chunks[n2] = f"{id_name[n2]}:{blens[n2]:.16f}"
+            chunks[n2] = f"{id_name[n2]}:{blens[n2]:.6f}"
+        #  Create a new trifurcation node for the unrooted case
+        if not rooted and parent == n_parents - 1:
+            n3 = min(peel[parent+1][:2])
+            if n3 < n_tips:
+                chunks[n3] = f"{id_name[n3]}:{blens[n3]:.6f}"
+            chunks[n_tips] = f"({chunks[n1]},{chunks[n2]},{chunks[n3]}):{blens[n3+1]:.6f}"
+            break
+
         # append this bifurcation using a colon :
-        chunks[n3] = f"({chunks[n1]},{chunks[n2]}):{blens[n3]:.16f}"
+        if n3 < n_tips:
+            chunks[n3] = f"{id_name[n3]}:{blens[n3]:.6f}"
+        chunks[n3] = f"({chunks[n1]},{chunks[n2]}):{blens[n3]:.6f}"
 
     if rooted:
         nwk = f"({chunks[n1]},{chunks[n2]});"
     else:
-        n3 = peel[parent+1][0]
-        chunks[n3] = id_name[n3] + ":" + str(blens[n3].item())
         nwk = f"({chunks[n1]},{chunks[n2]},{chunks[n3]};"
     return nwk
 
