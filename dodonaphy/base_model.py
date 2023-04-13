@@ -93,7 +93,7 @@ class BaseModel(object):
             self.partials = [partial.detach().numpy() for partial in self.partials]
         # phylogenetic model
         self.use_bito = False
-        self.phylo_model = PhyloModel(model_name)
+        self.phylomodel = PhyloModel(model_name)
 
     @staticmethod
     def compute_branch_lengths(
@@ -164,7 +164,7 @@ class BaseModel(object):
         self.bito_inst.read_fasta_file(str(msa_file))  # read alignment
         self.taxa_name_dict = {name: id for (id, name) in enumerate(self.tip_labels)}
         self.model_specification = bito.PhyloModelSpecification(
-            substitution=self.phylo_model.name, site="constant", clock="strict"
+            substitution=self.phylomodel.name, site="constant", clock="strict"
         )
         parent_id = phylo.get_parent_id_vector(peel, rooted=False)
         tree = bito.UnrootedTree.of_parent_id_vector(parent_id)
@@ -194,7 +194,7 @@ class BaseModel(object):
                 freqs,
             )
         else:
-            mats = self.phylo_model.get_transition_mats(blen, sub_rates, freqs)
+            mats = self.phylomodel.get_transition_mats(blen, sub_rates, freqs)
             return calculate_treelikelihood(
                 self.partials,
                 self.weights,
@@ -212,7 +212,7 @@ class BaseModel(object):
         P = torch.zeros((4, 4, self.L))
 
         for i in range(self.S):
-            mats = self.phylo_model.get_transition_mats(pdm[i], sub_rates, freqs)
+            mats = self.phylomodel.get_transition_mats(pdm[i], sub_rates, freqs)
             for j in range(self.S):
                 P = P + torch.log(
                     torch.clamp(torch.matmul(mats[j], self.partials[i]), min=eps)
@@ -227,7 +227,7 @@ class BaseModel(object):
         eps = torch.finfo(torch.double).eps
         likelihood_dist = torch.zeros_like(dists_data)
         for i in range(self.S):
-            mats = self.phylo_model.get_transition_mats(dists_data[i], sub_rates, freqs)
+            mats = self.phylomodel.get_transition_mats(dists_data[i], sub_rates, freqs)
             for j in range(self.S):
                 P_ij = torch.log(
                     torch.clamp(torch.matmul(mats[j], self.partials[i]), min=eps)

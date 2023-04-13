@@ -88,11 +88,10 @@ class HMAP(BaseModel):
 
     def init_model_params(self):
         # set evolutionary model parameters to optimise
-        if not self.phylo_model.fix_sub_rates:
-            self.params["sub_rates"] = self.phylo_model.sub_rates.clone().detach().requires_grad_(True)
-        if not self.phylo_model.fix_freqs:
-            freqs_simplex = self.phylo_model.freqs[:-1]
-            self.params["freqs"] = freqs_simplex.clone().detach().requires_grad_(True)
+        if not self.phylomodel.fix_sub_rates:
+            self.params["sub_rates"] = self.phylomodel.sub_rates
+        if not self.phylomodel.fix_freqs:
+            self.params["freqs"] = self.phylomodel.freqs
 
     def learn(self, epochs, learn_rate, save_locations, start=""):
         """Optimise params["dists"].
@@ -269,39 +268,24 @@ class HMAP(BaseModel):
         """Compute likelihood of current tree, reducing soft_temp as required."""
         if self.loss_fn == "likelihood":
             self.peel, self.blens = self.connect()
-            self.ln_p = self.compute_LL(self.peel, self.blens, self.get_model_sub_rates(), self.get_model_freqs())
+            self.ln_p = self.compute_LL(self.peel, self.blens, self.phylomodel.sub_rates, self.phylomodel.freqs)
             loss = self.ln_p
         elif self.loss_fn == "pair_likelihood":
             self.peel, self.blens, pdm = self.connect(get_pdm=True)
-            self.ln_p = self.compute_LL(self.peel, self.blens, self.get_model_sub_rates(), self.get_model_freqs())
-            loss = self.compute_log_a_like(pdm, self.get_model_sub_rates(), self.get_model_freqs())
+            self.ln_p = self.compute_LL(self.peel, self.blens, self.phylomodel.sub_rates, self.phylomodel.freqs)
+            loss = self.compute_log_a_like(pdm, self.phylomodel.sub_rates, self.phylomodel.freqs)
         elif self.loss_fn == "hypHC":
             locs = self.get_locs()
             pdm = Chyp_torch.get_pdm(locs, curvature=self.curvature)
             loss = self.compute_likelihood_hypHC(
-                pdm, locs, self.get_model_sub_rates(), self.get_model_freqs(), temperature=0.05, n_triplets=100)
+                pdm, locs, self.phylomodel.sub_rates, self.phylomodel.freqs, temperature=0.05, n_triplets=100)
         return loss
-
-    def get_model_freqs(self):
-        if self.phylo_model.fix_freqs:
-            # freqs is fixed
-            return self.phylo_model.freqs
-        else:
-            # freqs is a parameter to be optimised
-            freq4 = 1.0 - torch.sum(self.params["freqs"], dim=0, keepdim=True)
-            return torch.cat((self.params["freqs"], freq4))
-
-    def get_model_sub_rates(self):
-        if self.phylo_model.fix_sub_rates:
-            return self.phylo_model.sub_rates
-        else:
-            return self.params["sub_rates"]
 
     def compute_ln_prior(self):
         if self.prior == "None":
             return torch.zeros(1)
-        prior_sub_rates = self.phylo_model.compute_ln_prior_sub_rates(self.get_model_sub_rates())
-        prior_freqs = self.phylo_model.compute_ln_prior_freqs(self.get_model_freqs())
+        prior_sub_rates = self.phylomodel.compute_ln_prior_sub_rates(self.phylomodel.sub_rates)
+        prior_freqs = self.phylomodel.compute_ln_prior_freqs(self.phylomodel.freqs)
         prior_tree = self.compute_ln_tree_prior()
         return prior_sub_rates + prior_freqs + prior_tree
 
@@ -334,7 +318,7 @@ class HMAP(BaseModel):
             leaf_loc, curvature=self.curvature, matsumoto=self.matsumoto
         )
         peel, blens = peeler.nj_torch(dist_2d, tau=self.soft_temp)
-        ln_p = self.compute_LL(peel, blens, self.get_model_sub_rates(), self.get_model_freqs())
+        ln_p = self.compute_LL(peel, blens, self.phylomodel.sub_rates, self.phylomodel.freqs)
         ln_prior = self.compute_prior_gamma_dir(blens)
         return ln_p + ln_prior
 
@@ -361,7 +345,7 @@ class HMAP(BaseModel):
             )
             peel, blens = peeler.nj_torch(dists)
             blens = torch.tensor(blens)
-            ln_p = self.compute_LL(peel, blens, self.get_model_sub_rates(), self.get_model_freqs())
+            ln_p = self.compute_LL(peel, blens, self.phylomodel.sub_rates, self.phylomodel.freqs)
             ln_prior = self.compute_prior_gamma_dir(blens)
             if self.path_write is not None:
                 tree.save_tree(

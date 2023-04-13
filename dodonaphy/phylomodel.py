@@ -1,11 +1,14 @@
 import torch
+from torch.distributions.transforms import StickBreakingTransform
 
 
-class PhyloModel():
+class PhyloModel:
     def __init__(self, name):
         self.name = name
-        self.init_freqs()
-        self.init_sub_rates()
+        self.init_freqs(torch.full([4], 0.25, dtype=torch.double))
+        self.init_sub_rates(
+            torch.tensor([1.0, 1.0, 1.0, 1.0, 1.0, 1.0], dtype=torch.double)
+        )
         self.init_fix_params()
 
     def __eq__(self, other):
@@ -15,29 +18,46 @@ class PhyloModel():
 
     @property
     def freqs(self):
-        freq4 = 1.0 - torch.sum(self._freqs, dim=0, keepdim=True)
-        return torch.cat((self._freqs, freq4))
+        if self._first_freqs:
+            return self.freqs_transform(self._freqs).detach().requires_grad_(True)
+        else:
+            return self.freqs_transform(self._freqs)
 
     @freqs.setter
     def freqs(self, freqs):
-        self._freqs = freqs[:3]
+        self._first_freqs = False if hasattr(self, "_freqs") else True
+        self._freqs = self.freqs_transform.inv(freqs)
 
-    def init_freqs(self):
-        self.freqs = torch.full([4], 0.25, dtype=torch.double)
-        self.freqs_prior_dist = torch.distributions.dirichlet.Dirichlet(
-            torch.tensor([1.0, 1.0, 1.0, 1.0])
-        )
+    @property
+    def sub_rates(self):
+        if self._first_sub_rates:
+            return (
+                self.sub_rates_transform(self._sub_rates).detach().requires_grad_(True)
+            )
+        else:
+            return self.sub_rates_transform(self._sub_rates)
 
-    def init_sub_rates(self):
-        if self == "JC69":
-            self.sub_rates = torch.empty([])
-        elif self == "GTR":
+    @sub_rates.setter
+    def sub_rates(self, sub_rates):
+        self._first_sub_rates = False if hasattr(self, "_freqs") else True
+        self._sub_rates = self.sub_rates_transform.inv(sub_rates)
+
+    def init_freqs(self, freqs):
+        self.freqs_transform = StickBreakingTransform()
+        self.freqs = freqs
+        if self == "GTR":
+            self.freqs = torch.full([4], 0.25, dtype=torch.double)
+            self.freqs_prior_dist = torch.distributions.dirichlet.Dirichlet(
+                torch.tensor([1.0, 1.0, 1.0, 1.0])
+            )
+
+    def init_sub_rates(self, sub_rates):
+        self.sub_rates_transform = StickBreakingTransform()
+        self.sub_rates = sub_rates
+        if self == "GTR":
             self.prior_dist = torch.distributions.dirichlet.Dirichlet(
                 torch.tensor([1.0, 1.0, 1.0, 1.0, 1.0, 1.0])
             )
-            self.sub_rates = self.prior_dist.sample()
-        else:
-            raise RuntimeError("Model not implemented")
 
     def init_fix_params(self):
         self.fix_sub_rates = True
@@ -62,8 +82,7 @@ class PhyloModel():
         d = torch.unsqueeze(branch_lengths, -1)
         a = 0.25 + 3.0 / 4.0 * torch.exp(-4.0 / 3.0 * d)
         b = 0.25 - 0.25 * torch.exp(-4.0 / 3.0 * d)
-        return torch.cat(
-            (a, b, b, b, b, a, b, b, b, b, a, b, b, b, b, a), -1).reshape(
+        return torch.cat((a, b, b, b, b, a, b, b, b, b, a, b, b, b, b, a), -1).reshape(
             d.shape[0], d.shape[1], 4, 4
         )
 
@@ -79,7 +98,9 @@ class PhyloModel():
         e, v = torch.linalg.eigh(S)
         offset = branch_lengths.dim() - e.dim() + 1
         return (
-            (sqrt_pi_inv @ v).reshape(e.shape[:-1] + (1,) * offset + sqrt_pi_inv.shape[-2:])
+            (sqrt_pi_inv @ v).reshape(
+                e.shape[:-1] + (1,) * offset + sqrt_pi_inv.shape[-2:]
+            )
             @ torch.exp(
                 e.reshape(e.shape[:-1] + (1,) * offset + e.shape[-1:])
                 * branch_lengths.unsqueeze(-1)
@@ -123,6 +144,9 @@ class PhyloModel():
             raise RuntimeError(f"Model {self.name} has no prior on rates available.")
 
     def compute_ln_prior_freqs(self, freqs):
-        # TODO work in simplex. For now, just normalise freqs
-        freqs = freqs / sum(freqs)
-        return self.freqs_prior_dist.log_prob(freqs)
+        if self == "JC69":
+            return torch.zeros(1)
+        elif self == "GTR":
+            return self.freqs_prior_dist.log_prob(freqs)
+        else:
+            raise RuntimeError(f"Model {self.name} has no prior on freqs available.")
