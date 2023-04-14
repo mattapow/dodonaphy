@@ -132,10 +132,15 @@ class PhyloModel:
         Q[range(4), range(4)] = diag_sum
         return Q
 
-    # TODO: save the model. Be careful with VI and HMAP where we optimise the
-    # variational parameters, not the parameters saved here.
-    def print_model():
-        return None
+    def save(self, file_name):
+        with open(file_name, "w") as f:
+            f.write(f"Model: {self.name}")
+            f.write(f"Frequencies: {self.freqs}")
+            f.write(f"Frequencies Fixed: {self.fix_freqs}")
+            f.write(f"Frequencies Prior: {str(self.freqs_prior_dist)}")
+            f.write(f"Substitution Rates: {self.sub_rates}")
+            f.write(f"Substitution Rates Fixed: {self.fix_sub_rates}")
+            f.write(f"Substitution Rates Prior: {str(self.prior_dist)}")
 
     def compute_ln_prior_sub_rates(self, sub_rates):
         if self == "JC69":
