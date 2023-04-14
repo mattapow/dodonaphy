@@ -138,66 +138,75 @@ class DodonaphyVI(BaseModel):
 
         Returns:
             tuple[list list list list]: peel, blens, location, lp. If kwarg 'lp' is passed.
-            Locations are in Poincare disk. lp = log-probability
+            Locations are in Hyperbolic space.
             tuple[list list list]: peel, blens, location, lp. Otherwise.
         """
+        for key in kwargs.keys():
+            assert key in ("get_likelihood", "get_elbo")
+
         # make peel, blens and X for each of these samples
         peel = []
         blens = []
         location = []
-        lp = []
+        log_like = []
+        log_jac = []
+        log_prior = []
+        log_Q = []
+
         weights = torch.softmax(self.VariationalParams["mix_weights"], dim=0)
         mix_samples = torch.multinomial(weights, num_samples=nSample, replacement=True)
-        with torch.no_grad():
-            for i in range(nSample):
-                mix_idx = mix_samples[i]
-                n_tip_params = torch.numel(self.VariationalParams["leaf_mu"][mix_idx])
-                leaf_loc = self.VariationalParams["leaf_mu"][mix_idx].reshape(
-                    n_tip_params
+        for i in range(nSample):
+            mix_idx = mix_samples[i]
+            n_tip_params = torch.numel(self.VariationalParams["leaf_mu"][mix_idx])
+            leaf_loc = self.VariationalParams["leaf_mu"][mix_idx].reshape(n_tip_params)
+            leaf_cov = torch.eye(
+                n_tip_params, dtype=torch.double
+            ) * self.VariationalParams["leaf_sigma"][mix_idx].exp().reshape(
+                n_tip_params
+            )
+            if self.internals_exist:
+                n_int_params = torch.numel(self.VariationalParams["int_mu"])
+                int_loc = self.VariationalParams["int_mu"][mix_idx].reshape(
+                    n_int_params
                 )
-                leaf_cov = torch.eye(
-                    n_tip_params, dtype=torch.double
-                ) * self.VariationalParams["leaf_sigma"][mix_idx].exp().reshape(
-                    n_tip_params
+                int_cov = torch.eye(
+                    n_int_params, dtype=torch.double
+                ) * self.VariationalParams["int_sigma"][mix_idx].exp().reshape(
+                    n_int_params
                 )
-                if self.internals_exist:
-                    n_int_params = torch.numel(self.VariationalParams["int_mu"])
-                    int_loc = self.VariationalParams["int_mu"][mix_idx].reshape(
-                        n_int_params
-                    )
-                    int_cov = torch.eye(
-                        n_int_params, dtype=torch.double
-                    ) * self.VariationalParams["int_sigma"][mix_idx].exp().reshape(
-                        n_int_params
-                    )
-                    sample = self.rsample_tree(leaf_loc, leaf_cov, int_loc, int_cov)
-                else:
-                    sample = self.rsample_tree(leaf_loc, leaf_cov)
+                sample = self.rsample_tree(leaf_loc, leaf_cov, int_loc, int_cov)
+            else:
+                sample = self.rsample_tree(leaf_loc, leaf_cov)
 
-                peel.append(sample["peel"])
-                blens.append(sample["blens"])
-                location.append(
-                    sample["leaf_locs"],
+            peel.append(sample["peel"])
+            blens.append(sample["blens"])
+            location.append(sample["leaf_locs"])
+            if self.internals_exist:
+                location.append(sample["int_locs"])
+
+            if kwargs.get("get_likelihood") or kwargs.get("get_elbo"):
+                # regardless of the loss function, compute the likelihood under the phylogenetic model of evolution
+                mats = self.phylomodel.get_transition_mats(
+                    sample["blens"], self.phylomodel.sub_rates, self.phylomodel.freqs
                 )
-                if self.internals_exist:
-                    location.append(sample["int_locs"])
+                freqs = torch.full([4], 0.25, dtype=torch.float64)
+                LL = calculate_treelikelihood(
+                    self.partials,
+                    self.weights,
+                    sample["peel"],
+                    mats,
+                    freqs,
+                )
+                log_like.append(LL)
+                log_prior.append(sample["ln_prior"])
+            if kwargs.get("get_elbo"):
+                log_Q.append(sample["logQ"])
+                log_jac.append(sample["jacobian"])
 
-                if kwargs.get("lp"):
-                    mats = self.phylo_model.get_transition_mats(
-                        sample["blens"], self.get_sub_rates(), self.get_model_freqs()
-                    )
-                    freqs = torch.full([4], 0.25, dtype=torch.float64)
-                    LL = calculate_treelikelihood(
-                        self.partials,
-                        self.weights,
-                        sample["peel"],
-                        mats,
-                        freqs,
-                    )
-                    lp.append(LL)
-
-        if kwargs.get("lp"):
-            return peel, blens, location, lp
+        if kwargs.get("get_elbo"):
+            return peel, blens, location, log_like, log_prior, log_Q, log_jac
+        elif kwargs.get("get_likelihood"):
+            return peel, blens, location, log_like, log_prior
         else:
             return peel, blens, location
 
@@ -251,6 +260,8 @@ class DodonaphyVI(BaseModel):
         print(f"Running for {epochs} epochs.\n")
         start_time = time.time()
 
+        # TODO: should probably put this in the super method since super().log() depends on it
+        self.path_write = path_write
         if path_write is not None:
             self.log_run_start(path_write, epochs, importance_samples, lr)
             self.elbo_fn = os.path.join(path_write, "elbo.txt")
@@ -292,29 +303,33 @@ class DodonaphyVI(BaseModel):
             self.trace(epochs, path_write, elbo_hist)
 
         if path_write is not None:
-            with torch.no_grad():
-                # log the final elbo/siwae estimate
-                final_elbo = self.elbo_siwae(100).item()
-            print("Final ELBO: {}".format(final_elbo))
-            fn = os.path.join(path_write, "vi.log")
-            self.log("%-12s: %i\n" % ("Final ELBO (100 samples)", final_elbo))
+            self.compute_final_elbo(path_write, n_draws)
+            self.save_final_info(path_write, time.time() - start_time)
 
-            # draw samples (one-by-one) and save them
-            # TODO: combine the previous and these samples. only compute once
-            tree.save_tree_head(path_write, "samples", self.tip_labels)
+    def compute_final_elbo(self, path_write, n_draws):
+        # draw samples (one-by-one) from the final distribution and save them
+        tree.save_tree_head(path_write, "samples", self.tip_labels)
+        log_elbos = torch.zeros((n_draws, self.n_boosts))
+        with torch.no_grad():
+            (peel, blens, _, log_like, log_prior, log_Q, log_jac) = self.draw_sample(
+                n_draws, get_elbo=True
+            )
             for i in range(n_draws):
-                peels, blens, _, ln_like = self.draw_sample(1, lp=True)
-                ln_prior = self.compute_prior_gamma_dir(blens[0])
                 tree.save_tree(
                     path_write,
                     "samples",
-                    peels[0],
-                    blens[0],
+                    peel[i],
+                    blens[i],
                     i,
-                    ln_like[0].item(),
-                    ln_prior.item(),
+                    log_like[i].item(),
+                    log_prior.item(),
+                    self.name_id,
                 )
-            self.save_final_info(path_write, time.time() - start_time)
+                log_elbos[i] = log_like + log_prior - log_Q + log_jac
+        # save the final siwae of these samples
+        final_elbo = self.elbo_siwae(importance=n_draws, ln_elbos=log_elbos).item()
+        self.log("%-12s: %i\n" % ("Final ELBO (100 samples)", final_elbo))
+        print("Final ELBO: {}".format(final_elbo))
 
     def log_run_start(self, path_write, epochs, importance_samples, lr):
         fn = path_write + "/" + "vi.log"
@@ -325,9 +340,7 @@ class DodonaphyVI(BaseModel):
         self.log("%-12s: %i\n" % ("Curvature", self.curvature))
         self.log("%-12s: %i\n" % ("Matsumoto", self.matsumoto))
         self.log("%-12s: %f\n" % ("Soft temp", self.soft_temp))
-        self.log(
-            "%-12s: %f\n" % ("Log10 Soft temp", np.log10(self.soft_temp))
-        )
+        self.log("%-12s: %f\n" % ("Log10 Soft temp", np.log10(self.soft_temp)))
         self.log("%s: %i\n" % ("Normalise Leaf", self.normalise_leaf))
         self.log("%-12s: %i\n" % ("Dimensions", self.D))
         self.log("%-12s: %i\n" % ("# Taxa", self.S))
@@ -346,20 +359,22 @@ class DodonaphyVI(BaseModel):
         with open(self.elbo_fn, "a", encoding="UTF-8") as f:
             f.write("%f\n" % elbo_value)
 
-    def elbo_siwae(self, importance=1):
+    def elbo_siwae(self, importance=1, ln_elbos=None):
         """Compute the ELBO.
 
         Args:
             importance (int, optional): Number of importance samples of elbo (IWAE).
             Defaults to 1.
+            ln_elbos (tensor, optional): Provide the precomputed log elbo values. Defaults to None
 
         Returns:
             [torch.Tensor]: ELBO value
         """
-        ln_elbos = torch.zeros((importance, self.n_boosts))
-        for k in range(self.n_boosts):
-            for t in range(importance):
-                ln_elbos[t, k] = self.calculate_elbo(k)
+        if ln_elbos is None:
+            ln_elbos = torch.zeros((importance, self.n_boosts))
+            for k in range(self.n_boosts):
+                for t in range(importance):
+                    ln_elbos[t, k] = self.calculate_elbo(k)
         loss = torch.logsumexp(
             -torch.log(torch.tensor(importance))
             + torch.log_softmax(self.VariationalParams["mix_weights"], dim=0)
@@ -425,7 +440,9 @@ class DodonaphyVI(BaseModel):
 
     def get_loss(self, peel, blens, pdm, leaf_locs):
         if self.loss_fn == "likelihood":
-            ln_p = self.compute_LL(peel, blens, self.get_sub_rates(), self.get_model_freqs())
+            ln_p = self.compute_LL(
+                peel, blens, self.phylomodel.sub_rates, self.phylomodel.freqs
+            )
         elif self.loss_fn == "pair_likelihood":
             ln_p = self.compute_log_a_like(pdm)
         elif self.loss_fn == "hypHC":
