@@ -50,6 +50,13 @@ def init_parser():
         nj-r: Dodonaphy can use decenttree's implementation of to RapidNJ. First\
         pydecenttree must be installed from https://github.com/iqtree/decenttree.",
     )
+    parser.add_argument(
+        "--use_bito",
+        dest="use_bito",
+        action="store_true",
+        help="Inf: Use bito (calling BEAGLE) to calculate likelihoods.",
+    )
+    parser.set_defaults(use_bito=False)
 
     # i/o
     parser.add_argument(

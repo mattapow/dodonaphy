@@ -46,7 +46,7 @@ def run(args):
             "Fixed topology is experimental and start tree must have integer taxa names."
         )
         tree.rename_labels(start_tree)
-        peel, _ = tree.dendropy_to_pb(start_tree)
+        peel, _, _ = tree.dendropy_to_pb(start_tree)
     else:
         peel = None
 
@@ -85,13 +85,13 @@ def run(args):
             weights,
             args.dim,
             embedder=args.embed,
-            connector=args.connector,
+            connector=args.connect,
             soft_temp=args.temp,
             curvature=args.curv,
             tip_labels=tip_labels,
             n_boosts=args.boosts,
             start=args.start,
-            model_name=args.model_name,
+            model_name=args.model,
         )
 
         # initialise embedding parameters
@@ -119,7 +119,6 @@ def run(args):
             weights,
             dim=args.dim,
             dists=dists,
-            msa_file=msa_file,
             soft_temp=args.temp,
             loss_fn=args.loss_fn,
             path_write=path_write,

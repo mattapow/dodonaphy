@@ -1,5 +1,4 @@
 import bito
-import bito.phylo_gradient_mapkeys as gradient_keys
 import bito.phylo_model_mapkeys as model_keys
 import dendropy
 import numpy as np
@@ -50,23 +49,21 @@ def test_compute_likelihood_bito_file_gtr():
     ll = np.array(bito_inst.log_likelihoods())
     assert not np.isnan(ll)
     jac_bito = bito_inst.phylo_gradients()
-    blens_jacobian = np.array(jac_bito[0].gradient["branch_lengths"], copy=False)
-    model_jacobian = jac_bito[0].gradient["substitution_model"]
-    model_freq_jacobian = np.array(
+    blens_grad = np.array(jac_bito[0].gradient["branch_lengths"], copy=False)
+    model_grad = jac_bito[0].gradient["substitution_model"]
+    model_freq_grad = np.array(
         jac_bito[0].gradient["substitution_model_frequencies"], copy=False
     )
-    model_rate_jacobian = np.array(
+    model_rate_grad = np.array(
         jac_bito[0].gradient["substitution_model_rates"], copy=False
     )
-    print(model_jacobian)
+    print(model_grad)
     n_blen = 27 * 2 - 3
     n_blen_fake = 2
     n_gtr = 6
-    assert len(blens_jacobian) == n_blen + n_blen_fake
-    assert len(model_freq_jacobian) == 3  # the four must sum to 1.0
-    assert (
-        len(model_rate_jacobian) == n_gtr - 1
-    )  # TODO: only five as Q matrix is rescaled for unit substitution rate?
+    assert len(blens_grad) == n_blen + n_blen_fake
+    assert len(model_freq_grad) == 3  # the four must sum to 1.0
+    assert len(model_rate_grad) == n_gtr - 1
 
 
 def get_log_likelihood_dodonaphy(msa_file_nex, tree_file):
@@ -92,8 +89,16 @@ def get_log_likelihood_dodonaphy(msa_file_nex, tree_file):
     return dodo_log_likelihood
 
 
-@pytest.mark.parametrize("torch_mode", ["forward", "backward"])
-def test_compute_LL_bito_JC69(torch_mode):
+@pytest.mark.parametrize(
+    "model_name, torch_mode",
+    (
+        ["JC69", "forward"],
+        ["JC69", "backward"],
+        ["GTR", "forward"],
+        ["GTR", "backward"],
+    ),
+)
+def test_compute_LL_bito(torch_mode, model_name):
     # read tree into dendropy
     tree_file = "./test/data/ds1/dna.nj.newick"
     tree = dendropy.Tree.get(path=tree_file, schema="newick", preserve_underscores=True)
@@ -106,10 +111,10 @@ def test_compute_LL_bito_JC69(torch_mode):
     bito_inst.read_fasta_file(msa_file)
     # specify model
     model_specification = bito.PhyloModelSpecification(
-        substitution="JC69", site="constant", clock="strict"
+        substitution=model_name, site="constant", clock="strict"
     )
-    sub_rates = torch.full((6,), 1./6.)
-    freqs = torch.full((4,), 1./4.)
+    sub_rates = torch.full((6,), 1.0 / 6.0)
+    freqs = torch.full((4,), 1.0 / 4.0)
     # need to load trees into inst before prepare_for_phylo_likelihood
     # just read in the original tree even though we'll use the peel and blens
     bito_inst.read_newick_file(tree_file)
@@ -135,9 +140,3 @@ def test_compute_LL_bito_JC69(torch_mode):
         )
         loss.backward()
         optimizer.step()
-
-
-@pytest.mark.parametrize("torch_mode", ["forward", "backward"])
-def test_compute_LL_bito_GTR(torch_mode):
-    # TODO:
-    raise NotImplementedError

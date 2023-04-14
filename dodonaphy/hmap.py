@@ -89,6 +89,7 @@ class HMAP(BaseModel):
     def init_model_params(self):
         # set evolutionary model parameters to optimise
         if not self.phylomodel.fix_sub_rates:
+
             self.params["sub_rates"] = self.phylomodel.sub_rates
         if not self.phylomodel.fix_freqs:
             self.params["freqs"] = self.phylomodel.freqs
@@ -159,6 +160,7 @@ class HMAP(BaseModel):
                 self.best_epoch,
                 self.best_ln_p.item(),
                 self.best_ln_prior.item(),
+                self.name_id,
                 last_tree=True,
             )
 
@@ -194,6 +196,9 @@ class HMAP(BaseModel):
         self.log("%-12s: %s\n" % ("Prior", self.prior))
         self.log("%-12s: %s\n" % ("Start Tree", start))
 
+        file_model = os.path.join(self.path_write, f"{self.inference_name}_model.log")
+        self.phylomodel.save(file_model)
+
     def save_epoch(self, i, save_locations=False):
         "Save posterior value and leaf locations to file."
         path_post = os.path.join(self.path_write, "posterior.txt")
@@ -227,7 +232,7 @@ class HMAP(BaseModel):
             i,
             self.ln_prior,
             self.ln_p,
-            tip_labels=None,
+            self.name_id
         )
 
     def get_locs(self):
@@ -356,6 +361,6 @@ class HMAP(BaseModel):
                     smp_i,
                     ln_p,
                     ln_prior,
-                    tip_labels=self.tip_labels,
+                    self.name_id,
                 )
         print("done.")

@@ -42,14 +42,14 @@ def test_draws_different_vi(embedder, connector):
     mymod.set_variationalParams(param_init)
     mymod.learn(epochs=2, path_write=None, importance_samples=3)
 
-    _, blens, _, lp__ = mymod.draw_sample(3, lp=True)
+    _, blens, _, log_like, _ = mymod.draw_sample(3, get_likelihood=True)
     assert not torch.equal(blens[0], blens[1])
     assert not torch.equal(blens[0], blens[2])
     assert not torch.equal(blens[1], blens[2])
 
-    assert not torch.equal(lp__[0], lp__[1])
-    assert not torch.equal(lp__[0], lp__[2])
-    assert not torch.equal(lp__[1], lp__[2])
+    assert not torch.equal(log_like[0], log_like[1])
+    assert not torch.equal(log_like[0], log_like[2])
+    assert not torch.equal(log_like[1], log_like[2])
 
 
 @pytest.mark.parametrize(
@@ -78,13 +78,13 @@ def test_models_ds1(model_name):
         ),
         "mix_weights": torch.tensor(mix_weights, dtype=torch.float64),
     }
-    phylo_model = PhyloModel(model_name)
-    if not phylo_model.fix_sub_rates:
-        param_init["sub_rates"] = phylo_model.sub_rates.clone().detach()
-    if not phylo_model.fix_freqs:
-        param_init["freqs"] = phylo_model.freqs.clone().detach()
+    phylomodel = PhyloModel(model_name)
+    if not phylomodel.fix_sub_rates:
+        param_init["sub_rates"] = phylomodel.sub_rates
+    if not phylomodel.fix_freqs:
+        param_init["freqs"] = phylomodel.freqs
     mymod.set_variationalParams(param_init)
-    mymod.learn(epochs=2, path_write=None, importance_samples=3)
+    mymod.learn(epochs=2, path_write=None, importance_samples=1)
 
 
 @pytest.mark.skip(reason="We don't have to read this in. Would need to fix the read function.")
@@ -116,3 +116,41 @@ def test_vi_io():
         mymod.VariationalParams["leaf_sigma"].detach().numpy(),
         atol=1e-6,
     )
+
+
+@pytest.mark.parametrize("model_name", ("JC69", "GTR"))
+def test_bito_ds1(model_name):
+    dna_nex = "./test/data/ds1/dna.nex"
+    dna_fasta = "./test/data/ds1/dna.fasta"
+    dna = dendropy.DnaCharacterMatrix.get(path=dna_nex, schema="nexus")
+    partials, weights = compress_alignment(dna)
+    dim = 3
+    mymod = DodonaphyVI(
+        partials, weights, dim, embedder="up", connector="nj", soft_temp=1e-8, model_name=model_name
+    )
+    dists = calculate_pairwise_distance(dna, adjust="JC69")
+    hp_obj = hydraPlus.HydraPlus(dists, dim=dim, curvature=-1.0)
+    emm_tips = hp_obj.embed(equi_adj=0.0, alpha=1.1)
+    coef_var = 0.1
+    leaf_sigma = emm_tips["X"] * coef_var
+    mix_weights = np.ones((1))
+    param_init = {
+        "leaf_mu": torch.tensor(
+            emm_tips["X"], dtype=torch.float64
+        ),
+        "leaf_sigma": torch.tensor(
+            leaf_sigma, dtype=torch.float64
+        ),
+        "mix_weights": torch.tensor(mix_weights, dtype=torch.float64),
+    }
+    phylomodel = PhyloModel("JC69")
+    if not phylomodel.fix_sub_rates:
+        param_init["sub_rates"] = phylomodel.sub_rates
+    if not phylomodel.fix_freqs:
+        param_init["freqs"] = phylomodel.freqs
+    mymod.set_variationalParams(param_init)
+
+    # initialise bito using a sequence alignment and a (postorder) tree
+    peel, _, _ = mymod.connect(param_init["leaf_mu"])
+    mymod.init_bito(dna_fasta, peel)
+    mymod.learn(epochs=2, path_write=None, importance_samples=1)

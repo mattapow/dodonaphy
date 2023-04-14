@@ -279,8 +279,8 @@ def test_GTR_equals_JC69():
     blens = torch.tensor(np.array([0.1]), dtype=torch.double)
     mats_JC = PhyloModel.JC69_p_t(blens)
 
-    sub_rates = torch.full([6], 1.0, dtype=torch.double)
-    freqs = torch.full([4], 0.25, dtype=torch.double)
+    sub_rates = torch.full([6], 1./6., dtype=torch.double)
+    freqs = torch.full([4], 1./4., dtype=torch.double)
     mats_GTR = PhyloModel.GTR_p_t(blens, sub_rates, freqs)
 
     assert torch.allclose(mats_JC, mats_GTR)
@@ -296,8 +296,8 @@ def test_GTR_equals_JC69():
     ],
 )
 def test_GTR_mats_size(blens_in, size):
-    sub_rates = torch.full([6], 1.0, dtype=torch.double)
-    freqs = torch.full([4], 0.25, dtype=torch.double)
+    sub_rates = torch.full([6], 1./6., dtype=torch.double)
+    freqs = torch.full([4], 1./4., dtype=torch.double)
     blens = torch.tensor(np.array(blens_in), dtype=torch.double)
     mats_GTR = PhyloModel.GTR_p_t(blens, sub_rates, freqs)
     assert mats_GTR.shape == torch.Size(size)

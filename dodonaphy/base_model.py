@@ -74,6 +74,7 @@ class BaseModel(object):
         if tip_labels is None:
             tip_labels = [f"T{i+1}" for i in range(self.S)]
         self.tip_labels = tip_labels
+        self.name_id = {name: id for id, name in enumerate(self.tip_labels)}
 
         # make space for internal partials
         for _ in range(self.S - 1):

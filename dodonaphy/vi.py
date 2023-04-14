@@ -83,10 +83,10 @@ class DodonaphyVI(BaseModel):
                 int_sigma, requires_grad=True, dtype=torch.float64
             )
         # set evolutionary model parameters to optimise
-        if not self.phylo_model.fix_sub_rates:
-            self.VariationalParams["sub_rates"] = self.phylo_model.sub_rates.clone().detach().requires_grad_(True)
-        if not self.phylo_model.fix_freqs:
-            self.VariationalParams["freqs"] = self.phylo_model.freqs.clone().detach().requires_grad_(True)
+        if not self.phylomodel.fix_sub_rates:
+            self.VariationalParams["sub_rates"] = self.phylomodel.sub_rates
+        if not self.phylomodel.fix_freqs:
+            self.VariationalParams["freqs"] = self.phylomodel.freqs
 
     def set_variationalParams(self, param_init):
         # set dimensions of input
@@ -113,32 +113,22 @@ class DodonaphyVI(BaseModel):
             self.VariationalParams["int_sigma"] = (
                 param_init["int_sigma"].repeat((self.n_boosts, 1, 1)).requires_grad_()
             )
-        
+
         if "mix_weights" in param_init.keys():
-            self.VariationalParams["mix_weights"] = param_init["mix_weights"].requires_grad_()
+            self.VariationalParams["mix_weights"] = param_init[
+                "mix_weights"
+            ].requires_grad_()
         else:
             # default to 1 mixture
-            self.VariationalParams["mix_weights"] = torch.tensor(np.ones((1)), dtype=torch.float64).requires_grad_()
+            self.VariationalParams["mix_weights"] = torch.tensor(
+                np.ones((1)), dtype=torch.float64
+            ).requires_grad_()
 
         # set evolutionary model parameters to optimise
-        if not self.phylo_model.fix_sub_rates:
-            self.VariationalParams["sub_rates"] = (self.phylo_model.sub_rates.clone().detach().requires_grad_(True))
-        if not self.phylo_model.fix_freqs:
-            self.VariationalParams["freqs"] = (self.phylo_model.freqs.clone().detach().requires_grad_(True))
-
-    def get_model_freqs(self):
-        if self.phylo_model.fix_freqs:
-            # freqs is a fixed array
-            return self.phylo_model.freqs
-        else:
-            # freqs is a parameter to be optimised
-            return self.VariationalParams["freqs"]
-
-    def get_sub_rates(self):
-        if self.phylo_model.fix_sub_rates:
-            return self.phylo_model.sub_rates
-        else:
-            return self.VariationalParams["sub_rates"]
+        if not self.phylomodel.fix_sub_rates:
+            self.VariationalParams["sub_rates"] = self.phylomodel.sub_rates
+        if not self.phylomodel.fix_freqs:
+            self.VariationalParams["freqs"] = self.phylomodel.freqs
 
     def draw_sample(self, nSample=100, **kwargs):
         """Draw samples from the variational posterior distribution
@@ -502,7 +492,7 @@ class DodonaphyVI(BaseModel):
 
         # embed tips with distances using HydraPlus
         hp_obj = hydraPlus.HydraPlus(dists, dim=dim, curvature=curvature)
-        emm_tips = hp_obj.embed(equi_adj=0.0, alpha=1.0)
+        emm_tips = hp_obj.embed(equi_adj=0.0, alpha=1.1)
         print(
             "Embedding Stress (tips only) = {:.4}".format(emm_tips["stress_hydraPlus"])
         )
@@ -552,11 +542,9 @@ class DodonaphyVI(BaseModel):
         else:
             param_init = self.hydra_init(
                 dists,
-                self.dim,
-                self.curvature,
+                self.D,
+                self.curvature.numpy(),
                 internals_exist=self.internals_exist,
-                cv=0.01,
-                cv_base="closest",
             )
             self.set_variationalParams(param_init)
 

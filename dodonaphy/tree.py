@@ -173,15 +173,12 @@ def save_tree(
     iteration,
     lnL,
     lnPr,
-    tip_labels=None,
+    name_id,
     last_tree=False,
 ):
     if root_dir is None:
         return
-    if tip_labels is None:
-        S = len(peel) + 1
-        tip_labels = [str(x + 1) for x in range(S)]
-    tree = tree_to_newick(tip_labels, peel, blens)
+    tree = tree_to_newick(name_id, peel, blens)
     fn = os.path.join(root_dir, filename + ".t")
     with open(fn, "a+", encoding="UTF-8") as file:
         file.write("\ttree STATE_" + str(iteration))
