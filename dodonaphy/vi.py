@@ -215,7 +215,7 @@ class DodonaphyVI(BaseModel):
                 self.log_elbo(elbo_hist[-1])
                 fn = os.path.join(path_write, "vi_params", "latest.csv")
                 self.save(fn)
-                fn = os.path.join(path_write, "vi_params", f"iteration_{epoch+1}.txt")
+                fn = os.path.join(path_write, "vi_params", f"iteration.txt")
                 with open(fn, "w", encoding="UTF-8") as file:
                     file.write(f"Epoch: {epoch} / {epochs}")
 
@@ -224,6 +224,8 @@ class DodonaphyVI(BaseModel):
 
         if path_write is not None:
             self.compute_final_elbo(path_write, n_draws)
+            file_model = os.path.join(self.path_write, f"{self.inference_name}_model.log")
+            self.phylomodel.save(file_model)
             self.save_final_info(path_write, time.time() - start_time)
 
     def compute_final_elbo(self, path_write, n_draws):
@@ -232,7 +234,7 @@ class DodonaphyVI(BaseModel):
         tree.save_tree_head(path_write, file_name, self.tip_labels)
         with torch.no_grad():
             final_elbo = -self.elbo_siwae(importance=n_draws, path_write=path_write, file_name=file_name).item()
-        self.log("%-12s: %f\n" % (f"Final ELBO ({n_draws}) samples)", final_elbo))
+        self.log("%-12s: %f\n" % (f"Final ELBO ({n_draws}) samples", final_elbo))
         print(f"Final ELBO: {final_elbo:.3f}")
 
     def log_run_start(self, path_write, epochs, importance_samples, lr):

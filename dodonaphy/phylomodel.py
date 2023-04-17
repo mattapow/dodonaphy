@@ -134,13 +134,13 @@ class PhyloModel:
 
     def save(self, file_name):
         with open(file_name, "w") as f:
-            f.write(f"Model: {self.name}")
-            f.write(f"Frequencies: {self.freqs}")
-            f.write(f"Frequencies Fixed: {self.fix_freqs}")
-            f.write(f"Frequencies Prior: {str(self.freqs_prior_dist)}")
-            f.write(f"Substitution Rates: {self.sub_rates}")
-            f.write(f"Substitution Rates Fixed: {self.fix_sub_rates}")
-            f.write(f"Substitution Rates Prior: {str(self.prior_dist)}")
+            f.write(f"Model: {self.name}\n")
+            f.write(f"Frequencies: {self.freqs.detach().numpy()}\n")
+            f.write(f"Frequencies Fixed: {self.fix_freqs}\n")
+            f.write(f"Frequencies Prior: {str(self.freqs_prior_dist)}\n")
+            f.write(f"Substitution Rates: {self.sub_rates.detach().numpy()}\n")
+            f.write(f"Substitution Rates Fixed: {self.fix_sub_rates}\n")
+            f.write(f"Substitution Rates Prior: {str(self.prior_dist)}\n")
 
     def compute_ln_prior_sub_rates(self, sub_rates):
         if self == "JC69":
