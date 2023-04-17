@@ -4,6 +4,7 @@ import dendropy
 import numpy as np
 import pytest
 import torch
+import tempfile
 from dendropy.model.discrete import simulate_discrete_chars
 from dendropy.simulate import treesim
 from hydraPlus import hydraPlus
@@ -19,7 +20,7 @@ from dodonaphy.phylomodel import PhyloModel
                           ("up", "nj"),
                           ("wrap", "nj"),
                           ("wrap", "geodesics")])
-def test_draws_different_vi(embedder, connector):
+def test_can_learn(embedder, connector):
     """Each draw from the sample should be different in likelihood."""
     simtree = treesim.birth_death_tree(
         birth_rate=1.0, death_rate=0.5, num_extant_tips=6
@@ -42,21 +43,15 @@ def test_draws_different_vi(embedder, connector):
     mymod.set_variationalParams(param_init)
     mymod.learn(epochs=2, path_write=None, importance_samples=3)
 
-    _, blens, _, log_like, _ = mymod.draw_sample(3, get_likelihood=True)
-    assert not torch.equal(blens[0], blens[1])
-    assert not torch.equal(blens[0], blens[2])
-    assert not torch.equal(blens[1], blens[2])
-
-    assert not torch.equal(log_like[0], log_like[1])
-    assert not torch.equal(log_like[0], log_like[2])
-    assert not torch.equal(log_like[1], log_like[2])
-
 
 @pytest.mark.parametrize(
-    "model_name",
-    ("JC69", "GTR"),
+    "model_name, path_write",
+    [("JC69", None),
+     ("GTR", None),
+     ("JC69", "tmp"),
+     ("GTR", "tmp")]
 )
-def test_models_ds1(model_name):
+def test_models_ds1(model_name, path_write):
     dna = dendropy.DnaCharacterMatrix.get(path="./test/data/ds1/dna.nex", schema="nexus")
     partials, weights = compress_alignment(dna)
     dim = 3
@@ -84,7 +79,10 @@ def test_models_ds1(model_name):
     if not phylomodel.fix_freqs:
         param_init["freqs"] = phylomodel.freqs
     mymod.set_variationalParams(param_init)
-    mymod.learn(epochs=2, path_write=None, importance_samples=1)
+
+    if path_write is not None:
+        with tempfile.TemporaryDirectory() as tmpdirname:
+            mymod.learn(epochs=2, path_write=tmpdirname, importance_samples=1)
 
 
 @pytest.mark.skip(reason="We don't have to read this in. Would need to fix the read function.")
@@ -97,15 +95,11 @@ def test_vi_io():
     )
     partials, weights = compress_alignment(dna)
     mymod = DodonaphyVI(partials, weights, 2, embedder="up", connector="nj")
-    tmp_dir = "./test/tmp_test_io"
-    os.makedirs(tmp_dir, exist_ok=True)
-    fp = os.path.join(tmp_dir, "test_data.csv")
-    if os.path.exists(fp):
-        os.remove(fp)
-    mymod.save(fp)
-    output = vi.read(fp, internals=False)
-    os.remove(fp)
-    os.rmdir(tmp_dir)
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        os.makedirs(tmp_dir, exist_ok=True)
+        fp = os.path.join(tmp_dir, "test_data.csv")
+        mymod.save(fp)
+        output = vi.read(fp, internals=False)
     assert allclose(
         output["leaf_mu"],
         mymod.VariationalParams["leaf_mu"].detach().numpy(),

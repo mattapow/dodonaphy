@@ -130,87 +130,7 @@ class DodonaphyVI(BaseModel):
         if not self.phylomodel.fix_freqs:
             self.VariationalParams["freqs"] = self.phylomodel.freqs
 
-    def draw_sample(self, nSample=100, **kwargs):
-        """Draw samples from the variational posterior distribution
-
-        Args:
-            nSample (int, optional): Number of samples to be drawn. Defaults to 100.
-
-        Returns:
-            tuple[list list list list]: peel, blens, location, lp. If kwarg 'lp' is passed.
-            Locations are in Hyperbolic space.
-            tuple[list list list]: peel, blens, location, lp. Otherwise.
-        """
-        for key in kwargs.keys():
-            assert key in ("get_likelihood", "get_elbo")
-
-        # make peel, blens and X for each of these samples
-        peel = []
-        blens = []
-        location = []
-        log_like = []
-        log_jac = []
-        log_prior = []
-        log_Q = []
-
-        weights = torch.softmax(self.VariationalParams["mix_weights"], dim=0)
-        mix_samples = torch.multinomial(weights, num_samples=nSample, replacement=True)
-        for i in range(nSample):
-            mix_idx = mix_samples[i]
-            n_tip_params = torch.numel(self.VariationalParams["leaf_mu"][mix_idx])
-            leaf_loc = self.VariationalParams["leaf_mu"][mix_idx].reshape(n_tip_params)
-            leaf_cov = torch.eye(
-                n_tip_params, dtype=torch.double
-            ) * self.VariationalParams["leaf_sigma"][mix_idx].exp().reshape(
-                n_tip_params
-            )
-            if self.internals_exist:
-                n_int_params = torch.numel(self.VariationalParams["int_mu"])
-                int_loc = self.VariationalParams["int_mu"][mix_idx].reshape(
-                    n_int_params
-                )
-                int_cov = torch.eye(
-                    n_int_params, dtype=torch.double
-                ) * self.VariationalParams["int_sigma"][mix_idx].exp().reshape(
-                    n_int_params
-                )
-                sample = self.rsample_tree(leaf_loc, leaf_cov, int_loc, int_cov)
-            else:
-                sample = self.rsample_tree(leaf_loc, leaf_cov)
-
-            peel.append(sample["peel"])
-            blens.append(sample["blens"])
-            location.append(sample["leaf_locs"])
-            if self.internals_exist:
-                location.append(sample["int_locs"])
-
-            if kwargs.get("get_likelihood") or kwargs.get("get_elbo"):
-                # regardless of the loss function, compute the likelihood under the phylogenetic model of evolution
-                mats = self.phylomodel.get_transition_mats(
-                    sample["blens"], self.phylomodel.sub_rates, self.phylomodel.freqs
-                )
-                freqs = torch.full([4], 0.25, dtype=torch.float64)
-                LL = calculate_treelikelihood(
-                    self.partials,
-                    self.weights,
-                    sample["peel"],
-                    mats,
-                    freqs,
-                )
-                log_like.append(LL)
-                log_prior.append(sample["ln_prior"])
-            if kwargs.get("get_elbo"):
-                log_Q.append(sample["logQ"])
-                log_jac.append(sample["jacobian"])
-
-        if kwargs.get("get_elbo"):
-            return peel, blens, location, log_like, log_prior, log_Q, log_jac
-        elif kwargs.get("get_likelihood"):
-            return peel, blens, location, log_like, log_prior
-        else:
-            return peel, blens, location
-
-    def calculate_elbo(self, mix_idx):
+    def calculate_elbo(self, mix_idx, path_write, file_name, iteration):
         """Calculate the elbo of a sample from the variational distributions q_k
 
         Args:
@@ -230,9 +150,9 @@ class DodonaphyVI(BaseModel):
             int_cov = torch.eye(
                 n_int_params, dtype=torch.double
             ) * self.VariationalParams["int_sigma"][mix_idx].exp().reshape(n_int_params)
-            sample = self.rsample_tree(leaf_locs, leaf_cov, int_locs, int_cov)
+            sample = self.rsample_tree(leaf_locs, leaf_cov, int_locs, int_cov, path_write=path_write, file_name=file_name, iteration=iteration)
         else:
-            sample = self.rsample_tree(leaf_locs, leaf_cov)
+            sample = self.rsample_tree(leaf_locs, leaf_cov, path_write=path_write, file_name=file_name, iteration=iteration)
 
         if sample["jacobian"] == -torch.inf:
             warnings.warn("Jacobian determinant set to zero.")
@@ -307,29 +227,13 @@ class DodonaphyVI(BaseModel):
             self.save_final_info(path_write, time.time() - start_time)
 
     def compute_final_elbo(self, path_write, n_draws):
-        # draw samples (one-by-one) from the final distribution and save them
-        tree.save_tree_head(path_write, "samples", self.tip_labels)
-        log_elbos = torch.zeros((n_draws, self.n_boosts))
+        # draw samples from the final distribution and save them
+        file_name = "samples"
+        tree.save_tree_head(path_write, file_name, self.tip_labels)
         with torch.no_grad():
-            (peel, blens, _, log_like, log_prior, log_Q, log_jac) = self.draw_sample(
-                n_draws, get_elbo=True
-            )
-            for i in range(n_draws):
-                tree.save_tree(
-                    path_write,
-                    "samples",
-                    peel[i],
-                    blens[i],
-                    i,
-                    log_like[i].item(),
-                    log_prior.item(),
-                    self.name_id,
-                )
-                log_elbos[i] = log_like + log_prior - log_Q + log_jac
-        # save the final siwae of these samples
-        final_elbo = self.elbo_siwae(importance=n_draws, ln_elbos=log_elbos).item()
-        self.log("%-12s: %i\n" % ("Final ELBO (100 samples)", final_elbo))
-        print("Final ELBO: {}".format(final_elbo))
+            final_elbo = -self.elbo_siwae(importance=n_draws, path_write=path_write, file_name=file_name).item()
+        self.log("%-12s: %f\n" % (f"Final ELBO ({n_draws}) samples)", final_elbo))
+        print(f"Final ELBO: {final_elbo:.3f}")
 
     def log_run_start(self, path_write, epochs, importance_samples, lr):
         fn = path_write + "/" + "vi.log"
@@ -359,7 +263,7 @@ class DodonaphyVI(BaseModel):
         with open(self.elbo_fn, "a", encoding="UTF-8") as f:
             f.write("%f\n" % elbo_value)
 
-    def elbo_siwae(self, importance=1, ln_elbos=None):
+    def elbo_siwae(self, importance=1, path_write=None, file_name=None):
         """Compute the ELBO.
 
         Args:
@@ -370,11 +274,12 @@ class DodonaphyVI(BaseModel):
         Returns:
             [torch.Tensor]: ELBO value
         """
-        if ln_elbos is None:
-            ln_elbos = torch.zeros((importance, self.n_boosts))
-            for k in range(self.n_boosts):
-                for t in range(importance):
-                    ln_elbos[t, k] = self.calculate_elbo(k)
+        ln_elbos = torch.zeros((importance, self.n_boosts))
+        sample_number = 0
+        for k in range(self.n_boosts):
+            for t in range(importance):
+                ln_elbos[t, k] = self.calculate_elbo(k, path_write, file_name, sample_number)
+                sample_number += 1
         loss = torch.logsumexp(
             -torch.log(torch.tensor(importance))
             + torch.log_softmax(self.VariationalParams["mix_weights"], dim=0)
@@ -388,6 +293,9 @@ class DodonaphyVI(BaseModel):
         leaf_locs,
         leaf_cov,
         normalise_leaf=False,
+        path_write=None,
+        file_name=None,
+        iteration=None,
     ):
         """Sample a nearby tree embedding.
 
@@ -419,7 +327,7 @@ class DodonaphyVI(BaseModel):
             return blens
 
         # TODO: use analytical form
-        jacobian = torch.autograd.functional.jacobian(get_blens, (leaf_locs.flatten()))
+        jacobian = torch.autograd.functional.jacobian(get_blens, leaf_locs.flatten())
         log_abs_det_jacobian = torch.log(
             torch.sqrt(torch.abs(torch.linalg.det(jacobian @ jacobian.T)))
         )
@@ -436,6 +344,25 @@ class DodonaphyVI(BaseModel):
             "ln_p": ln_p,
             "ln_prior": ln_prior,
         }
+
+        # save sample
+        if (path_write is not None) != (file_name is not None):
+            raise ValueError(f"path {path_write} and file name {file_name} should either both be None or a string")
+        can_save = path_write is not None and file_name is not None
+        can_save *= isinstance(path_write, str)
+        can_save *= isinstance(file_name, str)
+        if can_save:
+            tree.save_tree(
+                path_write,
+                file_name,
+                peel,
+                blens,
+                iteration,
+                ln_p,
+                ln_prior,
+                self.name_id
+            )
+
         return sample
 
     def get_loss(self, peel, blens, pdm, leaf_locs):
