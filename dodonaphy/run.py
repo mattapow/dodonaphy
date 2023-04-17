@@ -14,6 +14,7 @@ from dendropy.simulate import treesim
 from dodonaphy import utils, cli, tree, Cpeeler
 from dodonaphy.mcmc import DodonaphyMCMC as mcmc
 from dodonaphy.hmap import HMAP
+from dodonaphy.laplace import Laplace
 from dodonaphy.phylo import compress_alignment, calculate_pairwise_distance
 from dodonaphy.vi import DodonaphyVI
 from dodonaphy.brute import Brute
@@ -141,7 +142,7 @@ def run(args):
 
     elif args.infer == "hlaplace":
         partials, weights = compress_alignment(dna)
-        mymod = HMAP(
+        mymod = Laplace(
             partials[:],
             weights,
             dim=args.dim,
