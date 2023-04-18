@@ -144,13 +144,21 @@ class HMAP(BaseModel):
                 self.save_epoch(i, save_locations=save_locations)
 
         print(f"\nBest tree log posterior joint found: {self.best_posterior.item():.3f}")
-        if self.path_write is not None:
-            seconds = time.time() - start_time
-            mins, secs = divmod(seconds, 60)
-            hrs, mins = divmod(mins, 60)
-            self.log(f"Total time: {int(hrs)}:{int(mins)}:{int(secs)}\n")
+        self.save_duration(start_time)
+        self.save_best_tree()
+        self.log(f"Best log likelihood: {self.best_ln_p}\n")
+        self.log(f"Best log prior: {self.best_ln_prior.item()}\n")
 
+        if epochs > 0 and self.path_write is not None:
+            HMAP.trace(epochs + 1, post_hist, self.path_write, plot_hist=False)
+
+    def save_best_tree(self):
         if self.path_write is not None:
+            # TODO: this is the last model, on the best tree. Not the same.
+            # save the last model
+            file_model = os.path.join(self.path_write, f"{self.inference_name}_model.log")
+            self.phylomodel.save(file_model)
+            # save the best tree
             tree.save_tree_head(self.path_write, "mape", self.tip_labels)
             tree.save_tree(
                 self.path_write,
@@ -164,11 +172,12 @@ class HMAP(BaseModel):
                 last_tree=True,
             )
 
-            self.log(f"Best log likelihood: {self.best_ln_p}\n")
-            self.log(f"Best log prior: {self.best_ln_prior.item()}\n")
-
-        if epochs > 0 and self.path_write is not None:
-            HMAP.trace(epochs + 1, post_hist, self.path_write, plot_hist=False)
+    def save_duration(self, start_time):
+        if self.path_write is not None:
+            seconds = time.time() - start_time
+            mins, secs = divmod(seconds, 60)
+            hrs, mins = divmod(mins, 60)
+            self.log(f"Total time: {int(hrs)}:{int(mins)}:{int(secs)}\n")
 
     def record_if_best(self):
         if self.loss < -self.best_posterior:
@@ -195,9 +204,6 @@ class HMAP(BaseModel):
         self.log("%-12s: %s\n" % ("Loss function", self.loss_fn))
         self.log("%-12s: %s\n" % ("Prior", self.prior))
         self.log("%-12s: %s\n" % ("Start Tree", start))
-
-        file_model = os.path.join(self.path_write, f"{self.inference_name}_model.log")
-        self.phylomodel.save(file_model)
 
     def save_epoch(self, i, save_locations=False):
         "Save posterior value and leaf locations to file."
