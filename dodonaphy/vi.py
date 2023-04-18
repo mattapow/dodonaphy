@@ -369,9 +369,7 @@ class DodonaphyVI(BaseModel):
 
     def get_loss(self, peel, blens, pdm, leaf_locs):
         if self.loss_fn == "likelihood":
-            ln_p = self.compute_LL(
-                peel, blens, self.phylomodel.sub_rates, self.phylomodel.freqs
-            )
+            ln_p = self.compute_LL(peel, blens)
         elif self.loss_fn == "pair_likelihood":
             ln_p = self.compute_log_a_like(pdm)
         elif self.loss_fn == "hypHC":

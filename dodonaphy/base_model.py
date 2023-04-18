@@ -172,10 +172,8 @@ class BaseModel(object):
         self.bito_inst.tree_collection = bito.UnrootedTreeCollection([tree])
         self.bito_inst.prepare_for_phylo_likelihood(self.model_specification, 1)
 
-    def compute_LL(self, peel, blen, sub_rates, freqs):
+    def compute_LL(self, peel, blen):
         """Compute likelihood of tree.
-        Note that it will use the passed subsitution rates and frequencies even
-        if self has these properties.
 
         Args:
             peel ([type]): [description]
@@ -191,20 +189,20 @@ class BaseModel(object):
                 blen,
                 peel,
                 self.bito_inst,
-                sub_rates,
-                freqs,
+                self.phylomodel.sub_rates,
+                self.phylomodel.freqs,
             )
         else:
-            mats = self.phylomodel.get_transition_mats(blen, sub_rates, freqs)
+            mats = self.phylomodel.get_transition_mats(blen)
             return calculate_treelikelihood(
                 self.partials,
                 self.weights,
                 peel,
                 mats,
-                freqs,
+                self.phylomodel.freqs,
             )
 
-    def compute_log_a_like(self, pdm, sub_rates, freqs):
+    def compute_log_a_like(self, pdm):
         """Compute the log-a-like function of the embedding.
 
         The log-probability of all the pairwise taxa.
@@ -213,7 +211,7 @@ class BaseModel(object):
         P = torch.zeros((4, 4, self.L))
 
         for i in range(self.S):
-            mats = self.phylomodel.get_transition_mats(pdm[i], sub_rates, freqs)
+            mats = self.phylomodel.get_transition_mats(pdm[i])
             for j in range(self.S):
                 P = P + torch.log(
                     torch.clamp(torch.matmul(mats[j], self.partials[i]), min=eps)
@@ -223,12 +221,12 @@ class BaseModel(object):
         return torch.sum(P * self.weights) / L
 
     def compute_likelihood_hypHC(
-        self, dists_data, leaf_X, sub_rates, freqs, temperature=0.05, n_triplets=100
+        self, dists_data, leaf_X, temperature=0.05, n_triplets=100
     ):
         eps = torch.finfo(torch.double).eps
         likelihood_dist = torch.zeros_like(dists_data)
         for i in range(self.S):
-            mats = self.phylomodel.get_transition_mats(dists_data[i], sub_rates, freqs)
+            mats = self.phylomodel.get_transition_mats(dists_data[i])
             for j in range(self.S):
                 P_ij = torch.log(
                     torch.clamp(torch.matmul(mats[j], self.partials[i]), min=eps)

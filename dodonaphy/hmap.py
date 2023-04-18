@@ -60,6 +60,8 @@ class HMAP(BaseModel):
         self.matsumoto = matsumoto
         self.loss = torch.zeros(1)
         self.peel = peel
+        self.loss = -self.ln_p - self.ln_prior
+        self.best_posterior = torch.tensor(-np.inf)
 
     def init_embedding_params(self, dists):
         # embed distances with hydra+
@@ -101,6 +103,7 @@ class HMAP(BaseModel):
 
         """
         start_time = time.time()
+        post_hist = [-self.loss.item()]
 
         def lr_lambda(epoch):
             return 1.0 / (epoch + 1.0) ** 0.25
@@ -110,9 +113,6 @@ class HMAP(BaseModel):
         scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lr_lambda)
         # scheduler = torch.optim.lr_scheduler.CyclicLR(
         #   optimizer, base_lr=learn_rate/100, max_lr=learn_rate, step_size_up=100)
-        self.loss = -self.compute_ln_prior() - self.compute_ln_likelihood()
-        post_hist = [-self.loss.item()]
-        self.best_posterior = torch.tensor(-np.inf)
 
         if self.path_write is not None:
             self.save(epochs, learn_rate, start)
@@ -145,8 +145,9 @@ class HMAP(BaseModel):
         print(f"\nBest tree log posterior joint found: {self.best_posterior.item():.3f}")
         self.save_duration(start_time)
         self.save_best_tree()
-        self.log(f"Best log likelihood: {self.best_ln_p}\n")
-        self.log(f"Best log prior: {self.best_ln_prior.item()}\n")
+        if epochs > 0:
+            self.log(f"Best log likelihood: {self.best_ln_p}\n")
+            self.log(f"Best log prior: {self.best_ln_prior.item()}\n")
 
         if epochs > 0 and self.path_write is not None:
             HMAP.trace(epochs + 1, post_hist, self.path_write, plot_hist=False)
@@ -278,17 +279,17 @@ class HMAP(BaseModel):
         """Compute likelihood of current tree, reducing soft_temp as required."""
         if self.loss_fn == "likelihood":
             self.peel, self.blens = self.connect()
-            self.ln_p = self.compute_LL(self.peel, self.blens, self.phylomodel.sub_rates, self.phylomodel.freqs)
+            self.ln_p = self.compute_LL(self.peel, self.blens)
             loss = self.ln_p
         elif self.loss_fn == "pair_likelihood":
             self.peel, self.blens, pdm = self.connect(get_pdm=True)
-            self.ln_p = self.compute_LL(self.peel, self.blens, self.phylomodel.sub_rates, self.phylomodel.freqs)
-            loss = self.compute_log_a_like(pdm, self.phylomodel.sub_rates, self.phylomodel.freqs)
+            self.ln_p = self.compute_LL(self.peel, self.blens)
+            loss = self.compute_log_a_like(pdm)
         elif self.loss_fn == "hypHC":
             locs = self.get_locs()
             pdm = Chyp_torch.get_pdm(locs, curvature=self.curvature)
             loss = self.compute_likelihood_hypHC(
-                pdm, locs, self.phylomodel.sub_rates, self.phylomodel.freqs, temperature=0.05, n_triplets=100)
+                pdm, locs, temperature=0.05, n_triplets=100)
         return loss
 
     def compute_ln_prior(self):

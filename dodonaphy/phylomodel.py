@@ -17,7 +17,6 @@ class PhyloModel:
 
     @property
     def freqs(self):
-        print(self._freqs)
         return self.freqs_transform(self._freqs)
 
     @freqs.setter
@@ -61,11 +60,11 @@ class PhyloModel:
             self.fix_sub_rates = False
             self.fix_freqs = False
 
-    def get_transition_mats(self, blens, sub_rates, freqs):
+    def get_transition_mats(self, blens):
         if self == "JC69":
             mats = self.JC69_p_t(blens)
         elif self == "GTR":
-            mats = self.GTR_p_t(blens, sub_rates, freqs)
+            mats = self.GTR_p_t(blens)
         else:
             raise ValueError(
                 f"Model {self.name} has no transition matrix implementation."
@@ -81,14 +80,11 @@ class PhyloModel:
             d.shape[0], d.shape[1], 4, 4
         )
 
-    @staticmethod
-    def GTR_p_t(branch_lengths, sub_rates, freqs):
-        Q_unnorm = PhyloModel.compute_Q_martix(sub_rates)
-        Q = Q_unnorm / PhyloModel.norm(Q_unnorm, freqs).unsqueeze(-1).unsqueeze(-1)
-        sqrt_pi = freqs.sqrt().diag_embed(dim1=-2, dim2=-1)
-        sqrt_pi_inv = (1.0 / freqs.sqrt()).diag_embed(dim1=-2, dim2=-1)
-        sqrt_pi = freqs.sqrt().diag_embed(dim1=-2, dim2=-1)
-        sqrt_pi_inv = (1.0 / freqs.sqrt()).diag_embed(dim1=-2, dim2=-1)
+    def GTR_p_t(self, branch_lengths):
+        Q_unnorm = PhyloModel.compute_Q_martix(self.sub_rates)
+        Q = Q_unnorm / PhyloModel.norm(Q_unnorm, self.freqs).unsqueeze(-1).unsqueeze(-1)
+        sqrt_pi = self.freqs.sqrt().diag_embed(dim1=-2, dim2=-1)
+        sqrt_pi_inv = (1.0 / self.freqs.sqrt()).diag_embed(dim1=-2, dim2=-1)
         S = sqrt_pi @ Q @ sqrt_pi_inv
         e, v = torch.linalg.eigh(S)
         offset = branch_lengths.dim() - e.dim() + 1

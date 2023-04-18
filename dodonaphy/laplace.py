@@ -20,7 +20,7 @@ class Laplace(HMAP):
             leaf_loc, curvature=self.curvature, matsumoto=self.matsumoto
         )
         peel, blens = peeler.nj_torch(dist_2d, tau=self.soft_temp)
-        ln_p = self.compute_LL(peel, blens, self.phylomodel.sub_rates, self.phylomodel.freqs)
+        ln_p = self.compute_LL(peel, blens)
         ln_prior = self.compute_prior_gamma_dir(blens)
         return ln_p + ln_prior
 
@@ -47,7 +47,7 @@ class Laplace(HMAP):
             )
             peel, blens = peeler.nj_torch(dists)
             blens = torch.tensor(blens)
-            ln_p = self.compute_LL(peel, blens, self.phylomodel.sub_rates, self.phylomodel.freqs)
+            ln_p = self.compute_LL(peel, blens)
             ln_prior = self.compute_prior_gamma_dir(blens)
             if self.path_write is not None:
                 tree.save_tree(
