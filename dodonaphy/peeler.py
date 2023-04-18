@@ -2,9 +2,9 @@ from heapq import heapify, heappop, heappush
 
 import numpy as np
 import torch
+import torch.nn.functional as F
 
 from dodonaphy import poincare, utils, Chyp_np, Cpeeler
-from dodonaphy.node import Node
 from dodonaphy.edge import Edge
 
 eps = np.finfo(np.double).eps
@@ -304,13 +304,17 @@ def get_new_dist_soft(pdm, mask, hot_f, hot_g):
     dist_fg = hot_g @ dist_f
     dist_u = 0.5 * (dist_f + dist_g - dist_fg)
 
-    n_active = torch.clamp(sum(~mask), min=3)
+    n_active = sum(~mask)
+    n_active = torch.clamp(n_active, min=3)
+    n_active = n_active.float()  # convert to float to ensure compatibility with division
+    n_active = F.relu(n_active - 2) + 2
+
     mask_2d = ~torch.outer(~mask, ~mask)
     sum_pdm = torch.sum(pdm * ~mask_2d, dim=-1)
-    dist_uf = torch.clamp(
-        0.5 * dist_fg + (sum_pdm @ hot_f - sum_pdm @ hot_g) / (2 * (n_active - 2)),
-        min=eps,
-    )
+
+    dist_uf = 0.5 * dist_fg + (sum_pdm @ hot_f - sum_pdm @ hot_g) / (2 * (n_active - 2))
+    dist_uf = torch.clamp(dist_uf, min=eps)
+    dist_uf = F.relu(dist_uf - eps) + eps
     return dist_u, dist_uf, dist_fg
 
 
