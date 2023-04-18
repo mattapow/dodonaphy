@@ -1,5 +1,6 @@
 import torch
 from torch.distributions.transforms import StickBreakingTransform
+from torch.distributions.dirichlet import Dirichlet
 
 
 class PhyloModel:
@@ -16,29 +17,26 @@ class PhyloModel:
 
     @property
     def freqs(self):
-        if self._first_freqs:
-            return self.freqs_transform(self._freqs).detach().requires_grad_(True)
-        else:
-            return self.freqs_transform(self._freqs)
+        print(self._freqs)
+        return self.freqs_transform(self._freqs)
 
     @freqs.setter
     def freqs(self, freqs):
-        self._first_freqs = False if hasattr(self, "_freqs") else True
-        self._freqs = self.freqs_transform.inv(freqs)
+        if not hasattr(self, "_freqs"):
+            self._freqs = self.freqs_transform.inv(freqs).clone().detach().requires_grad_(True)
+        else:
+            self._freqs = self.freqs_transform.inv(freqs)
 
     @property
     def sub_rates(self):
-        if self._first_sub_rates:
-            return (
-                self.sub_rates_transform(self._sub_rates).detach().requires_grad_(True)
-            )
-        else:
-            return self.sub_rates_transform(self._sub_rates)
+        return self.sub_rates_transform(self._sub_rates)
 
     @sub_rates.setter
     def sub_rates(self, sub_rates):
-        self._first_sub_rates = False if hasattr(self, "_freqs") else True
-        self._sub_rates = self.sub_rates_transform.inv(sub_rates)
+        if not hasattr(self, "_sub_rates"):
+            self._sub_rates = self.sub_rates_transform.inv(sub_rates).clone().detach().requires_grad_(True)
+        else:
+            self._sub_rates = self.sub_rates_transform.inv(sub_rates)
 
     def init_freqs(self, freqs):
         self.freqs_transform = StickBreakingTransform()
@@ -46,10 +44,7 @@ class PhyloModel:
         if self == "JC69":
             self.freqs_prior_dist = None
         elif self == "GTR":
-            self.freqs = torch.full([4], 0.25, dtype=torch.double)
-            self.freqs_prior_dist = torch.distributions.dirichlet.Dirichlet(
-                torch.tensor([1.0, 1.0, 1.0, 1.0])
-            )
+            self.freqs_prior_dist = Dirichlet(torch.full([4], 0.25))
 
     def init_sub_rates(self, sub_rates):
         self.sub_rates_transform = StickBreakingTransform()
@@ -57,9 +52,7 @@ class PhyloModel:
         if self == "JC69":
             self.prior_dist = None
         elif self == "GTR":
-            self.prior_dist = torch.distributions.dirichlet.Dirichlet(
-                torch.tensor([1.0, 1.0, 1.0, 1.0, 1.0, 1.0])
-            )
+            self.prior_dist = Dirichlet(torch.full([6], 1.0/6.0))
 
     def init_fix_params(self):
         self.fix_sub_rates = True

@@ -89,10 +89,9 @@ class HMAP(BaseModel):
     def init_model_params(self):
         # set evolutionary model parameters to optimise
         if not self.phylomodel.fix_sub_rates:
-
-            self.params["sub_rates"] = self.phylomodel.sub_rates
+            self.params["sub_rates"] = self.phylomodel._sub_rates
         if not self.phylomodel.fix_freqs:
-            self.params["freqs"] = self.phylomodel.freqs
+            self.params["freqs"] = self.phylomodel._freqs
 
     def learn(self, epochs, learn_rate, save_locations, start=""):
         """Optimise params["dists"].
