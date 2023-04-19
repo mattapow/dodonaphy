@@ -54,7 +54,10 @@ def init_parser():
         "--use_bito",
         dest="use_bito",
         action="store_true",
-        help="Inf: Use bito (calling BEAGLE) to calculate likelihoods.",
+        help="Inf: Use bito (calling BEAGLE) to calculate likelihoods. \
+            Bito reads in a fasta file with the same name as --path_dna.\
+            E.g. both msa.fasta and msa.nex must be present, but only give\
+            msa.nex to --path_dna.",
     )
     parser.set_defaults(use_bito=False)
 

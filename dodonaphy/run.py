@@ -42,14 +42,16 @@ def run(args):
         args.start, dna, root_dir, tip_namespace, args.matsumoto
     )
     save_period = max(int(args.epochs / args.draws), 1)
+    peel = None
+    get_peel = False
     if args.connect == "fix":
-        warnings.warn(
-            "Fixed topology is experimental and start tree must have integer taxa names."
-        )
+        warnings.warn("Fixed topology is experimental.")
+        get_peel = True
+    if args.use_bito:
+        get_peel = True
+    if get_peel:
         tree.rename_labels(start_tree)
         peel, _, _ = tree.dendropy_to_pb(start_tree)
-    else:
-        peel = None
 
     start = time.time()
     if args.infer == "mcmc":
@@ -132,7 +134,11 @@ def run(args):
             model_name=args.model,
         )
         if args.use_bito:
-            mymod.init_bito(msa_file, peel)
+            fasta_file = get_fasta_file(msa_file)
+            if peel is None:
+                raise ValueError("Start tree cannot be None for bito.")
+            mymod.init_bito(fasta_file, peel)
+
         mymod.learn(
             epochs=args.epochs,
             learn_rate=args.learn,
@@ -183,6 +189,16 @@ def run(args):
     print(
         f"Time taken for {args.taxa} taxa with {args.epochs} epochs: {int(hrs)}:{int(mins)}:{int(secs)}\n"
     )
+
+
+def get_fasta_file(msa_file):
+    if not msa_file.endswith('.nex'):
+        raise IOError("msa file must end with .nex")
+    file_stub = msa_file[:-4]
+    fasta_file = file_stub + ".fasta"
+    if not os.path.isfile(fasta_file):
+        raise FileNotFoundError(f"fasta file {fasta_file} not found. See --help.")
+    return fasta_file
 
 
 def get_start_dists(method, dna, root_dir, taxon_namespace, matsumoto=False):
@@ -306,14 +322,23 @@ def simulate_tree(root_dir, birth_rate, death_rate, n_taxa, seq_len):
 
 
 def read_tree(root_dir, taxon_namespace, file_name="start_tree.nex"):
-    """Read a saved nexus tree using dendropy."""
+    """Read a saved nexus or newick tree using dendropy."""
     tree_path = os.path.join(root_dir, file_name)
-    return dendropy.Tree.get(
-        path=tree_path,
-        schema="nexus",
-        preserve_underscores=False,
-        taxon_namespace=taxon_namespace,
-    )
+    try:
+        tree = dendropy.Tree.get(
+            path=tree_path,
+            schema="nexus",
+            preserve_underscores=False,
+            taxon_namespace=taxon_namespace,
+        )
+    except:
+        tree = dendropy.Tree.get(
+            path=tree_path,
+            schema="newick",
+            preserve_underscores=False,
+            taxon_namespace=taxon_namespace,
+        )
+    return tree
 
 
 def read_dna(root_dir, file_name="dna.nex"):
