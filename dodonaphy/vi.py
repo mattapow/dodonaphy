@@ -84,9 +84,9 @@ class DodonaphyVI(BaseModel):
             )
         # set evolutionary model parameters to optimise
         if not self.phylomodel.fix_sub_rates:
-            self.VariationalParams["sub_rates"] = self.phylomodel.sub_rates
+            self.VariationalParams["sub_rates"] = self.phylomodel._sub_rates
         if not self.phylomodel.fix_freqs:
-            self.VariationalParams["freqs"] = self.phylomodel.freqs
+            self.VariationalParams["freqs"] = self.phylomodel._freqs
 
     def set_variationalParams(self, param_init):
         # set dimensions of input
