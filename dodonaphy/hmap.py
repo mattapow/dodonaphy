@@ -62,6 +62,8 @@ class HMAP(BaseModel):
         self.peel = peel
         self.loss = -self.ln_p - self.ln_prior
         self.best_posterior = torch.tensor(-np.inf)
+        self.best_freqs = self.phylomodel.freqs
+        self.best_sub_rates = self.phylomodel.sub_rates
 
     def init_embedding_params(self, dists):
         # embed distances with hydra+
@@ -116,7 +118,7 @@ class HMAP(BaseModel):
 
         if self.path_write is not None:
             self.save(epochs, learn_rate, start)
-            self.record_if_best()
+        self.record_if_best()
 
         def closure():
             optimizer.zero_grad()
@@ -134,11 +136,11 @@ class HMAP(BaseModel):
             optimizer.step(closure)
             scheduler.step()
             post_hist.append(self.ln_p.item() + self.ln_prior.item())
-            print(
-                f"{i+1}: {self.ln_prior.item():.3f} + {self.ln_p.item():.3f} = {post_hist[-1]:.3f}"
-            )
-            if int(i + 1) % 10 == 9:
-                print("")
+            self.record_if_best()
+            print(f"{i+1}: {self.ln_prior.item():.3f} + {self.ln_p.item():.3f} = {post_hist[-1]:.3f}")
+            if (i+1) % 10 == 9:
+                print()
+
             if self.path_write is not None:
                 self.save_epoch(i, save_locations=save_locations)
 
@@ -153,9 +155,12 @@ class HMAP(BaseModel):
             HMAP.trace(epochs + 1, post_hist, self.path_write, plot_hist=False)
 
     def save_best_tree(self):
+        """Save the model and tree from the best iteration.
+        """
         if self.path_write is not None:
-            # TODO: this is the last model, on the best tree. Not the same.
-            # save the last model
+            # save the best model
+            self.phylomodel.freqs = self.best_freqs
+            self.phylomodel.sub_rates = self.best_sub_rates
             file_model = os.path.join(self.path_write, f"{self.inference_name}_model.log")
             self.phylomodel.save(file_model)
             # save the best tree
@@ -187,6 +192,8 @@ class HMAP(BaseModel):
             self.best_peel = self.peel
             self.best_blens = self.blens
             self.best_epoch = self.current_epoch
+            self.best_freqs = self.phylomodel.freqs
+            self.best_sub_rates = self.phylomodel.sub_rates
 
     def save(self, epochs, learn_rate, start):
 
