@@ -81,8 +81,8 @@ class PhyloModel:
         )
 
     def GTR_p_t(self, branch_lengths):
-        Q_unnorm = PhyloModel.compute_Q_martix(self.sub_rates)
-        Q = Q_unnorm / PhyloModel.norm(Q_unnorm, self.freqs).unsqueeze(-1).unsqueeze(-1)
+        Q_unnorm = self.compute_Q_martix()
+        Q = Q_unnorm / self.norm(Q_unnorm).unsqueeze(-1).unsqueeze(-1)
         sqrt_pi = self.freqs.sqrt().diag_embed(dim1=-2, dim2=-1)
         sqrt_pi_inv = (1.0 / self.freqs.sqrt()).diag_embed(dim1=-2, dim2=-1)
         S = sqrt_pi @ Q @ sqrt_pi_inv
@@ -101,13 +101,11 @@ class PhyloModel:
             )
         )
 
-    @staticmethod
-    def norm(Q, freqs) -> torch.Tensor:
-        return -torch.sum(torch.diagonal(Q, dim1=-2, dim2=-1) * freqs, dim=-1)
+    def norm(self, Q) -> torch.Tensor:
+        return -torch.sum(torch.diagonal(Q, dim1=-2, dim2=-1) * self.freqs, -1)
 
-    @staticmethod
-    def compute_Q_martix(sub_rates):
-        (a, b, c, d, e, f) = sub_rates
+    def compute_Q_martix(self):
+        (a, b, c, d, e, f) = self.sub_rates
         Q = torch.tensor(
             [
                 [0, a, b, c],
@@ -131,18 +129,18 @@ class PhyloModel:
             f.write(f"Substitution Rates Fixed: {self.fix_sub_rates}\n")
             f.write(f"Substitution Rates Prior: {str(self.prior_dist)}\n")
 
-    def compute_ln_prior_sub_rates(self, sub_rates):
+    def compute_ln_prior_sub_rates(self):
         if self == "JC69":
             return torch.zeros(1)
         elif self == "GTR":
-            return self.prior_dist.log_prob(sub_rates)
+            return self.prior_dist.log_prob(self.sub_rates)
         else:
             raise RuntimeError(f"Model {self.name} has no prior on rates available.")
 
-    def compute_ln_prior_freqs(self, freqs):
+    def compute_ln_prior_freqs(self):
         if self == "JC69":
             return torch.zeros(1)
         elif self == "GTR":
-            return self.freqs_prior_dist.log_prob(freqs)
+            return self.freqs_prior_dist.log_prob(self.freqs)
         else:
             raise RuntimeError(f"Model {self.name} has no prior on freqs available.")

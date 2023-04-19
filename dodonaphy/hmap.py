@@ -295,8 +295,8 @@ class HMAP(BaseModel):
     def compute_ln_prior(self):
         if self.prior == "None":
             return torch.zeros(1)
-        prior_sub_rates = self.phylomodel.compute_ln_prior_sub_rates(self.phylomodel.sub_rates)
-        prior_freqs = self.phylomodel.compute_ln_prior_freqs(self.phylomodel.freqs)
+        prior_sub_rates = self.phylomodel.compute_ln_prior_sub_rates()
+        prior_freqs = self.phylomodel.compute_ln_prior_freqs()
         prior_tree = self.compute_ln_tree_prior()
         return prior_sub_rates + prior_freqs + prior_tree
 
