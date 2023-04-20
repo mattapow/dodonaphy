@@ -37,10 +37,11 @@ def run(args):
     dna = read_dna(root_dir, args.path_dna)
     partials, weights, tip_namespace = compress_alignment(dna, get_namespace=True)
     tip_labels = tip_namespace.labels()
+    name_id = {name: id for id, name in enumerate(tip_labels)}
     empirical_freqs = compute_nucleotide_frequencies(dna)
 
     dists, start_tree = get_start_dists(
-        args.start, dna, root_dir, tip_namespace, args.matsumoto
+        args.start, dna, root_dir, name_id, args.matsumoto
     )
     save_period = max(int(args.epochs / args.draws), 1)
     peel = None
@@ -51,7 +52,7 @@ def run(args):
     if args.use_bito:
         get_peel = True
     if get_peel:
-        tree.rename_labels(start_tree)
+        # tree.rename_labels(start_tree)
         peel, _, _ = tree.dendropy_to_pb(start_tree)
 
     start = time.time()
@@ -206,27 +207,22 @@ def get_fasta_file(msa_file):
 
 def get_start_dists(method, dna, root_dir, taxon_namespace, matsumoto=False):
     n_taxa = len(dna)
-    start_tree = None
-    if method == "None":
-        print("Computing adjusted distances from sequences:", end="", flush=True)
-        dists = calculate_pairwise_distance(dna, adjust="JC69")
-        print(" done.", flush=True)
-    elif method == "NJ":
+    if method == "NJ":
         print("Computing raw distances from tree file:", end="", flush=True)
-        dists_hamming = calculate_pairwise_distance(dna, adjust=None)
+        dists_hamming = calculate_pairwise_distance(dna, adjust="JC69")
         print(" done.", flush=True)
+
         peel, blens = Cpeeler.nj_np(dists_hamming)
-        tipnames = [str(i) for i in range(n_taxa)]
-        nwk = tree.tree_to_newick(tipnames, peel, blens)
+        nwk = tree.tree_to_newick(taxon_namespace, peel, blens)
         start_tree = dendropy.Tree.get(data=nwk, schema="newick")
-        dists = utils.tip_distances(start_tree, n_taxa)
+
     elif method == "RAxML":
         print("Finding RAxML tree.")
         rax = raxml.RaxmlRunner()
         start_tree = rax.estimate_tree(char_matrix=dna, raxml_args=["--no-bfgs"])
         tree_path = os.path.join(root_dir, "start_tree.nex")
         start_tree.write(path=tree_path, schema="nexus")
-        dists = utils.tip_distances(start_tree, n_taxa)
+
     elif method == "Random":
         n_tips = len(dna)
         nC2 = n_tips * (n_tips - 1) / 2
@@ -234,10 +230,14 @@ def get_start_dists(method, dna, root_dir, taxon_namespace, matsumoto=False):
         dists = np.zeros((n_tips, n_tips))
         dists[np.tril_indices(n_tips, k=-1)] = dists_linear
         dists[np.triu_indices(n_tips, k=+1)] = dists_linear
+
+        peel, blens = Cpeeler.nj_np(dists)
+        nwk = tree.tree_to_newick(taxon_namespace, peel, blens)
+        start_tree = dendropy.Tree.get(data=nwk, schema="newick")
     else:
         start_tree = read_tree(root_dir, taxon_namespace, file_name=method)
-        dists = utils.tip_distances(start_tree, n_taxa)
 
+    dists = utils.tip_distances(start_tree, n_taxa)
     return dists, start_tree
 
 
