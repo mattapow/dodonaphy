@@ -35,7 +35,8 @@ class HMAP(BaseModel):
         connector="nj",
         peel=None,
         normalise_leaves=False,
-        model_name="JC69"
+        model_name="JC69",
+        freqs=None,
     ):
         super().__init__(
             "hmap",
@@ -48,6 +49,7 @@ class HMAP(BaseModel):
             loss_fn=loss_fn,
             tip_labels=tip_labels,
             model_name=model_name,
+            freqs=freqs,
         )
         self.path_write = path_write
         self.normalise_leaves = normalise_leaves
@@ -105,7 +107,7 @@ class HMAP(BaseModel):
 
         """
         start_time = time.time()
-        post_hist = [-self.loss.item()]
+        post_hist = []
 
         def lr_lambda(epoch):
             return 1.0 / (epoch + 1.0) ** 0.25
@@ -118,29 +120,24 @@ class HMAP(BaseModel):
 
         if self.path_write is not None:
             self.save(epochs, learn_rate, start)
-        self.record_if_best()
 
         def closure():
             optimizer.zero_grad()
             self.ln_prior = self.compute_ln_prior()
             self.ln_p = self.compute_ln_likelihood()
             self.loss = -self.ln_prior - self.ln_p
-            self.record_if_best()
+            # self.loss.backward()
             self.loss.backward(retain_graph=True)
             return self.loss
 
         print(f"Running for {epochs} iterations.")
         print("Iteration: log prior + log_likelihood = log posterior")
-        for i in range(epochs):
+        self.print_epoch(0, post_hist)
+        for i in range(1, epochs+1):
             self.current_epoch = i
             optimizer.step(closure)
             scheduler.step()
-            post_hist.append(self.ln_p.item() + self.ln_prior.item())
-            self.record_if_best()
-            print(f"{i+1}: {self.ln_prior.item():.3f} + {self.ln_p.item():.3f} = {post_hist[-1]:.3f}")
-            if (i+1) % 10 == 9:
-                print()
-
+            self.print_epoch(i, post_hist)
             if self.path_write is not None:
                 self.save_epoch(i, save_locations=save_locations)
 
@@ -153,6 +150,13 @@ class HMAP(BaseModel):
 
         if epochs > 0 and self.path_write is not None:
             HMAP.trace(epochs + 1, post_hist, self.path_write, plot_hist=False)
+
+    def print_epoch(self, iteration, posterior_history):
+        posterior_history.append(self.ln_p.item() + self.ln_prior.item())
+        self.record_if_best()
+        print(f"{iteration}: {self.ln_prior.item():.3f} + {self.ln_p.item():.3f} = {posterior_history[-1]:.3f}")
+        if (iteration) % 10 == 9:
+            print()
 
     def save_best_tree(self):
         """Save the model and tree from the best iteration.

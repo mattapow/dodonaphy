@@ -166,9 +166,7 @@ def test_likelihood_alphabet():
     mats = PhyloModel.JC69_p_t(blen)
     freqs = torch.full([4], 0.25, dtype=torch.float64)
 
-    dna = dendropy.DnaCharacterMatrix.get(
-        data=">T1\nAAAAAAAAA\n>T2\nAAAAAAAAD\n\n", schema="fasta"
-    )
+    dna = dendropy.DnaCharacterMatrix.get(data=">T1\nAAAAAAAAAA\n>T2\nAAAAAAAATT\n\n", schema="fasta")
     partials, weights = phylo.compress_alignment(dna)
     partials.append(torch.zeros((1, 4, 9), dtype=torch.float64))
     LL = phylo.calculate_treelikelihood(partials, weights, post_indexing, mats, freqs)
@@ -278,6 +276,7 @@ def test_likelihood_mrbayes_numpy():
 def test_GTR_equals_JC69():
     blens = torch.tensor(np.array([0.1]), dtype=torch.double)
     phylomodel = PhyloModel("GTR")
+    phylomodel.freqs = torch.full([4], 0.25, dtype=torch.double)
     mats_JC = phylomodel.JC69_p_t(blens)
     mats_GTR = phylomodel.GTR_p_t(blens)
 
@@ -309,3 +308,32 @@ def test_GTR_mats_size(blens_in, size):
 ])
 def test_get_parent_id_vector(peel, rooted, expected):
     assert np.allclose(phylo.get_parent_id_vector(peel, rooted=rooted), expected)
+
+
+def test_compute_nucleotide_frequencies():
+    alignment = dendropy.DnaCharacterMatrix.get(
+        data=">T1\nAAAAAAAAAA\n>T2\nAAAAAAAATT\n\n", schema="fasta"
+    )
+    expected_output = [0.9, 0.0, 0.0, 0.1]
+    np.testing.assert_allclose(
+        phylo.compute_nucleotide_frequencies(alignment),
+        expected_output,
+        rtol=1e-5, atol=1e-8
+    )
+
+
+def test_calculate_frequencies_extended_alphabet():
+    alignment = dendropy.DnaCharacterMatrix.get(
+        data=">T1\n-AAAAAAAAA\n>T2\nAAAAAAAADD\n\n", schema="fasta"
+    )
+    # Only count A,C,G and T characters
+    expected_output = np.array([17.0, 0.0, 0.0, 0.0])
+    # expected_output = [18, 1, 3, 3]
+    # expected_output = [17+1/4, 1/4, 1/3+1/4, 1/3+1/4]
+    expected_output /= sum(expected_output)
+    np.testing.assert_allclose(
+        phylo.compute_nucleotide_frequencies(alignment),
+        expected_output,
+        rtol=1e-5, atol=1e-8
+    )
+    pass

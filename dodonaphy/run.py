@@ -15,7 +15,7 @@ from dodonaphy import utils, cli, tree, Cpeeler
 from dodonaphy.mcmc import DodonaphyMCMC as mcmc
 from dodonaphy.hmap import HMAP
 from dodonaphy.laplace import Laplace
-from dodonaphy.phylo import compress_alignment, calculate_pairwise_distance
+from dodonaphy.phylo import compress_alignment, calculate_pairwise_distance, compute_nucleotide_frequencies
 from dodonaphy.vi import DodonaphyVI
 from dodonaphy.brute import Brute
 
@@ -37,6 +37,7 @@ def run(args):
     dna = read_dna(root_dir, args.path_dna)
     partials, weights, tip_namespace = compress_alignment(dna, get_namespace=True)
     tip_labels = tip_namespace.labels()
+    empirical_freqs = compute_nucleotide_frequencies(dna)
 
     dists, start_tree = get_start_dists(
         args.start, dna, root_dir, tip_namespace, args.matsumoto
@@ -95,6 +96,7 @@ def run(args):
             n_boosts=args.boosts,
             start=args.start,
             model_name=args.model,
+            freqs=empirical_freqs,
         )
 
         # initialise embedding parameters
@@ -132,6 +134,7 @@ def run(args):
             peel=peel,
             normalise_leaves=args.normalise_leaves,
             model_name=args.model,
+            freqs=empirical_freqs,
         )
         if args.use_bito:
             fasta_file = get_fasta_file(msa_file)

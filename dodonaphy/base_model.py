@@ -43,6 +43,7 @@ class BaseModel(object):
         matsumoto=False,
         tip_labels=None,
         model_name="JC69",
+        freqs=None,
     ):
         self.inference_name = inference_name
         self.partials = partials.copy()
@@ -95,6 +96,8 @@ class BaseModel(object):
         # phylogenetic model
         self.use_bito = False
         self.phylomodel = PhyloModel(model_name)
+        if freqs is not None:
+            self.phylomodel.freqs = torch.from_numpy(freqs)
 
     @staticmethod
     def compute_branch_lengths(

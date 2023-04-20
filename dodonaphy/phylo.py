@@ -11,7 +11,7 @@ if bito_found:
     import bito
 
 
-def compress_alignment(alignment, get_namespace=False):
+def compress_alignment(alignment, get_namespace=False, get_freqs=False):
     sequences = [str(sequence) for sequence in alignment.sequences()]
     taxa = alignment.taxon_namespace.labels()
     count_dict = Counter(list(zip(*sequences)))
@@ -54,6 +54,21 @@ def compress_alignment(alignment, get_namespace=False):
     if get_namespace:
         return partials, torch.tensor(np.array(weights)), alignment.taxon_namespace
     return partials, torch.tensor(np.array(weights))
+
+
+def compute_nucleotide_frequencies(alignment):
+    sequences = [list(sequence) for sequence in alignment.sequences()]
+    char_counts = np.array([0, 0, 0, 0])
+
+    valid_chars = set('ACGT')
+
+    for key, count in Counter(zip(*sequences)).items():
+        if key[0].label in valid_chars:
+            char_counts['ACGT'.index(key[0].label)] += count
+        if key[1].label in valid_chars:
+            char_counts['ACGT'.index(key[1].label)] += count
+    freqs = char_counts / sum(char_counts)
+    return freqs
 
 
 def calculate_pairwise_distance(dna, adjust=None, omit_unkown=False):
