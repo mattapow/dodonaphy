@@ -317,15 +317,15 @@ def test_nj_soft():
     pdm.requires_grad = True
     for i in range(10):
         peel, blens = peeler.nj_torch(pdm, tau=1e-7)
-
-        peel_check = []
-        peel_check.append(np.allclose(peel, [[1, 0, 4], [3, 2, 5], [5, 4, 6]]))
-        peel_check.append(np.allclose(peel, [[0, 1, 4], [2, 3, 5], [4, 5, 6]]))
-        peel_check.append(np.allclose(peel, [[2, 3, 4], [1, 4, 5], [0, 5, 6]]))
-        peel_check.append(np.allclose(peel, [[0, 1, 4], [4, 2, 5], [5, 3, 6]]))
-        peel_check.append(np.allclose(peel, [[2, 3, 4], [0, 4, 5], [1, 5, 6]]))
-        peel_check.append(np.allclose(peel, [[2, 3, 4], [0, 1, 5], [5, 4, 6]]))
-        peel_check.append(np.allclose(peel, [[0, 1, 4], [4, 3, 5], [2, 5, 6]]))
+        patterns = [
+            [[1, 0, 4], [3, 2, 5], [5, 4, 6]],
+            [[0, 1, 4], [2, 3, 5], [4, 5, 6]],
+            [[2, 3, 4], [1, 4, 5], [0, 5, 6]],
+            [[0, 1, 4], [4, 2, 5], [5, 3, 6]],
+            [[2, 3, 4], [0, 4, 5], [1, 5, 6]],
+            [[2, 3, 4], [0, 1, 5], [5, 4, 6]],
+            [[0, 1, 4], [4, 3, 5], [2, 5, 6]]]
+        peel_check = [np.allclose(peel, p) for p in patterns]
 
         assert sum(
             peel_check
