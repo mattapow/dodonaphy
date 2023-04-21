@@ -205,13 +205,11 @@ def get_fasta_file(msa_file):
     return fasta_file
 
 
-def get_start_dists(method, dna, root_dir, taxon_namespace, matsumoto=False):
-    n_taxa = len(dna)
+def get_start_tree(method, dna, root_dir, taxon_namespace):
     if method == "NJ":
         print("Computing raw distances from tree file:", end="", flush=True)
         dists_hamming = calculate_pairwise_distance(dna, adjust="JC69")
         print(" done.", flush=True)
-
         peel, blens = Cpeeler.nj_np(dists_hamming)
         nwk = tree.tree_to_newick(taxon_namespace, peel, blens)
         start_tree = dendropy.Tree.get(data=nwk, schema="newick")
@@ -236,8 +234,15 @@ def get_start_dists(method, dna, root_dir, taxon_namespace, matsumoto=False):
         start_tree = dendropy.Tree.get(data=nwk, schema="newick")
     else:
         start_tree = read_tree(root_dir, taxon_namespace, file_name=method)
+    return start_tree
 
+
+def get_start_dists(method, dna, root_dir, taxon_namespace, matsumoto=False):
+    start_tree = get_start_tree(method, dna, root_dir, taxon_namespace)
+    n_taxa = len(dna)
     dists = utils.tip_distances(start_tree, n_taxa)
+    if matsumoto:
+        dists = np.log(np.cosh(dists))
     return dists, start_tree
 
 
