@@ -216,6 +216,9 @@ def tree_to_newick(name_id, peel, blens, rooted=True):
         name = next(iter(name_id))
         return f"({name});"
 
+    if isinstance(blens, np.ndarray):
+        blens = torch.from_numpy(blens)
+
     # Swap dict from name: id to id: name
     id_name = {value: key for key, value in name_id.items()}
 

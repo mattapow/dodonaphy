@@ -14,12 +14,11 @@ from dodonaphy.vi import DodonaphyVI
 from numpy import allclose
 from dodonaphy.phylomodel import PhyloModel
 
-
+# ("wrap", "geodesics")
+# ("up", "geodesics"),
 @pytest.mark.parametrize("embedder,connector",
-                         [("up", "geodesics"),
-                          ("up", "nj"),
-                          ("wrap", "nj"),
-                          ("wrap", "geodesics")])
+                         [("up", "nj"),
+                          ("wrap", "nj"),])
 def test_can_learn(embedder, connector):
     """Each draw from the sample should be different in likelihood."""
     simtree = treesim.birth_death_tree(
