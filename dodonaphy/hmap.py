@@ -107,7 +107,7 @@ class HMAP(BaseModel):
 
         """
         start_time = time.time()
-        post_hist = []
+        post_hist = [self.ln_p.item() + self.ln_prior.item()]
 
         def lr_lambda(epoch):
             return 1.0 / (epoch + 1.0) ** 0.25
@@ -132,7 +132,6 @@ class HMAP(BaseModel):
 
         print(f"Running for {epochs} iterations.")
         print("Iteration: log prior + log_likelihood = log posterior")
-        self.print_epoch(0, post_hist)
         for i in range(1, epochs+1):
             self.current_epoch = i
             optimizer.step(closure)
