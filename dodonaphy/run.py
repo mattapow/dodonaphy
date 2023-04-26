@@ -15,7 +15,11 @@ from dodonaphy import utils, cli, tree, Cpeeler
 from dodonaphy.mcmc import DodonaphyMCMC as mcmc
 from dodonaphy.hmap import HMAP
 from dodonaphy.laplace import Laplace
-from dodonaphy.phylo import compress_alignment, calculate_pairwise_distance, compute_nucleotide_frequencies
+from dodonaphy.phylo import (
+    compress_alignment,
+    calculate_pairwise_distance,
+    compute_nucleotide_frequencies,
+)
 from dodonaphy.vi import DodonaphyVI
 from dodonaphy.brute import Brute
 
@@ -117,7 +121,6 @@ def run(args):
         )
 
     elif args.infer == "hmap":
-        partials, weights = compress_alignment(dna)
         msa_file = os.path.join(root_dir, args.path_dna)
         msa_file = os.path.abspath(msa_file)
         mymod = HMAP(
@@ -207,7 +210,7 @@ def get_fasta_file(msa_file):
 
 def get_start_tree(method, dna, root_dir, taxon_namespace):
     if method == "NJ":
-        print("Computing raw distances from tree file:", end="", flush=True)
+        print("Computing adjusted distances from tree file:", end="", flush=True)
         dists_hamming = calculate_pairwise_distance(dna, adjust="JC69")
         print(" done.", flush=True)
         peel, blens = Cpeeler.nj_np(dists_hamming)
@@ -336,14 +339,14 @@ def read_tree(root_dir, taxon_namespace, file_name="start_tree.nex"):
         tree = dendropy.Tree.get(
             path=tree_path,
             schema="nexus",
-            preserve_underscores=False,
+            preserve_underscores=True,
             taxon_namespace=taxon_namespace,
         )
     except:
         tree = dendropy.Tree.get(
             path=tree_path,
             schema="newick",
-            preserve_underscores=False,
+            preserve_underscores=True,
             taxon_namespace=taxon_namespace,
         )
     return tree
@@ -352,7 +355,9 @@ def read_tree(root_dir, taxon_namespace, file_name="start_tree.nex"):
 def read_dna(root_dir, file_name="dna.nex"):
     """Get dna from a saved simulated tree."""
     dna_path = os.path.join(root_dir, file_name)
-    dna = dendropy.DnaCharacterMatrix.get(path=dna_path, schema="nexus")
+    dna = dendropy.DnaCharacterMatrix.get(
+        path=dna_path, schema="nexus", preserve_underscores=True
+    )
     return dna
 
 

@@ -180,7 +180,6 @@ class DodonaphyVI(BaseModel):
         print(f"Running for {epochs} epochs.\n")
         start_time = time.time()
 
-        # TODO: should probably put this in the super method since super().log() depends on it
         self.path_write = path_write
         if path_write is not None:
             self.log_run_start(path_write, epochs, importance_samples, lr)
