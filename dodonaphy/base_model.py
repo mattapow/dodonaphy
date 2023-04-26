@@ -192,8 +192,8 @@ class BaseModel(object):
                 blen,
                 peel,
                 self.bito_inst,
-                self.phylomodel.sub_rates,
-                self.phylomodel.freqs,
+                self.phylomodel._sub_rates,
+                self.phylomodel._freqs,
             )
         else:
             mats = self.phylomodel.get_transition_mats(blen)

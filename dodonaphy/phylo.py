@@ -3,6 +3,8 @@ from collections import Counter
 
 import numpy as np
 import torch
+from torch.distributions.transforms import StickBreakingTransform
+
 
 bito_spec = importlib.util.find_spec("bito")
 bito_found = bito_spec is not None
@@ -174,6 +176,8 @@ def get_parent_id_vector(peel, rooted=False):
 
 class TreeLikelihood(torch.autograd.Function):
 
+    sbt = StickBreakingTransform()
+
     @staticmethod
     def forward(ctx, blens, peel, bito_inst, sub_rates, freqs) -> torch.Tensor:
         # set tree topology
@@ -187,9 +191,11 @@ class TreeLikelihood(torch.autograd.Function):
         # set model parameters
         phylo_model_param_block_map = bito_inst.get_phylo_model_param_block_map()
         if "substitution_model_rates" in phylo_model_param_block_map.keys():
-            phylo_model_param_block_map[model_keys.SUBSTITUTION_MODEL_RATES][:] = sub_rates.detach().numpy()
+            sub_rates = TreeLikelihood.sbt(sub_rates).detach().numpy()
+            phylo_model_param_block_map[model_keys.SUBSTITUTION_MODEL_RATES][:] = sub_rates
         if "substitution_model_frequencies" in phylo_model_param_block_map.keys():
-            phylo_model_param_block_map[model_keys.SUBSTITUTION_MODEL_FREQUENCIES][:] = freqs.detach().numpy()
+            freqs = TreeLikelihood.sbt(freqs).detach().numpy()
+            phylo_model_param_block_map[model_keys.SUBSTITUTION_MODEL_FREQUENCIES][:] = freqs
         # compute likelihod
         log_likelihood = torch.from_numpy(np.array(bito_inst.log_likelihoods()))
 
@@ -200,11 +206,11 @@ class TreeLikelihood(torch.autograd.Function):
             if "substitution_model_rates" in phylo_model_param_block_map.keys():
                 bito_grads_sub_rates = bito_grads[0].gradient['substitution_model_rates']
             else:
-                bito_grads_sub_rates = 0.0
+                bito_grads_sub_rates = torch.zeros([5])
             if "substitution_model_frequencies" in phylo_model_param_block_map.keys():
                 bito_grads_freqs = bito_grads[0].gradient['substitution_model_frequencies']
             else:
-                bito_grads_freqs = 0.0
+                bito_grads_freqs = torch.zeros([3])
 
             blens_grad = torch.from_numpy(np.array(bito_grads_blens, copy=False))
             sub_rates_grad = torch.from_numpy(np.array(bito_grads_sub_rates, copy=False))

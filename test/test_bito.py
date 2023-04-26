@@ -113,8 +113,8 @@ def test_compute_LL_bito(torch_mode, model_name):
     model_specification = bito.PhyloModelSpecification(
         substitution=model_name, site="constant", clock="strict"
     )
-    sub_rates = torch.full((6,), 1.0 / 6.0)
-    freqs = torch.full((4,), 1.0 / 4.0)
+    sub_rates = torch.zeros((5))
+    freqs = torch.zeros((3))
     # need to load trees into inst before prepare_for_phylo_likelihood
     # just read in the original tree even though we'll use the peel and blens
     bito_inst.read_newick_file(tree_file)
