@@ -166,7 +166,6 @@ class BaseModel(object):
         self.use_bito = True
         self.bito_inst = bito.unrooted_instance("dodonaphy")
         self.bito_inst.read_fasta_file(str(msa_file))  # read alignment
-        self.taxa_name_dict = {name: id for (id, name) in enumerate(self.tip_labels)}
         self.model_specification = bito.PhyloModelSpecification(
             substitution=self.phylomodel.name, site="constant", clock="strict"
         )

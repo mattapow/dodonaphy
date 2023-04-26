@@ -40,12 +40,10 @@ def run(args):
     path_write = get_path(root_dir, args)
     dna = read_dna(root_dir, args.path_dna)
     partials, weights, tip_namespace = compress_alignment(dna, get_namespace=True)
-    tip_labels = tip_namespace.labels()
-    name_id = {name: id for id, name in enumerate(tip_labels)}
     empirical_freqs = compute_nucleotide_frequencies(dna)
-
+    tip_labels = dna.taxon_namespace.labels()
     dists, start_tree = get_start_dists(
-        args.start, dna, root_dir, name_id, args.matsumoto
+        args.start, dna, root_dir, tip_namespace, args.matsumoto
     )
     save_period = max(int(args.epochs / args.draws), 1)
     peel = None
@@ -199,7 +197,7 @@ def run(args):
 
 
 def get_fasta_file(msa_file):
-    if not msa_file.endswith('.nex'):
+    if not msa_file.endswith(".nex"):
         raise IOError("msa file must end with .nex")
     file_stub = msa_file[:-4]
     fasta_file = file_stub + ".fasta"
@@ -209,12 +207,14 @@ def get_fasta_file(msa_file):
 
 
 def get_start_tree(method, dna, root_dir, taxon_namespace):
+    tip_labels = taxon_namespace.labels()
+    name_id = {name: id for id, name in enumerate(tip_labels)}
     if method == "NJ":
         print("Computing adjusted distances from tree file:", end="", flush=True)
         dists_hamming = calculate_pairwise_distance(dna, adjust="JC69")
         print(" done.", flush=True)
         peel, blens = Cpeeler.nj_np(dists_hamming)
-        nwk = tree.tree_to_newick(taxon_namespace, peel, blens)
+        nwk = tree.tree_to_newick(name_id, peel, blens)
         start_tree = dendropy.Tree.get(data=nwk, schema="newick")
 
     elif method == "RAxML":
@@ -233,7 +233,7 @@ def get_start_tree(method, dna, root_dir, taxon_namespace):
         dists[np.triu_indices(n_tips, k=+1)] = dists_linear
 
         peel, blens = Cpeeler.nj_np(dists)
-        nwk = tree.tree_to_newick(taxon_namespace, peel, blens)
+        nwk = tree.tree_to_newick(name_id, peel, blens)
         start_tree = dendropy.Tree.get(data=nwk, schema="newick")
     else:
         start_tree = read_tree(root_dir, taxon_namespace, file_name=method)
