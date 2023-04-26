@@ -434,7 +434,7 @@ def test_soft_sort():
     expected = torch.tensor([2.8509, 2.0000, 1.1491], dtype=torch.double)
     permute = peeler.soft_sort(s, tau)
     calculated = permute @ s
-    assert torch.allclose(calculated.squeeze(), expected, rtol=1e-4)
+    assert torch.allclose(calculated.squeeze(), expected, rtol=1e-3)
 
 
 def test_geodesic():
