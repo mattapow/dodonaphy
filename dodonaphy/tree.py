@@ -224,14 +224,17 @@ def tree_to_newick(name_id, peel, blens, rooted=True):
 
     blens = torch.cat((blens, torch.ones(1)))
     n_tips = int(len(blens) / 2 + 1)
-    n_parents = n_tips - 2
+    if rooted:
+        n_parents = n_tips - 1
+    else:
+        n_parents = n_tips - 2
 
     chunks = {}
     for parent in range(n_parents):
         n1, n2, n3 = peel[parent]
 
         if n1 < n_tips:
-            chunks[n1] = f"{id_name[n1]}:{blens[n1]:.16f}"
+            chunks[n1] = f"{id_name[n1]}:{blens[n1]:.6f}"
         if n2 < n_tips:
             chunks[n2] = f"{id_name[n2]}:{blens[n2]:.6f}"
         #  Create a new trifurcation node for the unrooted case
