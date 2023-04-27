@@ -222,7 +222,7 @@ class DodonaphyMCMC:
             iteration,
             float(ln_p),
             float(self.chains[0].ln_prior),
-            self.name_id,
+            self.chains[0].name_id,
         )
         file_name = path_write + "/locations.csv"
         if not os.path.isfile(file_name):
