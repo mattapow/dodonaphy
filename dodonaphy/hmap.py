@@ -100,6 +100,10 @@ class HMAP(BaseModel):
             self.params["freqs"] = self.phylomodel._freqs
 
     def learn(self, epochs, learn_rate, save_locations, start=""):
+        with torch.autograd.set_detect_anomaly(True):
+            return self._learn(epochs, learn_rate, save_locations, start=start)
+
+    def _learn(self, epochs, learn_rate, save_locations, start=""):
         """Optimise params["dists"].
 
         NB: start is just a string for printing: which tree was used to
@@ -126,8 +130,7 @@ class HMAP(BaseModel):
             self.ln_prior = self.compute_ln_prior()
             self.ln_p = self.compute_ln_likelihood()
             self.loss = -self.ln_prior - self.ln_p
-            # self.loss.backward()
-            self.loss.backward(retain_graph=True)
+            self.loss.backward()
             return self.loss
 
         print(f"Running for {epochs} iterations.")
