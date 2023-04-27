@@ -174,10 +174,10 @@ def nj_torch(dists_leaves, tau=None):
     bottom_fill = torch.full((node_count-leaf_node_count, node_count), fill_value, dtype=torch.double)
     dists = torch.hstack((dists_leaves, right_fill))
     dists = torch.vstack((dists, bottom_fill))
-    dists.fill_diagonal_(0.0).requires_grad_()
+    dists.fill_diagonal_(0.0)
 
     peel = np.zeros((leaf_node_count - 1, 3), dtype=int)
-    blens = torch.zeros(node_count - 1, dtype=torch.double).requires_grad_()
+    blens = torch.zeros(node_count - 1, dtype=torch.double)
 
     mask = torch.tensor(node_count * [False])
     mask[leaf_node_count:] = True
