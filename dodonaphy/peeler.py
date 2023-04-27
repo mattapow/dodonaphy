@@ -8,6 +8,7 @@ from dodonaphy import poincare, utils, Chyp_np, Cpeeler
 from dodonaphy.edge import Edge
 
 eps = np.finfo(np.double).eps
+large_value = 1e9
 
 
 def make_soft_peel_tips(leaf_locs, connector="geodesics", curvature=-torch.ones(1)):
@@ -58,7 +59,7 @@ def make_soft_peel_tips(leaf_locs, connector="geodesics", curvature=-torch.ones(
         # replace leaf_loc[g] by u
         # leaf_locs[g] = new_loc
         leaf_locs = torch.cat(
-            (leaf_locs[:g, :], new_loc.unsqueeze(dim=-1).T, leaf_locs[g + 1 :, :]),
+            (leaf_locs[:g, :], new_loc.unsqueeze(dim=-1).T, leaf_locs[g + 1:, :]),
             dim=0,
         )
         int_locs[int_i] = new_loc
@@ -149,11 +150,11 @@ def make_hard_peel_geodesic(leaf_locs, matsumoto=False):
     return peel, int_locs
 
 
-def nj_torch(pdm, tau=None):
+def nj_torch(dists_leaves, tau=None):
     """Generate Neighbour joining tree with gradients.
 
     Args:
-        pdm: pairwise distance.
+        dists_leaves: pairwise distance between leaves.
         tau: temperature. Set to None to use regular argmin.
              As temperature -> 0, soft_argmin becomes argmin.
 
@@ -161,49 +162,61 @@ def nj_torch(pdm, tau=None):
         tuple: (peel, blens)
     """
     if tau is None:
-        return Cpeeler.nj_np(pdm)
-    leaf_node_count = len(pdm)
-    node_count = 2 * leaf_node_count - 2
+        return Cpeeler.nj_np(dists_leaves)
+    leaf_node_count = len(dists_leaves)
+    node_count = 2 * leaf_node_count - 1
+
+    # augment the distance matrix with blank internal nodes
+    # fill these with a large distance
+    fill_value = large_value
+    right_fill = torch.full((leaf_node_count, node_count-leaf_node_count), fill_value, dtype=torch.double)
+    bottom_fill = torch.full((node_count-leaf_node_count, node_count), fill_value, dtype=torch.double)
+    dists = torch.hstack((dists_leaves, right_fill))
+    dists = torch.vstack((dists, bottom_fill))
+    dists.fill_diagonal_(0.0).requires_grad_()
 
     peel = np.zeros((leaf_node_count - 1, 3), dtype=int)
-    blens = torch.zeros(node_count, dtype=torch.double)
+    blens = torch.zeros(node_count - 1, dtype=torch.double).requires_grad_()
 
-    mask = torch.tensor(leaf_node_count * [False])
-    node_map = torch.arange(leaf_node_count)
+    mask = torch.tensor(node_count * [False])
+    mask[leaf_node_count:] = True
 
     for int_i in range(leaf_node_count - 1):
-        Q = compute_Q(pdm, mask)
+        Q = compute_Q(dists, mask)
         if tau is None:
             left, right = unravel_index(Q.argmin(), Q.shape)
-            dist_p = get_new_dist(pdm, mask, left, right)
+            dist_p = get_new_dist(dists, mask, left, right)
             dist_pl = dist_p[left]
-            dist_lr = pdm[left][right]
+            dist_lr = dists[left][right]
         else:
-            hot_r, hot_l = soft_argmin_one_hot(torch.tril(Q), tau=tau)
-            dist_p, dist_pl, dist_lr = get_new_dist_soft(pdm, mask, hot_l, hot_r)
-            left = torch.where(hot_l == torch.max(hot_l))[0]
-            right = torch.where(hot_r == torch.max(hot_r))[0]
-            dist_p[left] = dist_pl
-            dist_p[right] = 0
+            right_float, left_float = soft_argmin(torch.tril(Q), tau)
+            hot_r = index_to_one_hot(right_float, len(Q))
+            hot_l = index_to_one_hot(left_float, len(Q))
+            dist_p, dist_pl, dist_lr = get_new_dist_soft(dists, mask, hot_l, hot_r)
+            left, right = int(torch.round(left_float)), int(torch.round(right_float))
+            dist_p[left] = dist_pl.clone()
 
         parent = int_i + leaf_node_count
-        peel[int_i, 0] = node_map[left]
-        peel[int_i, 1] = node_map[right]
+        peel[int_i, 0] = left
+        peel[int_i, 1] = right
         peel[int_i, 2] = parent
 
-        blens[node_map[left]] = dist_pl
-        dist_pr = torch.tensor([dist_lr - dist_pl, eps]).unsqueeze(dim=0).unsqueeze(dim=-1)
-        dist_pr = soft_sort(dist_pr, tau).squeeze()[0, :] @ dist_pr
-        blens[node_map[right]] = dist_pr
+        dist_pr = torch.clamp(dist_lr - dist_pl, min=eps)
+        dist_p[right] = dist_pr
 
-        # replace right by dist_p in the pdm
-        pdm = torch.vstack((pdm[:right, :], dist_p, pdm[right + 1 :, :]))
-        pdm = torch.hstack(
-            (pdm[:, :right], dist_p.unsqueeze(dim=-1), pdm[:, right + 1 :])
-        )
-        node_map[right] = parent
+        blens = blens.scatter(0, left_float.long().unsqueeze(0), dist_pl.unsqueeze(0)).clone()
+        blens = blens.scatter(0, right_float.long().unsqueeze(0), dist_pr.unsqueeze(0)).clone()
+        # blens[left] = dist_pl.clone()
+        # blens[right] = dist_pr.clone()
+
+        # place the new node as the next internal node in dists
+        dist_p[parent] = 0.0
+        dists = torch.vstack((dists[:parent, :], dist_p.unsqueeze(0), dists[parent+1:, :]))
+        dists = torch.hstack((dists[:, :parent], dist_p.unsqueeze(-1), dists[:, parent+1:]))
+
         mask[left] = True
-
+        mask[right] = True
+        mask[parent] = False
     return peel, blens
 
 
@@ -228,7 +241,7 @@ def compute_Q(pdm, mask=False, fill_value=None):
     Q = (n_active - 2) * pdm - sum_i - sum_i.T
 
     if fill_value is None:
-        fill_value = torch.finfo(torch.double).max / 2.0
+        fill_value = large_value
     Q.masked_fill_(mask_2d, fill_value)
     Q.fill_diagonal_(fill_value)
     Q = 0.5 * (Q + Q.T)
@@ -236,11 +249,9 @@ def compute_Q(pdm, mask=False, fill_value=None):
 
 
 def unravel_index(index, shape):
-    out = []
-    for dim in reversed(shape):
-        out.append(index % dim)
-        index = torch.div(index, dim, rounding_mode="floor")
-    return tuple(reversed(out))
+    row = torch.div(index, shape[-1], rounding_mode='trunc')
+    col = torch.fmod(index, shape[-1])
+    return row, col
 
 
 def soft_sort(s, tau):
@@ -250,52 +261,28 @@ def soft_sort(s, tau):
     return P_hat
 
 
-def soft_argmin_one_hot(a_2d, tau):
-    """Returns one-hot vectors indexing the minimum of a 2D tensor.
-        If a_2d.requires_grad then so do the returned tensors.
-        If there are multiple minimal values then the indices of the first minimal value are returned.
+def soft_argmin(Q, tau):
+    "Soft argmin function of matrix that breaks ties with cumsum."
+    assert Q.ndim == 2
+    # there may be ties in Q
+    Q_flat_ties = Q.view(-1)
+    P_hat_ties = soft_sort(Q_flat_ties.unsqueeze(0).unsqueeze(-1), tau)
+    # choose the last of any ties by multiplying by the cumulative sum
+    Q_flat = P_hat_ties[:, -1] * torch.cumsum(P_hat_ties[:, -1], -1)
+    P_hat = soft_sort(-Q_flat.unsqueeze(-1), tau)
 
-    Args:
-        a_2d (tensor): 2D tensor
-        tau (float): Temperature. See soft_sort
-
-    Returns:
-        tuple(tensor, tensor): One-hot row and column indexes of minimum of a.
-    """
-    a_flip = torch.flipud(a_2d)
-    one_hot_i_flip = soft_argmin_row(a_flip, tau)
-    one_hot_j = soft_argmin_row(one_hot_i_flip @ a_flip, tau)
-    one_hot_i = torch.flip(one_hot_i_flip.unsqueeze(1), dims=(0, 1)).squeeze()
-    return one_hot_i, one_hot_j
-
-
-def soft_argmin_row(a, tau):
-    """Return index of column (dim=0) with minimum of a. Break ties with last index."""
-    many_hot_i = soft_argmin(a, tau)
-    many_hot_i_notie = torch.cumsum(many_hot_i, dim=-1) * many_hot_i
-    return soft_argmin(-many_hot_i_notie.unsqueeze(dim=0), tau)
+    # permutation matrix to index
+    unravel_indices = torch.arange(Q.numel(), dtype=Q.dtype)
+    soft_indices = (P_hat[:, -1] * unravel_indices).sum((-1, 0))
+    # flattened index to (row, col)
+    soft_row, soft_col = unravel_index(soft_indices, Q.shape)
+    return soft_row, soft_col
 
 
-def soft_argmin(a, tau):
-    """Return a one hot vector indexing the column with the minumum of the input a.
-
-    Args:
-        a (tensor): A 1D or 2D (m x n) tensor, m>=1, n>1.
-        tau (float): Temperature for soft_sort.
-
-    Returns:
-        tensor: One-hot vector indexing the minimum of in the dim=1 dimension.
-    """
-    if a.ndim == 1:
-        a = a.unsqueeze(dim=0)
-    a_3d = a.unsqueeze(-1)
-    permute = soft_sort(a_3d, tau).squeeze()
-    if a.shape[0] == 1:
-        a_reshape = a_3d.squeeze(dim=0)
-    else:
-        a_reshape = a_3d.squeeze(dim=2)
-    row_min = torch.sum(permute[:, -1] * a_reshape, -1)
-    return soft_sort(row_min.unsqueeze(-1).unsqueeze(0), tau).squeeze()[-1]
+def index_to_one_hot(index: torch.double, size):
+    one_hot = torch.zeros(size, dtype=torch.double)
+    one_hot.scatter_(0, index.unsqueeze(0).long(), 1)
+    return one_hot
 
 
 def get_new_dist_soft(pdm, mask, hot_f, hot_g):
