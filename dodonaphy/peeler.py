@@ -2,7 +2,6 @@ from heapq import heapify, heappop, heappush
 
 import numpy as np
 import torch
-import torch.nn.functional as F
 
 from dodonaphy import poincare, utils, Chyp_np, Cpeeler
 from dodonaphy.edge import Edge
@@ -41,11 +40,13 @@ def make_soft_peel_tips(leaf_locs, connector="geodesics", curvature=-torch.ones(
         pdm_tril = torch.tril(pdm_mask)
         local_inf = torch.max(pdm_mask) + 1.0
         pdm_nozero = torch.where(pdm_tril != 0, pdm_tril, -local_inf)
-        hot_from, hot_to = soft_argmin_one_hot(-pdm_nozero, tau=1e-8)
-        f = torch.where(hot_to == torch.max(hot_to))[0]
-        g = torch.where(hot_from == torch.max(hot_from))[0]
+        node_from, node_to = soft_argmin(-pdm_nozero, tau=1e-8)
+        hot_to = index_to_one_hot(node_to, len(pdm_nozero))
+        hot_from = index_to_one_hot(node_from, len(pdm_nozero))
         from_loc = hot_from @ leaf_locs
         to_loc = hot_to @ leaf_locs
+        f = node_from.round().int()
+        g = node_to.round().int()
 
         cur_internal = int_i + leaf_node_count
         peel[int_i, 0] = node_map[f]
