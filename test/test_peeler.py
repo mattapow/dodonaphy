@@ -416,7 +416,6 @@ def test_geodesic():
     assert sum(peel_check), f"Incorrect geodesic peel: {peel}"
 
 
-@pytest.mark.skip(reason="Don't support geodesic connection at the moment.")
 def test_soft_geodesic0():
     leaf_locs_poin = 0.9 * torch.tensor(
         [
@@ -446,7 +445,6 @@ def test_soft_geodesic0():
     ), f"{int_locs} != {int_locs1}"
 
 
-@pytest.mark.skip(reason="Don't support geodesic connection at the moment.")
 def test_soft_geodesic1():
     leaf_r = torch.tensor([0.6, 0.6, 0.5, 0.5])
     leaf_theta = torch.tensor([np.pi * 0.2, 0, np.pi, -np.pi * 0.9])
@@ -472,7 +470,6 @@ def test_soft_geodesic1():
         assert blens.requires_grad is True
 
 
-@pytest.mark.skip(reason="Don't support geodesic connection at the moment.")
 def test_soft_geodesic_optim():
     leaf_r = torch.tensor([0.8, 0.8, 0.5, 0.5])
     leaf_theta = torch.tensor([np.pi / 4, -np.pi / 7, np.pi * 7 / 10, -np.pi * 9 / 10])
