@@ -416,7 +416,10 @@ class BaseModel(object):
         )
 
         # uniform prior on topologies
-        ln_topo = torch.sum(torch.log(torch.arange(n_leaf * 2 - 5, 0, -2)))
+        if n_leaf <= 2:
+            ln_topo = 0.0
+        else:
+            ln_topo = torch.sum(torch.log(torch.arange(n_leaf * 2 - 5, 0, -2)))
 
         ln_prior = ln_dir + ln_prefactor - ln_topo
 
