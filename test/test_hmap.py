@@ -11,12 +11,12 @@ import pytest
     [
         ("JC69", "likelihood", "None", False, False),
         ("JC69", "likelihood", "None", True, False),
-        ("JC69", "likelihood", "gammadir", False, False),
+        ("JC69", "likelihood", "gammadir", False, False),  # RuntimeError: Trying to backward through the graph a second time (or directly access saved tensors after they have already be
         ("JC69", "pair_likelihood", "None", False, False),
         ("JC69", "hypHC", "None", False, False),
-        ("GTR", "likelihood", "None", False, False),
+        ("GTR", "likelihood", "None", False, False),  # Sometimes errors? RuntimeError: Function 'MmBackward0' returned nan values in its 0th output.
         ("GTR", "likelihood", "None", True, False),
-        ("GTR", "likelihood", "gammadir", False, False),
+        ("GTR", "likelihood", "gammadir", False, False),  # Trying to backward through the graph a second time (or directly access saved tensors after they have already be
         ("GTR", "pair_likelihood", "None", False, False),
         ("GTR", "hypHC", "None", False, False),
         ("JC69", "likelihood", "None", False, True),
