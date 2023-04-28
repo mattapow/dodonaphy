@@ -16,11 +16,11 @@ import pytest
         ("JC69", "likelihood", "normal", False, False),
         ("JC69", "pair_likelihood", "None", False, False),
         ("JC69", "hypHC", "None", False, False),
-        ("GTR", "likelihood", "None", False, False),  # Sometimes errors? RuntimeError: Function 'MmBackward0' returned nan values in its 0th output.
+        ("GTR", "likelihood", "None", False, False),
         ("GTR", "likelihood", "None", True, False),
         ("GTR", "likelihood", "gammadir", False, False),
         ("GTR", "pair_likelihood", "None", False, False),
-        ("GTR", "hypHC", "None", False, False),  # Sometimes errors? RuntimeError: Function 'SoftmaxBackward0' returned nan values in its 0th output.
+        ("GTR", "hypHC", "None", False, False),  # Sometimes errors? embedding locations are all nan.
         ("JC69", "likelihood", "None", False, True),
         ("GTR", "likelihood", "None", False, True),
     ],
