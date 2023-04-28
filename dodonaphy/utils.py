@@ -254,7 +254,9 @@ def LogDirPrior(blen, aT, bT, a, c):
 
     treeL = torch.sum(blen)
 
-    assert torch.all(blen > 0.0)
+    if not torch.all(blen > 0.0):
+        Warning("Branch lengths clampped to be positive.")
+        blen = torch.clamp(blen, min=1e-4)
 
     tipb = torch.sum(torch.log(blen[:n_leaf]))
     intb = torch.sum(torch.log(blen[n_leaf:]))

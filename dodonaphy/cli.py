@@ -51,6 +51,9 @@ def init_parser():
         pydecenttree must be installed from https://github.com/iqtree/decenttree.",
     )
     parser.add_argument(
+        "--epochs", "-n", default=1000, type=int, help="Number of iterations/ epochs."
+    )
+    parser.add_argument(
         "--use_bito",
         dest="use_bito",
         action="store_true",
@@ -146,9 +149,6 @@ def init_parser():
     parser.set_defaults(matsumoto=False)
 
     # MCMC parameters
-    parser.add_argument(
-        "--epochs", "-n", default=10000, type=int, help="MCMC: Iterations (VI epochs)."
-    )
     parser.add_argument(
         "--step",
         "-x",

@@ -57,19 +57,19 @@ class HMAP(BaseModel):
         self.init_model_params()
         self.current_epoch = 0
         self.prior = prior
-        self.ln_p = self.compute_ln_likelihood()
-        self.ln_prior = self.compute_ln_prior()
+        self.loss = self.compute_loss()
         self.matsumoto = matsumoto
         self.loss = torch.zeros(1)
         self.peel = peel
-        self.loss = -self.ln_p - self.ln_prior
         self.best_posterior = torch.tensor(-np.inf)
         self.best_freqs = self.phylomodel.freqs
         self.best_sub_rates = self.phylomodel.sub_rates
 
     def init_embedding_params(self, dists):
         # embed distances with hydra+
-        hp_obj = hydraPlus.HydraPlus(dists, dim=self.D, curvature=np.array(self.curvature))
+        hp_obj = hydraPlus.HydraPlus(
+            dists, dim=self.D, curvature=np.array(self.curvature)
+        )
         emm_tips = hp_obj.embed(equi_adj=0.0, alpha=1.1)
         print("Embedding Strain (tips only) = {:.4}".format(emm_tips["stress_hydra"]))
         print(
@@ -83,7 +83,9 @@ class HMAP(BaseModel):
             directionals = Cutils.normalise_np(emm_tips["X"])
             self.params = {
                 "radius": torch.tensor(radius, requires_grad=True, dtype=torch.float64),
-                "directionals": torch.tensor(directionals, requires_grad=True, dtype=torch.float64)
+                "directionals": torch.tensor(
+                    directionals, requires_grad=True, dtype=torch.float64
+                ),
             }
         else:
             self.params = {
@@ -100,10 +102,6 @@ class HMAP(BaseModel):
             self.params["freqs"] = self.phylomodel._freqs
 
     def learn(self, epochs, learn_rate, save_locations, start=""):
-        with torch.autograd.set_detect_anomaly(True):
-            return self._learn(epochs, learn_rate, save_locations, start=start)
-
-    def _learn(self, epochs, learn_rate, save_locations, start=""):
         """Optimise params["dists"].
 
         NB: start is just a string for printing: which tree was used to
@@ -127,15 +125,13 @@ class HMAP(BaseModel):
 
         def closure():
             optimizer.zero_grad()
-            self.ln_prior = self.compute_ln_prior()
-            self.ln_p = self.compute_ln_likelihood()
-            self.loss = -self.ln_prior - self.ln_p
+            self.loss = self.compute_loss()
             self.loss.backward()
             return self.loss
 
         print(f"Running for {epochs} iterations.")
         print("Iteration: log prior + log_likelihood = log posterior")
-        for i in range(1, epochs+1):
+        for i in range(1, epochs + 1):
             self.current_epoch = i
             optimizer.step(closure)
             scheduler.step()
@@ -143,7 +139,9 @@ class HMAP(BaseModel):
             if self.path_write is not None:
                 self.save_epoch(i, save_locations=save_locations)
 
-        print(f"\nBest tree log posterior joint found: {self.best_posterior.item():.3f}")
+        print(
+            f"\nBest tree log posterior joint found: {self.best_posterior.item():.3f}"
+        )
         self.save_duration(start_time)
         self.save_best_tree()
         if epochs > 0:
@@ -153,21 +151,33 @@ class HMAP(BaseModel):
         if epochs > 0 and self.path_write is not None:
             HMAP.trace(epochs + 1, post_hist, self.path_write, plot_hist=False)
 
+    def compute_loss(self):
+        if self.connector in ("nj", "fix") or self.loss_fn in ("pair_likelihood", "hypHC"):
+            self.peel, self.blens, self.pdm = self.connect(get_pdm=True)
+        else:
+            self.peel, self.blens = self.connect(get_pdm=False)
+        self.ln_prior = self.compute_ln_prior()
+        self.ln_p = self.compute_ln_likelihood()
+        return -self.ln_prior - self.ln_p
+
     def print_epoch(self, iteration, posterior_history):
         posterior_history.append(self.ln_p.item() + self.ln_prior.item())
         self.record_if_best()
-        print(f"{iteration}: {self.ln_prior.item():.3f} + {self.ln_p.item():.3f} = {posterior_history[-1]:.3f}")
+        print(
+            f"{iteration}: {self.ln_prior.item():.3f} + {self.ln_p.item():.3f} = {posterior_history[-1]:.3f}"
+        )
         if (iteration) % 10 == 9:
             print()
 
     def save_best_tree(self):
-        """Save the model and tree from the best iteration.
-        """
+        """Save the model and tree from the best iteration."""
         if self.path_write is not None:
             # save the best model
             self.phylomodel.freqs = self.best_freqs
             self.phylomodel.sub_rates = self.best_sub_rates
-            file_model = os.path.join(self.path_write, f"{self.inference_name}_model.log")
+            file_model = os.path.join(
+                self.path_write, f"{self.inference_name}_model.log"
+            )
             self.phylomodel.save(file_model)
             # save the best tree
             tree.save_tree_head(self.path_write, "mape", self.tip_labels)
@@ -235,7 +245,7 @@ class HMAP(BaseModel):
             if not os.path.isdir(emm_path):
                 os.mkdir(emm_path)
             emm_fn = os.path.join(emm_path, f"location_{i}.csv")
-            print_header = ''.join([f"dim{i}, " for i in range(self.D)])
+            print_header = "".join([f"dim{i}, " for i in range(self.D)])
             locs = self.get_locs().detach().numpy()
             np.savetxt(
                 emm_fn,
@@ -251,7 +261,7 @@ class HMAP(BaseModel):
             i,
             self.ln_prior,
             self.ln_p,
-            self.name_id
+            self.name_id,
         )
 
     def get_locs(self):
@@ -266,19 +276,20 @@ class HMAP(BaseModel):
         """Connect tips into a tree"""
         locs = self.get_locs()
 
+        if get_pdm or self.connector in ("nj", "fix"):
+            pdm = Chyp_torch.get_pdm(locs, curvature=self.curvature)
+
         if self.connector == "geodesics":
             peel, _, blens = peeler.make_soft_peel_tips(
                 locs, connector="geodesics", curvature=self.curvature
             )
-            if get_pdm:
-                pdm = Chyp_torch.get_pdm(locs, curvature=self.curvature)
         elif self.connector == "nj":
-            pdm = Chyp_torch.get_pdm(locs, curvature=self.curvature)
             peel, blens = peeler.nj_torch(pdm, tau=self.soft_temp)
         elif self.connector == "fix":
             peel = self.peel
-            pdm = Chyp_torch.get_pdm(locs, curvature=self.curvature)
-            warnings.warn("NJ algorithm for branch lengths on fixed topology not guaranteed to work.")
+            warnings.warn(
+                "NJ algorithm for branch lengths on fixed topology not guaranteed to work."
+            )
             _, blens = peeler.nj_torch(pdm, tau=self.soft_temp, get_peel=False)
         else:
             raise ValueError(
@@ -291,18 +302,16 @@ class HMAP(BaseModel):
     def compute_ln_likelihood(self):
         """Compute likelihood of current tree, reducing soft_temp as required."""
         if self.loss_fn == "likelihood":
-            self.peel, self.blens = self.connect()
             self.ln_p = self.compute_LL(self.peel, self.blens)
             loss = self.ln_p
         elif self.loss_fn == "pair_likelihood":
-            self.peel, self.blens, pdm = self.connect(get_pdm=True)
             self.ln_p = self.compute_LL(self.peel, self.blens)
-            loss = self.compute_log_a_like(pdm)
+            loss = self.compute_log_a_like(self.pdm)
         elif self.loss_fn == "hypHC":
             locs = self.get_locs()
-            pdm = Chyp_torch.get_pdm(locs, curvature=self.curvature)
             loss = self.compute_likelihood_hypHC(
-                pdm, locs, temperature=0.05, n_triplets=100)
+                self.pdm, locs, temperature=0.05, n_triplets=100
+            )
         return loss
 
     def compute_ln_prior(self):
@@ -326,4 +335,6 @@ class HMAP(BaseModel):
         elif self.prior == "gammadir":
             return self.compute_prior_gamma_dir(self.blens)
         elif self.prior == "birthdeath":
-            return self.compute_prior_birthdeath(self.peel, self.blens)
+            raise ValueError(
+                "Birth death model implementation isn't differentiable. It cannot be used for gradient based map estimation."
+            )

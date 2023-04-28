@@ -288,7 +288,7 @@ class BaseModel(object):
         return torch.exp(-pdm_data[u, v])
 
     @staticmethod
-    def compute_prior_birthdeath(peel, blen, **prior):
+    def compute_prior_birthdeath(peel, blen, tipnames, **prior):
         """Calculates the log-likelihood of a tree under a birth death model.
 
         Args:
@@ -304,7 +304,6 @@ class BaseModel(object):
         birth_rate = prior.get("birth_rate", 2.0)
         death_rate = prior.get("death_rate", 0.5)
 
-        tipnames = ["T" + str(x + 1) for x in range(S)]
         newick = treeFunc.tree_to_newick(tipnames, peel, blen)
         tree = Tree.get(data=newick, schema="newick")
         LL = birth_death_likelihood(

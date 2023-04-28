@@ -206,10 +206,8 @@ def nj_torch(dists_leaves, tau=None):
         dist_pr = soft.clamp_pos(dist_lr - dist_pl, tau)
         dist_p[right] = dist_pr
 
-        blens = blens.scatter(0, left_float.long().unsqueeze(0), dist_pl.unsqueeze(0))
-        blens = blens.scatter(0, right_float.long().unsqueeze(0), dist_pr.unsqueeze(0))
-        # blens[left] = dist_pl.clone()
-        # blens[right] = dist_pr.clone()
+        blens[left] = dist_pl.clone()
+        blens[right] = dist_pr.clone()
 
         # place the new node as the next internal node in dists
         dist_p[parent] = 0.0
