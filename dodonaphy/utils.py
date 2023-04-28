@@ -1,7 +1,7 @@
 import numpy as np
 import torch
 
-from dodonaphy import poincare, Chyp_np
+from dodonaphy import poincare, Chyp_np, soft
 from dodonaphy.edge import Edge
 
 
@@ -254,11 +254,10 @@ def LogDirPrior(blen, aT, bT, a, c):
 
     treeL = torch.sum(blen)
 
-    blen_pos = blen.clone()
-    blen_pos = torch.clamp(blen_pos, min=1e-8)
+    assert torch.all(blen > 0.0)
 
-    tipb = torch.sum(torch.log(blen_pos[:n_leaf]))
-    intb = torch.sum(torch.log(blen_pos[n_leaf:]))
+    tipb = torch.sum(torch.log(blen[:n_leaf]))
+    intb = torch.sum(torch.log(blen[n_leaf:]))
 
     lnPrior = (a - 1) * tipb + (a * c - 1) * intb
     lnPrior = lnPrior + (aT - a * n_leaf - a * c * (n_leaf - 3)) * torch.log(treeL) - bT * treeL

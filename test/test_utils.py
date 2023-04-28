@@ -4,6 +4,7 @@ import torch
 from pytest import approx
 from dodonaphy import utils, Cutils, Chyp_torch, Chyp_np
 
+
 def test_dir_to_cart_1d():
     u = torch.tensor(10.0)
     r = torch.norm(u)
@@ -46,3 +47,13 @@ def test_pdm_almost_euclidean():
     leaf_x = Cutils.dir_to_cart_np(leaf_r, leaf_dir)
     curvature = -0.01
     _ = Chyp_np.get_pdm(leaf_x, curvature=curvature)
+
+
+def test_LogDirPrior():
+    blen = torch.full([5], 0.1, requires_grad=True)
+    aT = torch.ones(1)
+    bT = torch.full((1,), 0.1)
+    a = torch.ones(1)
+    c = torch.ones(1)
+    prior = utils.LogDirPrior(blen, aT, bT, a, c)
+    assert prior.requires_grad
