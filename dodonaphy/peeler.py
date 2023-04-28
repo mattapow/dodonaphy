@@ -3,10 +3,11 @@ from heapq import heapify, heappop, heappush
 import numpy as np
 import torch
 
-from dodonaphy import poincare, utils, Chyp_np, Cpeeler
+from dodonaphy import poincare, utils, Chyp_np, Cpeeler, soft
 from dodonaphy.edge import Edge
 
 eps = np.finfo(np.double).eps
+# large but not close to floating point max
 large_value = 1e9
 
 
@@ -40,9 +41,9 @@ def make_soft_peel_tips(leaf_locs, connector="geodesics", curvature=-torch.ones(
         pdm_tril = torch.tril(pdm_mask)
         local_inf = torch.max(pdm_mask) + 1.0
         pdm_nozero = torch.where(pdm_tril != 0, pdm_tril, -local_inf)
-        node_from, node_to = soft_argmin(-pdm_nozero, tau=1e-8)
-        hot_to = index_to_one_hot(node_to, len(pdm_nozero))
-        hot_from = index_to_one_hot(node_from, len(pdm_nozero))
+        node_from, node_to = soft.argmin(-pdm_nozero, tau=1e-8)
+        hot_to = soft.index_to_hard_one_hot(node_to, len(pdm_nozero))
+        hot_from = soft.index_to_hard_one_hot(node_from, len(pdm_nozero))
         from_loc = hot_from @ leaf_locs
         to_loc = hot_to @ leaf_locs
         f = node_from.round().int()
@@ -185,28 +186,28 @@ def nj_torch(dists_leaves, tau=None):
     for int_i in range(leaf_node_count - 1):
         Q = compute_Q(dists, mask)
         if tau is None:
-            left, right = unravel_index(Q.argmin(), Q.shape)
+            left, right = soft.unravel_index(Q.argmin(), Q.shape)
             dist_p = get_new_dist(dists, mask, left, right)
             dist_pl = dist_p[left]
             dist_lr = dists[left][right]
         else:
-            right_float, left_float = soft_argmin(torch.tril(Q), tau)
-            hot_r = index_to_one_hot(right_float, len(Q))
-            hot_l = index_to_one_hot(left_float, len(Q))
-            dist_p, dist_pl, dist_lr = get_new_dist_soft(dists, mask, hot_l, hot_r)
+            right_float, left_float = soft.argmin(torch.tril(Q), tau)
+            hot_r = soft.index_to_hard_one_hot(right_float, len(Q))
+            hot_l = soft.index_to_hard_one_hot(left_float, len(Q))
+            dist_p, dist_pl, dist_lr = get_new_dist_soft(dists, mask, hot_l, hot_r, tau)
             left, right = int(torch.round(left_float)), int(torch.round(right_float))
-            dist_p[left] = dist_pl.clone()
+            dist_p[left] = dist_pl
 
         parent = int_i + leaf_node_count
         peel[int_i, 0] = left
         peel[int_i, 1] = right
         peel[int_i, 2] = parent
 
-        dist_pr = torch.clamp(dist_lr - dist_pl, min=eps)
+        dist_pr = soft.clamp_pos(dist_lr - dist_pl, tau)
         dist_p[right] = dist_pr
 
-        blens = blens.scatter(0, left_float.long().unsqueeze(0), dist_pl.unsqueeze(0)).clone()
-        blens = blens.scatter(0, right_float.long().unsqueeze(0), dist_pr.unsqueeze(0)).clone()
+        blens = blens.scatter(0, left_float.long().unsqueeze(0), dist_pl.unsqueeze(0))
+        blens = blens.scatter(0, right_float.long().unsqueeze(0), dist_pr.unsqueeze(0))
         # blens[left] = dist_pl.clone()
         # blens[right] = dist_pr.clone()
 
@@ -218,6 +219,7 @@ def nj_torch(dists_leaves, tau=None):
         mask[left] = True
         mask[right] = True
         mask[parent] = False
+    raise RuntimeError
     return peel, blens
 
 
@@ -249,57 +251,20 @@ def compute_Q(pdm, mask=False, fill_value=None):
     return Q
 
 
-def unravel_index(index, shape):
-    row = torch.div(index, shape[-1], rounding_mode='trunc')
-    col = torch.fmod(index, shape[-1])
-    return row, col
-
-
-def soft_sort(s, tau):
-    s_sorted = s.sort(descending=True, dim=1)[0]
-    pairwise_distances = (s.transpose(1, 2) - s_sorted).abs().neg() / tau
-    P_hat = pairwise_distances.softmax(-1)
-    return P_hat
-
-
-def soft_argmin(Q, tau):
-    "Soft argmin function of matrix that breaks ties with cumsum."
-    assert Q.ndim == 2
-    # there may be ties in Q
-    Q_flat_ties = Q.view(-1)
-    P_hat_ties = soft_sort(Q_flat_ties.unsqueeze(0).unsqueeze(-1), tau)
-    # choose the last of any ties by multiplying by the cumulative sum
-    Q_flat = P_hat_ties[:, -1] * torch.cumsum(P_hat_ties[:, -1], -1)
-    P_hat = soft_sort(-Q_flat.unsqueeze(-1), tau)
-
-    # permutation matrix to index
-    unravel_indices = torch.arange(Q.numel(), dtype=Q.dtype)
-    soft_indices = (P_hat[:, -1] * unravel_indices).sum((-1, 0))
-    # flattened index to (row, col)
-    soft_row, soft_col = unravel_index(soft_indices, Q.shape)
-    return soft_row, soft_col
-
-
-def index_to_one_hot(index: torch.double, size):
-    one_hot = torch.zeros(size, dtype=torch.double)
-    one_hot.scatter_(0, index.unsqueeze(0).long(), 1)
-    return one_hot
-
-
-def get_new_dist_soft(pdm, mask, hot_f, hot_g):
+def get_new_dist_soft(pdm, mask, hot_f, hot_g, tau):
     dist_f = hot_f @ pdm
     dist_g = hot_g @ pdm
     dist_fg = hot_g @ dist_f
     dist_u = 0.5 * (dist_f + dist_g - dist_fg)
 
     n_active = sum(~mask)
-    n_active = torch.clamp(n_active, min=3)
+    n_active = max(n_active, 3.0)
 
     mask_2d = ~torch.outer(~mask, ~mask)
     sum_pdm = torch.sum(pdm * ~mask_2d, dim=-1)
 
     dist_uf = 0.5 * dist_fg + (sum_pdm @ hot_f - sum_pdm @ hot_g) / (2 * (n_active - 2))
-    dist_uf = torch.clamp(dist_uf, min=eps)
+    dist_uf = soft.clamp_pos(dist_uf, tau)
     return dist_u, dist_uf, dist_fg
 
 

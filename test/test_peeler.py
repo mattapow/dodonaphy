@@ -549,3 +549,11 @@ def test_hyp_lca_grad():
     loss = poincare.hyp_lca(from_loc, to_loc, return_coord=False)
     loss.backward()
     optimizer.step()
+
+
+def test_soft_min():
+    s = torch.tensor([5, 2, 4.4, 0.5, 10], requires_grad=True)
+    s_min = peeler.soft_min(s, 1e-3)
+    expected_min = torch.tensor([0.5])
+    assert torch.isclose(s_min, expected_min)
+    assert s.requires_grad
