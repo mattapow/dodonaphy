@@ -71,6 +71,7 @@ class BaseModel(object):
             self.blens = np.zeros(self.bcount, dtype=np.double)
         self.normalise_leaf = normalise_leaf
         self.loss_fn = loss_fn
+        self.loss = torch.zeros([1])
         self.matsumoto = matsumoto
         if tip_labels is None:
             tip_labels = [f"T{i+1}" for i in range(self.S)]

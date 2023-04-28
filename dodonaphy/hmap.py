@@ -59,7 +59,6 @@ class HMAP(BaseModel):
         self.prior = prior
         self.loss = self.compute_loss()
         self.matsumoto = matsumoto
-        self.loss = torch.zeros(1)
         self.peel = peel
         self.best_posterior = torch.tensor(-np.inf)
         self.best_freqs = self.phylomodel.freqs
