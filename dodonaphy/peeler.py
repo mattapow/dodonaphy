@@ -219,7 +219,6 @@ def nj_torch(dists_leaves, tau=None):
         mask[left] = True
         mask[right] = True
         mask[parent] = False
-    raise RuntimeError
     return peel, blens
 
 
