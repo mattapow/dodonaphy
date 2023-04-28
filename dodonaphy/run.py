@@ -54,7 +54,6 @@ def run(args):
     if args.use_bito:
         get_peel = True
     if get_peel:
-        # tree.rename_labels(start_tree)
         peel, _, _ = tree.dendropy_to_pb(start_tree)
 
     start = time.time()

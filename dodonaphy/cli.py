@@ -263,3 +263,7 @@ def validate(args):
     if args.connect == "fix":
         if args.start is None:
             raise ValueError("--start tree cannot be None when the topology is fixed (--connect fix).")
+    if args.use_bito:
+        if args.start == "NJ":
+            raise ValueError("--start tree must be provided to in order to --use_bito.\
+                             Just need to implement init_bito better to cope without.")
