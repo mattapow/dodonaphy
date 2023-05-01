@@ -490,7 +490,7 @@ def test_soft_geodesic_optim():
     partials, weights = compress_alignment(dna)
     mymod = DodonaphyVI(partials, weights, dim=2, embedder="up", connector="geodesics")
     # initialise variational parameters
-    mymod.set_variationalParams(params)
+    mymod.set_params_optim(params)
     optimizer = torch.optim.Adam(list(params.values()), lr=1)
     optimizer.zero_grad()
     loss = -mymod.elbo_siwae(1)

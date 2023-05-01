@@ -80,25 +80,18 @@ class HMAP(BaseModel):
         if self.normalise_leaves:
             radius = np.mean(np.linalg.norm(emm_tips["X"], axis=1))
             directionals = Cutils.normalise_np(emm_tips["X"])
-            self.params = {
+            self.params_optim = {
                 "radius": torch.tensor(radius, requires_grad=True, dtype=torch.float64),
                 "directionals": torch.tensor(
                     directionals, requires_grad=True, dtype=torch.float64
                 ),
             }
         else:
-            self.params = {
+            self.params_optim = {
                 "leaf_loc": torch.tensor(
                     emm_tips["X"], requires_grad=True, dtype=torch.float64
                 ),
             }
-
-    def init_model_params(self):
-        # set evolutionary model parameters to optimise
-        if not self.phylomodel.fix_sub_rates:
-            self.params["sub_rates"] = self.phylomodel._sub_rates
-        if not self.phylomodel.fix_freqs:
-            self.params["freqs"] = self.phylomodel._freqs
 
     def learn(self, epochs, learn_rate, save_locations, start=""):
         """Optimise params["dists"].
@@ -114,7 +107,7 @@ class HMAP(BaseModel):
             return 1.0 / (epoch + 1.0) ** 0.25
 
         # Consider using LBFGS, but appears to not perform as well.
-        optimizer = torch.optim.Adam(params=list(self.params.values()), lr=learn_rate)
+        optimizer = torch.optim.Adam(params=list(self.params_optim.values()), lr=learn_rate)
         scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lr_lambda)
         # scheduler = torch.optim.lr_scheduler.CyclicLR(
         #   optimizer, base_lr=learn_rate/100, max_lr=learn_rate, step_size_up=100)
@@ -266,9 +259,9 @@ class HMAP(BaseModel):
     def get_locs(self):
         """Get current tip locations"""
         if self.normalise_leaves:
-            locs = self.params["radius"] * self.params["directionals"]
+            locs = self.params_optim["radius"] * self.params_optim["directionals"]
         else:
-            locs = self.params["leaf_loc"]
+            locs = self.params_optim["leaf_loc"]
         return locs
 
     def connect(self, get_pdm=False):

@@ -54,15 +54,17 @@ class DodonaphyVI(BaseModel):
         self.noise = noise
         self.truncate = truncate
         self.start = start
-        # Variational parameters must be set using set_variationalParams() or set_variationalParams_random()
-        self.VariationalParams = dict()
+        # Variational parameters must be set using set_params_optim() or set_params_optim_random()
+        self.params_optim = dict()
+        # set evolutionary model parameters to optimise
+        self.init_model_params()
 
-    def set_variationalParams_random(self):
+    def set_params_optim_random(self):
         mix_weights = np.full((self.n_boosts), 1 / self.n_boosts)
         leaf_sigma = np.random.exponential(size=(self.n_boosts, self.S, self.D))
         int_sigma = np.random.exponential(size=(self.n_boosts, self.S - 2, self.D))
 
-        self.VariationalParams = {
+        self.params_optim = {
             "leaf_mu": torch.randn(
                 (self.n_boosts, self.S, self.D),
                 requires_grad=True,
@@ -76,32 +78,37 @@ class DodonaphyVI(BaseModel):
             ),
         }
         if self.internals_exist:
-            self.VariationalParams["int_mu"] = torch.randn(
+            self.params_optim["int_mu"] = torch.randn(
                 (self.n_boosts, self.S - 2, self.D),
                 requires_grad=True,
                 dtype=torch.float64,
             )
-            self.VariationalParams["int_sigma"] = torch.tensor(
+            self.params_optim["int_sigma"] = torch.tensor(
                 int_sigma, requires_grad=True, dtype=torch.float64
             )
-        # set evolutionary model parameters to optimise
-        if not self.phylomodel.fix_sub_rates:
-            self.VariationalParams["sub_rates"] = self.phylomodel._sub_rates
-        if not self.phylomodel.fix_freqs:
-            self.VariationalParams["freqs"] = self.phylomodel._freqs
 
-    def set_variationalParams(self, param_init):
+    def set_params_optim(self, param_init):
+        """Set variational parameters to optimise
+
+        Args:
+            param_init (Dict): A dictionary containing: 
+            leaf_mu     - node locations
+            leaf_sigma  - standard deviation of locations
+            int_mu      - internal node locations
+            int_signma  - internal node sd of locations
+            mix_weights - mixture weights
+        """
         # set dimensions of input
         if param_init["leaf_mu"].ndim == 2:
             param_init["leaf_mu"].unsqueeze(0)
         if param_init["leaf_sigma"].ndim == 2:
             param_init["leaf_sigma"].unsqueeze(0)
         # set leaf mean locations
-        self.VariationalParams["leaf_mu"] = (
+        self.params_optim["leaf_mu"] = (
             param_init["leaf_mu"].repeat((self.n_boosts, 1, 1)).requires_grad_()
         )
         # set leaf scale (sigma in normal distribution)
-        self.VariationalParams["leaf_sigma"] = (
+        self.params_optim["leaf_sigma"] = (
             param_init["leaf_sigma"].repeat((self.n_boosts, 1, 1)).requires_grad_()
         )
         if self.internals_exist:
@@ -109,28 +116,22 @@ class DodonaphyVI(BaseModel):
                 param_init["int_mu"].unsqueeze(0)
             if param_init["int_sigma"].ndim == 2:
                 param_init["int_sigma"].unsqueeze(0)
-            self.VariationalParams["int_mu"] = (
+            self.params_optim["int_mu"] = (
                 param_init["int_mu"].repeat((self.n_boosts, 1, 1)).requires_grad_()
             )
-            self.VariationalParams["int_sigma"] = (
+            self.params_optim["int_sigma"] = (
                 param_init["int_sigma"].repeat((self.n_boosts, 1, 1)).requires_grad_()
             )
 
         if "mix_weights" in param_init.keys():
-            self.VariationalParams["mix_weights"] = param_init[
+            self.params_optim["mix_weights"] = param_init[
                 "mix_weights"
             ].requires_grad_()
         else:
             # default to 1 mixture
-            self.VariationalParams["mix_weights"] = torch.tensor(
+            self.params_optim["mix_weights"] = torch.tensor(
                 np.ones((1)), dtype=torch.float64
             ).requires_grad_()
-
-        # set evolutionary model parameters to optimise
-        if not self.phylomodel.fix_sub_rates:
-            self.VariationalParams["sub_rates"] = self.phylomodel.sub_rates
-        if not self.phylomodel.fix_freqs:
-            self.VariationalParams["freqs"] = self.phylomodel.freqs
 
     def calculate_elbo(self, mix_idx, path_write, file_name, iteration):
         """Calculate the elbo of a sample from the variational distributions q_k
@@ -141,17 +142,17 @@ class DodonaphyVI(BaseModel):
         Returns:
             float: The evidence lower bound of a sample from q
         """
-        n_tip_params = torch.numel(self.VariationalParams["leaf_mu"][mix_idx])
-        leaf_locs = self.VariationalParams["leaf_mu"][mix_idx].reshape(n_tip_params)
-        leaf_cov = torch.eye(n_tip_params, dtype=torch.double) * self.VariationalParams[
+        n_tip_params = torch.numel(self.params_optim["leaf_mu"][mix_idx])
+        leaf_locs = self.params_optim["leaf_mu"][mix_idx].reshape(n_tip_params)
+        leaf_cov = torch.eye(n_tip_params, dtype=torch.double) * self.params_optim[
             "leaf_sigma"
         ][mix_idx].exp().reshape(n_tip_params)
         if self.internals_exist:
-            n_int_params = torch.numel(self.VariationalParams["int_mu"][mix_idx])
-            int_locs = self.VariationalParams["int_mu"][mix_idx].reshape(n_int_params)
+            n_int_params = torch.numel(self.params_optim["int_mu"][mix_idx])
+            int_locs = self.params_optim["int_mu"][mix_idx].reshape(n_int_params)
             int_cov = torch.eye(
                 n_int_params, dtype=torch.double
-            ) * self.VariationalParams["int_sigma"][mix_idx].exp().reshape(n_int_params)
+            ) * self.params_optim["int_sigma"][mix_idx].exp().reshape(n_int_params)
             sample = self.rsample_tree(
                 leaf_locs,
                 leaf_cov,
@@ -205,7 +206,7 @@ class DodonaphyVI(BaseModel):
             return 1.0 / np.sqrt(epoch + 1)
 
         # Consider using LBFGS, but appears to not perform as well.
-        optimizer = torch.optim.Adam(list(self.VariationalParams.values()), lr=lr)
+        optimizer = torch.optim.Adam(list(self.params_optim.values()), lr=lr)
         scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lr_lambda)
 
         elbo_hist = []
@@ -506,7 +507,7 @@ class DodonaphyVI(BaseModel):
 
     def embed_tree_distribtution(self, dists=None):
         if dists is None:
-            self.set_variationalParams_random()
+            self.set_params_optim_random()
         else:
             param_init = self.hydra_init(
                 dists,
@@ -514,18 +515,18 @@ class DodonaphyVI(BaseModel):
                 self.curvature.numpy(),
                 internals_exist=self.internals_exist,
             )
-            self.set_variationalParams(param_init)
+            self.set_params_optim(param_init)
 
     def save(self, fn):
         with open(fn, "w", encoding="UTF-8") as f:
             f.write("Mix weights:\n")
-            f.write("{self.VariationalParams['mix_weights'].detach().numpy()}\n\n")
+            f.write(f"{self.params_optim['mix_weights'].detach().numpy()}\n\n")
             f.write("Leaf Locations (# taxa x  # dimensions):\n")
             for k in range(self.n_boosts):
                 f.write(f"Mix {k}:\n")
                 for i in range(self.S):
                     for d in range(self.D):
-                        f.write("%f\t" % self.VariationalParams["leaf_mu"][k, i, d])
+                        f.write("%f\t" % self.params_optim["leaf_mu"][k, i, d])
                     f.write("\n")
                 f.write("\n")
             f.write("Leaf Sigmas (# taxa x  # dimensions):\n")
@@ -533,7 +534,7 @@ class DodonaphyVI(BaseModel):
                 f.write(f"Mix {k}:\n")
                 for i in range(self.S):
                     for d in range(self.D):
-                        f.write("%f\t" % self.VariationalParams["leaf_sigma"][k, i, d])
+                        f.write("%f\t" % self.params_optim["leaf_sigma"][k, i, d])
                     f.write("\n")
                 f.write("\n")
 
@@ -541,12 +542,12 @@ class DodonaphyVI(BaseModel):
                     f.write("Internal Locations (# taxa x  # dimensions):\n")
                     for i in range(self.S - 2):
                         for d in range(self.D):
-                            f.write("%f\t" % self.VariationalParams["int_mu"][k, i, d])
+                            f.write("%f\t" % self.params_optim["int_mu"][k, i, d])
                     f.write("Internal Sigmas (# taxa x  # dimensions):\n")
                     for i in range(self.S - 2):
                         for d in range(self.D):
                             f.write(
-                                "%f\t" % self.VariationalParams["int_sigma"][k, i, d]
+                                "%f\t" % self.params_optim["int_sigma"][k, i, d]
                             )
                         f.write("\n")
                     f.write("\n")
@@ -570,23 +571,23 @@ def read(path_read, internals=True):
     else:
         n_taxa = n_lines
 
-    VariationalParams = {
+    params_optim = {
         "leaf_mu": np.empty((n_taxa, dim)),
         "leaf_sigma": np.empty((n_taxa, dim)),
     }
 
     for i in range(n_taxa):
         line_in = np.array([float(j) for j in lines[i].rstrip().split("\t")])
-        VariationalParams["leaf_mu"][i, :] = line_in[:dim]
-        VariationalParams["leaf_sigma"][i, :] = line_in[dim:]
+        params_optim["leaf_mu"][i, :] = line_in[:dim]
+        params_optim["leaf_sigma"][i, :] = line_in[dim:]
 
     if internals:
-        VariationalParams["int_mu"] = np.empty((n_taxa - 2, dim))
-        VariationalParams["int_sigma"] = np.empty((n_taxa - 2, dim))
+        params_optim["int_mu"] = np.empty((n_taxa - 2, dim))
+        params_optim["int_sigma"] = np.empty((n_taxa - 2, dim))
         for i in range(n_taxa - 2):
             line_in = np.array(
                 [float(j) for j in lines[i + n_taxa].rstrip().split("\t")]
             )
-        VariationalParams["int_mu"][i, :] = line_in[:dim]
-        VariationalParams["int_sigma"][i, :] = line_in[dim:]
-    return VariationalParams
+        params_optim["int_mu"][i, :] = line_in[:dim]
+        params_optim["int_sigma"][i, :] = line_in[dim:]
+    return params_optim

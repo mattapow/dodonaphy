@@ -40,7 +40,7 @@ def test_can_learn(embedder, connector):
         "leaf_sigma": torch.from_numpy(leaf_sigma).double(),
         "mix_weights": torch.tensor(mix_weights, dtype=torch.float64),
     }
-    mymod.set_variationalParams(param_init)
+    mymod.set_params_optim(param_init)
     mymod.learn(epochs=2, path_write=None, importance_samples=3)
 
 
@@ -76,7 +76,7 @@ def test_models_ds1(model_name, path_write):
         param_init["sub_rates"] = phylomodel.sub_rates
     if not phylomodel.fix_freqs:
         param_init["freqs"] = phylomodel.freqs
-    mymod.set_variationalParams(param_init)
+    mymod.set_params_optim(param_init)
 
     mymod.learn(epochs=1, path_write=path_write, importance_samples=1)
 
@@ -98,12 +98,12 @@ def test_vi_io():
         output = vi.read(fp, internals=False)
     assert allclose(
         output["leaf_mu"],
-        mymod.VariationalParams["leaf_mu"].detach().numpy(),
+        mymod.params_optim["leaf_mu"].detach().numpy(),
         atol=1e-6,
     )
     assert allclose(
         output["leaf_sigma"],
-        mymod.VariationalParams["leaf_sigma"].detach().numpy(),
+        mymod.params_optim["leaf_sigma"].detach().numpy(),
         atol=1e-6,
     )
 
@@ -138,7 +138,7 @@ def test_bito_ds1(model_name):
         param_init["sub_rates"] = phylomodel.sub_rates
     if not phylomodel.fix_freqs:
         param_init["freqs"] = phylomodel.freqs
-    mymod.set_variationalParams(param_init)
+    mymod.set_params_optim(param_init)
 
     # initialise bito using a sequence alignment and a (postorder) tree
     peel, _, _ = mymod.connect(param_init["leaf_mu"])

@@ -163,6 +163,13 @@ class BaseModel(object):
             with open(file_name, "a", encoding="UTF-8") as file:
                 file.write(message)
 
+    def init_model_params(self):
+        # set evolutionary model parameters to optimise
+        if not self.phylomodel.fix_sub_rates:
+            self.params_optim["sub_rates"] = self.phylomodel._sub_rates
+        if not self.phylomodel.fix_freqs:
+            self.params_optim["freqs"] = self.phylomodel._freqs
+
     def init_bito(self, msa_file, peel):
         self.use_bito = True
         self.bito_inst = bito.unrooted_instance("dodonaphy")
