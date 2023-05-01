@@ -53,6 +53,8 @@ def run(args):
         get_peel = True
     if args.use_bito:
         get_peel = True
+        msa_file = os.path.join(root_dir, args.path_dna)
+        msa_file = os.path.abspath(msa_file)
     if get_peel:
         peel, _, _ = tree.dendropy_to_pb(start_tree)
 
@@ -105,9 +107,10 @@ def run(args):
         mymod.embed_tree_distribtution(dists)
 
         if args.use_bito:
-            msa_file = os.path.join(root_dir, args.path_dna)
-            msa_file = os.path.abspath(msa_file)
-            mymod.init_bito(msa_file, peel)
+            fasta_file = get_fasta_file(msa_file)
+            if peel is None:
+                raise ValueError("Start tree cannot be None for bito.")
+            mymod.init_bito(fasta_file, peel)
 
         mymod.learn(
             path_write=path_write,
@@ -118,8 +121,6 @@ def run(args):
         )
 
     elif args.infer == "hmap":
-        msa_file = os.path.join(root_dir, args.path_dna)
-        msa_file = os.path.abspath(msa_file)
         mymod = HMAP(
             partials[:],
             weights,
