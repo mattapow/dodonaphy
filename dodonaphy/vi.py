@@ -30,6 +30,7 @@ class DodonaphyVI(BaseModel):
         n_boosts=1,
         start="",
         model_name="JC69",
+        freqs=None,
     ):
         super().__init__(
             "vi",
@@ -42,6 +43,7 @@ class DodonaphyVI(BaseModel):
             curvature=curvature,
             tip_labels=tip_labels,
             model_name=model_name,
+            freqs=freqs,
         )
         print("Initialising variational model.\n")
 
@@ -150,9 +152,23 @@ class DodonaphyVI(BaseModel):
             int_cov = torch.eye(
                 n_int_params, dtype=torch.double
             ) * self.VariationalParams["int_sigma"][mix_idx].exp().reshape(n_int_params)
-            sample = self.rsample_tree(leaf_locs, leaf_cov, int_locs, int_cov, path_write=path_write, file_name=file_name, iteration=iteration)
+            sample = self.rsample_tree(
+                leaf_locs,
+                leaf_cov,
+                int_locs,
+                int_cov,
+                path_write=path_write,
+                file_name=file_name,
+                iteration=iteration,
+            )
         else:
-            sample = self.rsample_tree(leaf_locs, leaf_cov, path_write=path_write, file_name=file_name, iteration=iteration)
+            sample = self.rsample_tree(
+                leaf_locs,
+                leaf_cov,
+                path_write=path_write,
+                file_name=file_name,
+                iteration=iteration,
+            )
 
         if sample["jacobian"] == -torch.inf:
             warnings.warn("Jacobian determinant set to zero.")
@@ -223,7 +239,9 @@ class DodonaphyVI(BaseModel):
 
         if path_write is not None:
             self.compute_final_elbo(path_write, n_draws)
-            file_model = os.path.join(self.path_write, f"{self.inference_name}_model.log")
+            file_model = os.path.join(
+                self.path_write, f"{self.inference_name}_model.log"
+            )
             self.phylomodel.save(file_model)
             self.save_final_info(path_write, time.time() - start_time)
 
@@ -232,7 +250,9 @@ class DodonaphyVI(BaseModel):
         file_name = "samples"
         tree.save_tree_head(path_write, file_name, self.tip_labels)
         with torch.no_grad():
-            final_elbo = -self.elbo_siwae(importance=n_draws, path_write=path_write, file_name=file_name).item()
+            final_elbo = -self.elbo_siwae(
+                importance=n_draws, path_write=path_write, file_name=file_name
+            ).item()
         self.log("%-12s: %f\n" % (f"Final ELBO ({n_draws}) samples", final_elbo))
         print(f"Final ELBO: {final_elbo:.3f}")
 
@@ -279,13 +299,16 @@ class DodonaphyVI(BaseModel):
         sample_number = 0
         for k in range(self.n_boosts):
             for t in range(importance):
-                ln_elbos[t, k] = self.calculate_elbo(k, path_write, file_name, sample_number)
+                ln_elbos[t, k] = self.calculate_elbo(
+                    k, path_write, file_name, sample_number
+                )
                 sample_number += 1
-        loss = torch.logsumexp(
+        loss = (
             -torch.log(torch.tensor(importance))
-            + torch.log_softmax(self.VariationalParams["mix_weights"], dim=0)
-            + ln_elbos,
-            dim=1,
+            + torch.logsumexp(
+                torch.log_softmax(self.VariationalParams["mix_weights"], dim=0), dim=0
+            )
+            + torch.sum(ln_elbos)
         )
         return torch.mean(loss)
 
@@ -348,7 +371,9 @@ class DodonaphyVI(BaseModel):
 
         # save sample
         if (path_write is not None) != (file_name is not None):
-            raise ValueError(f"path {path_write} and file name {file_name} should either both be None or a string")
+            raise ValueError(
+                f"path {path_write} and file name {file_name} should either both be None or a string"
+            )
         can_save = path_write is not None and file_name is not None
         can_save *= isinstance(path_write, str)
         can_save *= isinstance(file_name, str)
@@ -361,7 +386,7 @@ class DodonaphyVI(BaseModel):
                 iteration,
                 ln_p,
                 ln_prior,
-                self.name_id
+                self.name_id,
             )
 
         return sample

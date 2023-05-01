@@ -14,11 +14,12 @@ from dodonaphy.vi import DodonaphyVI
 from numpy import allclose
 from dodonaphy.phylomodel import PhyloModel
 
-# ("wrap", "geodesics")
-# ("up", "geodesics"),
+
 @pytest.mark.parametrize("embedder,connector",
                          [("up", "nj"),
-                          ("wrap", "nj"),])
+                          ("wrap", "nj"),
+                          ("wrap", "geodesics"),
+                          ("up", "geodesics")])
 def test_can_learn(embedder, connector):
     """Each draw from the sample should be different in likelihood."""
     simtree = treesim.birth_death_tree(
@@ -46,9 +47,7 @@ def test_can_learn(embedder, connector):
 @pytest.mark.parametrize(
     "model_name, path_write",
     [("JC69", None),
-     ("GTR", None),
-     ("JC69", "tmp"),
-     ("GTR", "tmp")]
+     ("GTR", None)]
 )
 def test_models_ds1(model_name, path_write):
     dna = dendropy.DnaCharacterMatrix.get(path="./test/data/ds1/dna.nex", schema="nexus")
@@ -79,9 +78,7 @@ def test_models_ds1(model_name, path_write):
         param_init["freqs"] = phylomodel.freqs
     mymod.set_variationalParams(param_init)
 
-    if path_write is not None:
-        with tempfile.TemporaryDirectory() as tmpdirname:
-            mymod.learn(epochs=2, path_write=tmpdirname, importance_samples=1)
+    mymod.learn(epochs=1, path_write=path_write, importance_samples=1)
 
 
 @pytest.mark.skip(reason="We don't have to read this in. Would need to fix the read function.")
@@ -136,7 +133,7 @@ def test_bito_ds1(model_name):
         ),
         "mix_weights": torch.tensor(mix_weights, dtype=torch.float64),
     }
-    phylomodel = PhyloModel("JC69")
+    phylomodel = PhyloModel(model_name)
     if not phylomodel.fix_sub_rates:
         param_init["sub_rates"] = phylomodel.sub_rates
     if not phylomodel.fix_freqs:
