@@ -156,7 +156,7 @@ def test_compute_LL_bito_ofParentID(torch_mode, model_name):
     tree_file = "./test/data/ds1/dna.nj.newick"
     tree = dendropy.Tree.get(path=tree_file, schema="newick", preserve_underscores=True)
     # convert into dodonaphy (peel, blens)
-    peel, blens, _ = treeFunc.dendropy_to_pb(tree)
+    peel, blens, name_id = treeFunc.dendropy_to_pb(tree)
 
     bito_inst = bito.unrooted_instance("testing")
     # read msa
@@ -170,8 +170,9 @@ def test_compute_LL_bito_ofParentID(torch_mode, model_name):
     freqs = torch.zeros((3))
 
     parent_id = phylo.get_parent_id_vector(peel, rooted=False)
+    taxa_names = list(name_id.keys())
     tree = bito.UnrootedTree.of_parent_id_vector(parent_id)
-    bito_inst.tree_collection = bito.UnrootedTreeCollection([tree])
+    bito_inst.tree_collection = bito.UnrootedTreeCollection([tree], taxa_names)
     bito_inst.prepare_for_phylo_likelihood(model_specification, 1)
 
     if torch_mode == "forward":
@@ -194,3 +195,23 @@ def test_compute_LL_bito_ofParentID(torch_mode, model_name):
         )
         loss.backward()
         optimizer.step()
+
+
+def test_compute_LL_bito_ofParentID_basic():
+    inst = bito.unrooted_instance("charlie")
+    inst.tree_collection = bito.UnrootedTreeCollection(
+        [bito.UnrootedTree.of_parent_id_vector([3, 3, 3])],
+        ["mars", "saturn", "jupiter"],
+    )
+    inst.read_fasta_file("test/data/hello.fasta")
+    model_specification = bito.PhyloModelSpecification(
+        substitution="JC69", site="constant", clock="strict"
+    )
+    inst.prepare_for_phylo_likelihood(model_specification, 1)
+    branch_lengths = np.array(inst.tree_collection.trees[0].branch_lengths, copy=False)
+    branch_lengths[:] = np.array([0.15, 0.1, 0.333, 0.24])
+    print(inst.tree_collection.newick())
+    print(np.array(inst.log_likelihoods()))
+    branch_lengths[0] = 0.2
+    print(inst.tree_collection.newick())
+    print(np.array(inst.log_likelihoods()))

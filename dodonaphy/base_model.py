@@ -179,7 +179,7 @@ class BaseModel(object):
         )
         parent_id = phylo.get_parent_id_vector(peel, rooted=False)
         tree = bito.UnrootedTree.of_parent_id_vector(parent_id)
-        self.bito_inst.tree_collection = bito.UnrootedTreeCollection([tree])
+        self.bito_inst.tree_collection = bito.UnrootedTreeCollection([tree], self.tip_labels)
         self.bito_inst.prepare_for_phylo_likelihood(self.model_specification, 1)
 
     def compute_LL(self, peel, blen):

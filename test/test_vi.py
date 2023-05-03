@@ -15,11 +15,10 @@ from numpy import allclose
 from dodonaphy.phylomodel import PhyloModel
 
 
-@pytest.mark.parametrize("embedder,connector",
-                         [("up", "nj"),
-                          ("wrap", "nj"),
-                          ("wrap", "geodesics"),
-                          ("up", "geodesics")])
+@pytest.mark.parametrize(
+    "embedder,connector",
+    [("up", "nj"), ("wrap", "nj"), ("wrap", "geodesics"), ("up", "geodesics")],
+)
 def test_can_learn(embedder, connector):
     """Each draw from the sample should be different in likelihood."""
     simtree = treesim.birth_death_tree(
@@ -44,17 +43,21 @@ def test_can_learn(embedder, connector):
     mymod.learn(epochs=2, path_write=None, importance_samples=3)
 
 
-@pytest.mark.parametrize(
-    "model_name, path_write",
-    [("JC69", None),
-     ("GTR", None)]
-)
+@pytest.mark.parametrize("model_name, path_write", [("JC69", None), ("GTR", None)])
 def test_models_ds1(model_name, path_write):
-    dna = dendropy.DnaCharacterMatrix.get(path="./test/data/ds1/dna.nex", schema="nexus")
+    dna = dendropy.DnaCharacterMatrix.get(
+        path="./test/data/ds1/dna.nex", schema="nexus"
+    )
     partials, weights = compress_alignment(dna)
     dim = 3
     mymod = DodonaphyVI(
-        partials, weights, dim, embedder="up", connector="nj", soft_temp=1e-8, model_name=model_name
+        partials,
+        weights,
+        dim,
+        embedder="up",
+        connector="nj",
+        soft_temp=1e-8,
+        model_name=model_name,
     )
     dists = calculate_pairwise_distance(dna, adjust="JC69")
     hp_obj = hydraPlus.HydraPlus(dists, dim=dim, curvature=-1.0)
@@ -63,12 +66,8 @@ def test_models_ds1(model_name, path_write):
     leaf_sigma = emm_tips["X"] * coef_var
     mix_weights = np.ones((1))
     param_init = {
-        "leaf_mu": torch.tensor(
-            emm_tips["X"], dtype=torch.float64
-        ),
-        "leaf_sigma": torch.tensor(
-            leaf_sigma, dtype=torch.float64
-        ),
+        "leaf_mu": torch.tensor(emm_tips["X"], dtype=torch.float64),
+        "leaf_sigma": torch.tensor(leaf_sigma, dtype=torch.float64),
         "mix_weights": torch.tensor(mix_weights, dtype=torch.float64),
     }
     phylomodel = PhyloModel(model_name)
@@ -81,7 +80,9 @@ def test_models_ds1(model_name, path_write):
     mymod.learn(epochs=1, path_write=path_write, importance_samples=1)
 
 
-@pytest.mark.skip(reason="We don't have to read this in. Would need to fix the read function.")
+@pytest.mark.skip(
+    reason="We don't have to read this in. Would need to fix the read function."
+)
 def test_vi_io():
     simtree = treesim.birth_death_tree(
         birth_rate=1.0, death_rate=0.5, num_extant_tips=6
@@ -112,11 +113,19 @@ def test_vi_io():
 def test_bito_ds1(model_name):
     dna_nex = "./test/data/ds1/dna.nex"
     dna_fasta = "./test/data/ds1/dna.fasta"
-    dna = dendropy.DnaCharacterMatrix.get(path=dna_nex, schema="nexus")
+    dna = dendropy.DnaCharacterMatrix.get(path=dna_nex, schema="nexus", preserve_underscores=True)
+    tip_labels = dna.taxon_namespace.labels()
     partials, weights = compress_alignment(dna)
     dim = 3
     mymod = DodonaphyVI(
-        partials, weights, dim, embedder="up", connector="nj", soft_temp=1e-8, model_name=model_name
+        partials,
+        weights,
+        dim,
+        embedder="up",
+        connector="nj",
+        soft_temp=1e-8,
+        model_name=model_name,
+        tip_labels=tip_labels,
     )
     dists = calculate_pairwise_distance(dna, adjust="JC69")
     hp_obj = hydraPlus.HydraPlus(dists, dim=dim, curvature=-1.0)
@@ -125,12 +134,8 @@ def test_bito_ds1(model_name):
     leaf_sigma = emm_tips["X"] * coef_var
     mix_weights = np.ones((1))
     param_init = {
-        "leaf_mu": torch.tensor(
-            emm_tips["X"], dtype=torch.float64
-        ),
-        "leaf_sigma": torch.tensor(
-            leaf_sigma, dtype=torch.float64
-        ),
+        "leaf_mu": torch.tensor(emm_tips["X"], dtype=torch.float64),
+        "leaf_sigma": torch.tensor(leaf_sigma, dtype=torch.float64),
         "mix_weights": torch.tensor(mix_weights, dtype=torch.float64),
     }
     phylomodel = PhyloModel(model_name)
