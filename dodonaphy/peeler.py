@@ -20,9 +20,9 @@ def make_soft_peel_tips(leaf_locs, connector="geodesics", curvature=-torch.ones(
         tuple: (peel, int_locs)
     """
     if connector != "geodesics":
-        raise NotImplementedError()
+        raise NotImplementedError(f"Connector must be geodesics, got {connector}")
     if not torch.isclose(curvature, -torch.ones(1)):
-        raise NotImplementedError()
+        raise NotImplementedError(f"Curvature must be -1, got {curvature}")
     dims = leaf_locs.shape[1]
     leaf_node_count = leaf_locs.shape[0]
     int_node_count = leaf_locs.shape[0] - 2
