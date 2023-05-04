@@ -91,7 +91,7 @@ class DodonaphyVI(BaseModel):
         """Set variational parameters to optimise
 
         Args:
-            param_init (Dict): A dictionary containing: 
+            param_init (Dict): A dictionary containing:
             leaf_mu     - node locations
             leaf_sigma  - standard deviation of locations
             int_mu      - internal node locations
@@ -150,9 +150,9 @@ class DodonaphyVI(BaseModel):
         if self.internals_exist:
             n_int_params = torch.numel(self.params_optim["int_mu"][mix_idx])
             int_locs = self.params_optim["int_mu"][mix_idx].reshape(n_int_params)
-            int_cov = torch.eye(
-                n_int_params, dtype=torch.double
-            ) * self.params_optim["int_sigma"][mix_idx].exp().reshape(n_int_params)
+            int_cov = torch.eye(n_int_params, dtype=torch.double) * self.params_optim[
+                "int_sigma"
+            ][mix_idx].exp().reshape(n_int_params)
             sample = self.rsample_tree(
                 leaf_locs,
                 leaf_cov,
@@ -304,14 +304,14 @@ class DodonaphyVI(BaseModel):
                     k, path_write, file_name, sample_number
                 )
                 sample_number += 1
-        loss = (
+        mixture_logit = torch.log_softmax(self.params_optim["mix_weights"], dim=0)
+        loss = torch.logsumexp(
             -torch.log(torch.tensor(importance))
-            + torch.logsumexp(
-                torch.log_softmax(self.VariationalParams["mix_weights"], dim=0), dim=0
-            )
-            + torch.sum(ln_elbos)
+            + mixture_logit
+            + torch.sum(ln_elbos, dim=1),
+            dim=0,
         )
-        return torch.mean(loss)
+        return loss.mean(dim=0)
 
     def rsample_tree(
         self,
@@ -546,9 +546,7 @@ class DodonaphyVI(BaseModel):
                     f.write("Internal Sigmas (# taxa x  # dimensions):\n")
                     for i in range(self.S - 2):
                         for d in range(self.D):
-                            f.write(
-                                "%f\t" % self.params_optim["int_sigma"][k, i, d]
-                            )
+                            f.write("%f\t" % self.params_optim["int_sigma"][k, i, d])
                         f.write("\n")
                     f.write("\n")
 
