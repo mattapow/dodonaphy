@@ -446,6 +446,10 @@ class DodonaphyVI(BaseModel):
             )
         elif self.connector == "nj":
             peel, blens = peeler.nj_torch(pdm, tau=self.soft_temp)
+        elif self.connector == "nj-r":
+            raise ValueError("No gradient available from rapid NJ.")
+        elif self.connector == "fix":
+            raise NotImplementedError("Variational inference on fixed topology. Need internal nodes.")
         return peel, blens, pdm
 
     @staticmethod
