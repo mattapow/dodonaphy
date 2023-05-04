@@ -339,11 +339,11 @@ class DodonaphyVI(BaseModel):
             leaf_cov = torch.eye(self.S * self.D, dtype=torch.double) * leaf_cov
 
         # sample Euclidean location
-        leaf_locs, log_Q = self.rsample_Euclid(
+        sample_leaf_locs, log_Q = self.rsample_Euclid(
             leaf_locs, leaf_cov, is_internal=False, normalise_loc=normalise_leaf
         )
         # transform into tree
-        peel, blens, pdm = self.connect(leaf_locs)
+        peel, blens, pdm = self.connect(sample_leaf_locs)
 
         # get jacobian
         def get_blens(locs_t0):
@@ -352,7 +352,7 @@ class DodonaphyVI(BaseModel):
             return blens
 
         # TODO: use analytical form
-        jacobian = torch.autograd.functional.jacobian(get_blens, leaf_locs.flatten())
+        jacobian = torch.autograd.functional.jacobian(get_blens, sample_leaf_locs.flatten())
         log_abs_det_jacobian = torch.log(
             torch.sqrt(torch.abs(torch.linalg.det(jacobian @ jacobian.T)))
         )
