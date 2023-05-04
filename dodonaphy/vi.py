@@ -476,10 +476,11 @@ class DodonaphyVI(BaseModel):
                 int_sigma = None
         elif cv_base == "closest":
             # set leaf variational sigma using closest neighbour
-            dists[dists == 0] = np.inf
+            dists[dists == 0.0] = np.inf
             closest = dists.min(axis=0)
             closest = np.repeat([closest], dim, axis=0).transpose()
             leaf_sigma = np.abs(closest) * cv
+            dists[dists == np.inf] = 0.0
 
         if internals_exist:
             param_init = {
