@@ -1,5 +1,3 @@
-import bito
-import bito.phylo_model_mapkeys as model_keys
 import dendropy
 import numpy as np
 import pytest
@@ -8,6 +6,13 @@ import torch
 from dodonaphy import Cphylo, phylo
 from dodonaphy.phylomodel import PhyloModel
 from dodonaphy import tree as treeFunc
+
+import importlib
+bito_spec = importlib.util.find_spec("bito")
+bito_found = bito_spec is not None
+if bito_found:
+    import bito
+    import bito.phylo_model_mapkeys as model_keys
 
 
 def test_compute_likelihood_bito_file():
