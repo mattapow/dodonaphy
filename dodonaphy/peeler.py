@@ -203,7 +203,7 @@ def nj_torch(dists_leaves, tau=None):
         peel[int_i, 1] = right
         peel[int_i, 2] = parent
 
-        dist_pr = soft.clamp_pos(dist_lr - dist_pl, tau)
+        dist_pr = torch.clamp(dist_lr - dist_pl, min=eps)
         dist_p[right] = dist_pr
 
         blens[left] = dist_pl.clone()
@@ -261,7 +261,7 @@ def get_new_dist_soft(pdm, mask, hot_f, hot_g, tau):
     sum_pdm = torch.sum(pdm * ~mask_2d, dim=-1)
 
     dist_uf = 0.5 * dist_fg + (sum_pdm @ hot_f - sum_pdm @ hot_g) / (2 * (n_active - 2))
-    dist_uf = soft.clamp_pos(dist_uf, tau)
+    dist_uf = torch.clamp(dist_uf, min=eps)
     return dist_u, dist_uf, dist_fg
 
 
