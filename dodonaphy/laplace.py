@@ -17,7 +17,7 @@ class Laplace(HMAP):
         """
         leaf_loc = leaf_loc_flat.view((self.S, self.D))
         dist_2d = Chyp_torch.get_pdm(
-            leaf_loc, curvature=self.curvature, matsumoto=self.matsumoto
+            leaf_loc, curvature=self.curvature, matsumoto=self.matsumoto, projection=self.embedder
         )
         peel, blens = peeler.nj_torch(dist_2d, tau=self.soft_temp)
         ln_p = self.compute_LL(peel, blens)
@@ -43,7 +43,7 @@ class Laplace(HMAP):
             norm_aprx = normal(mean, cov)
             sample = norm_aprx.sample(torch.Size((1,)))
             dists = Chyp_torch.get_pdm(
-                sample, curvature=self.curvature, matsumoto=self.matsumoto
+                sample, curvature=self.curvature, matsumoto=self.matsumoto, projection=self.embedder
             )
             peel, blens = peeler.nj_torch(dists)
             blens = torch.tensor(blens)

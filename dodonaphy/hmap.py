@@ -269,7 +269,7 @@ class HMAP(BaseModel):
         locs = self.get_locs()
 
         if get_pdm or self.connector in ("nj", "fix"):
-            pdm = Chyp_torch.get_pdm(locs, curvature=self.curvature)
+            pdm = Chyp_torch.get_pdm(locs, curvature=self.curvature, projection=self.embedder)
 
         if self.connector == "geodesics":
             peel, _, blens = peeler.make_soft_peel_tips(

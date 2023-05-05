@@ -384,7 +384,16 @@ cpdef hyper_to_poincare(location):
     return out
 
 
-cpdef get_pdm(leaf_loc, curvature=-torch.ones(1), bint matsumoto=False):
+cdef tangent_to_hyper_2d(loc_t0):
+    (n_taxa, dim) = loc_t0.shape()
+    cdef zero_hyp = project_up_2d(torch.zeros_like(loc_t0))
+    cdef x_hyp = torch.zeros((n_taxa, dim+1))
+    for i in range(n_taxa):
+        x_hyp[i, :] = tangent_to_hyper(zero_hyp, loc_t0[i, :], dim)
+    return x_hyp
+    
+
+cpdef get_pdm(leaf_loc, curvature=-torch.ones(1), bint matsumoto=False, projection="up"):
     """Get pair-wise hyperbolic distance matrix.
 
 
@@ -396,7 +405,10 @@ cpdef get_pdm(leaf_loc, curvature=-torch.ones(1), bint matsumoto=False):
     Returns:
         ndarray: pairwise distance between point
     """
-    x_sheet = project_up_2d(leaf_loc)
+    if projection == "up":
+        x_sheet = project_up_2d(leaf_loc)
+    elif projection == "wrap":
+        x_sheet = tangent_to_hyper_2d(leaf_loc)
     cdef X = x_sheet @ x_sheet.T
     cdef u_tilde = torch.sqrt(torch.diagonal(X) + 1)
     cdef H = X - torch.outer(u_tilde, u_tilde)
@@ -404,6 +416,7 @@ cpdef get_pdm(leaf_loc, curvature=-torch.ones(1), bint matsumoto=False):
     cdef D = 1 / torch.sqrt(-curvature) * torch.arccosh(-H)
     if matsumoto:
         D = torch.log(torch.cosh(D))
+    D.fill_diagonal_(0.0)
     return D
 
 cpdef p2t0(loc, mu=None, get_jacobian=False):
