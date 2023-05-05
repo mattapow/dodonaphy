@@ -249,11 +249,12 @@ class DodonaphyVI(BaseModel):
     def compute_final_elbo(self, path_write, n_draws):
         # draw samples from the final distribution and save them
         file_name = "samples"
-        tree.save_tree_head(path_write, file_name, self.tip_labels)
+        tree.save_tree_head(path_write, file_name, self.tip_labels, translate=False)
         with torch.no_grad():
             final_elbo = -self.elbo_siwae(
                 importance=n_draws, path_write=path_write, file_name=file_name
             ).item()
+        tree.end_tree_file(path_write)
         self.log("%-12s: %f\n" % (f"Final ELBO ({n_draws}) samples", final_elbo))
         print(f"Final ELBO: {final_elbo:.3f}")
 

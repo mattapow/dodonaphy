@@ -257,7 +257,7 @@ def tree_to_newick(name_id, peel, blens, rooted=True):
     return nwk
 
 
-def save_tree_head(path_write, filename, tip_labels, formatter="MrBayes"):
+def save_tree_head(path_write, filename, tip_labels, formatter="MrBayes", translate=True):
     if path_write is None:
         return
     fn = path_write + "/" + filename + ".t"
@@ -272,15 +272,18 @@ def save_tree_head(path_write, filename, tip_labels, formatter="MrBayes"):
                 file.write("\t\t" + "T" + str(i + 1) + "\n")
             file.write("\t\t;\nEnd;\n\n")
             file.write("Begin trees;\n")
-            file.write("\t translate\n")
-            for i in range(1, S):
-                file.write("\t\tT%d T%d,\n" % (i, i))
+            if translate:
+                file.write("\t translate\n")
+                for i in range(1, S):
+                    file.write("\t\tT%d T%d,\n" % (i, i))
             file.write("\t\tT%d T%d;\n" % (S, S))
     else:
         with open(fn, "w", encoding="UTF-8") as file:
-            file.write("#NEXUS\n[Param: tree]\nbegin trees;\n\ttranslate\n")
-            idx = 1
-            for taxon in tip_labels[:-1]:
-                file.write(f"\t\t{idx} {taxon},\n")
-                idx += 1
-            file.write(f"\t\t{idx} {tip_labels[-1]};\n")
+            file.write("#NEXUS\n[Param: tree]\nbegin trees;\n")
+            if translate:
+                file.write("\ttranslate\n")
+                idx = 1
+                for taxon in tip_labels[:-1]:
+                    file.write(f"\t\t{idx} {taxon},\n")
+                    idx += 1
+                file.write(f"\t\t{idx} {tip_labels[-1]};\n")

@@ -1,6 +1,6 @@
 matplotlib>=3.3.4
 pytest>=6.2.3
-torch>=2.0.0
+torch>=1.13.0
 cython>=0.29.24
 numpy>=1.21.2
 DendroPy~=4.5.2
