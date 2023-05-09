@@ -137,6 +137,7 @@ def run(args):
             normalise_leaves=args.normalise_leaves,
             model_name=args.model,
             freqs=empirical_freqs,
+            embedder=args.embed,
         )
         if args.use_bito:
             fasta_file = get_fasta_file(msa_file)

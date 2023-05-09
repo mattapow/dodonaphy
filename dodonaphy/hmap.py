@@ -37,6 +37,7 @@ class HMAP(BaseModel):
         normalise_leaves=False,
         model_name="JC69",
         freqs=None,
+        embedder="wrap",
     ):
         super().__init__(
             "hmap",
@@ -50,6 +51,7 @@ class HMAP(BaseModel):
             tip_labels=tip_labels,
             model_name=model_name,
             freqs=freqs,
+            embedder=embedder,
         )
         self.path_write = path_write
         self.normalise_leaves = normalise_leaves

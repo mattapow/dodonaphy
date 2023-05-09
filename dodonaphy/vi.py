@@ -444,7 +444,7 @@ class DodonaphyVI(BaseModel):
         Returns:
             tensor: post order tranversal, branch lengths
         """
-        pdm = Chyp_torch.get_pdm(locs_t0, curvature=self.curvature)
+        pdm = Chyp_torch.get_pdm(locs_t0, curvature=self.curvature, projection=self.embedder)
         if self.connector == "geodesics":
             peel, int_locs, blens = peeler.make_soft_peel_tips(
                 locs_t0, connector="geodesics", curvature=self.curvature
