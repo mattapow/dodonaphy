@@ -67,7 +67,7 @@ class HMAP(BaseModel):
     def init_embedding_params(self, dists):
         # embed distances with hydra+
         hp_obj = hydraPlus.HydraPlus(
-            dists, dim=self.D, curvature=np.array(self.curvature)
+            dists, dim=self.D, curvature=self.curvature.detach().numpy()
         )
         emm_tips = hp_obj.embed(equi_adj=0.0, alpha=1.1)
         print("Embedding Strain (tips only) = {:.4}".format(emm_tips["stress_hydra"]))
@@ -92,9 +92,6 @@ class HMAP(BaseModel):
                     emm_tips["X"], requires_grad=True, dtype=torch.float64
                 ),
             }
-        # optimise the curvature
-        self.curvature = self.curvature.detach().clone().requires_grad_()
-        self.params_optim["curvature"] = self.curvature
 
     def learn(self, epochs, learn_rate, save_locations, start=""):
         """Optimise params["dists"].
@@ -127,6 +124,8 @@ class HMAP(BaseModel):
         print(f"Running for {epochs} iterations.")
         print("Iteration: log prior + log_likelihood = log posterior")
         for i in range(1, epochs + 1):
+            print(self.params_optim["curvature"])
+            print(self.curvature)
             self.current_epoch = i
             optimizer.step(closure)
             scheduler.step()
@@ -207,7 +206,6 @@ class HMAP(BaseModel):
             self.best_freqs = self.phylomodel.freqs.detach().clone()
             self.best_sub_rates = self.phylomodel.sub_rates.detach().clone()
             self.best_curvature = self.curvature.detach().clone()
-            print(self.curvature)
 
     def save(self, epochs, learn_rate, start):
 

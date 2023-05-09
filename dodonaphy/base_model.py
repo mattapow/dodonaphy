@@ -53,11 +53,8 @@ class BaseModel(object):
         self.D = dim
         self.bcount = 2 * self.S - 2
         self.soft_temp = soft_temp
-        assert curvature <= 0, "Curvature must be negative"
-        if require_grad:
-            self.curvature = torch.tensor(curvature)
-        else:
-            self.curvature = curvature
+        self.require_grad = require_grad
+        self.curvature = curvature
         self.epoch = 0
         assert embedder in ("wrap", "up")
         self.embedder = embedder
@@ -65,7 +62,7 @@ class BaseModel(object):
         self.connector = connector
         self.internals_exist = False
         self.peel = np.zeros((self.S - 1, 3), dtype=int)
-        if require_grad:
+        if self.require_grad:
             self.blens = torch.zeros(self.bcount, dtype=torch.double)
         else:
             self.blens = np.zeros(self.bcount, dtype=np.double)
@@ -99,6 +96,24 @@ class BaseModel(object):
         self.phylomodel = PhyloModel(model_name)
         if freqs is not None:
             self.phylomodel.freqs = torch.from_numpy(freqs)
+
+    @property
+    def curvature(self):
+        if self.require_grad:
+            return -torch.exp(self._curvature)
+        else:
+            return -np.exp(self._curvature)
+
+    @curvature.setter
+    def curvature(self, curvature):
+        if self.require_grad:
+            curvature = torch.tensor(curvature)
+            if not hasattr(self, "_curvature"):
+                self._curvature = torch.log(-curvature).clone().detach().requires_grad_(True)
+            else:
+                self._curvature = torch.log(-curvature)
+        else:
+            self._curvature = np.log(-curvature)
 
     @staticmethod
     def compute_branch_lengths(
@@ -169,6 +184,8 @@ class BaseModel(object):
             self.params_optim["sub_rates"] = self.phylomodel._sub_rates
         if not self.phylomodel.fix_freqs:
             self.params_optim["freqs"] = self.phylomodel._freqs
+        if self.require_grad:
+            self.params_optim["curvature"] = self._curvature
 
     def init_bito(self, msa_file, peel):
         self.use_bito = True

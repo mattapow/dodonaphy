@@ -522,7 +522,7 @@ class DodonaphyVI(BaseModel):
             param_init = self.hydra_init(
                 dists,
                 self.D,
-                self.curvature.numpy(),
+                self.curvature.detach().numpy(),
                 internals_exist=self.internals_exist,
             )
             self.set_params_optim(param_init)
