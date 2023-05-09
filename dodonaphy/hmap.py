@@ -124,8 +124,6 @@ class HMAP(BaseModel):
         print(f"Running for {epochs} iterations.")
         print("Iteration: log prior + log_likelihood = log posterior")
         for i in range(1, epochs + 1):
-            print(self.params_optim["curvature"])
-            print(self.curvature)
             self.current_epoch = i
             optimizer.step(closure)
             scheduler.step()
