@@ -53,7 +53,7 @@ class BaseModel(object):
         self.D = dim
         self.bcount = 2 * self.S - 2
         self.soft_temp = soft_temp
-        assert curvature <= 0
+        assert curvature <= 0, "Curvature must be negative"
         if require_grad:
             self.curvature = torch.tensor(curvature)
         else:

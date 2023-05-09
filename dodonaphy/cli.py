@@ -120,7 +120,7 @@ def init_parser():
         help="Embed: Embedded method from Euclidean to Hyperbolic space.",
     )
     parser.add_argument(
-        "--curv", "-c", default=-1.0, type=float, help="Embed: Hyperbolic curvature."
+        "--curv", "-c", default=-1.0, type=float, help="Embed: Hyperbolic curvature. For VI and HMAP modes, this is optimised from the given value."
     )
     parser.add_argument(
         "--normalise_leaf",

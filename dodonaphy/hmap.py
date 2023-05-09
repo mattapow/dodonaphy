@@ -92,6 +92,9 @@ class HMAP(BaseModel):
                     emm_tips["X"], requires_grad=True, dtype=torch.float64
                 ),
             }
+        # optimise the curvature
+        self.curvature = self.curvature.detach().clone().requires_grad_()
+        self.params_optim["curvature"] = self.curvature
 
     def learn(self, epochs, learn_rate, save_locations, start=""):
         """Optimise params["dists"].
@@ -184,6 +187,7 @@ class HMAP(BaseModel):
                 self.name_id,
                 last_tree=True,
             )
+            self.log(f"Best curvature: {self.best_curvature.item()}\n")
 
     def save_duration(self, start_time):
         if self.path_write is not None:
@@ -194,14 +198,16 @@ class HMAP(BaseModel):
 
     def record_if_best(self):
         if self.loss < -self.best_posterior:
-            self.best_posterior = -self.loss
-            self.best_ln_p = self.ln_p
-            self.best_ln_prior = self.ln_prior
+            self.best_posterior = -self.loss.detach().clone()
+            self.best_ln_p = self.ln_p.detach().clone()
+            self.best_ln_prior = self.ln_prior.detach().clone()
             self.best_peel = self.peel
-            self.best_blens = self.blens
+            self.best_blens = self.blens.detach().clone()
             self.best_epoch = self.current_epoch
-            self.best_freqs = self.phylomodel.freqs
-            self.best_sub_rates = self.phylomodel.sub_rates
+            self.best_freqs = self.phylomodel.freqs.detach().clone()
+            self.best_sub_rates = self.phylomodel.sub_rates.detach().clone()
+            self.best_curvature = self.curvature.detach().clone()
+            print(self.curvature)
 
     def save(self, epochs, learn_rate, start):
 

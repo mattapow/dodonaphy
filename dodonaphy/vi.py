@@ -132,6 +132,9 @@ class DodonaphyVI(BaseModel):
             self.params_optim["mix_weights"] = torch.tensor(
                 np.ones((1)), dtype=torch.float64
             ).requires_grad_()
+        # optimise the curvature
+        self.curvature = self.curvature.detach().clone().requires_grad_()
+        self.params_optim["curvature"] = self.curvature
 
     def calculate_elbo(self, mix_idx, path_write, file_name, iteration):
         """Calculate the elbo of a sample from the variational distributions q_k
@@ -245,6 +248,7 @@ class DodonaphyVI(BaseModel):
             )
             self.phylomodel.save(file_model)
             self.save_final_info(path_write, time.time() - start_time)
+            self.log(f"Best curvature: {self.best_curvature.item()}\n")
 
     def compute_final_elbo(self, path_write, n_draws):
         # draw samples from the final distribution and save them
