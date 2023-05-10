@@ -138,6 +138,7 @@ def run(args):
             model_name=args.model,
             freqs=empirical_freqs,
             embedder=args.embed,
+            curvature=args.curv,
         )
         if args.use_bito:
             fasta_file = get_fasta_file(msa_file)
