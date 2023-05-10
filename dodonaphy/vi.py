@@ -8,7 +8,7 @@ import numpy as np
 import torch
 from torch.distributions.multivariate_normal import MultivariateNormal
 
-from dodonaphy import Chyp_torch, peeler, tree, utils
+from dodonaphy import Chyp_torch, peeler, tree, utils, Chyp_np
 from dodonaphy.base_model import BaseModel
 from dodonaphy.phylo import calculate_treelikelihood
 from hydraPlus import hydraPlus
@@ -459,7 +459,7 @@ class DodonaphyVI(BaseModel):
 
     @staticmethod
     def hydra_init(
-        dists, dim, curvature, internals_exist=False, cv=0.01, cv_base="closest"
+        dists, dim, curvature, internals_exist=False, cv=0.01, cv_base="closest", embedder="up"
     ):
         """Initialise variational distributions using hydra+ and a coefficient of variation.
         Set the coefficient of variation base as either the 'closest' distance or 'norm'.
@@ -475,6 +475,9 @@ class DodonaphyVI(BaseModel):
             "Embedding Stress (tips only) = {:.4}".format(emm_tips["stress_hydraPlus"])
         )
         leaf_loc_hyp = emm_tips["X"]
+        if embedder == "wrap":
+            locs_hyp = Chyp_np.project_up_2d(emm_tips["X"])
+            emm_tips["X"] = Chyp_np.unwrap_2d(locs_hyp)
 
         if cv_base == "norm":
             # set variational parameters with small coefficient of variation
@@ -524,6 +527,7 @@ class DodonaphyVI(BaseModel):
                 self.D,
                 self.curvature.detach().numpy(),
                 internals_exist=self.internals_exist,
+                embedder=self.embedder
             )
             self.set_params_optim(param_init)
 

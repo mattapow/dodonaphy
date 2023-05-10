@@ -3,7 +3,7 @@ import os
 import time
 
 import numpy as np
-from dodonaphy import tree, Cphylo, Cutils
+from dodonaphy import tree, Cphylo, Cutils, Chyp_np
 from hydraPlus import hydraPlus
 from dodonaphy.chain import Chain
 
@@ -300,6 +300,10 @@ class DodonaphyMCMC:
     def initialise_chains(self, emm, normalise_leaf, peel=None):
         """initialise each chain"""
         for chain in self.chains:
+            if self.embedder == "wrap":
+                # hydra+ uses vertical projection, need to adjust
+                locs_hyp = Chyp_np.project_up_2d(emm["X"])
+                emm["X"] = Chyp_np.unwrap_2d(locs_hyp)
             if normalise_leaf:
                 radius = np.linalg.norm(emm["X"], axis=1)[0]
                 leaf_x = Cutils.normalise_np(emm["X"]) * radius

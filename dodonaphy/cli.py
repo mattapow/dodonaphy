@@ -260,3 +260,5 @@ def validate(args):
         if args.start == "NJ":
             raise ValueError("--start tree must be provided to in order to --use_bito.\
                              Just need to implement init_bito better to cope without.")
+    if args.curv >= 0.0:
+        raise ValueError("Curvature must be strictly negative.")

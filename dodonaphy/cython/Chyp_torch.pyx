@@ -378,14 +378,17 @@ cpdef hyper_to_poincare(location):
 
     """
     cdef int dim = location.shape[0] - 1
-    cdef  out = torch.zeros(dim)
+    cdef out = torch.zeros(dim)
     for i in range(dim):
         out[i] = location[i + 1] / (1 + location[0])
     return out
 
 
 cdef tangent_to_hyper_2d(loc_t0):
-    (n_taxa, dim) = loc_t0.shape
+    if loc_t0.ndim == 1:
+        loc_t0 = loc_t0.unsqueeze(0)
+    cdef int n_taxa = loc_t0.shape[0]
+    cdef int dim = loc_t0.shape[1]
     cdef zero_hyp = project_up(torch.zeros((dim), dtype=torch.double))
     cdef x_hyp = torch.zeros((n_taxa, dim+1), dtype=torch.double)
     for i in range(n_taxa):

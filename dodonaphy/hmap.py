@@ -6,7 +6,7 @@ import warnings
 import numpy as np
 import torch
 
-from dodonaphy import Chyp_torch, peeler, tree, Cutils
+from dodonaphy import Chyp_torch, peeler, tree, Cutils, Chyp_np
 from hydraPlus import hydraPlus
 from dodonaphy.base_model import BaseModel
 
@@ -80,6 +80,8 @@ class HMAP(BaseModel):
         self.log(f"Embedding Stress (tips only) = {emm_tips['stress_hydraPlus']}\n")
         # set locations as parameters to optimise
         if self.normalise_leaves:
+            if self.embedder == "wrap":
+                raise NotImplementedError
             radius = np.mean(np.linalg.norm(emm_tips["X"], axis=1))
             directionals = Cutils.normalise_np(emm_tips["X"])
             self.params_optim = {
@@ -89,6 +91,10 @@ class HMAP(BaseModel):
                 ),
             }
         else:
+            if self.embedder == "wrap":
+                # hydra+ uses vertical projection, need to adjust
+                locs_hyp = Chyp_np.project_up_2d(emm_tips["X"])
+                emm_tips["X"] = Chyp_np.unwrap_2d(locs_hyp)
             self.params_optim = {
                 "leaf_loc": torch.tensor(
                     emm_tips["X"], requires_grad=True, dtype=torch.float64

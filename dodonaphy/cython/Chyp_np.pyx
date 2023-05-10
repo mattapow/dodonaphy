@@ -125,6 +125,21 @@ cpdef exp_map_inverse(np.ndarray[np.double_t, ndim=1] z, np.ndarray[np.double_t,
     return factor * (z - alpha * mu)
 
 
+def unwrap_2d(np.ndarray[np.double_t, ndim=2]z):
+    cdef int n = z.shape[0]
+    cdef int dim = z.shape[1] - 1
+    cdef np.ndarray[np.double_t, ndim=2] out = np.zeros((n, dim))
+    for (i, this_z) in enumerate(z):
+        out[i, :] = unwrap(this_z, dim)
+    return out
+
+
+def unwrap(np.ndarray[np.double_t, ndim=1] z, np.int_t dim):
+    cdef np.ndarray[np.double_t, ndim=1] mu0 = np.concatenate(([1.0], np.zeros(dim, dtype=np.double)))
+    cdef np.ndarray[np.double_t, ndim=1] v_tilde = exp_map_inverse(z, mu0)
+    return v_tilde[1:]
+
+
 cpdef tangent_to_hyper(np.ndarray[np.double_t, ndim=1] mu, np.ndarray[np.double_t, ndim=1] v_tilde, np.int_t dim):
     """Project a vector onto the hyperboloid
 
