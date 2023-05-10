@@ -128,14 +128,7 @@ def init_parser():
         action="store_true",
         help="Embed: Whether to normalise the leaves to a single raduis. NB: Hydra+\
             does not normalise leaves, which could lead to a bad initial\
-            embedding. Currently only implemented in MCMC.",
-    )
-    parser.add_argument(
-        "--circle_leaf",
-        dest="normalise_leaves",
-        action="store_true",
-        help="Embed: Whether to normalise the leaves to a single raduis. Currently\
-        only implemented in MCMC and HMAP.",
+            embedding. Currently only implemented in MCMC and HMAP.",
     )
     parser.set_defaults(normalise_leaves=False)
     parser.add_argument(
