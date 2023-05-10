@@ -22,10 +22,13 @@ class PhyloModel:
 
     @freqs.setter
     def freqs(self, freqs):
-        if not hasattr(self, "_freqs"):
-            self._freqs = self.freqs_transform.inv(freqs).clone().detach().requires_grad_(True)
+        if self == "JC69":
+            self._freqs = torch.zeros([3], dtype=torch.double)
         else:
-            self._freqs = self.freqs_transform.inv(freqs)
+            if not hasattr(self, "_freqs"):
+                self._freqs = self.freqs_transform.inv(freqs).clone().detach().requires_grad_(True)
+            else:
+                self._freqs = self.freqs_transform.inv(freqs)
 
     @property
     def sub_rates(self):
@@ -33,10 +36,13 @@ class PhyloModel:
 
     @sub_rates.setter
     def sub_rates(self, sub_rates):
-        if not hasattr(self, "_sub_rates"):
-            self._sub_rates = self.sub_rates_transform.inv(sub_rates).clone().detach().requires_grad_(True)
+        if self == "JC69":
+            self._sub_rates = torch.zeros([5], dtype=torch.double)
         else:
-            self._sub_rates = self.sub_rates_transform.inv(sub_rates)
+            if not hasattr(self, "_sub_rates"):
+                self._sub_rates = self.sub_rates_transform.inv(sub_rates).clone().detach().requires_grad_(True)
+            else:
+                self._sub_rates = self.sub_rates_transform.inv(sub_rates)
 
     def init_priors(self):
         if self == "JC69":
