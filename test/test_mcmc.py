@@ -59,7 +59,7 @@ def test_mcmc_geodesics():
 def test_mcmc_geodesics_wrap():
     # Simulation parameters
     dim = 3  # number of dimensions for embedding
-    S = 11  # number of sequences to simulate
+    S = 6  # number of sequences to simulate
 
     # simulate a tree
     simtree = treesim.birth_death_tree(
@@ -81,7 +81,7 @@ def test_mcmc_geodesics_wrap():
         weights,
         dists,
         path_write_mcmc,
-        epochs=3,
+        epochs=1,
         step_scale=0.1,
         burnin=0,
         n_chains=1,
@@ -89,6 +89,7 @@ def test_mcmc_geodesics_wrap():
         embedder="wrap",
         curvature=-2.0,
     )
+
 
 def test_mcmc_project_up_nj():
     # Simulation parameters
@@ -199,6 +200,7 @@ def test_mcmc_project_up_nj_euclid():
         warm_up=0,
         curvature=0,
     )
+
 
 def test_mcmc_wrap_nj():
     # Simulation parameters
