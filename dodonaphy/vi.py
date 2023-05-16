@@ -31,6 +31,7 @@ class DodonaphyVI(BaseModel):
         start="",
         model_name="JC69",
         freqs=None,
+        hydra_max_iter=1000,
     ):
         super().__init__(
             "vi",
@@ -58,6 +59,7 @@ class DodonaphyVI(BaseModel):
         self.params_optim = dict()
         # set evolutionary model parameters to optimise
         self.init_model_params()
+        self.hydra_max_iter = hydra_max_iter
 
     def set_params_optim_random(self):
         mix_weights = np.full((self.n_boosts), 1 / self.n_boosts)
@@ -459,7 +461,7 @@ class DodonaphyVI(BaseModel):
 
     @staticmethod
     def hydra_init(
-        dists, dim, curvature, internals_exist=False, cv=0.01, cv_base="closest", embedder="up"
+        dists, dim, curvature, internals_exist=False, cv=0.01, cv_base="closest", embedder="up", hydra_max_iter=1000,
     ):
         """Initialise variational distributions using hydra+ and a coefficient of variation.
         Set the coefficient of variation base as either the 'closest' distance or 'norm'.
@@ -469,8 +471,8 @@ class DodonaphyVI(BaseModel):
             raise ValueError(f"Coefficient of variation must be in {valid_cv_base}")
 
         # embed tips with distances using HydraPlus
-        hp_obj = hydraPlus.HydraPlus(dists, dim=dim, curvature=curvature)
-        emm_tips = hp_obj.embed(equi_adj=0.0, alpha=1.1)
+        hp_obj = hydraPlus.HydraPlus(dists, dim=dim, curvature=curvature, equi_adj=0.0, alpha=1.1, hydra_max_iter=hydra_max_iter)
+        emm_tips = hp_obj.curve_embed()
         print(
             "Embedding Stress (tips only) = {:.4}".format(emm_tips["stress_hydraPlus"])
         )
@@ -527,7 +529,8 @@ class DodonaphyVI(BaseModel):
                 self.D,
                 self.curvature.detach().numpy(),
                 internals_exist=self.internals_exist,
-                embedder=self.embedder
+                embedder=self.embedder,
+                hydra_max_iter=self.hydra_max_iter,
             )
             self.set_params_optim(param_init)
 

@@ -300,7 +300,7 @@ class DodonaphyMCMC:
     def initialise_chains(self, emm, normalise_leaf, peel=None):
         """initialise each chain"""
         for chain in self.chains:
-            if self.embedder == "wrap":
+            if self.chains[0].embedder == "wrap":
                 # hydra+ uses vertical projection, need to adjust
                 locs_hyp = Chyp_np.project_up_2d(emm["X"])
                 emm["X"] = Chyp_np.unwrap_2d(locs_hyp)
@@ -343,8 +343,8 @@ class DodonaphyMCMC:
 
         # embed tips with distances using HydraPlus
         hydra_crv = min(curvature, -1e-10)
-        hp_obj = hydraPlus.HydraPlus(dists_data, dim=dim, curvature=hydra_crv)
-        emm_tips = hp_obj.embed(equi_adj=0.0)
+        hp_obj = hydraPlus.HydraPlus(dists_data, dim=dim, curvature=hydra_crv, equi_adj=0.0)
+        emm_tips = hp_obj.curve_embed()
         if emm_tips["stress_hydraPlus"] is np.nan:
             raise ValueError("hydra+ cannot embed. Try decreasing the curvature.")
         print(f"Embedding stress of tips (hydra+) = {emm_tips['stress_hydraPlus']:.4}")

@@ -50,6 +50,7 @@ def test_learn(model_name, loss_fn, prior, matsumoto, use_bito):
         tip_labels=sim_tree.taxon_namespace.labels(),
         matsumoto=matsumoto,
         model_name=model_name,
+        hydra_max_iter=0,
     )
     if use_bito:
         peel, _ = hmap_inst.connect()
@@ -75,7 +76,9 @@ def test_encode_decode():
         prior="None",
         tip_labels=dna.taxon_namespace.labels(),
         matsumoto=False,
+        hydra_max_iter=0,
     )
+    print(hmap_inst.curvature)
     hmap_inst.learn(epochs=0, learn_rate=0.001, save_locations=False)
 
     # NJ tree from decenttree.

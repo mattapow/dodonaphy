@@ -29,7 +29,7 @@ def test_can_learn(embedder, connector):
     )
     partials, weights = compress_alignment(dna)
     mymod = DodonaphyVI(
-        partials, weights, dim=3, embedder=embedder, connector=connector, soft_temp=1e-8
+        partials, weights, dim=3, embedder=embedder, connector=connector, soft_temp=1e-8, hydra_max_iter=0,
     )
     mix_weights = np.ones((1))
     leaf_loc_hyp = np.random.randn(6, 3)
@@ -58,10 +58,11 @@ def test_models_ds1(model_name, path_write):
         connector="nj",
         soft_temp=1e-8,
         model_name=model_name,
+        hydra_max_iter=0,
     )
     dists = calculate_pairwise_distance(dna, adjust="JC69")
-    hp_obj = hydraPlus.HydraPlus(dists, dim=dim, curvature=-1.0)
-    emm_tips = hp_obj.embed(equi_adj=0.0, alpha=1.1)
+    hp_obj = hydraPlus.HydraPlus(dists, dim=dim, curvature=-1.0, equi_adj=0.0, alpha=1.1)
+    emm_tips = hp_obj.embed()
     coef_var = 0.1
     leaf_sigma = emm_tips["X"] * coef_var
     mix_weights = np.ones((1))
@@ -91,7 +92,7 @@ def test_vi_io():
         seq_len=1000, tree_model=simtree, seq_model=dendropy.model.discrete.Jc69()
     )
     partials, weights = compress_alignment(dna)
-    mymod = DodonaphyVI(partials, weights, 2, embedder="up", connector="nj")
+    mymod = DodonaphyVI(partials, weights, 2, embedder="up", connector="nj", hydra_max_iter=0)
     with tempfile.TemporaryDirectory() as tmp_dir:
         os.makedirs(tmp_dir, exist_ok=True)
         fp = os.path.join(tmp_dir, "test_data.csv")
@@ -126,10 +127,11 @@ def test_bito_ds1(model_name):
         soft_temp=1e-8,
         model_name=model_name,
         tip_labels=tip_labels,
+        hydra_max_iter=0,
     )
     dists = calculate_pairwise_distance(dna, adjust="JC69")
-    hp_obj = hydraPlus.HydraPlus(dists, dim=dim, curvature=-1.0)
-    emm_tips = hp_obj.embed(equi_adj=0.0, alpha=1.1)
+    hp_obj = hydraPlus.HydraPlus(dists, dim=dim, curvature=-1.0, equi_adj=0.0, alpha=1.1)
+    emm_tips = hp_obj.embed()
     coef_var = 0.1
     leaf_sigma = emm_tips["X"] * coef_var
     mix_weights = np.ones((1))

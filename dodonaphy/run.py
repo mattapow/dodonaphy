@@ -104,7 +104,7 @@ def run(args):
         )
 
         # initialise embedding parameters
-        mymod.embed_tree_distribtution(dists)
+        mymod.embed_tree_distribtution(dists, hydra_max_iter=args.hydra_max_iter)
 
         if args.use_bito:
             fasta_file = get_fasta_file(msa_file)
@@ -139,6 +139,7 @@ def run(args):
             freqs=empirical_freqs,
             embedder=args.embed,
             curvature=args.curv,
+            hydra_max_iter=args.hydra_max_iter,
         )
         if args.use_bito:
             fasta_file = get_fasta_file(msa_file)

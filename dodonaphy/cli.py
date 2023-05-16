@@ -1,4 +1,5 @@
 import argparse
+from numpy import float64 as float64
 
 
 def init_parser():
@@ -120,7 +121,8 @@ def init_parser():
         help="Embed: Embedded method from Euclidean to Hyperbolic space.",
     )
     parser.add_argument(
-        "--curv", "-c", default=-1.0, type=float, help="Embed: Hyperbolic curvature. For VI and HMAP modes, this is optimised from the given value."
+        "--curv", "-c", default=-1.0, type=float64, help="Embed: Hyperbolic curvature.\
+            For VI and HMAP modes, this is optimised from the given value. Default: -1.0"
     )
     parser.add_argument(
         "--normalise_leaf",
@@ -140,6 +142,12 @@ def init_parser():
             embedding. Only implemented in MCMC and HMAP.",
     )
     parser.set_defaults(matsumoto=False)
+    parser.add_argument(
+        "--hydra_max_iter",
+        default=1000,
+        type=int,
+        help="VI/HMAP: Number of iterations to search for optimal curvature."
+    )
 
     # MCMC parameters
     parser.add_argument(
@@ -261,4 +269,4 @@ def validate(args):
             raise ValueError("--start tree must be provided to in order to --use_bito.\
                              Just need to implement init_bito better to cope without.")
     if args.curv >= 0.0:
-        raise ValueError("Curvature must be strictly negative.")
+        raise ValueError("Curvature must be strictly negative or 'None'.")

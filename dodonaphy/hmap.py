@@ -38,6 +38,7 @@ class HMAP(BaseModel):
         model_name="JC69",
         freqs=None,
         embedder="wrap",
+        hydra_max_iter=1000,
     ):
         super().__init__(
             "hmap",
@@ -55,7 +56,7 @@ class HMAP(BaseModel):
         )
         self.path_write = path_write
         self.normalise_leaves = normalise_leaves
-        self.init_embedding_params(dists)
+        self.init_embedding_params(dists, hydra_max_iter=hydra_max_iter)
         self.init_model_params()
         self.current_epoch = 0
         self.prior = prior
@@ -66,12 +67,13 @@ class HMAP(BaseModel):
         self.best_freqs = self.phylomodel.freqs
         self.best_sub_rates = self.phylomodel.sub_rates
 
-    def init_embedding_params(self, dists):
+    def init_embedding_params(self, dists, hydra_max_iter=1000):
         # embed distances with hydra+
         hp_obj = hydraPlus.HydraPlus(
-            dists, dim=self.D, curvature=self.curvature.detach().numpy()
+            dists, dim=self.D, curvature=self.curvature.detach().numpy(), equi_adj=0.0, max_iter=hydra_max_iter,
         )
-        emm_tips = hp_obj.embed(equi_adj=0.0, alpha=1.1)
+        emm_tips = hp_obj.curve_embed()
+        self.curvature = emm_tips["curvature"]
         print("Embedding Strain (tips only) = {:.4}".format(emm_tips["stress_hydra"]))
         print(
             "Embedding Stress (tips only) = {:.4}".format(emm_tips["stress_hydraPlus"])
@@ -333,7 +335,7 @@ class HMAP(BaseModel):
             return self.compute_prior_normal(locs)
         elif self.prior == "uniform":
             locs = self.get_locs()
-            return self.compute_prior_unif(locs, scale=1.0)
+            return self.compute_prior_unif(locs, scale=10.0)
         elif self.prior == "gammadir":
             return self.compute_prior_gamma_dir(self.blens)
         elif self.prior == "birthdeath":
