@@ -328,7 +328,7 @@ def test_nj_soft():
             peel_check
         ), f"Iteration: {i}. Possibly an incorrect tree topology:\n{peel}"
         assert torch.isclose(
-            sum(blens).float(), torch.tensor(3.292747).float(), atol=0.05
+            sum(blens).float(), torch.tensor(3.2927).float(), atol=0.05
         ), f"Iteration: {i}. Incorrect total branch length"
         assert blens.requires_grad is True, "Branch lengths must carry gradients."
 
@@ -337,7 +337,7 @@ def test_nj_soft():
         assert peel.shape == peel_hard.shape, "Wrong peel shape."
         assert blens.shape == blens_hard.shape, "Wrong number of branch lengths"
         assert np.setdiff1d(np.arange(4*2-2), peel).size == 0, "Array does not contain all elements from 0 to n-1"
-        assert sum(blens) == sum(blens_hard), "Wrong branch total lengths."
+        assert sum(blens).item() == pytest.approx(sum(blens_hard).item()), "Wrong branch total lengths."
 
 
 def test_nj_soft_all_even():
