@@ -328,7 +328,7 @@ def test_nj_soft():
             peel_check
         ), f"Iteration: {i}. Possibly an incorrect tree topology:\n{peel}"
         assert torch.isclose(
-            sum(blens).float(), torch.tensor(3.2927).float(), atol=0.05
+            sum(blens).float(), torch.tensor(3.292747).float(), atol=0.05
         ), f"Iteration: {i}. Incorrect total branch length"
         assert blens.requires_grad is True, "Branch lengths must carry gradients."
 
