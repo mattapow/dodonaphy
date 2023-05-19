@@ -144,7 +144,7 @@ def init_parser():
     parser.set_defaults(matsumoto=False)
     parser.add_argument(
         "--hydra_max_iter",
-        default=1000,
+        default=0,
         type=int,
         help="VI/HMAP: Number of iterations to search for optimal curvature."
     )

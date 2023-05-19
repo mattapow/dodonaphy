@@ -31,7 +31,8 @@ class DodonaphyVI(BaseModel):
         start="",
         model_name="JC69",
         freqs=None,
-        hydra_max_iter=1000,
+        hydra_max_iter=0,
+        path_write=".",
     ):
         super().__init__(
             "vi",
@@ -51,7 +52,7 @@ class DodonaphyVI(BaseModel):
         # Store distribution centres mu in hyperboloid projected onto R^dim.
         # The last coordinate in R^(dim+1) is determined.
         self.n_boosts = n_boosts
-
+        self.path_write = path_write
         self.noise = noise
         self.truncate = truncate
         self.start = start
@@ -185,7 +186,6 @@ class DodonaphyVI(BaseModel):
         self,
         epochs=1000,
         importance_samples=1,
-        path_write="./out",
         lr=1e-3,
         n_draws=100,
     ):
@@ -202,10 +202,9 @@ class DodonaphyVI(BaseModel):
         print(f"Running for {epochs} epochs.\n")
         start_time = time.time()
 
-        self.path_write = path_write
-        if path_write is not None:
-            self.log_run_start(path_write, epochs, importance_samples, lr)
-            self.elbo_fn = os.path.join(path_write, "elbo.txt")
+        if self.path_write is not None:
+            self.log_run_start(self.path_write, epochs, importance_samples, lr)
+            self.elbo_fn = os.path.join(self.path_write, "elbo.txt")
 
         def lr_lambda(epoch):
             return 1.0 / np.sqrt(epoch + 1)
@@ -232,24 +231,24 @@ class DodonaphyVI(BaseModel):
             print("epoch %-12i ELBO: %10.3f" % (epoch + 1, elbo_hist[-1]))
             hist_dat.append(elbo_hist[-1])
 
-            if path_write is not None:
+            if self.path_write is not None:
                 self.log_elbo(elbo_hist[-1])
-                fn = os.path.join(path_write, "vi_params", "latest.csv")
+                fn = os.path.join(self.path_write, "vi_params", "latest.csv")
                 self.save(fn)
-                fn = os.path.join(path_write, "vi_params", f"iteration.txt")
+                fn = os.path.join(self.path_write, "vi_params", f"iteration.txt")
                 with open(fn, "w", encoding="UTF-8") as file:
                     file.write(f"Epoch: {epoch} / {epochs}")
 
-        if epochs > 0 and path_write is not None:
-            self.trace(epochs, path_write, elbo_hist)
+        if epochs > 0 and self.path_write is not None:
+            self.trace(epochs, self.path_write, elbo_hist)
 
-        if path_write is not None:
-            self.compute_final_elbo(path_write, n_draws)
+        if self.path_write is not None:
+            self.compute_final_elbo(self.path_write, n_draws)
             file_model = os.path.join(
                 self.path_write, f"{self.inference_name}_model.log"
             )
             self.phylomodel.save(file_model)
-            self.save_final_info(path_write, time.time() - start_time)
+            self.save_final_info(self.path_write, time.time() - start_time)
             self.log(f"Best curvature: {self.best_curvature.item()}\n")
 
     def compute_final_elbo(self, path_write, n_draws):
@@ -459,10 +458,7 @@ class DodonaphyVI(BaseModel):
             raise NotImplementedError("Variational inference on fixed topology. Need internal nodes.")
         return peel, blens, pdm
 
-    @staticmethod
-    def hydra_init(
-        dists, dim, curvature, internals_exist=False, cv=0.01, cv_base="closest", embedder="up", hydra_max_iter=1000,
-    ):
+    def hydra_init(self, dists, cv=0.01, cv_base="closest", alpha=1.1):
         """Initialise variational distributions using hydra+ and a coefficient of variation.
         Set the coefficient of variation base as either the 'closest' distance or 'norm'.
         """
@@ -471,13 +467,18 @@ class DodonaphyVI(BaseModel):
             raise ValueError(f"Coefficient of variation must be in {valid_cv_base}")
 
         # embed tips with distances using HydraPlus
-        hp_obj = hydraPlus.HydraPlus(dists, dim=dim, curvature=curvature, equi_adj=0.0, alpha=1.1, hydra_max_iter=hydra_max_iter)
+        hp_obj = hydraPlus.HydraPlus(dists, dim=self.D, curvature=self.curvature.detach().numpy(), equi_adj=0.0, alpha=1.1, max_iter=self.hydra_max_iter)
+        self.log(f"Initial curvature: {self.curvature.item():.4}.\n")
+        self.log("Initialising embedding with Hydra+")
+        self.log(f"Optimising initial curvature for up to {self.hydra_max_iter} iterations.\n")
         emm_tips = hp_obj.curve_embed()
+        self.curvature = emm_tips["curvature"]
+        self.log(f"Curvature optimised to: {self.curvature.item():.4}.\n")
         print(
             "Embedding Stress (tips only) = {:.4}".format(emm_tips["stress_hydraPlus"])
         )
         leaf_loc_hyp = emm_tips["X"]
-        if embedder == "wrap":
+        if self.embedder == "wrap":
             locs_hyp = Chyp_np.project_up_2d(emm_tips["X"])
             emm_tips["X"] = Chyp_np.unwrap_2d(locs_hyp)
 
@@ -485,18 +486,18 @@ class DodonaphyVI(BaseModel):
             # set variational parameters with small coefficient of variation
             # TODO: hyperboic norm
             leaf_sigma = np.abs(leaf_loc_hyp) * cv
-            if internals_exist:
+            if self.internals_exist:
                 int_loc_hyp = None
                 int_sigma = None
         elif cv_base == "closest":
             # set leaf variational sigma using closest neighbour
             dists[dists == 0.0] = np.inf
             closest = dists.min(axis=0)
-            closest = np.repeat([closest], dim, axis=0).transpose()
+            closest = np.repeat([closest], self.D, axis=0).transpose()
             leaf_sigma = np.abs(closest) * cv
             dists[dists == np.inf] = 0.0
 
-        if internals_exist:
+        if self.internals_exist:
             param_init = {
                 "leaf_mu": torch.from_numpy(leaf_loc_hyp).double(),
                 "leaf_sigma": torch.from_numpy(leaf_sigma).double(),
@@ -524,14 +525,7 @@ class DodonaphyVI(BaseModel):
         if dists is None:
             self.set_params_optim_random()
         else:
-            param_init = self.hydra_init(
-                dists,
-                self.D,
-                self.curvature.detach().numpy(),
-                internals_exist=self.internals_exist,
-                embedder=self.embedder,
-                hydra_max_iter=self.hydra_max_iter,
-            )
+            param_init = self.hydra_init(dists)
             self.set_params_optim(param_init)
 
     def save(self, fn):

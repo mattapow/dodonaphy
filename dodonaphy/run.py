@@ -101,10 +101,12 @@ def run(args):
             start=args.start,
             model_name=args.model,
             freqs=empirical_freqs,
+            hydra_max_iter=args.hydra_max_iter,
+            path_write=path_write,
         )
 
         # initialise embedding parameters
-        mymod.embed_tree_distribtution(dists, hydra_max_iter=args.hydra_max_iter)
+        mymod.embed_tree_distribtution(dists)
 
         if args.use_bito:
             fasta_file = get_fasta_file(msa_file)
@@ -113,7 +115,6 @@ def run(args):
             mymod.init_bito(fasta_file, peel)
 
         mymod.learn(
-            path_write=path_write,
             epochs=args.epochs,
             importance_samples=args.importance,
             n_draws=args.draws,
