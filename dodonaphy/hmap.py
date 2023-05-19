@@ -72,8 +72,12 @@ class HMAP(BaseModel):
         hp_obj = hydraPlus.HydraPlus(
             dists, dim=self.D, curvature=self.curvature.detach().numpy(), equi_adj=0.0, max_iter=hydra_max_iter,
         )
+        self.log(f"Initial curvature: {self.curvature.item()}.\n")
+        self.log("Initialising embedding with Hydra+")
+        self.log(f"Optimising initial curvature for up to {hydra_max_iter} iterations.\n")
         emm_tips = hp_obj.curve_embed()
         self.curvature = emm_tips["curvature"]
+        self.log(f"Curvature optimised to: {self.curvature.item()}.\n")
         print("Embedding Strain (tips only) = {:.4}".format(emm_tips["stress_hydra"]))
         print(
             "Embedding Stress (tips only) = {:.4}".format(emm_tips["stress_hydraPlus"])
