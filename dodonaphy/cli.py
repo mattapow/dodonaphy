@@ -47,7 +47,7 @@ def init_parser():
         default="nj",
         choices=("nj", "geodesics", "fix", "nj-r"),
         help="Inf: Connection method to form a tree from embedded points.\
-        Fixing the topology is experimental and requires inputting a --start tree. \
+        Fixing the topology requires inputting a --start tree. \
         nj-r: Dodonaphy can use decenttree's implementation of to RapidNJ. First\
         pydecenttree must be installed from https://github.com/iqtree/decenttree.",
     )
@@ -116,7 +116,7 @@ def init_parser():
     parser.add_argument(
         "--embed",
         "-e",
-        default="up",
+        default="wrap",
         choices=("up", "wrap"),
         help="Embed: Embedded method from Euclidean to Hyperbolic space.",
     )

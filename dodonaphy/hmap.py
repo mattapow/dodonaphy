@@ -60,9 +60,9 @@ class HMAP(BaseModel):
         self.init_model_params()
         self.current_epoch = 0
         self.prior = prior
+        self.peel = peel
         self.loss = self.compute_loss()
         self.matsumoto = matsumoto
-        self.peel = peel
         self.best_posterior = torch.tensor(-np.inf)
         self.best_freqs = self.phylomodel.freqs
         self.best_sub_rates = self.phylomodel.sub_rates
@@ -74,10 +74,13 @@ class HMAP(BaseModel):
         )
         self.log(f"Initial curvature: {self.curvature.item()}.\n")
         self.log("Initialising embedding with Hydra+")
-        self.log(f"Optimising initial curvature for up to {hydra_max_iter} iterations.\n")
-        emm_tips = hp_obj.curve_embed()
-        self.curvature = emm_tips["curvature"]
-        self.log(f"Curvature optimised to: {self.curvature.item()}.\n")
+        if hydra_max_iter > 0:
+            self.log(f"Optimising initial curvature for up to {hydra_max_iter} iterations.\n")
+            emm_tips = hp_obj.curve_embed()
+            self.curvature = emm_tips["curvature"]
+            self.log(f"Curvature optimised to: {self.curvature.item()}.\n")
+        else:
+            emm_tips = hp_obj.embed()
         print("Embedding Strain (tips only) = {:.4}".format(emm_tips["stress_hydra"]))
         print(
             "Embedding Stress (tips only) = {:.4}".format(emm_tips["stress_hydraPlus"])
@@ -158,7 +161,7 @@ class HMAP(BaseModel):
             HMAP.trace(epochs + 1, post_hist, self.path_write, plot_hist=False)
 
     def compute_loss(self):
-        if self.connector in ("nj", "fix") or self.loss_fn in ("pair_likelihood", "hypHC"):
+        if self.connector in ("nj") or self.loss_fn in ("pair_likelihood", "hypHC"):
             self.peel, self.blens, self.pdm = self.connect(get_pdm=True)
         else:
             self.peel, self.blens = self.connect(get_pdm=False)
@@ -284,7 +287,7 @@ class HMAP(BaseModel):
         """Connect tips into a tree"""
         locs = self.get_locs()
 
-        if get_pdm or self.connector in ("nj", "fix"):
+        if get_pdm or self.connector in ("nj"):
             pdm = Chyp_torch.get_pdm(locs, curvature=self.curvature, projection=self.embedder)
 
         if self.connector == "geodesics":
@@ -295,10 +298,7 @@ class HMAP(BaseModel):
             peel, blens = peeler.nj_torch(pdm, tau=self.soft_temp)
         elif self.connector == "fix":
             peel = self.peel
-            warnings.warn(
-                "NJ algorithm for branch lengths on fixed topology not guaranteed to work."
-            )
-            _, blens = peeler.nj_torch(pdm, tau=self.soft_temp, get_peel=False)
+            blens = self.get_blens_fix_topo(locs)
         else:
             raise ValueError(
                 f"Connection must be one of 'nj', 'geodesics', 'fix'. Got {self.connector}"
@@ -306,6 +306,24 @@ class HMAP(BaseModel):
         if get_pdm:
             return peel, blens, pdm
         return peel, blens
+
+    def get_blens_fix_topo(self, locs):
+        """Get the branch lengths from a fixed topology."""
+        node_count = locs.shape[0]
+        blens = torch.zeros(node_count, dtype=torch.double)
+        k = 0
+        for (l, r, p) in self.peel:
+            if p == len(blens):
+                pair_locs = torch.vstack((locs[l, :], locs[r, :]))
+                blens[k] = Chyp_torch.get_pdm(pair_locs, curvature=self.curvature, projection=self.embedder)[0, 1]
+            else:
+                pair_locs = torch.vstack((locs[l, :], locs[p, :]))
+                blens[k] = Chyp_torch.get_pdm(pair_locs, curvature=self.curvature, projection=self.embedder)[0, 1]
+                k += 1
+                pair_locs = torch.vstack((locs[r, :], locs[p, :]))
+                blens[k] = Chyp_torch.get_pdm(pair_locs, curvature=self.curvature, projection=self.embedder)[0, 1]
+                k += 1
+        return blens
 
     def compute_ln_likelihood(self):
         """Compute likelihood of current tree, reducing soft_temp as required."""

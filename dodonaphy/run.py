@@ -43,13 +43,12 @@ def run(args):
     empirical_freqs = compute_nucleotide_frequencies(dna)
     tip_labels = dna.taxon_namespace.labels()
     dists, start_tree = get_start_dists(
-        args.start, dna, root_dir, tip_namespace, args.matsumoto
+        args.start, dna, root_dir, tip_namespace, args.matsumoto, internals=args.connect == "fix"
     )
     save_period = max(int(args.epochs / args.draws), 1)
     peel = None
     get_peel = False
     if args.connect == "fix":
-        warnings.warn("Fixed topology is experimental.")
         get_peel = True
     if args.use_bito:
         get_peel = True
@@ -244,10 +243,12 @@ def get_start_tree(method, dna, root_dir, taxon_namespace):
     return start_tree
 
 
-def get_start_dists(method, dna, root_dir, taxon_namespace, matsumoto=False):
+def get_start_dists(method, dna, root_dir, taxon_namespace, matsumoto=False, internals=False):
     start_tree = get_start_tree(method, dna, root_dir, taxon_namespace)
-    n_taxa = len(dna)
-    dists = utils.tip_distances(start_tree, n_taxa)
+    if internals:
+        dists = utils.all_distances(start_tree)
+    else:
+        dists = utils.tip_distances(start_tree)
     if matsumoto:
         dists = np.log(np.cosh(dists))
     return dists, start_tree

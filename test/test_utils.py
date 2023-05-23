@@ -1,8 +1,9 @@
 import numpy as np
-import pytest
 import torch
 from pytest import approx
 from dodonaphy import utils, Cutils, Chyp_torch, Chyp_np
+import random
+from dendropy.simulate import treesim
 
 
 def test_dir_to_cart_1d():
@@ -35,7 +36,7 @@ def test_euclidean_distance():
     x2 = r2 * dir2
     dist = Chyp_torch.hyperbolic_distance(x1, x2, torch.zeros(1))
     norm = torch.norm(x2 - x1)
-    assert norm == pytest.approx(dist.item(), 0.0001)
+    assert norm == approx(dist.item(), 0.0001)
 
 
 def test_pdm_almost_euclidean():
@@ -57,3 +58,29 @@ def test_LogDirPrior():
     c = torch.ones(1)
     prior = utils.LogDirPrior(blen, aT, bT, a, c)
     assert prior.requires_grad
+
+
+def test_tip_distances():
+    n_taxa = 6
+    rng = random.Random(1)
+    simtree = treesim.birth_death_tree(
+        birth_rate=2.0,
+        death_rate=0.5,
+        num_extant_tips=n_taxa,
+        rng=rng,
+    )
+    dists = utils.tip_distances(simtree)
+    assert dists.shape == (6, 6)
+
+
+def test_all_distances():
+    n_taxa = 6
+    rng = random.Random(1)
+    simtree = treesim.birth_death_tree(
+        birth_rate=2.0,
+        death_rate=0.5,
+        num_extant_tips=n_taxa,
+        rng=rng,
+    )
+    dists = utils.all_distances(simtree)
+    assert dists.shape == (11, 11)

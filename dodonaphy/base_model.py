@@ -60,7 +60,10 @@ class BaseModel(object):
         self.embedder = embedder
         assert connector in ("geodesics", "nj", "nj-r", "fix")
         self.connector = connector
-        self.internals_exist = False
+        if self.connector == "fix":
+            self.internals_exist = True
+        else:
+            self.internals_exist = False
         self.peel = np.zeros((self.S - 1, 3), dtype=int)
         if self.require_grad:
             self.blens = torch.zeros(self.bcount, dtype=torch.double)

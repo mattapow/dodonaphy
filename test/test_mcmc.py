@@ -38,7 +38,7 @@ def test_mcmc_geodesics():
 
     partials, weights = phylo.compress_alignment(dna)
 
-    dists = tip_distances(simtree, S)
+    dists = tip_distances(simtree)
 
     # Run Dodoanphy MCMC
     path_write_mcmc = None
@@ -71,7 +71,7 @@ def test_mcmc_geodesics_wrap():
         seq_len=1000, tree_model=simtree, seq_model=dendropy.model.discrete.Jc69()
     )
     partials, weights = phylo.compress_alignment(dna)
-    dists = tip_distances(simtree, S)
+    dists = tip_distances(simtree)
 
     # Run Dodoanphy MCMC
     path_write_mcmc = None

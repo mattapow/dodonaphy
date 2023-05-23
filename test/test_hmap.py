@@ -4,28 +4,30 @@ from dendropy.simulate import treesim
 from dodonaphy.hmap import HMAP
 from dodonaphy.phylo import calculate_pairwise_distance, compress_alignment
 import pytest
+import numpy as np
 
 
 @pytest.mark.parametrize(
-    "model_name,loss_fn,prior,matsumoto,use_bito",
+    "model_name,loss_fn,prior,matsumoto,use_bito,connector",
     [
-        ("JC69", "likelihood", "None", False, False),
-        ("JC69", "likelihood", "None", True, False),
-        ("JC69", "likelihood", "gammadir", False, False),
-        ("JC69", "likelihood", "uniform", False, False),
-        ("JC69", "likelihood", "normal", False, False),
-        ("JC69", "pair_likelihood", "None", False, False),
-        ("JC69", "hypHC", "None", False, False),
-        ("GTR", "likelihood", "None", False, False),
-        ("GTR", "likelihood", "None", True, False),
-        ("GTR", "likelihood", "gammadir", False, False),
-        ("GTR", "pair_likelihood", "None", False, False),
-        ("GTR", "hypHC", "None", False, False),  # Sometimes errors? embedding locations are all nan.
-        ("JC69", "likelihood", "None", False, True),
-        ("GTR", "likelihood", "None", False, True),
+        ("JC69", "likelihood", "None", False, False, "nj"),
+        ("JC69", "likelihood", "None", True, False, "nj"),
+        ("JC69", "likelihood", "gammadir", False, False, "nj"),
+        ("JC69", "likelihood", "uniform", False, False, "nj"),
+        ("JC69", "likelihood", "normal", False, False, "nj"),
+        ("JC69", "pair_likelihood", "None", False, False, "nj"),
+        ("JC69", "hypHC", "None", False, False, "nj"),
+        ("GTR", "likelihood", "None", False, False, "nj"),
+        ("GTR", "likelihood", "None", True, False, "nj"),
+        ("GTR", "likelihood", "gammadir", False, False, "nj"),
+        ("GTR", "pair_likelihood", "None", False, False, "nj"),
+        ("GTR", "hypHC", "None", False, False, "nj"),  # Sometimes errors? embedding locations are all nan.
+        ("JC69", "likelihood", "None", False, True, "nj"),
+        ("GTR", "likelihood", "None", False, True, "nj"),
+        ("JC69", "likelihood", "None", False, False, "fix"),
     ],
 )
-def test_learn(model_name, loss_fn, prior, matsumoto, use_bito):
+def test_learn(model_name, loss_fn, prior, matsumoto, use_bito, connector):
     n_taxa = 8
     sim_tree = treesim.birth_death_tree(
         birth_rate=1.0, death_rate=0.5, num_extant_tips=n_taxa
@@ -36,7 +38,25 @@ def test_learn(model_name, loss_fn, prior, matsumoto, use_bito):
     msa_file = "test/tmp_learn.fasta"
     dna.write(path=msa_file, schema="fasta")
     partials, weights = compress_alignment(dna)
-    dists = calculate_pairwise_distance(dna)
+
+    if connector == "fix":
+        peel = np.array([
+            [2, 0, 8],
+            [8, 4, 9],
+            [3, 5, 10],
+            [6, 10, 11],
+            [1, 7, 12],
+            [11, 12, 13],
+            [9, 13, 14]
+        ])
+        n_nodes = 2*n_taxa - 1
+        dists = np.random.exponential(scale=0.1, size=(n_nodes, n_nodes))
+        dists = (dists + dists.transpose())/2.0
+        np.fill_diagonal(dists, 0.0)
+    else:
+        peel = None
+        dists = calculate_pairwise_distance(dna)
+
     hmap_inst = HMAP(
         partials[:],
         weights,
@@ -51,6 +71,8 @@ def test_learn(model_name, loss_fn, prior, matsumoto, use_bito):
         matsumoto=matsumoto,
         model_name=model_name,
         hydra_max_iter=0,
+        connector=connector,
+        peel=peel,
     )
     if use_bito:
         peel, _ = hmap_inst.connect()

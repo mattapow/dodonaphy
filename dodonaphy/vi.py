@@ -62,6 +62,9 @@ class DodonaphyVI(BaseModel):
         self.init_model_params()
         self.hydra_max_iter = hydra_max_iter
 
+        if self.connector == "fix":
+            raise NotImplementedError("Tree connection cannot yet be fixed. An easy TODO.")
+
     def set_params_optim_random(self):
         mix_weights = np.full((self.n_boosts), 1 / self.n_boosts)
         leaf_sigma = np.random.exponential(size=(self.n_boosts, self.S, self.D))

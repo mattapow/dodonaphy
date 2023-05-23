@@ -30,6 +30,7 @@ def test_can_learn(embedder, connector):
     partials, weights = compress_alignment(dna)
     mymod = DodonaphyVI(
         partials, weights, dim=3, embedder=embedder, connector=connector, soft_temp=1e-8, hydra_max_iter=0,
+        path_write=None,
     )
     mix_weights = np.ones((1))
     leaf_loc_hyp = np.random.randn(6, 3)
@@ -40,7 +41,7 @@ def test_can_learn(embedder, connector):
         "mix_weights": torch.tensor(mix_weights, dtype=torch.float64),
     }
     mymod.set_params_optim(param_init)
-    mymod.learn(epochs=2, path_write=None, importance_samples=3)
+    mymod.learn(epochs=2, importance_samples=3)
 
 
 @pytest.mark.parametrize("model_name, path_write", [("JC69", None), ("GTR", None)])
@@ -59,6 +60,7 @@ def test_models_ds1(model_name, path_write):
         soft_temp=1e-8,
         model_name=model_name,
         hydra_max_iter=0,
+        path_write=None,
     )
     dists = calculate_pairwise_distance(dna, adjust="JC69")
     hp_obj = hydraPlus.HydraPlus(dists, dim=dim, curvature=-1.0, equi_adj=0.0, alpha=1.1)
@@ -78,7 +80,7 @@ def test_models_ds1(model_name, path_write):
         param_init["freqs"] = phylomodel.freqs
     mymod.set_params_optim(param_init)
 
-    mymod.learn(epochs=1, path_write=path_write, importance_samples=1)
+    mymod.learn(epochs=1, importance_samples=1)
 
 
 @pytest.mark.skip(
@@ -128,6 +130,7 @@ def test_bito_ds1(model_name):
         model_name=model_name,
         tip_labels=tip_labels,
         hydra_max_iter=0,
+        path_write=None,
     )
     dists = calculate_pairwise_distance(dna, adjust="JC69")
     hp_obj = hydraPlus.HydraPlus(dists, dim=dim, curvature=-1.0, equi_adj=0.0, alpha=1.1)
@@ -150,4 +153,4 @@ def test_bito_ds1(model_name):
     # initialise bito using a sequence alignment and a (postorder) tree
     peel, _, _ = mymod.connect(param_init["leaf_mu"])
     mymod.init_bito(dna_fasta, peel)
-    mymod.learn(epochs=2, path_write=None, importance_samples=1)
+    mymod.learn(epochs=2, importance_samples=1)

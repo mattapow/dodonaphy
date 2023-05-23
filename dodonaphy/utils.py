@@ -1,8 +1,9 @@
 import numpy as np
 import torch
 
-from dodonaphy import poincare, Chyp_np, soft
+from dodonaphy import poincare, Chyp_np
 from dodonaphy.edge import Edge
+from dendropy.calculate.phylogeneticdistance import NodeDistanceMatrix
 
 
 def angle_to_directional(theta):
@@ -266,12 +267,31 @@ def LogDirPrior(blen, aT, bT, a, c):
     return lnPrior
 
 
-def tip_distances(tree0, n_taxa):
+def tip_distances(tree0):
     """Get tip pair-wise tip distances"""
+    n_taxa = len(tree0)
     dists = np.zeros((n_taxa, n_taxa))
     pdc = tree0.phylogenetic_distance_matrix()
     for i, t1 in enumerate(tree0.taxon_namespace[:]):
         for j, t2 in enumerate(tree0.taxon_namespace[: i + 1]):
             dists[i][j] = pdc(t1, t2)
             dists[j][i] = dists[i][j]
+    return dists
+
+
+def all_distances(tree0):
+    """Get tip pair-wise node distances."""
+    # Create a NodeDistanceMatrix object from the tree
+    ndm = NodeDistanceMatrix.from_tree(tree0)
+
+    nodes = ndm._node_phylogenetic_distances.keys()
+    num_nodes = len(nodes)
+    dists = np.zeros((num_nodes, num_nodes))
+
+    for i, node1 in enumerate(nodes):
+        for j, node2 in enumerate(nodes):
+            distance = ndm._node_phylogenetic_distances[node1][node2]
+            dists[i, j] = distance
+            dists[j, i] = dists[i][j]
+
     return dists
