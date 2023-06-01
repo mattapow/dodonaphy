@@ -5,6 +5,7 @@ from dodonaphy.hmap import HMAP
 from dodonaphy.phylo import calculate_pairwise_distance, compress_alignment
 import pytest
 import numpy as np
+import torch
 
 
 @pytest.mark.parametrize(
@@ -78,6 +79,9 @@ def test_learn(model_name, loss_fn, prior, matsumoto, use_bito, connector):
         peel, _ = hmap_inst.connect()
         hmap_inst.init_bito(msa_file, peel)
     hmap_inst.learn(epochs=2, learn_rate=0.001, save_locations=False)
+    if model_name == "GTR":
+        initial_value = torch.full([6], 1.0/6.0, dtype=torch.double)
+        assert not torch.allclose(hmap_inst.phylomodel.sub_rates, initial_value), "Substitution rates unchanged"
 
 
 def test_encode_decode():
