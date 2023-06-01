@@ -91,8 +91,7 @@ class PhyloModel:
         )
 
     def GTR_p_t(self, branch_lengths):
-        Q_unnorm = self.compute_Q_martix()
-        Q = Q_unnorm / self.norm(Q_unnorm).unsqueeze(-1).unsqueeze(-1)
+        Q = self.compute_Q_martix()
         sqrt_pi = self.freqs.sqrt().diag_embed(dim1=-2, dim2=-1)
         sqrt_pi_inv = (1.0 / self.freqs.sqrt()).diag_embed(dim1=-2, dim2=-1)
         S = sqrt_pi @ Q @ sqrt_pi_inv
@@ -125,8 +124,10 @@ class PhyloModel:
             ]
         )
         Q = Q + Q.t()
-        diag_sum = -torch.sum(Q, dim=0)
-        Q[range(4), range(4)] = diag_sum
+        Q = Q * self.freqs.unsqueeze(0).expand(Q.size())
+        diag_sum = -torch.sum(Q, dim=1)
+        Q = Q + diag_sum * torch.eye(4)
+        Q = Q / self.norm(Q).unsqueeze(-1).unsqueeze(-1)
         return Q
 
     def save(self, file_name):
