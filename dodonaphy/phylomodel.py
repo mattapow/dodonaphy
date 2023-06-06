@@ -114,16 +114,10 @@ class PhyloModel:
         return -torch.sum(torch.diagonal(Q, dim1=-2, dim2=-1) * self.freqs, -1)
 
     def compute_Q_martix(self):
-        (a, b, c, d, e, f) = self.sub_rates
-        Q = torch.tensor(
-            [
-                [0, a, b, c],
-                [0, 0, d, e],
-                [0, 0, 0, f],
-                [0, 0, 0, 0],
-            ]
-        )
-        Q = Q + Q.t()
+        indices = torch.triu_indices(4, 4, 1)
+        Q = torch.zeros((4, 4), dtype=torch.float64)
+        Q[indices[0], indices[1]] = self.sub_rates
+        Q[indices[1], indices[0]] = self.sub_rates
         Q = Q * self.freqs.unsqueeze(0).expand(Q.size())
         diag_sum = -torch.sum(Q, dim=1)
         Q = Q + diag_sum * torch.eye(4)
