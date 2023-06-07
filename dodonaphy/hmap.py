@@ -327,11 +327,10 @@ class HMAP(BaseModel):
 
     def compute_ln_likelihood(self):
         """Compute likelihood of current tree, reducing soft_temp as required."""
+        self.ln_p = self.compute_LL(self.peel, self.blens)
         if self.loss_fn == "likelihood":
-            self.ln_p = self.compute_LL(self.peel, self.blens)
             loss = self.ln_p
         elif self.loss_fn == "pair_likelihood":
-            self.ln_p = self.compute_LL(self.peel, self.blens)
             loss = self.compute_log_a_like(self.pdm)
         elif self.loss_fn == "hypHC":
             locs = self.get_locs()

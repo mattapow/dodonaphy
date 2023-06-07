@@ -241,7 +241,7 @@ class BaseModel(object):
         P = torch.zeros((4, 4, self.L))
 
         for i in range(self.S):
-            mats = self.phylomodel.get_transition_mats(pdm[i])
+            mats = self.phylomodel.get_transition_mats(torch.clamp(pdm[i], min=eps))
             for j in range(self.S):
                 P = P + torch.log(
                     torch.clamp(torch.matmul(mats[j], self.partials[i]), min=eps)
@@ -256,7 +256,7 @@ class BaseModel(object):
         eps = torch.finfo(torch.double).eps
         likelihood_dist = torch.zeros_like(dists_data)
         for i in range(self.S):
-            mats = self.phylomodel.get_transition_mats(dists_data[i])
+            mats = self.phylomodel.get_transition_mats(torch.clamp(dists_data[i], min=eps))
             for j in range(self.S):
                 P_ij = torch.log(
                     torch.clamp(torch.matmul(mats[j], self.partials[i]), min=eps)
