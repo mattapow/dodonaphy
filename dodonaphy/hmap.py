@@ -189,7 +189,7 @@ class HMAP(BaseModel):
             )
             self.phylomodel.save(file_model)
             # save the best tree
-            tree.save_tree_head(self.path_write, "mape", self.tip_labels)
+            tree.save_tree_head(self.path_write, "mape", self.tip_labels, translate=False)
             tree.save_tree(
                 self.path_write,
                 "mape",
