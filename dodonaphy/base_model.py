@@ -97,6 +97,7 @@ class BaseModel(object):
         # phylogenetic model
         self.use_bito = False
         self.phylomodel = PhyloModel(model_name)
+        self.log(f"Using {model_name} phylogetic model.")
         if freqs is not None:
             self.phylomodel.freqs = torch.from_numpy(freqs)
 
@@ -314,6 +315,28 @@ class BaseModel(object):
             [type]: [description]
         """
         return torch.exp(-pdm_data[u, v])
+
+    def save_embedding_base(self, filename, locs):
+        """Save the embedding locations.
+
+        Args:
+            filename (str): filename to save to
+            locs (ndarray): embedding locations (first coordinate omitted)
+        """
+        np.savetxt(fname=filename, X=locs)
+
+
+    def read_embedding_base(self, filename):
+        """Read embedding from file
+
+        Args:
+            filename (str): filename to read
+
+        Returns:
+            ndarray: Saved embedding locations (first coordinate omitted)
+        """
+        locs = np.genfromtxt(filename)
+        return locs
 
     @staticmethod
     def compute_prior_birthdeath(peel, blen, tipnames, **prior):

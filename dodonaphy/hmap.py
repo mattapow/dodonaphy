@@ -144,6 +144,7 @@ class HMAP(BaseModel):
             self.current_epoch = i
             optimizer.step(closure)
             scheduler.step()
+            self.record_if_best()
             self.print_epoch(i, post_hist)
             if self.path_write is not None:
                 self.save_epoch(i, save_locations=save_locations)
@@ -153,12 +154,19 @@ class HMAP(BaseModel):
         )
         self.save_duration(start_time)
         self.save_best_tree()
+        self.save_embedding()
         if epochs > 0:
             self.log(f"Best log likelihood: {self.best_ln_p}\n")
             self.log(f"Best log prior: {self.best_ln_prior.item()}\n")
 
         if epochs > 0 and self.path_write is not None:
             HMAP.trace(epochs + 1, post_hist, self.path_write, plot_hist=False)
+
+    def save_embedding(self):
+        filename = os.path.join(self.path_write, "embedding.txt")
+        locs = self.best_locs
+        self.save_embedding_base(filename, locs)
+        self.log(f"Best embedding locations saved to {filename}")
 
     def compute_loss(self):
         if self.connector in ("nj") or self.loss_fn in ("pair_likelihood", "hypHC"):
@@ -171,7 +179,6 @@ class HMAP(BaseModel):
 
     def print_epoch(self, iteration, posterior_history):
         posterior_history.append(self.ln_p.item() + self.ln_prior.item())
-        self.record_if_best()
         print(
             f"{iteration}: {self.ln_prior.item():.3f} + {self.ln_p.item():.3f} = {posterior_history[-1]:.3f}"
         )
@@ -221,6 +228,7 @@ class HMAP(BaseModel):
             self.best_freqs = self.phylomodel.freqs.detach().clone()
             self.best_sub_rates = self.phylomodel.sub_rates.detach().clone()
             self.best_curvature = self.curvature.detach().clone()
+            self.best_locs = self.get_locs().detach().clone()
 
     def save(self, epochs, learn_rate, start):
 
