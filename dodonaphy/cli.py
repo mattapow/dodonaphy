@@ -78,6 +78,11 @@ def init_parser():
         this tree are used.",
     )
     parser.add_argument(
+        "--location_file",
+        default=None,
+        help="I/O: start from embedding locations saved to this text file."
+    )
+    parser.add_argument(
         "--path_root",
         default="",
         type=str,

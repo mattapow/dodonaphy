@@ -42,9 +42,11 @@ def run(args):
     partials, weights, tip_namespace = compress_alignment(dna, get_namespace=True)
     empirical_freqs = compute_nucleotide_frequencies(dna)
     tip_labels = dna.taxon_namespace.labels()
-    dists, start_tree = get_start_dists(
-        args.start, dna, root_dir, tip_namespace, args.matsumoto, internals=args.connect == "fix"
-    )
+    start_tree = get_start_tree(args.start, dna, root_dir, dna.taxon_namespace)
+    if args.location_file is None:
+        dists = get_dists(start_tree, matsumoto=args.matsumoto, internals=args.connect == "fix")
+    else:
+        dists = None
     save_period = max(int(args.epochs / args.draws), 1)
     peel = None
     get_peel = False
@@ -125,7 +127,6 @@ def run(args):
             partials[:],
             weights,
             dim=args.dim,
-            dists=dists,
             soft_temp=args.temp,
             loss_fn=args.loss_fn,
             path_write=path_write,
@@ -139,14 +140,15 @@ def run(args):
             freqs=empirical_freqs,
             embedder=args.embed,
             curvature=args.curv,
-            hydra_max_iter=args.hydra_max_iter,
         )
         if args.use_bito:
             fasta_file = get_fasta_file(msa_file)
             if peel is None:
                 raise ValueError("Start tree cannot be None for bito.")
             mymod.init_bito(fasta_file, peel)
-
+        if args.location_file is not None:
+            args.location_file = os.path.join(root_dir, args.location_file)
+        mymod.init_embedding_params(args.location_file, dists, hydra_max_iter=args.hydra_max_iter)
         mymod.learn(
             epochs=args.epochs,
             learn_rate=args.learn,
@@ -243,15 +245,14 @@ def get_start_tree(method, dna, root_dir, taxon_namespace):
     return start_tree
 
 
-def get_start_dists(method, dna, root_dir, taxon_namespace, matsumoto=False, internals=False):
-    start_tree = get_start_tree(method, dna, root_dir, taxon_namespace)
+def get_dists(start_tree, matsumoto=False, internals=False):
     if internals:
         dists = utils.all_distances(start_tree)
     else:
         dists = utils.tip_distances(start_tree)
     if matsumoto:
         dists = np.log(np.cosh(dists))
-    return dists, start_tree
+    return dists
 
 
 def get_path(root_dir, args):

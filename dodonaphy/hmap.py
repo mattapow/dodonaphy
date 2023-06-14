@@ -24,7 +24,6 @@ class HMAP(BaseModel):
         partials,
         weights,
         dim,
-        dists,
         soft_temp,
         loss_fn,
         path_write,
@@ -38,8 +37,8 @@ class HMAP(BaseModel):
         model_name="JC69",
         freqs=None,
         embedder="wrap",
-        hydra_max_iter=1000,
     ):
+        self.path_write = path_write
         super().__init__(
             "hmap",
             partials,
@@ -54,26 +53,45 @@ class HMAP(BaseModel):
             freqs=freqs,
             embedder=embedder,
         )
-        self.path_write = path_write
         self.normalise_leaves = normalise_leaves
-        self.init_embedding_params(dists, hydra_max_iter=hydra_max_iter)
-        self.init_model_params()
         self.current_epoch = 0
         self.prior = prior
         self.peel = peel
-        self.loss = self.compute_loss()
         self.matsumoto = matsumoto
+        self.params_optim = {}
+        self.init_model_params()
         self.best_posterior = torch.tensor(-np.inf)
         self.best_freqs = self.phylomodel.freqs
         self.best_sub_rates = self.phylomodel.sub_rates
 
-    def init_embedding_params(self, dists, hydra_max_iter=1000):
+    def init_embedding_params(self, location_file=None, dists=None, hydra_max_iter=1000):
+        is_locations = location_file is not None
+        is_dists = dists is not None
+        if not is_locations and not is_dists:
+            raise ValueError("Must provide locations or distances to init HMAP, got neither.")
+        if is_locations and is_dists:
+            raise ValueError("Cannot provide both embedding locations and distances.")
+        if is_locations:
+            self.embed_locations(location_file)
+        elif is_dists:
+            self.embed_dists(dists, hydra_max_iter)
+
+    def embed_locations(self, location_file):
+        locs = self.read_embedding_base(location_file)
+        if locs.shape[1] != self.D:
+            raise ValueError(f"Embedding dimension {self.D} doesn't match data in file {location_file}")
+        if locs.shape[0] != self.S:
+            raise ValueError(f"Number of taxa mishmatch: in alignment {self.S} and in is embedding {locs.shape[0]}")
+        self.params_optim["leaf_loc"] = torch.tensor(locs, requires_grad=True, dtype=torch.float64)
+        self.log(f"Sucessfully read locations from file {location_file}\n")
+
+    def embed_dists(self, dists, hydra_max_iter):
         # embed distances with hydra+
         hp_obj = hydraPlus.HydraPlus(
             dists, dim=self.D, curvature=self.curvature.detach().numpy(), equi_adj=0.0, max_iter=hydra_max_iter,
         )
         self.log(f"Initial curvature: {self.curvature.item()}.\n")
-        self.log("Initialising embedding with Hydra+")
+        self.log("Initialising embedding with Hydra+\n")
         if hydra_max_iter > 0:
             self.log(f"Optimising initial curvature for up to {hydra_max_iter} iterations.\n")
             emm_tips = hp_obj.curve_embed()
@@ -93,22 +111,14 @@ class HMAP(BaseModel):
                 raise NotImplementedError
             radius = np.mean(np.linalg.norm(emm_tips["X"], axis=1))
             directionals = Cutils.normalise_np(emm_tips["X"])
-            self.params_optim = {
-                "radius": torch.tensor(radius, requires_grad=True, dtype=torch.float64),
-                "directionals": torch.tensor(
-                    directionals, requires_grad=True, dtype=torch.float64
-                ),
-            }
+            self.params_optim["radius"] = torch.tensor(radius, requires_grad=True, dtype=torch.float64)
+            self.params_optim["directionals"] = torch.tensor(directionals, requires_grad=True, dtype=torch.float64)
         else:
             if self.embedder == "wrap":
                 # hydra+ uses vertical projection, need to adjust
                 locs_hyp = Chyp_np.project_up_2d(emm_tips["X"])
                 emm_tips["X"] = Chyp_np.unwrap_2d(locs_hyp)
-            self.params_optim = {
-                "leaf_loc": torch.tensor(
-                    emm_tips["X"], requires_grad=True, dtype=torch.float64
-                ),
-            }
+            self.params_optim["leaf_loc"] = torch.tensor(emm_tips["X"], requires_grad=True, dtype=torch.float64)
 
     def learn(self, epochs, learn_rate, save_locations, start=""):
         """Optimise params["dists"].
@@ -118,7 +128,9 @@ class HMAP(BaseModel):
 
         """
         start_time = time.time()
+        self.loss = self.compute_loss()
         post_hist = [self.ln_p.item() + self.ln_prior.item()]
+        self.record_if_best()
 
         def lr_lambda(epoch):
             return 1.0 / (epoch + 1.0) ** 0.25
@@ -163,10 +175,11 @@ class HMAP(BaseModel):
             HMAP.trace(epochs + 1, post_hist, self.path_write, plot_hist=False)
 
     def save_embedding(self):
-        filename = os.path.join(self.path_write, "embedding.txt")
-        locs = self.best_locs
-        self.save_embedding_base(filename, locs)
-        self.log(f"Best embedding locations saved to {filename}")
+        if self.path_write is not None:
+            filename = os.path.join(self.path_write, "embedding.txt")
+            locs = self.best_locs
+            self.save_embedding_base(filename, locs)
+            self.log(f"Best embedding locations saved to {filename}\n")
 
     def compute_loss(self):
         if self.connector in ("nj") or self.loss_fn in ("pair_likelihood", "hypHC"):
@@ -218,7 +231,7 @@ class HMAP(BaseModel):
             self.log(f"Total time: {int(hrs)}:{int(mins)}:{int(secs)}\n")
 
     def record_if_best(self):
-        if self.loss < -self.best_posterior:
+        if self.loss < -self.best_posterior or self.current_epoch == 0:
             self.best_posterior = -self.loss.detach().clone()
             self.best_ln_p = self.ln_p.detach().clone()
             self.best_ln_prior = self.ln_prior.detach().clone()

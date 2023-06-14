@@ -97,7 +97,6 @@ class BaseModel(object):
         # phylogenetic model
         self.use_bito = False
         self.phylomodel = PhyloModel(model_name)
-        self.log(f"Using {model_name} phylogetic model.")
         if freqs is not None:
             self.phylomodel.freqs = torch.from_numpy(freqs)
 

@@ -62,7 +62,6 @@ def test_learn(model_name, loss_fn, prior, matsumoto, use_bito, connector):
         partials[:],
         weights,
         dim=3,
-        dists=dists,
         soft_temp=1e-6,
         loss_fn=loss_fn,
         path_write=None,
@@ -71,10 +70,11 @@ def test_learn(model_name, loss_fn, prior, matsumoto, use_bito, connector):
         tip_labels=sim_tree.taxon_namespace.labels(),
         matsumoto=matsumoto,
         model_name=model_name,
-        hydra_max_iter=0,
         connector=connector,
         peel=peel,
     )
+    location_file = None
+    hmap_inst.init_embedding_params(location_file, dists, hydra_max_iter=0)
     if use_bito:
         peel, _ = hmap_inst.connect()
         hmap_inst.init_bito(msa_file, peel)
@@ -94,7 +94,6 @@ def test_encode_decode():
         partials[:],
         weights,
         dim=20,
-        dists=dists,
         soft_temp=1e-6,
         loss_fn="likelihood",
         path_write=None,
@@ -102,9 +101,9 @@ def test_encode_decode():
         prior="None",
         tip_labels=dna.taxon_namespace.labels(),
         matsumoto=False,
-        hydra_max_iter=0,
     )
-    print(hmap_inst.curvature)
+    location_file = None
+    hmap_inst.init_embedding_params(location_file, dists, hydra_max_iter=0)
     hmap_inst.learn(epochs=0, learn_rate=0.001, save_locations=False)
 
     # NJ tree from decenttree.
