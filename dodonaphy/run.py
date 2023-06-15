@@ -99,13 +99,13 @@ def run(args):
             curvature=args.curv,
             tip_labels=tip_labels,
             n_boosts=args.boosts,
-            start=args.start,
             model_name=args.model,
             freqs=empirical_freqs,
             path_write=path_write,
         )
 
         # initialise embedding parameters
+        mymod.log("%-12s: %s\n" % ("Start Tree", args.start))
         mymod.embed_tree_distribtution(dists, location_file=args.location_file, hydra_max_iter=args.hydra_max_iter)
 
         if args.use_bito:

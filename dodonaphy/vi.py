@@ -28,7 +28,6 @@ class DodonaphyVI(BaseModel):
         truncate=None,
         tip_labels=None,
         n_boosts=1,
-        start="",
         model_name="JC69",
         freqs=None,
         path_write=".",
@@ -54,7 +53,6 @@ class DodonaphyVI(BaseModel):
         self.path_write = path_write
         self.noise = noise
         self.truncate = truncate
-        self.start = start
         # Variational parameters must be set using set_params_optim() or set_params_optim_random()
         self.params_optim = dict()
         # set evolutionary model parameters to optimise
@@ -281,7 +279,6 @@ class DodonaphyVI(BaseModel):
         self.log("%-12s: %f\n" % ("Learn Rate", lr))
         self.log("%-12s: %s\n" % ("Embed Mthd", self.embedder))
         self.log("%-12s: %s\n" % ("Connect Mthd", self.connector))
-        self.log("%-12s: %s\n" % ("Start Tree", self.start))
 
         vi_path = os.path.join(path_write, "vi_params")
         os.mkdir(vi_path)
@@ -527,9 +524,12 @@ class DodonaphyVI(BaseModel):
         if use_locations and use_dists:
             raise ValueError("Only provide distances OR a location file to embed.")
         if use_locations:
+            self.log(f"Starting tree disregarded.\n")
+            self.log(f"Initialising embedding from location file.\n")
             param_init = self.set_params_file(location_file)
             self.set_params_optim(param_init)
         elif use_dists:
+            self.log(f"Initialising embedding from tree distances.\n")
             param_init = self.hydra_init(dists, hydra_max_iter=hydra_max_iter)
             param_init = self.set_params_optim(param_init)
             self.set_params_optim(param_init)
