@@ -31,7 +31,6 @@ class DodonaphyVI(BaseModel):
         start="",
         model_name="JC69",
         freqs=None,
-        hydra_max_iter=0,
         path_write=".",
     ):
         super().__init__(
@@ -60,7 +59,6 @@ class DodonaphyVI(BaseModel):
         self.params_optim = dict()
         # set evolutionary model parameters to optimise
         self.init_model_params()
-        self.hydra_max_iter = hydra_max_iter
 
         if self.connector == "fix":
             raise NotImplementedError("Tree connection cannot yet be fixed. An easy TODO.")
@@ -461,37 +459,34 @@ class DodonaphyVI(BaseModel):
             raise NotImplementedError("Variational inference on fixed topology. Need internal nodes.")
         return peel, blens, pdm
 
-    def hydra_init(self, dists, cv=0.01, cv_base="closest", alpha=1.1):
+    def hydra_init(self, dists, hydra_max_iter=0):
         """Initialise variational distributions using hydra+ and a coefficient of variation.
         Set the coefficient of variation base as either the 'closest' distance or 'norm'.
         """
-        valid_cv_base = ("closest", "norm")
-        if cv_base not in valid_cv_base:
-            raise ValueError(f"Coefficient of variation must be in {valid_cv_base}")
-
         # embed tips with distances using HydraPlus
-        hp_obj = hydraPlus.HydraPlus(dists, dim=self.D, curvature=self.curvature.detach().numpy(), equi_adj=0.0, alpha=1.1, max_iter=self.hydra_max_iter)
+        hp_obj = hydraPlus.HydraPlus(dists, dim=self.D, curvature=self.curvature.detach().numpy(), equi_adj=0.0, alpha=1.1, max_iter=hydra_max_iter)
         self.log(f"Initial curvature: {self.curvature.item():.4}.\n")
-        self.log("Initialising embedding with Hydra+")
-        self.log(f"Optimising initial curvature for up to {self.hydra_max_iter} iterations.\n")
+        self.log("Initialising embedding with Hydra+\n")
+        self.log(f"Optimising initial curvature for up to {hydra_max_iter} iterations.\n")
         emm_tips = hp_obj.curve_embed()
         self.curvature = emm_tips["curvature"]
         self.log(f"Curvature optimised to: {self.curvature.item():.4}.\n")
-        print(
-            "Embedding Stress (tips only) = {:.4}".format(emm_tips["stress_hydraPlus"])
-        )
+        print(f"Embedding Stress (tips only) = {emm_tips['stress_hydraPlus']:.4}\n")
         leaf_loc_hyp = emm_tips["X"]
         if self.embedder == "wrap":
             locs_hyp = Chyp_np.project_up_2d(emm_tips["X"])
             emm_tips["X"] = Chyp_np.unwrap_2d(locs_hyp)
 
+        leaf_sigma = self.get_sigma(leaf_loc_hyp, dists=dists)
+        self.set_init_q(leaf_loc_hyp, leaf_sigma)
+
+    def get_sigma(self, leaf_loc_hyp, dists=None, cv=0.01, cv_base="closest"):
+        valid_cv_base = ("closest", "norm")
+        if cv_base not in valid_cv_base:
+            raise ValueError(f"Coefficient of variation must be in {valid_cv_base}")
         if cv_base == "norm":
             # set variational parameters with small coefficient of variation
-            # TODO: hyperboic norm
             leaf_sigma = np.abs(leaf_loc_hyp) * cv
-            if self.internals_exist:
-                int_loc_hyp = None
-                int_sigma = None
         elif cv_base == "closest":
             # set leaf variational sigma using closest neighbour
             dists[dists == 0.0] = np.inf
@@ -499,17 +494,19 @@ class DodonaphyVI(BaseModel):
             closest = np.repeat([closest], self.D, axis=0).transpose()
             leaf_sigma = np.abs(closest) * cv
             dists[dists == np.inf] = 0.0
+        return leaf_sigma
 
+    def set_init_q(self, leaf_loc, leaf_sigma, int_loc=None, int_sigma=None):
         if self.internals_exist:
             param_init = {
-                "leaf_mu": torch.from_numpy(leaf_loc_hyp).double(),
+                "leaf_mu": torch.from_numpy(leaf_loc).double(),
                 "leaf_sigma": torch.from_numpy(leaf_sigma).double(),
-                "int_mu": torch.from_numpy(int_loc_hyp).double(),
+                "int_mu": torch.from_numpy(int_loc).double(),
                 "int_sigma": torch.from_numpy(int_sigma).double(),
             }
         else:
             param_init = {
-                "leaf_mu": torch.from_numpy(leaf_loc_hyp).double(),
+                "leaf_mu": torch.from_numpy(leaf_loc).double(),
                 "leaf_sigma": torch.from_numpy(leaf_sigma).double(),
             }
         return param_init
@@ -524,12 +521,26 @@ class DodonaphyVI(BaseModel):
         plt.legend()
         plt.savefig(path_write + "/elbo_trace.png")
 
-    def embed_tree_distribtution(self, dists=None):
-        if dists is None:
-            self.set_params_optim_random()
-        else:
-            param_init = self.hydra_init(dists)
+    def embed_tree_distribtution(self, dists=None, location_file=None, hydra_max_iter=0):
+        use_locations = location_file is not None
+        use_dists = dists is not None
+        if use_locations and use_dists:
+            raise ValueError("Only provide distances OR a location file to embed.")
+        if use_locations:
+            param_init = self.set_params_file(location_file)
             self.set_params_optim(param_init)
+        elif use_dists:
+            param_init = self.hydra_init(dists, hydra_max_iter=hydra_max_iter)
+            param_init = self.set_params_optim(param_init)
+            self.set_params_optim(param_init)
+        else:
+            self.set_params_optim_random()
+    
+    def set_params_file(self, location_file):
+        locations = self.read_embedding_base(location_file)
+        leaf_sigma = self.get_sigma(locations, cv_base="norm")
+        param_init = self.set_init_q(locations, leaf_sigma)
+        return param_init
 
     def save(self, fn):
         with open(fn, "w", encoding="UTF-8") as f:

@@ -102,12 +102,11 @@ def run(args):
             start=args.start,
             model_name=args.model,
             freqs=empirical_freqs,
-            hydra_max_iter=args.hydra_max_iter,
             path_write=path_write,
         )
 
         # initialise embedding parameters
-        mymod.embed_tree_distribtution(dists)
+        mymod.embed_tree_distribtution(dists, location_file=args.location_file, hydra_max_iter=args.hydra_max_iter)
 
         if args.use_bito:
             fasta_file = get_fasta_file(msa_file)
