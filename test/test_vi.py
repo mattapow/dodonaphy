@@ -29,7 +29,7 @@ def test_can_learn(embedder, connector):
     )
     partials, weights = compress_alignment(dna)
     mymod = DodonaphyVI(
-        partials, weights, dim=3, embedder=embedder, connector=connector, soft_temp=1e-8, hydra_max_iter=0,
+        partials, weights, dim=3, embedder=embedder, connector=connector, soft_temp=1e-8,
         path_write=None,
     )
     mix_weights = np.ones((1))
@@ -59,7 +59,6 @@ def test_models_ds1(model_name, path_write):
         connector="nj",
         soft_temp=1e-8,
         model_name=model_name,
-        hydra_max_iter=0,
         path_write=None,
     )
     dists = calculate_pairwise_distance(dna, adjust="JC69")
@@ -94,7 +93,7 @@ def test_vi_io():
         seq_len=1000, tree_model=simtree, seq_model=dendropy.model.discrete.Jc69()
     )
     partials, weights = compress_alignment(dna)
-    mymod = DodonaphyVI(partials, weights, 2, embedder="up", connector="nj", hydra_max_iter=0)
+    mymod = DodonaphyVI(partials, weights, 2, embedder="up", connector="nj",)
     with tempfile.TemporaryDirectory() as tmp_dir:
         os.makedirs(tmp_dir, exist_ok=True)
         fp = os.path.join(tmp_dir, "test_data.csv")
@@ -129,7 +128,6 @@ def test_bito_ds1(model_name):
         soft_temp=1e-8,
         model_name=model_name,
         tip_labels=tip_labels,
-        hydra_max_iter=0,
         path_write=None,
     )
     dists = calculate_pairwise_distance(dna, adjust="JC69")

@@ -1,13 +1,11 @@
 """Maximum A Posteriori Module on hyperboloid sheet."""
 import os
 import time
-import warnings
 
 import numpy as np
 import torch
 
 from dodonaphy import Chyp_torch, peeler, tree, Cutils, Chyp_np
-from hydraPlus import hydraPlus
 from dodonaphy.base_model import BaseModel
 
 
@@ -46,7 +44,7 @@ class HMAP(BaseModel):
             dim=dim,
             soft_temp=soft_temp,
             connector=connector,
-            curvature=curvature,
+            curvature=torch.tensor(curvature),
             loss_fn=loss_fn,
             tip_labels=tip_labels,
             model_name=model_name,
@@ -64,11 +62,15 @@ class HMAP(BaseModel):
         self.best_freqs = self.phylomodel.freqs
         self.best_sub_rates = self.phylomodel.sub_rates
 
-    def init_embedding_params(self, location_file=None, dists=None, hydra_max_iter=1000):
+    def init_embedding_params(
+        self, location_file=None, dists=None, hydra_max_iter=1000
+    ):
         is_locations = location_file is not None
         is_dists = dists is not None
         if not is_locations and not is_dists:
-            raise ValueError("Must provide locations or distances to init HMAP, got neither.")
+            raise ValueError(
+                "Must provide locations or distances to init HMAP, got neither."
+            )
         if is_locations and is_dists:
             raise ValueError("Cannot provide both embedding locations and distances.")
         if is_locations:
@@ -79,46 +81,42 @@ class HMAP(BaseModel):
     def embed_locations(self, location_file):
         locs = self.read_embedding_base(location_file)
         if locs.shape[1] != self.D:
-            raise ValueError(f"Embedding dimension {self.D} doesn't match data in file {location_file}")
+            raise ValueError(
+                f"Embedding dimension {self.D} doesn't match data in file {location_file}"
+            )
         if locs.shape[0] != self.S:
-            raise ValueError(f"Number of taxa mishmatch: in alignment {self.S} and in is embedding {locs.shape[0]}")
-        self.params_optim["leaf_loc"] = torch.tensor(locs, requires_grad=True, dtype=torch.float64)
+            raise ValueError(
+                f"Number of taxa mishmatch: in alignment {self.S} and in is embedding {locs.shape[0]}"
+            )
+        self.params_optim["leaf_loc"] = torch.tensor(
+            locs, requires_grad=True, dtype=torch.float64
+        )
         self.log(f"Sucessfully read locations from file {location_file}\n")
 
     def embed_dists(self, dists, hydra_max_iter):
         # embed distances with hydra+
-        hp_obj = hydraPlus.HydraPlus(
-            dists, dim=self.D, curvature=self.curvature.detach().numpy(), equi_adj=0.0, max_iter=hydra_max_iter,
-        )
-        self.log(f"Initial curvature: {self.curvature.item()}.\n")
-        self.log("Initialising embedding with Hydra+\n")
-        if hydra_max_iter > 0:
-            self.log(f"Optimising initial curvature for up to {hydra_max_iter} iterations.\n")
-            emm_tips = hp_obj.curve_embed()
-            self.curvature = emm_tips["curvature"]
-            self.log(f"Curvature optimised to: {self.curvature.item()}.\n")
-        else:
-            emm_tips = hp_obj.embed()
-        print("Embedding Strain (tips only) = {:.4}".format(emm_tips["stress_hydra"]))
-        print(
-            "Embedding Stress (tips only) = {:.4}".format(emm_tips["stress_hydraPlus"])
-        )
-        self.log(f"Embedding Strain (tips only) = {emm_tips['stress_hydra']}\n")
-        self.log(f"Embedding Stress (tips only) = {emm_tips['stress_hydraPlus']}\n")
+        emm_tips = self.hydra_init(dists, hydra_max_iter=hydra_max_iter)
+
         # set locations as parameters to optimise
         if self.normalise_leaves:
             if self.embedder == "wrap":
                 raise NotImplementedError
             radius = np.mean(np.linalg.norm(emm_tips["X"], axis=1))
             directionals = Cutils.normalise_np(emm_tips["X"])
-            self.params_optim["radius"] = torch.tensor(radius, requires_grad=True, dtype=torch.float64)
-            self.params_optim["directionals"] = torch.tensor(directionals, requires_grad=True, dtype=torch.float64)
+            self.params_optim["radius"] = torch.tensor(
+                radius, requires_grad=True, dtype=torch.float64
+            )
+            self.params_optim["directionals"] = torch.tensor(
+                directionals, requires_grad=True, dtype=torch.float64
+            )
         else:
             if self.embedder == "wrap":
                 # hydra+ uses vertical projection, need to adjust
                 locs_hyp = Chyp_np.project_up_2d(emm_tips["X"])
                 emm_tips["X"] = Chyp_np.unwrap_2d(locs_hyp)
-            self.params_optim["leaf_loc"] = torch.tensor(emm_tips["X"], requires_grad=True, dtype=torch.float64)
+            self.params_optim["leaf_loc"] = torch.tensor(
+                emm_tips["X"], requires_grad=True, dtype=torch.float64
+            )
 
     def learn(self, epochs, learn_rate, save_locations, start=""):
         """Optimise params["dists"].
@@ -136,7 +134,9 @@ class HMAP(BaseModel):
             return 1.0 / (epoch + 1.0) ** 0.25
 
         # Consider using LBFGS, but appears to not perform as well.
-        optimizer = torch.optim.Adam(params=list(self.params_optim.values()), lr=learn_rate)
+        optimizer = torch.optim.Adam(
+            params=list(self.params_optim.values()), lr=learn_rate
+        )
         scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lr_lambda)
         # scheduler = torch.optim.lr_scheduler.CyclicLR(
         #   optimizer, base_lr=learn_rate/100, max_lr=learn_rate, step_size_up=100)
@@ -209,7 +209,9 @@ class HMAP(BaseModel):
             )
             self.phylomodel.save(file_model)
             # save the best tree
-            tree.save_tree_head(self.path_write, "mape", self.tip_labels, translate=False)
+            tree.save_tree_head(
+                self.path_write, "mape", self.tip_labels, translate=False
+            )
             tree.save_tree(
                 self.path_write,
                 "mape",
@@ -309,7 +311,9 @@ class HMAP(BaseModel):
         locs = self.get_locs()
 
         if get_pdm or self.connector in ("nj"):
-            pdm = Chyp_torch.get_pdm(locs, curvature=self.curvature, projection=self.embedder)
+            pdm = Chyp_torch.get_pdm(
+                locs, curvature=self.curvature, projection=self.embedder
+            )
 
         if self.connector == "geodesics":
             peel, _, blens = peeler.make_soft_peel_tips(
@@ -336,13 +340,19 @@ class HMAP(BaseModel):
         for (l, r, p) in self.peel:
             if p == len(blens):
                 pair_locs = torch.vstack((locs[l, :], locs[r, :]))
-                blens[k] = Chyp_torch.get_pdm(pair_locs, curvature=self.curvature, projection=self.embedder)[0, 1]
+                blens[k] = Chyp_torch.get_pdm(
+                    pair_locs, curvature=self.curvature, projection=self.embedder
+                )[0, 1]
             else:
                 pair_locs = torch.vstack((locs[l, :], locs[p, :]))
-                blens[k] = Chyp_torch.get_pdm(pair_locs, curvature=self.curvature, projection=self.embedder)[0, 1]
+                blens[k] = Chyp_torch.get_pdm(
+                    pair_locs, curvature=self.curvature, projection=self.embedder
+                )[0, 1]
                 k += 1
                 pair_locs = torch.vstack((locs[r, :], locs[p, :]))
-                blens[k] = Chyp_torch.get_pdm(pair_locs, curvature=self.curvature, projection=self.embedder)[0, 1]
+                blens[k] = Chyp_torch.get_pdm(
+                    pair_locs, curvature=self.curvature, projection=self.embedder
+                )[0, 1]
                 k += 1
         return blens
 

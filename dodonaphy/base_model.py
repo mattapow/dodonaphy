@@ -3,10 +3,12 @@ import os
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
+import warnings
 from torch.distributions.multivariate_normal import MultivariateNormal
 from torch.distributions.uniform import Uniform
 from dendropy import Tree
 from dendropy.model.birthdeath import birth_death_likelihood
+from hydraPlus import hydraPlus
 
 from dodonaphy import poincare
 
@@ -110,7 +112,6 @@ class BaseModel(object):
     @curvature.setter
     def curvature(self, curvature):
         if self.require_grad:
-            curvature = torch.tensor(curvature)
             if not hasattr(self, "_curvature"):
                 self._curvature = torch.log(-curvature).clone().detach().requires_grad_(True)
             else:
@@ -334,8 +335,30 @@ class BaseModel(object):
         Returns:
             ndarray: Saved embedding locations (first coordinate omitted)
         """
+        warnings.warn(
+            "Ensure embedding locations file was generated with the same \
+            conditions. This is not checked on import. Ensure the following: \
+            curvature, embedding method (wrap, up), dimensions, \
+            matsumoto adjustment, connection method, model and prior.",
+            ImportWarning)
         locs = np.genfromtxt(filename)
         return locs
+    
+    def hydra_init(self, dists, hydra_max_iter=0):
+        hp_obj = hydraPlus.HydraPlus(dists, dim=self.D, curvature=self.curvature.detach().numpy(), equi_adj=0.0, alpha=1.1, max_iter=hydra_max_iter)
+        self.log(f"Initial curvature: {self.curvature.item():.4}.\n")
+        self.log("Initialising embedding with Hydra+\n")
+        if hydra_max_iter > 0:
+            self.log(f"Optimising initial curvature for up to {hydra_max_iter} iterations.\n")
+            emm_tips = hp_obj.curve_embed()
+            self.log(f"Curvature optimised to: {self.curvature.item()}.\n")
+        else:
+            emm_tips = hp_obj.embed()
+
+        print(f"Embedding Stress (tips only) = {emm_tips['stress_hydraPlus']:.4}")
+        self.log(f"Embedding Strain (tips only) = {emm_tips['stress_hydra']}\n")
+        self.log(f"Embedding Stress (tips only) = {emm_tips['stress_hydraPlus']}\n")
+        return emm_tips
 
     @staticmethod
     def compute_prior_birthdeath(peel, blen, tipnames, **prior):

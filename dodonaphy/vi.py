@@ -10,8 +10,6 @@ from torch.distributions.multivariate_normal import MultivariateNormal
 
 from dodonaphy import Chyp_torch, peeler, tree, utils, Chyp_np
 from dodonaphy.base_model import BaseModel
-from dodonaphy.phylo import calculate_treelikelihood
-from hydraPlus import hydraPlus
 
 
 class DodonaphyVI(BaseModel):
@@ -40,7 +38,7 @@ class DodonaphyVI(BaseModel):
             soft_temp=soft_temp,
             embedder=embedder,
             connector=connector,
-            curvature=curvature,
+            curvature=torch.tensor(curvature),
             tip_labels=tip_labels,
             model_name=model_name,
             freqs=freqs,
@@ -59,7 +57,9 @@ class DodonaphyVI(BaseModel):
         self.init_model_params()
 
         if self.connector == "fix":
-            raise NotImplementedError("Tree connection cannot yet be fixed. An easy TODO.")
+            raise NotImplementedError(
+                "Tree connection cannot yet be fixed. An easy TODO."
+            )
 
     def set_params_optim_random(self):
         mix_weights = np.full((self.n_boosts), 1 / self.n_boosts)
@@ -135,7 +135,7 @@ class DodonaphyVI(BaseModel):
                 np.ones((1)), dtype=torch.float64
             ).requires_grad_()
         # optimise the curvature
-        self.curvature = self.curvature.detach().clone().requires_grad_()
+        self.curvature = self.curvature.detach().clone()
         self.params_optim["curvature"] = self.curvature
 
     def calculate_elbo(self, mix_idx, path_write, file_name, iteration):
@@ -248,7 +248,7 @@ class DodonaphyVI(BaseModel):
             )
             self.phylomodel.save(file_model)
             self.save_final_info(self.path_write, time.time() - start_time)
-            self.log(f"Best curvature: {self.best_curvature.item()}\n")
+            self.log(f"Final curvature: {self.curvature.item()}\n")
 
     def compute_final_elbo(self, path_write, n_draws):
         # draw samples from the final distribution and save them
@@ -356,7 +356,9 @@ class DodonaphyVI(BaseModel):
             return blens
 
         # TODO: use analytical form
-        jacobian = torch.autograd.functional.jacobian(get_blens, sample_leaf_locs.flatten())
+        jacobian = torch.autograd.functional.jacobian(
+            get_blens, sample_leaf_locs.flatten()
+        )
         log_abs_det_jacobian = torch.log(
             torch.sqrt(torch.abs(torch.linalg.det(jacobian @ jacobian.T)))
         )
@@ -443,7 +445,9 @@ class DodonaphyVI(BaseModel):
         Returns:
             tensor: post order tranversal, branch lengths
         """
-        pdm = Chyp_torch.get_pdm(locs_t0, curvature=self.curvature, projection=self.embedder)
+        pdm = Chyp_torch.get_pdm(
+            locs_t0, curvature=self.curvature, projection=self.embedder
+        )
         if self.connector == "geodesics":
             peel, int_locs, blens = peeler.make_soft_peel_tips(
                 locs_t0, connector="geodesics", curvature=self.curvature
@@ -453,29 +457,25 @@ class DodonaphyVI(BaseModel):
         elif self.connector == "nj-r":
             raise ValueError("No gradient available from rapid NJ.")
         elif self.connector == "fix":
-            raise NotImplementedError("Variational inference on fixed topology. Need internal nodes.")
+            raise NotImplementedError(
+                "Variational inference on fixed topology. Need internal nodes."
+            )
         return peel, blens, pdm
 
-    def hydra_init(self, dists, hydra_max_iter=0):
+    def embed_dists(self, dists, hydra_max_iter=0):
         """Initialise variational distributions using hydra+ and a coefficient of variation.
         Set the coefficient of variation base as either the 'closest' distance or 'norm'.
         """
         # embed tips with distances using HydraPlus
-        hp_obj = hydraPlus.HydraPlus(dists, dim=self.D, curvature=self.curvature.detach().numpy(), equi_adj=0.0, alpha=1.1, max_iter=hydra_max_iter)
-        self.log(f"Initial curvature: {self.curvature.item():.4}.\n")
-        self.log("Initialising embedding with Hydra+\n")
-        self.log(f"Optimising initial curvature for up to {hydra_max_iter} iterations.\n")
-        emm_tips = hp_obj.curve_embed()
-        self.curvature = emm_tips["curvature"]
-        self.log(f"Curvature optimised to: {self.curvature.item():.4}.\n")
-        print(f"Embedding Stress (tips only) = {emm_tips['stress_hydraPlus']:.4}\n")
+        emm_tips = self.hydra_init(dists, hydra_max_iter=hydra_max_iter)
         leaf_loc_hyp = emm_tips["X"]
         if self.embedder == "wrap":
             locs_hyp = Chyp_np.project_up_2d(emm_tips["X"])
             emm_tips["X"] = Chyp_np.unwrap_2d(locs_hyp)
 
         leaf_sigma = self.get_sigma(leaf_loc_hyp, dists=dists)
-        self.set_init_q(leaf_loc_hyp, leaf_sigma)
+        param_init = self.set_init_q(leaf_loc_hyp, leaf_sigma)
+        return param_init
 
     def get_sigma(self, leaf_loc_hyp, dists=None, cv=0.01, cv_base="closest"):
         valid_cv_base = ("closest", "norm")
@@ -518,7 +518,9 @@ class DodonaphyVI(BaseModel):
         plt.legend()
         plt.savefig(path_write + "/elbo_trace.png")
 
-    def embed_tree_distribtution(self, dists=None, location_file=None, hydra_max_iter=0):
+    def embed_tree_distribtution(
+        self, dists=None, location_file=None, hydra_max_iter=0
+    ):
         use_locations = location_file is not None
         use_dists = dists is not None
         if use_locations and use_dists:
@@ -530,12 +532,11 @@ class DodonaphyVI(BaseModel):
             self.set_params_optim(param_init)
         elif use_dists:
             self.log(f"Initialising embedding from tree distances.\n")
-            param_init = self.hydra_init(dists, hydra_max_iter=hydra_max_iter)
-            param_init = self.set_params_optim(param_init)
+            param_init = self.embed_dists(dists, hydra_max_iter=hydra_max_iter)
             self.set_params_optim(param_init)
         else:
             self.set_params_optim_random()
-    
+
     def set_params_file(self, location_file):
         locations = self.read_embedding_base(location_file)
         leaf_sigma = self.get_sigma(locations, cv_base="norm")
