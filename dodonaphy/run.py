@@ -106,7 +106,11 @@ def run(args):
 
         # initialise embedding parameters
         mymod.log("%-12s: %s\n" % ("Start Tree", args.start))
-        mymod.embed_tree_distribtution(dists, location_file=args.location_file, hydra_max_iter=args.hydra_max_iter)
+        mymod.embed_tree_distribtution(
+            dists,
+            location_file=args.location_file,
+            hydra_max_iter=args.hydra_max_iter,
+        )
 
         if args.use_bito:
             fasta_file = get_fasta_file(msa_file)

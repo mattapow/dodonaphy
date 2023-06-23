@@ -126,9 +126,17 @@ class DodonaphyVI(BaseModel):
             )
 
         if "mix_weights" in param_init.keys():
+            # set weights specifically
             self.params_optim["mix_weights"] = param_init[
                 "mix_weights"
             ].requires_grad_()
+        elif self.n_boosts > 1:
+            # otherwise set equal weights
+            self.params_optim["mix_weights"] = torch.full(
+                (self.n_boosts,),
+                1.0 / self.n_boosts,
+                dtype=torch.float64,
+            ).requires_grad_()
         else:
             # default to 1 mixture
             self.params_optim["mix_weights"] = torch.tensor(
@@ -309,13 +317,13 @@ class DodonaphyVI(BaseModel):
                 )
                 sample_number += 1
         mixture_logit = torch.log_softmax(self.params_optim["mix_weights"], dim=0)
-        loss = torch.logsumexp(
+        loss_n = torch.logsumexp(
             -torch.log(torch.tensor(importance))
             + mixture_logit
-            + torch.sum(ln_elbos, dim=1),
-            dim=0,
+            + ln_elbos,
+            dim=1,
         )
-        return loss.mean(dim=0)
+        return loss_n.mean(dim=0)
 
     def rsample_tree(
         self,
