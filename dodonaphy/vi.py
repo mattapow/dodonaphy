@@ -7,6 +7,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 from torch.distributions.multivariate_normal import MultivariateNormal
+from torch.distributions.transforms import StickBreakingTransform
 
 from dodonaphy import Chyp_torch, peeler, tree, utils, Chyp_np
 from dodonaphy.base_model import BaseModel
@@ -55,6 +56,7 @@ class DodonaphyVI(BaseModel):
         self.params_optim = dict()
         # set evolutionary model parameters to optimise
         self.init_model_params()
+        self.simplex_transform = StickBreakingTransform()
 
         if self.connector == "fix":
             raise NotImplementedError(
@@ -127,24 +129,33 @@ class DodonaphyVI(BaseModel):
 
         if "mix_weights" in param_init.keys():
             # set weights specifically
-            self.params_optim["mix_weights"] = param_init[
-                "mix_weights"
-            ].requires_grad_()
+            self.mix_weights = param_init["mix_weights"]
         elif self.n_boosts > 1:
             # otherwise set equal weights
-            self.params_optim["mix_weights"] = torch.full(
+            self.mix_weights = torch.full(
                 (self.n_boosts,),
                 1.0 / self.n_boosts,
                 dtype=torch.float64,
-            ).requires_grad_()
+            )
         else:
             # default to 1 mixture
-            self.params_optim["mix_weights"] = torch.tensor(
-                np.ones((1)), dtype=torch.float64
-            ).requires_grad_()
+            self.mix_weights = torch.tensor(np.ones((1)), dtype=torch.float64)
+        # optimise the mixture weights
+        self.params_optim["mix_weights"] = self._mix_weights
         # optimise the curvature
-        self.curvature = self.curvature.detach().clone()
-        self.params_optim["curvature"] = self.curvature
+        # self.curvature = self.curvature.detach().clone()
+        self.params_optim["curvature"] = self._curvature
+
+    @property
+    def mix_weights(self):
+        return self.simplex_transform(self._mix_weights)
+
+    @mix_weights.setter
+    def mix_weights(self, mix_weights):        
+        if not hasattr(self, "_mix_weights"):
+            self._mix_weights = self.simplex_transform.inv(mix_weights).clone().detach().requires_grad_(True)
+        else:
+            self._mix_weights = self.simplex_transform.inv(mix_weights)
 
     def calculate_elbo(self, mix_idx, path_write, file_name, iteration):
         """Calculate the elbo of a sample from the variational distributions q_k
@@ -185,7 +196,7 @@ class DodonaphyVI(BaseModel):
             )
 
         if sample["jacobian"] == -torch.inf:
-            warnings.warn("Jacobian determinant set to zero.")
+            warnings.warn("Log Jacobian determinant set to zero.")
             sample["jacobian"] = 0.0
         return sample["ln_p"] + sample["ln_prior"] - sample["logQ"] + sample["jacobian"]
 
@@ -245,7 +256,7 @@ class DodonaphyVI(BaseModel):
                 self.save(fn)
                 fn = os.path.join(self.path_write, "vi_params", f"iteration.txt")
                 with open(fn, "w", encoding="UTF-8") as file:
-                    file.write(f"Epoch: {epoch} / {epochs}")
+                    file.write(f"Epoch: {epoch + 1} / {epochs}")
 
         if self.path_write is not None:
             self.trace(self.path_write, elbo_hist, label="elbo")
@@ -317,7 +328,7 @@ class DodonaphyVI(BaseModel):
                     k, path_write, file_name, sample_number
                 )
                 sample_number += 1
-        mixture_logit = torch.log_softmax(self.params_optim["mix_weights"], dim=0)
+        mixture_logit = torch.log_softmax(self.mix_weights, dim=0)
         loss_n = torch.logsumexp(
             -torch.log(torch.tensor(importance))
             + mixture_logit
@@ -546,7 +557,7 @@ class DodonaphyVI(BaseModel):
     def save(self, fn):
         with open(fn, "w", encoding="UTF-8") as f:
             f.write("Mix weights:\n")
-            f.write(f"{self.params_optim['mix_weights'].detach().numpy()}\n\n")
+            f.write(f"{self.mix_weights.detach().numpy()}\n\n")
             f.write("Leaf Locations (# taxa x  # dimensions):\n")
             for k in range(self.n_boosts):
                 f.write(f"Mix {k}:\n")
