@@ -171,8 +171,8 @@ class HMAP(BaseModel):
             self.log(f"Best log likelihood: {self.best_ln_p}\n")
             self.log(f"Best log prior: {self.best_ln_prior.item()}\n")
 
-        if epochs > 0 and self.path_write is not None:
-            HMAP.trace(epochs + 1, post_hist, self.path_write, plot_hist=False)
+        if self.path_write is not None:
+            self.trace(self.path_write, post_hist, label="likelihood")
 
     def save_embedding(self):
         if self.path_write is not None:

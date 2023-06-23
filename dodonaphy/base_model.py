@@ -498,20 +498,20 @@ class BaseModel(object):
         return ln_prior
 
     @staticmethod
-    def trace(epochs, like_hist, path_write, plot_hist=True):
+    def trace(path_write, values, label="likelihood"):
         """Plot trace and histogram of likelihood."""
+        if len(values) == 0:
+            return
         plt.figure()
-        plt.plot(range(epochs), like_hist, "r", label="likelihood")
+        if len(values) == 1:
+            plt.plot(values, "rx", label=label)
+        else:
+            plt.plot(values, "r", label=label)
         plt.xlabel("Epochs")
-        plt.ylabel("likelihood")
+        plt.ylabel(label)
         plt.legend()
-        plt.savefig(path_write + "/likelihood_trace.png")
-
-        if plot_hist:
-            plt.clf()
-            plt.hist(like_hist)
-            plt.title("Likelihood histogram")
-            plt.savefig(path_write + "/likelihood_hist.png")
+        path_save = os.path.join(path_write, f"{label}_trace.png")
+        plt.savefig(path_save)
 
 
 def normalise_LADJ(loc):

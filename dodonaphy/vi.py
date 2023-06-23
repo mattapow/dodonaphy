@@ -232,6 +232,7 @@ class DodonaphyVI(BaseModel):
             elbo_hist.append(-loss.detach().item())
             return loss
 
+        self.log("\nLearning...\n")
         for epoch in range(epochs):
             optimizer.step(closure)
             scheduler.step()
@@ -246,8 +247,8 @@ class DodonaphyVI(BaseModel):
                 with open(fn, "w", encoding="UTF-8") as file:
                     file.write(f"Epoch: {epoch} / {epochs}")
 
-        if epochs > 0 and self.path_write is not None:
-            self.trace(epochs, self.path_write, elbo_hist)
+        if self.path_write is not None:
+            self.trace(self.path_write, elbo_hist, label="elbo")
 
         if self.path_write is not None:
             self.compute_final_elbo(self.path_write, n_draws)
@@ -267,16 +268,16 @@ class DodonaphyVI(BaseModel):
                 importance=n_draws, path_write=path_write, file_name=file_name
             ).item()
         tree.end_tree_file(path_write)
-        self.log("%-12s: %f\n" % (f"Final ELBO ({n_draws}) samples", final_elbo))
+        self.log("%-12s: %f\n" % (f"Final ELBO ({n_draws} samples)", final_elbo))
         print(f"Final ELBO: {final_elbo:.3f}")
 
     def log_run_start(self, path_write, epochs, importance_samples, lr):
-        fn = path_write + "/" + "vi.log"
+        self.log("\n Variational inference parameters:\n")
         self.log("%-12s: %i\n" % ("# epochs", epochs))
         self.log("%-12s: %s\n" % ("prior", "Gamma Dirichlet"))
         self.log("%-12s: %i\n" % ("Importance", importance_samples))
         self.log("%-12s: %i\n" % ("# mixtures", self.n_boosts))
-        self.log("%-12s: %i\n" % ("Curvature", self.curvature))
+        self.log("%-12s: %f\n" % ("Curvature", self.curvature))
         self.log("%-12s: %i\n" % ("Matsumoto", self.matsumoto))
         self.log("%-12s: %f\n" % ("Soft temp", self.soft_temp))
         self.log("%-12s: %f\n" % ("Log10 Soft temp", np.log10(self.soft_temp)))
@@ -516,15 +517,6 @@ class DodonaphyVI(BaseModel):
             }
         return param_init
 
-    @staticmethod
-    def trace(epochs, path_write, elbo_hist):
-        plt.figure()
-        plt.plot(range(1, epochs), elbo_hist[1:], "r", label="elbo")
-        plt.title("Elbo values")
-        plt.xlabel("Epochs")
-        plt.ylabel("elbo")
-        plt.legend()
-        plt.savefig(path_write + "/elbo_trace.png")
 
     def embed_tree_distribtution(
         self, dists=None, location_file=None, hydra_max_iter=0
