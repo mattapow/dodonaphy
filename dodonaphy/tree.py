@@ -174,6 +174,8 @@ def save_tree(
     lnL,
     lnPr,
     name_id,
+    lnQ=np.nan,
+    lnJac=np.nan,
     last_tree=False,
 ):
     if root_dir is None:
@@ -182,7 +184,15 @@ def save_tree(
     fn = os.path.join(root_dir, filename + ".t")
     with open(fn, "a+", encoding="UTF-8") as file:
         file.write("\ttree STATE_" + str(iteration))
-        file.write(" [&lnL=%f, &lnPr=%f] = [&U] " % (lnL, lnPr))
+        if np.isnan(lnQ) and np.isnan(lnJac):
+            file.write(" [&lnL=%f, &lnPr=%f] = [&U] " % (lnL, lnPr))
+        elif np.isnan(lnJac):
+            file.write(" [&lnL=%f, &lnPr=%f, &lnQ=%f] = [&U] " % (lnL, lnPr, lnQ))
+        elif np.isnan(lnQ):
+            file.write(" [&lnL=%f, &lnPr=%f, &lnJac=%f] = [&U] " % (lnL, lnPr, lnJac))
+        else:
+            file.write(" [&lnL=%f, &lnPr=%f, &lnQ=%f, &lnJac=%f] = [&U] " % (lnL, lnPr, lnQ, lnJac))
+
         file.write(tree + "\n")
         if last_tree:
             file.write("End;\n")

@@ -414,6 +414,8 @@ class DodonaphyVI(BaseModel):
                 ln_p,
                 ln_prior,
                 self.name_id,
+                lnQ = log_Q,
+                grad = log_abs_det_jacobian,
             )
 
         return sample
