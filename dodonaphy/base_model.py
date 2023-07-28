@@ -6,6 +6,7 @@ import torch
 import warnings
 from torch.distributions.multivariate_normal import MultivariateNormal
 from torch.distributions.uniform import Uniform
+from torch.distributions.exponential import Exponential
 from dendropy import Tree
 from dendropy.model.birthdeath import birth_death_likelihood
 from hydraPlus import hydraPlus
@@ -442,6 +443,22 @@ class BaseModel(object):
         if np_flag:
             ln_prior = ln_prior.detach().numpy()
         return ln_prior
+
+    @staticmethod
+    def compute_prior_exponential(blens, rate=10.0):
+        """Compute prior based on exponential branch lengths
+        and uniform over tree topologies.
+        """
+        exp = Exponential(rate=rate)
+        ln_blens = exp.log_prob(blens)
+
+        n_branch = int(len(blens))
+        n_leaf = int(n_branch / 2 + 1)
+        if n_leaf <= 2:
+            ln_topo = 0.0
+        else:
+            ln_topo = torch.sum(torch.log(torch.arange(n_leaf * 2 - 5, 0, -2)))
+        return ln_blens + ln_topo
 
     @staticmethod
     def compute_prior_gamma_dir(

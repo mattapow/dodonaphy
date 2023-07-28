@@ -27,10 +27,10 @@ def init_parser():
     parser.add_argument(
         "--prior",
         default="None",
-        choices=("None", "gammadir", "birthdeath", "normal", "uniform"),
+        choices=("None", "gammadir", "birthdeath", "normal", "uniform", "exponential"),
         help=(
             "Inf: Which prior to use: no prior, Gamma-Dirichlet, Birth-Death\
-         , normal or uniform embedding location."
+         , normal or uniform embedding location, or exponential branch lengths. "
         ),
     )
     parser.add_argument(

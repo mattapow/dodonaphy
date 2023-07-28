@@ -102,6 +102,7 @@ def run(args):
             model_name=args.model,
             freqs=empirical_freqs,
             path_write=path_write,
+            prior_fn=args.prior
         )
 
         # initialise embedding parameters

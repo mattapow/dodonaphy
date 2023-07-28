@@ -30,6 +30,7 @@ class DodonaphyVI(BaseModel):
         model_name="JC69",
         freqs=None,
         path_write=".",
+        prior_fn="gammadir",
     ):
         super().__init__(
             "vi",
@@ -57,6 +58,9 @@ class DodonaphyVI(BaseModel):
         # set evolutionary model parameters to optimise
         self.init_model_params()
         self.simplex_transform = StickBreakingTransform()
+        
+        assert prior_fn in ("exponential", "gammadir"), "Invalid prior specified."
+        self.prior_fn = prior_fn
 
         if self.connector == "fix":
             raise NotImplementedError(
@@ -415,7 +419,7 @@ class DodonaphyVI(BaseModel):
                 ln_prior,
                 self.name_id,
                 lnQ = log_Q,
-                grad = log_abs_det_jacobian,
+                lnJac = log_abs_det_jacobian,
             )
 
         return sample
@@ -428,7 +432,10 @@ class DodonaphyVI(BaseModel):
         elif self.loss_fn == "hypHC":
             ln_p = self.compute_hypHC(pdm, leaf_locs)
 
-        ln_prior = self.compute_prior_gamma_dir(blens)
+        if self.prior_fn == "exponential":
+            ln_prior = self.compute_prior_exponential(blens, rate=10.0)
+        elif self.prior_fn == "gammadir":
+            ln_prior = self.compute_prior_gamma_dir(blens)
         return ln_p, ln_prior
 
     def rsample_Euclid(self, locs, cov, is_internal=False, normalise_loc=False):
