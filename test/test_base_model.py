@@ -17,3 +17,4 @@ def test_compute_prior_exponential():
     blens = torch.full([100], 0.1, requires_grad=True)
     prior = BaseModel.compute_prior_exponential(blens)
     assert prior.requires_grad
+    assert prior.size() == torch.Size([])

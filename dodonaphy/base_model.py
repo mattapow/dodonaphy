@@ -450,7 +450,7 @@ class BaseModel(object):
         and uniform over tree topologies.
         """
         exp = Exponential(rate=rate)
-        ln_blens = exp.log_prob(blens)
+        ln_blens = torch.sum(exp.log_prob(blens))
 
         n_branch = int(len(blens))
         n_leaf = int(n_branch / 2 + 1)
