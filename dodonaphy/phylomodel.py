@@ -8,7 +8,7 @@ class PhyloModel:
         self.name = name
         self.init_priors()
         self.init_freqs()
-        self.init_sub_rates(torch.full([6], 1.0/6.0, dtype=torch.double))
+        self.init_sub_rates()
         self.init_fix_params()
 
     def __eq__(self, other):
@@ -49,8 +49,8 @@ class PhyloModel:
             self.prior_dist = None
             self.freqs_prior_dist = None
         elif self == "GTR":
-            self.freqs_prior_dist = Dirichlet(torch.full([4], 0.25, dtype=torch.double))
-            self.prior_dist = Dirichlet(torch.full([6], 1.0/6.0))
+            self.freqs_prior_dist = Dirichlet(torch.ones(4, dtype=torch.double))
+            self.prior_dist = Dirichlet(torch.ones(6, dtype=torch.double))
 
     def init_freqs(self):
         self.freqs_transform = StickBreakingTransform()
@@ -59,9 +59,12 @@ class PhyloModel:
         elif self == "GTR":
             self.freqs = self.freqs_prior_dist.sample()
 
-    def init_sub_rates(self, sub_rates):
+    def init_sub_rates(self):
         self.sub_rates_transform = StickBreakingTransform()
-        self.sub_rates = sub_rates
+        if self == "JC69":
+            self.sub_rates = torch.full([6], 1.0/6.0, dtype=torch.double)
+        else:
+            self.sub_rates = self.prior_dist.sample()
 
     def init_fix_params(self):
         self.fix_sub_rates = True

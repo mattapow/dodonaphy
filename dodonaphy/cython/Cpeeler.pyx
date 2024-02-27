@@ -211,7 +211,7 @@ cdef unravel_index(np.int_t index, shape):
     cdef np.int_t dim
     for dim in reversed(shape):
         out.append(index % dim)
-        index = index / dim
+        index = index // dim
     return tuple(reversed(out))
 
 cdef get_new_dist(

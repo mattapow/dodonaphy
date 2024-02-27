@@ -100,8 +100,9 @@ class BaseModel(object):
         # phylogenetic model
         self.use_bito = False
         self.phylomodel = PhyloModel(model_name)
-        if freqs is not None:
+        if model_name != "JC69" and freqs is not None:
             self.phylomodel.freqs = torch.from_numpy(freqs)
+            self.phylomodel._freqs.requires_grad_(True)
 
     @property
     def curvature(self):
