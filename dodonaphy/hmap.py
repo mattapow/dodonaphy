@@ -160,6 +160,7 @@ class HMAP(BaseModel):
             self.print_epoch(i, post_hist)
             if self.path_write is not None:
                 self.save_epoch(i, save_locations=save_locations)
+            self.save_full_state("checkpoint.json")
 
         print(
             f"\nBest tree log posterior joint found: {self.best_posterior.item():.3f}"

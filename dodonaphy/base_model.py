@@ -1,6 +1,8 @@
 "Base model for MCMC and VI inference"
+import json
 import os
 import matplotlib.pyplot as plt
+from dodonaphy.tensor_json import TensorEncoder
 import numpy as np
 import torch
 import warnings
@@ -183,6 +185,15 @@ class BaseModel(object):
             file_name = os.path.join(self.path_write, f"{self.inference_name}.log")
             with open(file_name, "a", encoding="UTF-8") as file:
                 file.write(message)
+
+    def save_full_state(self, file_name):
+        with open(file_name, "w") as fp:
+            json.dump(self.params_optim, fp, cls=TensorEncoder, indent=2)
+
+    def set_parameters(self, dic):
+        for parameter in self.params_optim.keys():
+            if parameter in dic:
+                self.params_optim[parameter] = dic[parameter]
 
     def init_model_params(self):
         # set evolutionary model parameters to optimise

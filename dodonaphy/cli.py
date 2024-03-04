@@ -64,6 +64,19 @@ def init_parser():
             msa.nex to --path_dna.",
     )
     parser.set_defaults(use_bito=False)
+    parser.add_argument(
+        "--seed",
+        type=int,
+        help="""Inf: initialize seed for randon number generators.""",
+    )
+    parser.add_argument(
+        "--checkpoint", help="Inf: JSON checkpoint file."
+    )
+    parser.add_argument(
+        "--overwrite",
+        action="store_true",
+        help="Inf: overwrite previous analysis.",
+    )
 
     # i/o
     parser.add_argument(

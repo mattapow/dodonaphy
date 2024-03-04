@@ -1,4 +1,5 @@
 """Run Dodonaphy module"""
+import json
 import os
 import random
 import time
@@ -20,8 +21,10 @@ from dodonaphy.phylo import (
     calculate_pairwise_distance,
     compute_nucleotide_frequencies,
 )
+from dodonaphy.tensor_json import TensorDecoder
 from dodonaphy.vi import DodonaphyVI
 from dodonaphy.brute import Brute
+import torch
 
 
 def run(args):
@@ -58,6 +61,10 @@ def run(args):
         msa_file = os.path.abspath(msa_file)
     if get_peel:
         peel, _, _ = tree.dendropy_to_pb(start_tree)
+    
+    if args.checkpoint is not None:
+        with open(args.checkpoint) as file_pointer:
+            checkpoint = json.load(file_pointer, cls=TensorDecoder)
 
     start = time.time()
     if args.infer == "mcmc":
@@ -118,6 +125,9 @@ def run(args):
             if peel is None:
                 raise ValueError("Start tree cannot be None for bito.")
             mymod.init_bito(fasta_file, peel)
+        
+        if args.checkpoint is not None:
+            mymod.set_parameters(checkpoint)
 
         mymod.learn(
             epochs=args.epochs,
@@ -153,6 +163,10 @@ def run(args):
         if args.location_file is not None:
             args.location_file = os.path.join(root_dir, args.location_file)
         mymod.init_embedding_params(args.location_file, dists, hydra_max_iter=args.hydra_max_iter)
+
+        if args.checkpoint is not None:
+            mymod.set_parameters(checkpoint)
+
         mymod.learn(
             epochs=args.epochs,
             learn_rate=args.learn,
@@ -299,7 +313,7 @@ def get_path(root_dir, args):
                 print(
                     f"Failed making directoy {method_dir}. Possibly an array job on HPC."
                 )
-        os.mkdir(path_write)
+        os.makedirs(path_write, exist_ok=args.overwrite)
     return path_write
 
 
@@ -376,6 +390,10 @@ def main():
     parser = cli.init_parser()
     args = parser.parse_args()
     cli.validate(args)
+    if args.seed is not None:
+        torch.manual_seed(args.seed)
+    print(f"SEED: {torch.initial_seed()}")
+    torch.set_default_dtype(torch.float64)
     run(args)
 
 

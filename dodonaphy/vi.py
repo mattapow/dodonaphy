@@ -3,7 +3,6 @@ import time
 import warnings
 from typing import Any, List
 
-import matplotlib.pyplot as plt
 import numpy as np
 import torch
 from torch.distributions.multivariate_normal import MultivariateNormal
@@ -68,32 +67,29 @@ class DodonaphyVI(BaseModel):
             )
 
     def set_params_optim_random(self):
-        mix_weights = np.full((self.n_boosts), 1 / self.n_boosts)
-        leaf_sigma = np.random.exponential(size=(self.n_boosts, self.S, self.D))
-        int_sigma = np.random.exponential(size=(self.n_boosts, self.S - 2, self.D))
+        exp_distr = torch.distributions.Exponential(1.0)
+        leaf_sigma = exp_distr.sample((self.n_boosts, self.S, self.D))
+        int_sigma = exp_distr.sample((self.n_boosts, self.S - 2, self.D))
 
         self.params_optim = {
             "leaf_mu": torch.randn(
                 (self.n_boosts, self.S, self.D),
                 requires_grad=True,
-                dtype=torch.float64,
             ),
-            "leaf_sigma": torch.tensor(
-                leaf_sigma, requires_grad=True, dtype=torch.float64
-            ),
-            "mix_weights": torch.tensor(
-                mix_weights, requires_grad=True, dtype=torch.float64
-            ),
+            "leaf_sigma": leaf_sigma.requires_grad_(True)
         }
+        if self.n_boosts > 1:
+            self.mix_weights = torch.full((self.n_boosts,), 1 / self.n_boosts)
+            self.params_optim["mix_weights"] = self._mix_weights
+        else:
+            self.mix_weights = torch.ones(1)
+        
         if self.internals_exist:
             self.params_optim["int_mu"] = torch.randn(
                 (self.n_boosts, self.S - 2, self.D),
-                requires_grad=True,
-                dtype=torch.float64,
+                requires_grad=True
             )
-            self.params_optim["int_sigma"] = torch.tensor(
-                int_sigma, requires_grad=True, dtype=torch.float64
-            )
+            self.params_optim["int_sigma"] = int_sigma.requires_grad_(True)
 
     def set_params_optim(self, param_init):
         """Set variational parameters to optimise
@@ -143,9 +139,10 @@ class DodonaphyVI(BaseModel):
             )
         else:
             # default to 1 mixture
-            self.mix_weights = torch.tensor(np.ones((1)), dtype=torch.float64)
+            self.mix_weights = torch.ones(1)
         # optimise the mixture weights
-        self.params_optim["mix_weights"] = self._mix_weights
+        if self.n_boosts > 1:
+            self.params_optim["mix_weights"] = self._mix_weights
         # optimise the curvature
         # self.curvature = self.curvature.detach().clone()
         self.params_optim["curvature"] = self._curvature
@@ -261,6 +258,8 @@ class DodonaphyVI(BaseModel):
                 fn = os.path.join(self.path_write, "vi_params", f"iteration.txt")
                 with open(fn, "w", encoding="UTF-8") as file:
                     file.write(f"Epoch: {epoch + 1} / {epochs}")
+            
+                self.save_full_state(os.path.join(self.path_write, "checkpoint.json"))
 
         if self.path_write is not None:
             self.trace(self.path_write, elbo_hist, label="elbo")
@@ -305,7 +304,7 @@ class DodonaphyVI(BaseModel):
         self.log("%-12s: %s\n" % ("Connect Mthd", self.connector))
 
         vi_path = os.path.join(path_write, "vi_params")
-        os.mkdir(vi_path)
+        os.makedirs(vi_path, exist_ok=True)
         fn = os.path.join(vi_path, "start.csv")
         self.save(fn)
 
