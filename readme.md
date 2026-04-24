@@ -7,23 +7,25 @@ This code is under active research & development and not intended for production
 ## Installing with Conda and Pip
 First install the Python version of hydra+ from https://github.com/mattapow/hydraPlus.
 
+Best to use Python3.9 for package compatibility.
 Use python version 3.7 in order to use the bito package (for more models and to make use of BEAGLE).
 
 ```
-conda create --name dodonaphy python=3.9
-conda activate dodonaphy
+python3 -m venv dodo
+source dodo/bin/activate
 ```
 
 Pip needs numpy and cython for the setup:
 
 ```
-pip install cython
-pip install numpy
+python3 -m pip install --upgrade pip
+python3 -m pip install -U pip setuptools wheel
+python3 -m pip install -r requirements.txt
 ```
 
 Then install the Dodonaphy locally package using pip:
 ```
-pip install -e .
+python3 -m pip install -e . --no-build-isolation
 ```
 
 
